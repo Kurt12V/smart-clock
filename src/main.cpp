@@ -1,9 +1,10 @@
 #include <Arduino.h>
-
-#include <Wire.h>
-
 #include "Config.h"
-
+#include "Pins.h"
+#include "Constants.h"
+#include "Version.h"
+#include <Wire.h>
+#include "Config.h"
 #include "managers/SensorManager.h"
 
 
@@ -25,7 +26,9 @@ void setup()
     // --------------------------------------------------------
 
     Serial.begin(115200);
-
+Serial.println(FIRMWARE_VERSION_STRING);
+  Serial.println(FIRMWARE_BUILD_DATE);
+  Serial.println(PROJECT_NAME);
     delay(1000);
 
 
