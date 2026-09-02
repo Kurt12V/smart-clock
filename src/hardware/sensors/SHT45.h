@@ -1,29 +1,23 @@
 #pragma once
-
-#include <Arduino.h>
-#include <Wire.h>
+#include "Sensor.h"
 #include <Adafruit_SHT4x.h>
 
-
-class SHT45Sensor
-{
+class SHT45Sensor : public Sensor {
 public:
+    SHT45Sensor() = default;
 
-    bool begin();
+    bool begin() override;
+    bool update() override;
+    const char* getName() const override { return "SHT45"; }
+    bool isInitialized() const override { return initialized; }
 
-    bool update();
-
-    float getTemperature();
-
-    float getHumidity();
+    // Дополнительные методы для получения конкретных значений
+    float getTemperature() const { return temperature; }
+    float getHumidity() const    { return humidity; }
 
 private:
-
     Adafruit_SHT4x sht4;
-
-    float temperature = 0.0f;
-
-    float humidity = 0.0f;
-
     bool initialized = false;
+    float temperature = NAN;
+    float humidity    = NAN;
 };

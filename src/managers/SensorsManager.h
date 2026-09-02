@@ -1,50 +1,22 @@
 #pragma once
+#include "SensorData.h"
+#include "SHT45Sensor.h"
+#include "VEML7700Sensor.h"  // предположим, что есть такой класс
 
-#include <Arduino.h>
-
-#include "hardware/sensors/SHT45.h"
-#include "hardware/sensors/VEML7700.h"
-
-
-// ============================================================
-// SENSOR DATA
-// ============================================================
-
-struct SensorData
-{
-    float temperature;
-
-    float humidity;
-
-    float lightLux;
-};
-
-
-// ============================================================
-// SENSOR MANAGER
-// ============================================================
-
-class SensorManager
-{
+class SensorManager {
 public:
+    SensorManager();
 
     bool begin();
-
     void update();
-
-    SensorData getData();
-
-    void printData();
-
+    SensorData getData() const;
 
 private:
-
-    SHT45Sensor sht45;
-
+    static constexpr int SENSOR_COUNT = 2;
+    Sensor* sensors[SENSOR_COUNT];
+    SHT45Sensor    sht45;
     VEML7700Sensor veml7700;
 
-
     SensorData data;
-
     unsigned long lastUpdate = 0;
 };
