@@ -1,40 +1,53 @@
-#include "VEML7700Sensor.h"
+#include "VEML7700.h"
 
 bool VEML7700Sensor::begin() {
-    Serial.println("[VEML7700] Initializing...");
 
-    if (!veml.begin()) {
-        Serial.println("[VEML7700] ERROR: Sensor not found!");
-        initialized = false;
-        return false;
-    }
 
-    Serial.println("[VEML7700] Sensor found!");
+Serial.println("[VEML7700] Initializing...");
 
-    // (Опционально) Настройка параметров датчика
-    // Например, можно установить время интегрирования и усиление:
-    // veml.setIntegrationTime(VEML7700_IT_100MS);
-    // veml.setGain(VEML7700_GAIN_1);
-    // Для большинства применений настроек по умолчанию достаточно.
+if (!veml.begin()) {
 
-    initialized = true;
-    return true;
+    Serial.println("[VEML7700] ERROR: Sensor not found!");
+
+    initialized = false;
+
+    return false;
 }
 
-bool VEML7700Sensor::update() {
-    if (!initialized) {
-        return false;
-    }
+Serial.println("[VEML7700] Sensor found!");
 
-    // Чтение освещённости в люксах
-    float luxValue = veml.readLux();
+initialized = true;
 
-    // Проверка на ошибку чтения (некоторые библиотеки возвращают NAN)
-    if (isnan(luxValue)) {
-        Serial.println("[VEML7700] ERROR: Failed to read lux value");
-        return false;
-    }
+Serial.println("[VEML7700] READY");
 
-    lux = luxValue;
-    return true;
+return true;
+
+
+}
+
+bool VEML7700Sensor::update(SensorData& data) {
+
+
+if (!initialized) {
+    return false;
+}
+
+float lux = veml.readLux();
+
+if (isnan(lux) || lux < 0) {
+
+    Serial.println("[VEML7700] ERROR: Failed to read light");
+
+    data.lightValid = false;
+
+    return false;
+}
+
+data.lightLux = lux;
+
+data.lightValid = true;
+
+return true;
+
+
 }

@@ -1,76 +1,197 @@
 #include "SensorManager.h"
 #include "Config.h"
+#include "Constants.h"
+
+// ========================================
+// CONSTRUCTOR
+// ========================================
 
 SensorManager::SensorManager() {
-    sensors[0] = &sht45;
-    sensors[1] = &veml7700;
+
+
+sensors[0] = &sht45;
+sensors[1] = &veml7700;
+
+
 }
+
+// ========================================
+// INITIALIZATION
+// ========================================
 
 bool SensorManager::begin() {
-    Serial.println();
-    Serial.println("==============================");
-    Serial.println("SENSOR MANAGER");
-    Serial.println("==============================");
 
-    bool allOk = true;
-    for (int i = 0; i < SENSOR_COUNT; ++i) {
-        if (!sensors[i]->begin()) {
-            Serial.printf("[SensorManager] %s FAILED\n", sensors[i]->getName());
-            allOk = false;
-        } else {
-            Serial.printf("[SensorManager] %s READY\n", sensors[i]->getName());
-        }
-    }
 
-    if (allOk) {
-        Serial.println("[SensorManager] ALL SENSORS READY");
+Serial.println();
+Serial.println("================================");
+Serial.println("         SENSOR MANAGER");
+Serial.println("================================");
+
+bool allOk = true;
+
+for (int i = 0; i < SENSOR_COUNT; ++i) {
+
+    if (!sensors[i]->begin()) {
+
+        Serial.printf(
+            "[SensorManager] %s FAILED\n",
+            sensors[i]->getName()
+        );
+
+        allOk = false;
+
     } else {
-        Serial.println("[SensorManager] SOME SENSORS FAILED");
+
+        Serial.printf(
+            "[SensorManager] %s READY\n",
+            sensors[i]->getName()
+        );
     }
-    return allOk;
 }
+
+return allOk;
+
+
+}
+
+// ========================================
+// UPDATE
+// ========================================
 
 void SensorManager::update() {
-    unsigned long currentTime = millis();
-    if (currentTime - lastUpdate < SENSOR_UPDATE_INTERVAL) {
-        return;
-    }
-    lastUpdate = currentTime;
 
-    // Сбрасываем данные перед обновлением
-    data.reset();
 
-    for (int i = 0; i < SENSOR_COUNT; ++i) {
-        if (sensors[i]->update()) {
-            // Здесь нужно заполнить data в зависимости от типа датчика.
-            // Так как мы не знаем тип, можно использовать dynamic_cast,
-            // но для простоты оставим прямое обращение к конкретным датчикам.
-            // Это нарушает абстракцию, но в данном случае допустимо.
-        }
-    }
+const unsigned long currentTime = millis();
 
-    // Заполняем data из конкретных датчиков (можно сделать через интерфейс, но проще так)
-    if (sht45.isInitialized()) {
-        // В реальном проекте sht45.update() уже вызван, но мы можем повторно не читать,
-        // а получить последние значения.
-        // Лучше, чтобы датчики сами обновляли свои внутренние поля.
-        // Мы можем считать их через геттеры.
-        data.temperature = sht45.getTemperature();
-        data.humidity    = sht45.getHumidity();
-        data.temperatureValid = !isnan(data.temperature);
-        data.humidityValid    = !isnan(data.humidity);
-    }
-
-    if (veml7700.isInitialized()) {
-        data.lightLux = veml7700.getLux();
-        data.lightValid = !isnan(data.lightLux);
-    }
+if (currentTime - lastUpdate < SENSOR_UPDATE_INTERVAL) {
+    return;
 }
 
-SensorData SensorManager::getData() const {
-    return data;
+lastUpdate = currentTime;
+
+for (int i = 0; i < SENSOR_COUNT; ++i) {
+
+    if (!sensors[i]->isInitialized()) {
+        continue;
+    }
+
+    sensors[i]->update(data);
 }
+
+
+}
+
+// ========================================
+// RAW DATA
+// ========================================
+
+const SensorData& SensorManager::getData() const {
+return data;
+}
+
+// ========================================
+// TEMPERATURE
+// ========================================
+
+String SensorManager::getTemperatureC() const {
+
+
+if (!data.temperatureValid) {
+    return "--";
+}
+
+return String(data.temperature, 2)
+    + " "
+    + Constants::UNIT_TEMP_C;
+
+
+}
+
+float SensorManager::celsiusToFahrenheit(float celsius) const {
+
+
+return (celsius * 9.0f / 5.0f) + 32.0f;
+
+
+}
+
+String SensorManager::getTemperatureF() const {
+
+
+if (!data.temperatureValid) {
+    return "--";
+}
+
+float fahrenheit = celsiusToFahrenheit(data.temperature);
+
+return String(fahrenheit, 2)
+    + " "
+    + Constants::UNIT_TEMP_F;
+
+
+}
+
+// ========================================
+// HUMIDITY
+// ========================================
+
+String SensorManager::getHumidity() const {
+
+
+if (!data.humidityValid) {
+    return "--";
+}
+
+return String(data.humidity, 2)
+    + " "
+    + Constants::UNIT_HUMID;
+
+
+}
+
+// ========================================
+// LIGHT
+// ========================================
+
+String SensorManager::getLight() const {
+
+
+if (!data.lightValid) {
+    return "--";
+}
+
+return String(data.lightLux, 2)
+    + " "
+    + Constants::UNIT_LUX;
+
+
+}
+
+// ========================================
+// DEBUG PRINT
+// ========================================
 
 void SensorManager::printData() const {
-    data.print();
+
+
+Serial.println();
+Serial.println("================================");
+Serial.println("         SENSOR DATA");
+Serial.println("================================");
+
+Serial.print("Temperature C: ");
+Serial.println(getTemperatureC());
+
+Serial.print("Temperature F: ");
+Serial.println(getTemperatureF());
+
+Serial.print("Humidity:      ");
+Serial.println(getHumidity());
+
+Serial.print("Light:         ");
+Serial.println(getLight());
+
+Serial.println("================================");
+```
+
 }

@@ -1,19 +1,22 @@
 #pragma once
+
 #include <Arduino.h>
+#include "SensorData.h"
 
 class Sensor {
 public:
-    virtual ~Sensor() = default;
+virtual ~Sensor() = default;
 
-    // Инициализация датчика, возвращает true при успехе
-    virtual bool begin() = 0;
+// Инициализация датчика
+virtual bool begin() = 0;
 
-    // Обновление данных, возвращает true, если чтение успешно
-    virtual bool update() = 0;
+// Обновление данных датчика
+virtual bool update(SensorData& data) = 0;
 
-    // Получить имя датчика (для отладки)
-    virtual const char* getName() const = 0;
+// Имя датчика
+virtual const char* getName() const = 0;
 
-    // Проверить, инициализирован ли датчик
-    virtual bool isInitialized() const = 0;
+// Проверка инициализации
+virtual bool isInitialized() const = 0;
+
 };
