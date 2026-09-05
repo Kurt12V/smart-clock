@@ -1,12 +1,12 @@
 #include "RTC.h"
-
+#include "../include/Pins.h"
 #include <Wire.h>
 
-bool RTC::begin(int sda, int scl) {
+bool RTC::begin() {
 
 Serial.println("[RTC] Initializing...");
 
-Wire.begin(sda, scl);
+Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
 
 if (!_rtc.begin()) {
 

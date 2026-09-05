@@ -1,6 +1,6 @@
-#include "SensorManager.h"
-#include "Config.h"
-#include "Constants.h"
+#include "SensorsManager.h"
+#include "../include/Config.h"
+#include "../include/Constants.h"
 
 // ========================================
 // CONSTRUCTOR
@@ -63,7 +63,7 @@ void SensorManager::update() {
 
 const unsigned long currentTime = millis();
 
-if (currentTime - lastUpdate < SENSOR_UPDATE_INTERVAL) {
+if (currentTime - lastUpdate < Constants::SENSOR_UPDATE_INTERVAL) {
     return;
 }
 
@@ -192,6 +192,5 @@ Serial.print("Light:         ");
 Serial.println(getLight());
 
 Serial.println("================================");
-```
 
 }

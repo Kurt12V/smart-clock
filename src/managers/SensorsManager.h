@@ -2,11 +2,11 @@
 
 #include <Arduino.h>
 
-#include "Sensor.h"
-#include "SensorData.h"
+#include "./models/Sensor.h"
+#include "./models/SensorData.h"
 
-#include "SHT45Sensor.h"
-#include "VEML7700Sensor.h"
+#include "./hardware/sensors/SHT45.h"
+#include "./hardware/sensors/VEML7700.h"
 
 class SensorManager {
 public:

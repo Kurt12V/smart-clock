@@ -1,7 +1,9 @@
 #pragma once
 
-#include "Sensor.h"
+#include "./models/Sensor.h"
+#include "./models/SensorData.h"
 #include <Adafruit_SHT4x.h>
+#include <Arduino.h>
 
 class SHT45Sensor : public Sensor {
 public:

@@ -1,5 +1,4 @@
 #include "SHT45.h"
-
 bool SHT45Sensor::begin() {
 
 

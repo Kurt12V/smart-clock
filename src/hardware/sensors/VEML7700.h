@@ -1,7 +1,9 @@
 #pragma once
 
-#include "Sensor.h"
+#include "./models/Sensor.h"
+#include "./models/SensorData.h"
 #include <Adafruit_VEML7700.h>
+#include <Arduino.h>
 
 class VEML7700Sensor : public Sensor {
 public:

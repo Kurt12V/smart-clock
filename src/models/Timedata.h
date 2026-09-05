@@ -9,7 +9,6 @@ uint8_t hour = 0;
 uint8_t minute = 0;
 uint8_t second = 0;
 
-```
 bool valid = false;
 
 uint8_t getHourTens() const
@@ -41,7 +40,6 @@ uint8_t getSecondOnes() const
 {
     return second % 10;
 }
-```
 
 };
 
@@ -49,7 +47,7 @@ struct DateData
 {
 uint16_t year = 0;
 
-```
+
 uint8_t month = 0;
 
 uint8_t day = 0;
@@ -58,6 +56,5 @@ Constants::DayOfWeek dayOfWeek =
     Constants::DayOfWeek::Sunday;
 
 bool valid = false;
-```
 
 };

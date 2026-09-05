@@ -1,10 +1,10 @@
 #pragma once
-#include "TimeData.h"
+#include "./models/Timedata.h"
 #include <Arduino.h>
 #include <time.h>
 
-#include "RTC.h"
-#include "Constants.h"
+#include "./hardware/rtc/RTC.h"
+#include "../include/Constants.h"
 
 class ClockManager {
 public:
@@ -101,6 +101,7 @@ bool getUTC(
 // ================================
 
 String getLocalTimeString();
+String getTimeZone() const; 
 
 String getUTCTimeString();
 
@@ -122,9 +123,6 @@ static String formatDate(
 // ================================
 // DAY OF WEEK
 // ================================
-
-Constants::DayOfWeek getDayOfWeek();
-
 
 // ================================
 // STATUS

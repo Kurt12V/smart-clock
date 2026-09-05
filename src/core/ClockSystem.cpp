@@ -1,5 +1,4 @@
 #include "ClockSystem.h"
-
 ClockSystem::ClockSystem()
 : clockManager(rtc)
 {
@@ -16,10 +15,9 @@ Serial.println("================================");
 Serial.println("         CLOCK SYSTEM");
 Serial.println("================================");
 
-```
 // RTC INITIALIZATION
 
-if (!rtc.begin(PIN_I2C_SDA, PIN_I2C_SCL))
+if (!rtc.begin())
 {
     Serial.println("[ClockSystem] RTC ERROR");
 
@@ -43,7 +41,7 @@ Serial.println("[ClockSystem] CLOCK MANAGER READY");
 Serial.println("================================");
 
 return true;
-```
+
 
 }
 
@@ -136,7 +134,7 @@ int second
 {
 DateData date = getDateData();
 
-```
+
 if (!date.valid)
 {
     return false;
@@ -150,7 +148,7 @@ return setLocalDateTime(
     minute,
     second
 );
-```
+
 
 }
 
@@ -166,7 +164,7 @@ int second
 {
 struct tm timeinfo;
 
-```
+
 if (!clockManager.getUTC(timeinfo))
 {
     return false;
@@ -180,7 +178,7 @@ return setUTCDateTime(
     minute,
     second
 );
-```
+
 
 }
 
@@ -196,7 +194,7 @@ int day
 {
 TimeData time = getTimeData();
 
-```
+
 if (!time.valid)
 {
     return false;
@@ -210,7 +208,7 @@ return setLocalDateTime(
     time.minute,
     time.second
 );
-```
+
 
 }
 
@@ -226,7 +224,7 @@ int day
 {
 struct tm timeinfo;
 
-```
+
 if (!clockManager.getUTC(timeinfo))
 {
     return false;
@@ -240,7 +238,6 @@ return setUTCDateTime(
     timeinfo.tm_min,
     timeinfo.tm_sec
 );
-```
 
 }
 
@@ -275,10 +272,6 @@ return clockManager.getDayOfWeek();
 // HH:MM
 // ========================================
 
-String ClockSystem::getTimeHHMM()
-{
-return clockManager.getTimeHHMM();
-}
 
 // ========================================
 // STATUS
@@ -287,4 +280,27 @@ return clockManager.getTimeHHMM();
 bool ClockSystem::isTimeValid()
 {
 return clockManager.isTimeValid();
+}
+uint8_t ClockSystem::getHourTens()
+{
+    return clockManager.getTimeData().getHourTens();
+}
+
+uint8_t ClockSystem::getHourOnes()
+{
+    return clockManager.getTimeData().getHourOnes();
+}
+
+uint8_t ClockSystem::getMinuteTens()
+{
+    return clockManager.getTimeData().getMinuteTens();
+}
+
+uint8_t ClockSystem::getMinuteOnes()
+{
+    return clockManager.getTimeData().getMinuteOnes();
+}
+DateTime ClockSystem::getRTCDateTime()
+{
+    return rtc.getDateTime();
 }

@@ -3,14 +3,13 @@
 #include <Arduino.h>
 
 #include "RTC.h"
-#include "ClockManager.h"
+#include "./managers/ClockManager.h"
 #include "Pins.h"
 
 class ClockSystem
 {
 public:
 
-```
 ClockSystem();
 
 
@@ -124,23 +123,26 @@ TimeData getTimeData();
 DateData getDateData();
 
 Constants::DayOfWeek getDayOfWeek();
+uint8_t getHourTens();
+uint8_t getHourOnes();
 
-String getTimeHHMM();
+uint8_t getMinuteTens();
+uint8_t getMinuteOnes();
 
-
+DateTime getRTCDateTime();
 // ========================================
 // STATUS
 // ========================================
 
 bool isTimeValid();
-```
+
 
 private:
 
-```
+
 RTC rtc;
 
 ClockManager clockManager;
-```
+
 
 };

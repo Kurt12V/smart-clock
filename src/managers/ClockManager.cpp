@@ -6,13 +6,13 @@ ClockManager::ClockManager(RTC& rtcModule)
 
 bool ClockManager::begin(const char* timeZone) {
 
-```
+
 _isInitialized = true;
 
 Serial.println("[ClockManager] Initializing...");
 
 return setTimeZone(timeZone);
-```
+
 
 }
 
@@ -24,7 +24,7 @@ bool ClockManager::setTimeZone(
 const char* timeZone
 ) {
 
-```
+
 if (!_isInitialized) {
 
     Serial.println(
@@ -51,7 +51,7 @@ Serial.printf(
 
 
 return true;
-```
+
 
 }
 
@@ -64,7 +64,6 @@ const char* ntpServer,
 uint8_t maxAttempts
 ) {
 
-```
 if (!_isInitialized) {
 
     return false;
@@ -120,7 +119,6 @@ Serial.println(
 
 
 return false;
-```
 
 }
 
@@ -399,27 +397,9 @@ return String(buffer);
 
 }
 
-// ========================================
-// DAY OF WEEK
-// ========================================
-
-Constants::DayOfWeek ClockManager::getDayOfWeek() {
-
-struct tm timeinfo;
 
 
-if (!getLocalTime(timeinfo)) {
 
-    return Constants::DayOfWeek::Sunday;
-}
-
-
-return static_cast<Constants::DayOfWeek>(
-    timeinfo.tm_wday
-);
-
-
-}
 
 // ========================================
 // VALIDATION
@@ -574,11 +554,10 @@ data.valid = true;
 return data;
 
 }
-DDateData ClockManager::getDateData()
+DateData ClockManager::getDateData()
 {
 DateData data;
 
-```
 struct tm timeinfo;
 
 if (!getLocalTime(timeinfo))
@@ -601,7 +580,6 @@ data.dayOfWeek =
 data.valid = true;
 
 return data;
-```
 
 }
 
@@ -619,5 +597,8 @@ Constants::DayOfWeek ClockManager::getDayOfWeek() {
     );
 }
 
-
+String ClockManager::getTimeZone() const
+{
+    return _timeZone;
+}
 

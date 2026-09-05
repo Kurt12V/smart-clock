@@ -1,38 +1,38 @@
-#pragma once
+// #pragma once
 
-#include <Arduino.h>
+// #include <Arduino.h>
 
-#include "SDCard.h"
+// #include "SDCard.h"
 
-class SDManager
-{
-public:
+// class SDManager
+// {
+// public:
 
-    SDManager();
+//     SDManager();
 
-    bool begin(uint8_t csPin);
+//     bool begin(uint8_t csPin);
 
-    void end();
+//     void end();
 
-    bool isReady() const;
+//     bool isReady() const;
 
-    SDCard& card();
+//     SDCard& card();
 
-    bool createProjectDirectories();
+//     bool createProjectDirectories();
 
-    float getUsedPercent() const;
+//     float getUsedPercent() const;
 
-    float getFreePercent() const;
+//     float getFreePercent() const;
 
-    uint64_t getTotalBytes() const;
+//     uint64_t getTotalBytes() const;
 
-    uint64_t getUsedBytes() const;
+//     uint64_t getUsedBytes() const;
 
-    uint64_t getFreeBytes() const;
+//     uint64_t getFreeBytes() const;
 
-private:
+// private:
 
-    SDCard _card;
+//     SDCard _card;
 
-    bool _initialized;
-};
+//     bool _initialized;
+// };

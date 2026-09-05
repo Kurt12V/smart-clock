@@ -9,7 +9,7 @@ RTC() = default;
 
 
 // Инициализация RTC
-bool begin(int sda, int scl);
+bool begin();
 
 // Проверка потери питания
 bool isRunning();

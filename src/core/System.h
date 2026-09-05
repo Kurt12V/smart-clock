@@ -1,197 +1,197 @@
-#pragma once
+// #pragma once
 
-#include <Arduino.h>
+// #include <Arduino.h>
 
-#include "../settings/Settings.h"
-#include "../settings/SettingsRepository.h"
+// #include "../settings/Settings.h"
+// #include "../settings/SettingsRepository.h"
 
-#include "../storage/SDManager.h"
+// #include "../storage/SDManager.h"
 
-#include "../clock/ClockSystem.h"
+// #include "../clock/ClockSystem.h"
 
-#include "../sensors/SensorManager.h"
+// #include "../sensors/SensorManager.h"
 
-#include "../display/DisplayManager.h"
+// #include "../display/DisplayManager.h"
 
-#include "../ai/AIManager.h"
+// #include "../ai/AIManager.h"
 
 
-class System
-{
-public:
+// class System
+// {
+// public:
 
-    System();
+//     System();
 
-    // Инициализация всей системы
-    bool begin();
+//     // Инициализация всей системы
+//     bool begin();
 
-    // Основной цикл
-    void update();
+//     // Основной цикл
+//     void update();
 
 
-    // =========================
-    // SETTINGS
-    // =========================
+//     // =========================
+//     // SETTINGS
+//     // =========================
 
-    Settings& getSettings();
+//     Settings& getSettings();
 
-    bool saveSettings();
+//     bool saveSettings();
 
-    bool resetSettings();
+//     bool resetSettings();
 
 
-    // =========================
-    // STORAGE
-    // =========================
+//     // =========================
+//     // STORAGE
+//     // =========================
 
-    SDManager& getSDManager();
+//     SDManager& getSDManager();
 
-    bool isSDReady() const;
+//     bool isSDReady() const;
 
 
-    // =========================
-    // CLOCK
-    // =========================
+//     // =========================
+//     // CLOCK
+//     // =========================
 
-    ClockSystem& getClockSystem();
+//     ClockSystem& getClockSystem();
 
-    bool isClockReady() const;
+//     bool isClockReady() const;
 
 
-    // =========================
-    // SENSORS
-    // =========================
+//     // =========================
+//     // SENSORS
+//     // =========================
 
-    SensorManager& getSensorManager();
+//     SensorManager& getSensorManager();
 
-    bool areSensorsReady() const;
+//     bool areSensorsReady() const;
 
 
-    // =========================
-    // DISPLAY
-    // =========================
+//     // =========================
+//     // DISPLAY
+//     // =========================
 
-    DisplayManager& getDisplayManager();
+//     DisplayManager& getDisplayManager();
 
-    bool isDisplayReady() const;
+//     bool isDisplayReady() const;
 
 
-    // =========================
-    // AI
-    // =========================
+//     // =========================
+//     // AI
+//     // =========================
 
-    AIManager& getAIManager();
+//     AIManager& getAIManager();
 
-    bool isAIReady() const;
+//     bool isAIReady() const;
 
 
-    // =========================
-    // SYSTEM STATUS
-    // =========================
+//     // =========================
+//     // SYSTEM STATUS
+//     // =========================
 
-    bool isInitialized() const;
+//     bool isInitialized() const;
 
-private:
+// private:
 
-    // =========================
-    // INITIALIZATION
-    // =========================
+//     // =========================
+//     // INITIALIZATION
+//     // =========================
 
-    bool initializeLogger();
+//     bool initializeLogger();
 
-    bool initializeSettings();
+//     bool initializeSettings();
 
-    bool initializeStorage();
+//     bool initializeStorage();
 
-    bool initializeClock();
+//     bool initializeClock();
 
-    bool initializeSensors();
+//     bool initializeSensors();
 
-    bool initializeDisplays();
+//     bool initializeDisplays();
 
-    bool initializeAI();
+//     bool initializeAI();
 
 
-    // =========================
-    // UPDATE
-    // =========================
+//     // =========================
+//     // UPDATE
+//     // =========================
 
-    void updateClock();
+//     void updateClock();
 
-    void updateSensors();
+//     void updateSensors();
 
-    void updateDisplays();
+//     void updateDisplays();
 
-    void updateAI();
+//     void updateAI();
 
 
-private:
+// private:
 
-    // =========================
-    // SYSTEM STATE
-    // =========================
+//     // =========================
+//     // SYSTEM STATE
+//     // =========================
 
-    bool _initialized;
+//     bool _initialized;
 
-    bool _loggerReady;
-    bool _settingsReady;
-    bool _storageReady;
-    bool _clockReady;
-    bool _sensorsReady;
-    bool _displayReady;
-    bool _aiReady;
+//     bool _loggerReady;
+//     bool _settingsReady;
+//     bool _storageReady;
+//     bool _clockReady;
+//     bool _sensorsReady;
+//     bool _displayReady;
+//     bool _aiReady;
 
 
-    // =========================
-    // SETTINGS
-    // =========================
+//     // =========================
+//     // SETTINGS
+//     // =========================
 
-    Settings _settings;
+//     Settings _settings;
 
-    SettingsRepository _settingsRepository;
+//     SettingsRepository _settingsRepository;
 
 
-    // =========================
-    // STORAGE
-    // =========================
+//     // =========================
+//     // STORAGE
+//     // =========================
 
-    SDManager _sdManager;
+//     SDManager _sdManager;
 
 
-    // =========================
-    // CLOCK
-    // =========================
+//     // =========================
+//     // CLOCK
+//     // =========================
 
-    ClockSystem _clockSystem;
+//     ClockSystem _clockSystem;
 
 
-    // =========================
-    // SENSORS
-    // =========================
+//     // =========================
+//     // SENSORS
+//     // =========================
 
-    SensorManager _sensorManager;
+//     SensorManager _sensorManager;
 
 
-    // =========================
-    // DISPLAY
-    // =========================
+//     // =========================
+//     // DISPLAY
+//     // =========================
 
-    DisplayManager _displayManager;
+//     DisplayManager _displayManager;
 
 
-    // =========================
-    // AI
-    // =========================
+//     // =========================
+//     // AI
+//     // =========================
 
-    AIManager _aiManager;
+//     AIManager _aiManager;
 
 
-    // =========================
-    // UPDATE TIMERS
-    // =========================
+//     // =========================
+//     // UPDATE TIMERS
+//     // =========================
 
-    uint32_t _lastClockUpdate;
-    uint32_t _lastSensorUpdate;
-    uint32_t _lastDisplayUpdate;
-    uint32_t _lastAIUpdate;
-};
+//     uint32_t _lastClockUpdate;
+//     uint32_t _lastSensorUpdate;
+//     uint32_t _lastDisplayUpdate;
+//     uint32_t _lastAIUpdate;
+// };

@@ -1,33 +1,33 @@
-#pragma once
+// #pragma once
 
-#include <Arduino.h>
-#include <Preferences.h>
+// #include <Arduino.h>
+// #include <Preferences.h>
 
-#include "Settings.h"
+// #include "./models/Settings.h"
 
-class SettingsRepository
-{
-public:
+// class SettingsRepository
+// {
+// public:
 
-    SettingsRepository();
+//     SettingsRepository();
 
-    bool begin();
+//     bool begin();
 
-    void end();
+//     void end();
 
-    bool load(Settings& settings);
+//     bool load(Settings& settings);
 
-    bool save(const Settings& settings);
+//     bool save(const Settings& settings);
 
-    bool reset();
+//     bool reset();
 
-    bool isInitialized() const;
+//     bool isInitialized() const;
 
-private:
+// private:
 
-    Preferences _preferences;
+//     Preferences _preferences;
 
-    bool _initialized;
+//     bool _initialized;
 
-    static constexpr const char* NAMESPACE = "settings";
-};
+//     static constexpr const char* NAMESPACE = "settings";
+// };
