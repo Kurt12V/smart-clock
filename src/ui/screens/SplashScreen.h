@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 
-#include "DisplayManager.h"
+#include "./managers/DisplayManager.h"
 
 
 class SplashScreen

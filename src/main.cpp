@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include "DisplaySystem.h"
+#include "./core/DisplaySystem.h"
 
 DisplaySystem displaySystem;
 
@@ -28,5 +28,4 @@ void setup()
 void loop()
 {
     delay(1000);
->>>>>>> dc146c51bd4400ae6cb9d747586280e2a7c03913
 }

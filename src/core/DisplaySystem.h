@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Display.h"
-#include "DisplayManager.h"
-#include "SplashScreen.h"
-#include "ClockScreen.h"
+#include "./ui/Display.h"
+#include "./managers/DisplayManager.h"
+#include "./ui/screens/SplashScreen.h"
+#include "./ui/screens/ClockScreen.h"
 
 class DisplaySystem
 {

@@ -1,4 +1,4 @@
-#include "SplashScreen.h"
+#include "./ui/Display.h"
 
 #include <Fonts/FreeSans.h>
 #include <Fonts/FreeSansBold.h>
