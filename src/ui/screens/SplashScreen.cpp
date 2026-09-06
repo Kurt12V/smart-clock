@@ -2,35 +2,28 @@
 #include "./ui/screens/SplashScreen.h"
 #include <Fonts/FreeMono9pt7b.h>
 
+#include <Arduino.h>
+#include <Adafruit_GFX.h>
 
-// ============================================================
-// Цвета
-// ============================================================
-
-static constexpr uint16_t COLOR_BLACK =
-    0x0000;
-
-static constexpr uint16_t COLOR_WHITE =
-    0xFFFF;
-
-static constexpr uint16_t COLOR_GRAY =
-    0x6B6D;
-
-static constexpr uint16_t COLOR_DARK_GRAY =
-    0x18E3;
-
-static constexpr uint16_t COLOR_GRID =
-    0x0821;
-
-static constexpr uint16_t COLOR_CYAN =
-    0x07FF;
-
-static constexpr uint16_t COLOR_DARK_CYAN =
-    0x0128;
+#include <Fonts/FreeSans.h>
+#include <Fonts/FreeSansBold.h>
 
 
 // ============================================================
-// Constructor
+// COLORS
+// ============================================================
+
+static constexpr uint16_t COLOR_BLACK     = 0x0000;
+static constexpr uint16_t COLOR_WHITE     = 0xFFFF;
+static constexpr uint16_t COLOR_GRAY      = 0x6B6D;
+static constexpr uint16_t COLOR_DARK_GRAY = 0x18E3;
+static constexpr uint16_t COLOR_GRID      = 0x0821;
+static constexpr uint16_t COLOR_CYAN      = 0x07FF;
+static constexpr uint16_t COLOR_DARK_CYAN = 0x0128;
+
+
+// ============================================================
+// CONSTRUCTOR
 // ============================================================
 
 SplashScreen::SplashScreen(
@@ -47,106 +40,117 @@ SplashScreen::SplashScreen(
 
 void SplashScreen::show()
 {
-    _display.clear(
-        COLOR_BLACK
-    );
-
+    // --------------------------------------------------------
+    // Начальный экран
+    // --------------------------------------------------------
 
     drawBackground();
-
     drawGrid();
-
     drawFrame();
-
     drawTitle();
-
     drawSubtitle();
 
-    delay(300);
+    drawLoadingDots(0);
+    drawProgress(0);
+
+    delay(250);
 
 
     // --------------------------------------------------------
-    // Loading
+    // Progress 20%
     // --------------------------------------------------------
 
-    for (uint8_t i = 0; i < 4; i++)
-    {
-        drawLoadingDots(i);
+    drawLoadingDots(1);
+    drawProgress(20);
 
-        drawProgress(
-            (i + 1) * 25
-        );
+    delay(250);
 
-        delay(180);
-    }
 
+    // --------------------------------------------------------
+    // Progress 40%
+    // --------------------------------------------------------
+
+    drawLoadingDots(2);
+    drawProgress(40);
+
+    delay(250);
+
+
+    // --------------------------------------------------------
+    // Progress 60%
+    // --------------------------------------------------------
+
+    drawLoadingDots(3);
+    drawProgress(60);
+
+    delay(250);
+
+
+    // --------------------------------------------------------
+    // Progress 80%
+    // --------------------------------------------------------
+
+    drawLoadingDots(4);
+    drawProgress(80);
+
+    delay(250);
+
+
+    // --------------------------------------------------------
+    // Progress 100%
+    // --------------------------------------------------------
+
+    drawLoadingDots(5);
+    drawProgress(100);
 
     delay(400);
 }
 
 
 // ============================================================
-// Background
+// BACKGROUND
 // ============================================================
 
 void SplashScreen::drawBackground()
 {
-    _display.fillRect(
-        0,
-        0,
-        _display.width(),
-        _display.height(),
-        COLOR_BLACK
-    );
-
-
-    // Центральная область
-    // слегка подсвечена циановым цветом
-
-    _display.fillRect(
-        100,
-        90,
-        488,
-        150,
-        COLOR_DARK_CYAN
-    );
+    _display.clear(COLOR_BLACK);
 }
 
 
 // ============================================================
-// Grid
+// GRID
 // ============================================================
 
 void SplashScreen::drawGrid()
 {
-    const int16_t step = 32;
+    constexpr int16_t GRID_SIZE = 32;
 
-
+    // Вертикальные линии
     for (
         int16_t x = 0;
-        x < _display.width();
-        x += step
+        x < DisplayManager::TOTAL_WIDTH;
+        x += GRID_SIZE
     )
     {
         _display.drawFastVLine(
             x,
             0,
-            _display.height(),
+            DisplayManager::DISPLAY_HEIGHT,
             COLOR_GRID
         );
     }
 
-
+    // Горизонтальные линии
     for (
         int16_t y = 0;
-        y < _display.height();
-        y += step
+        y < DisplayManager::DISPLAY_HEIGHT;
+        y += GRID_SIZE
     )
     {
         _display.drawFastHLine(
             0,
             y,
-            _display.width(),
+            DisplayManager::TOTAL_WIDTH,
             COLOR_GRID
         );
     }
@@ -154,126 +158,113 @@ void SplashScreen::drawGrid()
 
 
 // ============================================================
-// Frame
+// FRAME
 // ============================================================
 
 void SplashScreen::drawFrame()
 {
-    const int16_t margin = 12;
+    constexpr int16_t X = 30;
+    constexpr int16_t Y = 55;
 
+    constexpr int16_t WIDTH  = 628;
+    constexpr int16_t HEIGHT = 210;
 
+    // Внешняя рамка
     _display.drawRect(
-        margin,
-        margin,
-        _display.width() - margin * 2,
-        _display.height() - margin * 2,
-        COLOR_DARK_GRAY
+        X,
+        Y,
+        WIDTH,
+        HEIGHT,
+        COLOR_DARK_CYAN
     );
 
-
-    // Верхняя линия
-
-    _display.drawFastHLine(
-        40,
-        35,
-        180,
+    // Внутренняя рамка
+    _display.drawRect(
+        X + 3,
+        Y + 3,
+        WIDTH - 6,
+        HEIGHT - 6,
         COLOR_CYAN
-    );
-
-
-    _display.drawFastHLine(
-        _display.width() - 220,
-        35,
-        180,
-        COLOR_CYAN
-    );
-
-
-    // Нижняя линия
-
-    _display.drawFastHLine(
-        40,
-        _display.height() - 35,
-        180,
-        COLOR_DARK_GRAY
-    );
-
-
-    _display.drawFastHLine(
-        _display.width() - 220,
-        _display.height() - 35,
-        180,
-        COLOR_DARK_GRAY
     );
 }
 
 
 // ============================================================
-// Title
+// TITLE
 // ============================================================
 
 void SplashScreen::drawTitle()
 {
+    const char* title = "SMART CLOCK";
+
     _display.drawText(
-        "SMART CLOCK",
-        250,
-        140,
+        title,
+        228,
+        125,
         COLOR_WHITE,
-        &FreeSansBold18pt7b
+        &FreeSansBold
     );
 }
 
 
 // ============================================================
-// Subtitle
+// SUBTITLE
 // ============================================================
 
 void SplashScreen::drawSubtitle()
 {
-    _display.drawText(
-        "INTELLIGENT HOME DEVICE",
-        220,
-        185,
-        COLOR_GRAY,
-        &FreeSans9pt7b
-    );
+    const char* subtitle =
+        "INTELLIGENT HOME DEVICE";
 
+    _display.drawText(
+        subtitle,
+        218,
+        155,
+        COLOR_GRAY,
+        &FreeSans
+    );
 
     _display.drawText(
         "SYSTEM INITIALIZATION",
-        250,
-        260,
-        COLOR_DARK_GRAY,
-        &FreeSans9pt7b
+        254,
+        190,
+        COLOR_CYAN,
+        &FreeSans
     );
 }
 
 
 // ============================================================
-// Loading dots
+// LOADING DOTS
 // ============================================================
 
 void SplashScreen::drawLoadingDots(
     uint8_t activeDot
 )
 {
-    const int16_t startX = 300;
+    constexpr int16_t START_X = 300;
+    constexpr int16_t Y       = 220;
 
-    const int16_t y = 225;
+    constexpr int16_t SPACING = 28;
+    constexpr int16_t RADIUS  = 5;
 
-    const int16_t spacing = 28;
-
-    for (uint8_t i = 0; i < 4; i++)
+    for (uint8_t i = 0; i < 5; i++)
     {
-        uint16_t color =
-            (i == activeDot)
-                ? COLOR_CYAN
-                : COLOR_DARK_GRAY;
+        uint16_t color;
+
+        if (i < activeDot)
+        {
+            color = COLOR_CYAN;
+        }
+        else
+        {
+            color = COLOR_DARK_GRAY;
+        }
 
         _display.fillCircle(
-            startX + i * spacing,
-            y,
-            4,
+            START_X + i * SPACING,
+            Y,
+            RADIUS,
             color
         );
     }
@@ -281,44 +272,49 @@ void SplashScreen::drawLoadingDots(
 
 
 // ============================================================
-// Progress bar
+// PROGRESS BAR
 // ============================================================
 
 void SplashScreen::drawProgress(
     uint8_t progress
 )
 {
-    const int16_t x = 224;
+    constexpr int16_t X = 160;
+    constexpr int16_t Y = 245;
 
-    const int16_t y = 285;
+    constexpr int16_t WIDTH  = 368;
+    constexpr int16_t HEIGHT = 8;
 
-    const int16_t width = 240;
-
-    const int16_t height = 5;
-
-
-    // Background
-
-    _display.fillRect(
-        x,
-        y,
-        width,
-        height,
+    // Рамка
+    _display.drawRect(
+        X,
+        Y,
+        WIDTH,
+        HEIGHT,
         COLOR_DARK_GRAY
     );
 
-
-    // Progress
-
-    int16_t progressWidth =
-        (width * progress) / 100;
-
-
+    // Внутренняя область
     _display.fillRect(
-        x,
-        y,
-        progressWidth,
-        height,
-        COLOR_CYAN
+        X + 2,
+        Y + 2,
+        WIDTH - 4,
+        HEIGHT - 4,
+        COLOR_BLACK
     );
+
+    // Заполнение
+    int16_t fillWidth =
+        ((WIDTH - 4) * progress) / 100;
+
+    if (fillWidth > 0)
+    {
+        _display.fillRect(
+            X + 2,
+            Y + 2,
+            fillWidth,
+            HEIGHT - 4,
+            COLOR_CYAN
+        );
+    }
 }

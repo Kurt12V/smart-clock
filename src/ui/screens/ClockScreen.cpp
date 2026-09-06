@@ -1,15 +1,29 @@
 #include "./ui/screens/ClockScreen.h"
 
-#include <Fonts/FreeSans9pt7b.h>
+#include <Adafruit_GFX.h>
+#include <Fonts/FreeMonoBold18pt7b.h>
+#include <Fonts/FreeMonoBold24pt7b.h>
 #include <Fonts/FreeMono9pt7b.h>
+
+static constexpr uint16_t COLOR_BLACK = 0x0000;
+static constexpr uint16_t COLOR_WHITE = 0xFFFF;
+
+static constexpr uint16_t COLOR_VALUE = 0xE8EC;
+static constexpr uint16_t COLOR_INFO  = 0x9936;
+
+
+// ============================================================
+// Constructor
+// ============================================================
 
 ClockScreen::ClockScreen(DisplayManager& display)
     : _display(display)
 {
 }
 
+
 // ============================================================
-// TIME
+// SET TIME
 // ============================================================
 
 void ClockScreen::setTime(
@@ -19,14 +33,15 @@ void ClockScreen::setTime(
     uint8_t minute2
 )
 {
-    _hour1 = hour1;
-    _hour2 = hour2;
+    _hour1   = hour1;
+    _hour2   = hour2;
     _minute1 = minute1;
     _minute2 = minute2;
 }
 
+
 // ============================================================
-// DATE
+// SET DATE
 // ============================================================
 
 void ClockScreen::setDate(
@@ -36,7 +51,7 @@ void ClockScreen::setDate(
     uint16_t year
 )
 {
-    if (day != nullptr)
+    if (day)
     {
         strncpy(
             _day,
@@ -47,13 +62,14 @@ void ClockScreen::setDate(
         _day[sizeof(_day) - 1] = '\0';
     }
 
-    _date = date;
+    _date  = date;
     _month = month;
-    _year = year;
+    _year  = year;
 }
 
+
 // ============================================================
-// SENSORS
+// SET SENSORS
 // ============================================================
 
 void ClockScreen::setSensors(
@@ -63,7 +79,7 @@ void ClockScreen::setSensors(
     const char* battery
 )
 {
-    if (temperature != nullptr)
+    if (temperature)
     {
         strncpy(
             _temperature,
@@ -74,7 +90,7 @@ void ClockScreen::setSensors(
         _temperature[sizeof(_temperature) - 1] = '\0';
     }
 
-    if (humidity != nullptr)
+    if (humidity)
     {
         strncpy(
             _humidity,
@@ -85,7 +101,7 @@ void ClockScreen::setSensors(
         _humidity[sizeof(_humidity) - 1] = '\0';
     }
 
-    if (light != nullptr)
+    if (light)
     {
         strncpy(
             _light,
@@ -96,7 +112,7 @@ void ClockScreen::setSensors(
         _light[sizeof(_light) - 1] = '\0';
     }
 
-    if (battery != nullptr)
+    if (battery)
     {
         strncpy(
             _battery,
@@ -108,6 +124,7 @@ void ClockScreen::setSensors(
     }
 }
 
+
 // ============================================================
 // NOTIFICATION
 // ============================================================
@@ -116,7 +133,7 @@ void ClockScreen::notify(
     const char* message
 )
 {
-    if (message == nullptr)
+    if (!message)
     {
         _notification[0] = '\0';
         _hasNotification = false;
@@ -133,6 +150,7 @@ void ClockScreen::notify(
 
     _hasNotification = true;
 }
+
 
 // ============================================================
 // DRAW
@@ -151,6 +169,7 @@ void ClockScreen::draw()
     }
 }
 
+
 // ============================================================
 // SCREEN 1
 // TEMPERATURE
@@ -158,61 +177,51 @@ void ClockScreen::draw()
 
 void ClockScreen::drawScreen1()
 {
-    auto& tft = _display.get(0);
+    ST7789_172x320& tft = _display.get(0);
 
-    tft.fillScreen(0x0000);
+    tft.fillScreen(COLOR_BLACK);
 
-    // Верхняя полоска
+    // Верхняя белая полоса
     tft.fillRect(
         0,
-        -6,
-        175,
+        0,
+        172,
         19,
-        0xFFFF
+        COLOR_WHITE
     );
 
-    // Нижняя полоска
+    // Нижняя белая полоса
     tft.fillRect(
         0,
         304,
-        175,
-        22,
-        0xFFFF
+        172,
+        16,
+        COLOR_WHITE
     );
 
-    // Основное значение
-    tft.setTextColor(0xE8EC);
-    tft.setTextSize(7);
-    tft.setFreeFont(&FreeMono24pt7b);
+    // Большое значение
+    tft.setFont(&FreeMonoBold24pt7b);
+    tft.setTextColor(COLOR_VALUE);
 
-    tft.drawString(
-        _temperature,
+    tft.setCursor(
         -12,
-        45
+        95
     );
 
-    // Нижние данные
-    tft.setTextColor(0x9936);
-    tft.setTextSize(1);
-    tft.setFreeFont(&FreeMonoBold9pt7b);
+    tft.print(_temperature);
 
-    char text[64];
+    // Нижняя информация
+    tft.setFont(&FreeMono9pt7b);
+    tft.setTextColor(COLOR_INFO);
 
-    snprintf(
-        text,
-        sizeof(text),
-        "%slx %sC %s%%",
-        _light,
-        _temperature,
-        _humidity
-    );
-
-    tft.drawString(
-        text,
+    tft.setCursor(
         20,
-        305
+        318
     );
+
+    tft.print("TEMP");
 }
+
 
 // ============================================================
 // SCREEN 2
@@ -221,56 +230,47 @@ void ClockScreen::drawScreen1()
 
 void ClockScreen::drawScreen2()
 {
-    auto& tft = _display.get(1);
+    ST7789_172x320& tft = _display.get(1);
 
-    tft.fillScreen(0x0000);
+    tft.fillScreen(COLOR_BLACK);
 
     tft.fillRect(
         0,
-        -6,
-        175,
+        0,
+        172,
         19,
-        0xFFFF
+        COLOR_WHITE
     );
 
     tft.fillRect(
         0,
         304,
-        175,
-        22,
-        0xFFFF
+        172,
+        16,
+        COLOR_WHITE
     );
 
-    tft.setTextColor(0xE8EC);
-    tft.setTextSize(7);
-    tft.setFreeFont(&FreeMono24pt7b);
+    tft.setFont(&FreeMonoBold24pt7b);
+    tft.setTextColor(COLOR_VALUE);
 
-    tft.drawString(
-        _humidity,
+    tft.setCursor(
         -12,
-        45
+        95
     );
 
-    tft.setTextColor(0x9936);
-    tft.setTextSize(1);
-    tft.setFreeFont(&FreeMonoBold9pt7b);
+    tft.print(_humidity);
 
-    char text[64];
+    tft.setFont(&FreeMono9pt7b);
+    tft.setTextColor(COLOR_INFO);
 
-    snprintf(
-        text,
-        sizeof(text),
-        "%sC %slx",
-        _temperature,
-        _light
-    );
-
-    tft.drawString(
-        text,
+    tft.setCursor(
         20,
-        305
+        318
     );
+
+    tft.print("HUM");
 }
+
 
 // ============================================================
 // SCREEN 3
@@ -279,56 +279,47 @@ void ClockScreen::drawScreen2()
 
 void ClockScreen::drawScreen3()
 {
-    auto& tft = _display.get(2);
+    ST7789_172x320& tft = _display.get(2);
 
-    tft.fillScreen(0x0000);
+    tft.fillScreen(COLOR_BLACK);
 
     tft.fillRect(
         0,
-        -6,
-        175,
+        0,
+        172,
         19,
-        0xFFFF
+        COLOR_WHITE
     );
 
     tft.fillRect(
         0,
         304,
-        175,
-        22,
-        0xFFFF
+        172,
+        16,
+        COLOR_WHITE
     );
 
-    tft.setTextColor(0xE8EC);
-    tft.setTextSize(7);
-    tft.setFont(&FreeMono24pt7b);
+    tft.setFont(&FreeMonoBold24pt7b);
+    tft.setTextColor(COLOR_VALUE);
 
-    tft.drawString(
-        _light,
+    tft.setCursor(
         -12,
-        45
+        95
     );
 
-    tft.setTextColor(0x9936);
-    tft.setTextSize(1);
-    tft.setFreeFont(&FreeMonoBold9pt7b);
+    tft.print(_light);
 
-    char text[64];
+    tft.setFont(&FreeMono9pt7b);
+    tft.setTextColor(COLOR_INFO);
 
-    snprintf(
-        text,
-        sizeof(text),
-        "%sC %s%%",
-        _temperature,
-        _humidity
-    );
-
-    tft.drawString(
-        text,
+    tft.setCursor(
         20,
-        305
+        318
     );
+
+    tft.print("LIGHT");
 }
+
 
 // ============================================================
 // SCREEN 4
@@ -337,56 +328,47 @@ void ClockScreen::drawScreen3()
 
 void ClockScreen::drawScreen4()
 {
-    auto& tft = _display.get(3);
+    ST7789_172x320& tft = _display.get(3);
 
-    tft.fillScreen(0x0000);
+    tft.fillScreen(COLOR_BLACK);
 
     tft.fillRect(
         0,
-        -6,
-        175,
+        0,
+        172,
         19,
-        0xFFFF
+        COLOR_WHITE
     );
 
     tft.fillRect(
         0,
         304,
-        175,
-        22,
-        0xFFFF
+        172,
+        16,
+        COLOR_WHITE
     );
 
-    tft.setTextColor(0xE8EC);
-    tft.setTextSize(7);
-    tft.setFreeFont(&FreeMono24pt7b);
+    tft.setFont(&FreeMonoBold24pt7b);
+    tft.setTextColor(COLOR_VALUE);
 
-    tft.drawString(
-        _battery,
+    tft.setCursor(
         -12,
-        45
+        95
     );
 
-    tft.setTextColor(0x9936);
-    tft.setTextSize(1);
-    tft.setFreeFont(&FreeMonoBold9pt7b);
+    tft.print(_battery);
 
-    char text[64];
+    tft.setFont(&FreeMono9pt7b);
+    tft.setTextColor(COLOR_INFO);
 
-    snprintf(
-        text,
-        sizeof(text),
-        "%slx %s%%",
-        _light,
-        _humidity
-    );
-
-    tft.drawString(
-        text,
+    tft.setCursor(
         20,
-        305
+        318
     );
+
+    tft.print("BAT");
 }
+
 
 // ============================================================
 // NOTIFICATION
@@ -394,23 +376,31 @@ void ClockScreen::drawScreen4()
 
 void ClockScreen::drawNotification()
 {
-    // Здесь позже сделаем адаптивное уведомление:
-    //
-    // короткий текст  -> одна строка
-    // длинный текст   -> несколько строк
-    // очень длинный   -> автоматический перенос
-    //
-    // Размер области и шрифт будут подбираться автоматически.
+    // Уведомление выводим поверх всех 4 экранов
+    // как единую область 688x320.
 
-    auto& tft = _display.get(0);
+    // Затемнение / фон
+    _display.fillRect(
+        20,
+        115,
+        648,
+        90,
+        COLOR_BLACK
+    );
 
-    tft.setTextColor(0xFFFF);
-    tft.setTextSize(2);
-    tft.setFreeFont(nullptr);
+    _display.drawRect(
+        20,
+        115,
+        648,
+        90,
+        COLOR_WHITE
+    );
 
-    tft.drawString(
+    _display.drawText(
         _notification,
-        10,
-        140
+        35,
+        170,
+        COLOR_WHITE,
+        &FreeMonoBold18pt7b
     );
 }
