@@ -6,10 +6,9 @@ ClockManager::ClockManager(RTC& rtcModule)
 
 bool ClockManager::begin(const char* timeZone) {
 
-
+if (!_rtc.begin())
+        return false;
 _isInitialized = true;
-
-Serial.println("[ClockManager] Initializing...");
 
 return setTimeZone(timeZone);
 
@@ -35,22 +34,19 @@ if (!_isInitialized) {
 }
 
 
-_timeZone = timeZone;
+if (!timeZone || timeZone[0] == '\0')
+        return false;
 
+    _timeZone = String(timeZone);
 
-configTzTime(
-    _timeZone.c_str(),
-    "pool.ntp.org"
-);
+    // Настраиваем локальный часовой пояс.
+    // UTC при этом остаётся базовым временем.
+    configTzTime(
+        _timeZone.c_str(),
+        "pool.ntp.org"
+    );
 
-
-Serial.printf(
-    "[ClockManager] Timezone: %s\n",
-    _timeZone.c_str()
-);
-
-
-return true;
+    return true;
 
 
 }
@@ -532,24 +528,20 @@ TimeData ClockManager::getTimeData() {
 
 TimeData data;
 
-struct tm timeinfo;
+time_t now = time(nullptr);
 
-if (!getLocalTime(timeinfo)) {
-
-    data.valid = false;
-
+if (now < 100000)
     return data;
-}
 
+struct tm localTime;
 
-data.hour = timeinfo.tm_hour;
+// Получаем именно LOCAL TIME
+localtime_r(&now, &localTime);
 
-data.minute = timeinfo.tm_min;
-
-data.second = timeinfo.tm_sec;
-
+data.hour = localTime.tm_hour;
+data.minute = localTime.tm_min;
+data.second = localTime.tm_sec;
 data.valid = true;
-
 
 return data;
 
@@ -558,23 +550,23 @@ DateData ClockManager::getDateData()
 {
 DateData data;
 
-struct tm timeinfo;
+time_t now = time(nullptr);
 
-if (!getLocalTime(timeinfo))
-{
-    data.valid = false;
+if (now < 100000)
     return data;
-}
 
-data.year = timeinfo.tm_year + 1900;
+struct tm localTime;
 
-data.month = timeinfo.tm_mon + 1;
+// Дата тоже должна быть локальной
+localtime_r(&now, &localTime);
 
-data.day = timeinfo.tm_mday;
+data.year = localTime.tm_year + 1900;
+data.month = localTime.tm_mon + 1;
+data.day = localTime.tm_mday;
 
 data.dayOfWeek =
     static_cast<Constants::DayOfWeek>(
-        timeinfo.tm_wday
+        localTime.tm_wday
     );
 
 data.valid = true;
