@@ -1,7 +1,7 @@
-#include "ClockScreen.h"
+#include "./ui/screens/ClockScreen.h"
 
-#include "FreeMono24pt7b.h"
-#include "FreeMonoBold9pt7b.h"
+#include <Fonts/FreeSans9pt7b.h>
+#include <Fonts/FreeMono9pt7b.h>
 
 ClockScreen::ClockScreen(DisplayManager& display)
     : _display(display)
@@ -301,7 +301,7 @@ void ClockScreen::drawScreen3()
 
     tft.setTextColor(0xE8EC);
     tft.setTextSize(7);
-    tft.setFreeFont(&FreeMono24pt7b);
+    tft.setFont(&FreeMono24pt7b);
 
     tft.drawString(
         _light,

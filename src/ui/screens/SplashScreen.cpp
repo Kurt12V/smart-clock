@@ -1,7 +1,6 @@
 #include "./ui/Display.h"
-
-#include <Fonts/FreeSans.h>
-#include <Fonts/FreeSansBold.h>
+#include "./ui/screens/SplashScreen.h"
+#include <Fonts/FreeMono9pt7b.h>
 
 
 // ============================================================

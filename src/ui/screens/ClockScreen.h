@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
-
+#include "./managers/DisplayManager.h"
 class ClockScreen
 {
 public:

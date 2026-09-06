@@ -1,6 +1,5 @@
-```cpp
 #include <Arduino.h>
-#include "DisplaySystem.h"
+#include "./core/DisplaySystem.h"
 
 DisplaySystem displaySystem;
 
@@ -35,8 +34,6 @@ void setup()
         2026
     );
 
-    
-
     // =========================
     // ДАТЧИКИ
     // =========================
@@ -66,4 +63,3 @@ void setup()
 void loop()
 {
 }
-```
