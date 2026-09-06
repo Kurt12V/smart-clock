@@ -4,43 +4,24 @@
 
 #include "./managers/DisplayManager.h"
 
-
 class SplashScreen
 {
 public:
-
-    explicit SplashScreen(
-        DisplayManager& display
-    );
-
+    explicit SplashScreen(DisplayManager& display);
 
     void show();
 
-
 private:
+    static constexpr uint8_t DISPLAY_COUNT = 4;
+    static constexpr uint8_t COLUMNS = 28;
 
     DisplayManager& _display;
 
+    int16_t _head[DISPLAY_COUNT][COLUMNS];
+    uint8_t _length[DISPLAY_COUNT][COLUMNS];
+    uint8_t _speed[DISPLAY_COUNT][COLUMNS];
 
-    // --------------------------------------------------------
-    // Элементы заставки
-    // --------------------------------------------------------
-
-    void drawBackground();
-
-    void drawGrid();
-
+    void initializeRain();
     void drawFrame();
-
-    void drawTitle();
-
-    void drawSubtitle();
-
-    void drawLoadingDots(
-        uint8_t activeDot
-    );
-
-    void drawProgress(
-        uint8_t progress
-    );
-};
+    void clear();
+}
