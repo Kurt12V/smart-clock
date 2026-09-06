@@ -1,5 +1,6 @@
+```cpp
 #include <Arduino.h>
-#include "./core/DisplaySystem.h"
+#include "DisplaySystem.h"
 
 DisplaySystem displaySystem;
 
@@ -8,24 +9,61 @@ void setup()
     Serial.begin(115200);
     delay(500);
 
+    // Инициализация дисплеев
     displaySystem.begin();
-    displaySystem.showSplash();
 
-    displaySystem.clock().setTime(12, 34);
-    displaySystem.clock().setDate(6, 9, 2026);
+    // =========================
+    // ВРЕМЯ
+    // 01:23
+    // =========================
 
-    displaySystem.clock().setValue(0, "22.5", "TEMPERATURE");
-    displaySystem.clock().setValue(1, "47", "HUMIDITY");
-    displaySystem.clock().setValue(2, "125", "LIGHT");
-    displaySystem.clock().setValue(3, "87", "BATTERY");
+    displaySystem.clock().setTime(
+        0, 1,
+        2, 3
+    );
 
-    displaySystem.clock().setStatus("ONLINE");
-    displaySystem.clock().notify("SYSTEM READY");
+    // =========================
+    // ДАТА
+    // MON
+    // 06.09.2026
+    // =========================
 
-    displaySystem.showClock();
+    displaySystem.clock().setDate(
+        "mon",
+        6,
+        9,
+        2026
+    );
+
+    
+
+    // =========================
+    // ДАТЧИКИ
+    // =========================
+
+    displaySystem.clock().setSensors(
+        "22.5",   // temperature
+        "47.0",   // humidity
+        "125.0",  // light
+        "87.0"    // battery
+    );
+
+    // =========================
+    // УВЕДОМЛЕНИЕ
+    // =========================
+
+    displaySystem.clock().notify(
+        "Доброе утро"
+    );
+
+    // =========================
+    // ОТРИСОВКА
+    // =========================
+
+    displaySystem.clock().draw();
 }
 
 void loop()
 {
-    delay(1000);
 }
+```
