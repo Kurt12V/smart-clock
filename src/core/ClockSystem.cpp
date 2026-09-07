@@ -15,19 +15,7 @@ Serial.println("================================");
 Serial.println("         CLOCK SYSTEM");
 Serial.println("================================");
 
-// RTC INITIALIZATION
-
-if (!rtc.begin())
-{
-    Serial.println("[ClockSystem] RTC ERROR");
-
-    return false;
-}
-
-Serial.println("[ClockSystem] RTC READY");
-
-
-// CLOCK MANAGER INITIALIZATION
+// ClockManager owns RTC initialization so the device is initialized once.
 
 if (!clockManager.begin(timeZone))
 {

@@ -26,12 +26,17 @@ void DisplaySystem::begin()
     _initialized = true;
 }
 
-void DisplaySystem::showSplash()
+void DisplaySystem::startSplash()
 {
     if (!_initialized)
         return;
 
-    _splashScreen.show();
+    _splashScreen.start();
+}
+
+bool DisplaySystem::updateSplash()
+{
+    return _initialized && _splashScreen.update();
 }
 
 void DisplaySystem::showClock()

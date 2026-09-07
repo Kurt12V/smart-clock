@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include <Adafruit_GFX.h>
 
-#include "Display.h"
+#include "ui/Display.h"
 
 
 class DisplayManager

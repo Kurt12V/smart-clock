@@ -1,62 +1,34 @@
 #pragma once
 
 #include <Arduino.h>
-#include "DisplayManager.h"
+#include "managers/DisplayManager.h"
 
 class SplashScreen
 {
 public:
     explicit SplashScreen(DisplayManager& display);
 
-    void show();
+    void start();
+    bool update();
+    bool isActive() const;
 
 private:
-    DisplayManager& _display;
+    static constexpr int16_t WIDTH = 688;
+    static constexpr uint16_t FRAME_TIME_MS = 35;
+    static constexpr uint32_t DURATION_MS = 2400;
 
-    static constexpr int16_t WIDTH  = 688;
-    static constexpr int16_t HEIGHT = 320;
-
-    static constexpr uint8_t CELL_WIDTH  = 6;
-    static constexpr uint8_t CELL_HEIGHT = 8;
-
-    static constexpr uint16_t COLUMNS = WIDTH / CELL_WIDTH;
-    static constexpr uint16_t ROWS    = HEIGHT / CELL_HEIGHT;
-
-    static constexpr uint16_t FRAME_TIME = 35;
-    static constexpr uint32_t DURATION   = 3000;
-
-    struct Column
+    enum class State : uint8_t
     {
-        int16_t head;
-        uint8_t length;
-        uint8_t speed;
-        uint8_t counter;
-        bool active;
+        Idle,
+        Booting
     };
 
-    Column _columns[COLUMNS];
-
+    DisplayManager& _display;
+    State _state;
     uint32_t _startTime;
+    uint32_t _lastFrameTime;
 
-    void initializeColumns();
-
-    void drawFrame();
-
-    void drawCharacter(
-        uint16_t column,
-        int16_t row,
-        char character,
-        uint16_t color
-    );
-
-    void clearCharacter(
-        uint16_t column,
-        int16_t row
-    );
-
-    char randomCharacter();
-
-    uint16_t greenColor(uint8_t brightness);
-
-    void finalFlash();
+    void drawLayout();
+    void drawPanel(uint8_t index, const char* title, const char* value);
+    void drawProgress(uint32_t elapsed);
 };

@@ -2,8 +2,8 @@
 
 #include <Arduino.h>
 
-#include "RTC.h"
-#include "./managers/ClockManager.h"
+#include "hardware/rtc/RTC.h"
+#include "managers/ClockManager.h"
 #include "Pins.h"
 
 class ClockSystem

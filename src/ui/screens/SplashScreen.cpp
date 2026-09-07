@@ -1,383 +1,148 @@
 #include "SplashScreen.h"
 
-#include <Arduino.h>
+#include <Fonts/FreeMono9pt7b.h>
+#include <Fonts/FreeMonoBold18pt7b.h>
+
+namespace
+{
+    constexpr uint16_t COLOR_BLACK = ST77XX_BLACK;
+    constexpr uint16_t COLOR_TEXT = ST77XX_WHITE;
+    constexpr uint16_t COLOR_ACCENT = 0x05FF;
+    constexpr uint16_t COLOR_ACCENT_DIM = 0x0330;
+    constexpr uint16_t COLOR_MUTED = 0x7BEF;
+
+    constexpr int16_t PROGRESS_X = 24;
+    constexpr int16_t PROGRESS_Y = 270;
+    constexpr int16_t PROGRESS_WIDTH = 640;
+    constexpr int16_t PROGRESS_HEIGHT = 8;
+}
 
 SplashScreen::SplashScreen(DisplayManager& display)
     : _display(display),
-      _startTime(0)
+      _state(State::Idle),
+      _startTime(0),
+      _lastFrameTime(0)
 {
 }
 
-void SplashScreen::show()
+void SplashScreen::start()
 {
     if (!_display.isInitialized())
+    {
         return;
-
-    randomSeed(
-        micros() ^
-        analogRead(0) ^
-        millis()
-    );
-
-    _display.clear(ST77XX_BLACK);
-
-    initializeColumns();
+    }
 
     _startTime = millis();
+    _lastFrameTime = _startTime - FRAME_TIME_MS;
+    _state = State::Booting;
 
-    uint32_t lastFrame = 0;
-
-    while (millis() - _startTime < DURATION)
-    {
-        uint32_t now = millis();
-
-        if (now - lastFrame >= FRAME_TIME)
-        {
-            lastFrame = now;
-
-            drawFrame();
-        }
-
-        delay(1);
-    }
-
-    finalFlash();
-
-    _display.clear(ST77XX_BLACK);
+    drawLayout();
+    drawProgress(0);
 }
 
-
-// ============================================================
-// ИНИЦИАЛИЗАЦИЯ КОЛОНОК
-// ============================================================
-
-void SplashScreen::initializeColumns()
+bool SplashScreen::update()
 {
-    for (uint16_t i = 0; i < COLUMNS; i++)
+    if (_state == State::Idle)
     {
-        Column& column = _columns[i];
-
-        column.active = random(0, 100) < 65;
-
-        column.head = random(
-            -ROWS,
-            ROWS
-        );
-
-        column.length = random(
-            5,
-            18
-        );
-
-        column.speed = random(
-            1,
-            4
-        );
-
-        column.counter = random(
-            0,
-            column.speed
-        );
+        return false;
     }
+
+    const uint32_t now = millis();
+    const uint32_t elapsed = now - _startTime;
+
+    if (elapsed >= DURATION_MS)
+    {
+        _display.clear(COLOR_BLACK);
+        _state = State::Idle;
+        return false;
+    }
+
+    if (now - _lastFrameTime >= FRAME_TIME_MS)
+    {
+        _lastFrameTime = now;
+        drawProgress(elapsed);
+    }
+
+    return true;
 }
 
-
-// ============================================================
-// КАДР MATRIX
-// ============================================================
-
-void SplashScreen::drawFrame()
+bool SplashScreen::isActive() const
 {
-    for (uint16_t columnIndex = 0;
-         columnIndex < COLUMNS;
-         columnIndex++)
-    {
-        Column& column = _columns[columnIndex];
-
-        if (!column.active)
-        {
-            // Иногда запускаем новую колонку
-            if (random(0, 100) < 3)
-            {
-                column.active = true;
-
-                column.head = -random(1, 15);
-
-                column.length = random(
-                    6,
-                    20
-                );
-
-                column.speed = random(
-                    1,
-                    4
-                );
-
-                column.counter = 0;
-            }
-
-            continue;
-        }
-
-        // ----------------------------------------------------
-        // Двигаем колонку не каждый кадр
-        // ----------------------------------------------------
-
-        column.counter++;
-
-        if (column.counter < column.speed)
-            continue;
-
-        column.counter = 0;
-
-        // ----------------------------------------------------
-        // Стираем хвост
-        // ----------------------------------------------------
-
-        int16_t oldTail =
-            column.head - column.length;
-
-        if (oldTail >= 0 &&
-            oldTail < ROWS)
-        {
-            clearCharacter(
-                columnIndex,
-                oldTail
-            );
-        }
-
-        // ----------------------------------------------------
-        // Стираем старую голову,
-        // чтобы избежать артефактов
-        // ----------------------------------------------------
-
-        if (column.head >= 0 &&
-            column.head < ROWS)
-        {
-            drawCharacter(
-                columnIndex,
-                column.head,
-                randomCharacter(),
-                greenColor(110)
-            );
-        }
-
-        // ----------------------------------------------------
-        // Новая позиция
-        // ----------------------------------------------------
-
-        column.head += 1;
-
-        // ----------------------------------------------------
-        // Рисуем хвост
-        // ----------------------------------------------------
-
-        for (int16_t i = 0;
-             i < column.length;
-             i++)
-        {
-            int16_t row =
-                column.head - i;
-
-            if (row < 0 ||
-                row >= ROWS)
-            {
-                continue;
-            }
-
-            uint8_t brightness;
-
-            if (i == 0)
-            {
-                // Голова — самая яркая
-                brightness = 255;
-            }
-            else if (i == 1)
-            {
-                brightness = 220;
-            }
-            else if (i < 4)
-            {
-                brightness = 170;
-            }
-            else
-            {
-                int value =
-                    150 -
-                    ((i - 4) * 8);
-
-                if (value < 30)
-                    value = 30;
-
-                brightness =
-                    static_cast<uint8_t>(value);
-            }
-
-            drawCharacter(
-                columnIndex,
-                row,
-                randomCharacter(),
-                greenColor(brightness)
-            );
-        }
-
-        // ----------------------------------------------------
-        // Если колонка ушла вниз —
-        // запускаем её снова сверху
-        // ----------------------------------------------------
-
-        if (column.head - column.length > ROWS)
-        {
-            column.active = false;
-
-            // Небольшая случайная пауза
-            column.head =
-                -random(5, 30);
-        }
-    }
+    return _state != State::Idle;
 }
 
+void SplashScreen::drawLayout()
+{
+    _display.clear(COLOR_BLACK);
 
-// ============================================================
-// РИСОВАНИЕ СИМВОЛА
-// ============================================================
+    drawPanel(0, "SMART", "CLOCK");
+    drawPanel(1, "PRECISION", "TIME");
+    drawPanel(2, "SENSORS", "READY");
+    drawPanel(3, "SYSTEM", "BOOT");
 
-void SplashScreen::drawCharacter(
-    uint16_t column,
-    int16_t row,
-    char character,
-    uint16_t color
+    _display.drawFastHLine(0, 54, WIDTH, COLOR_ACCENT_DIM);
+    _display.drawFastHLine(0, 246, WIDTH, COLOR_ACCENT_DIM);
+
+    ST7789_172x320& statusDisplay = _display.get(1);
+    statusDisplay.setFont(&FreeMono9pt7b);
+    statusDisplay.setTextSize(1);
+    statusDisplay.setTextColor(COLOR_MUTED);
+    statusDisplay.setCursor(32, 262);
+    statusDisplay.print("INITIALIZING");
+}
+
+void SplashScreen::drawPanel(
+    uint8_t index,
+    const char* title,
+    const char* value
 )
 {
-    if (column >= COLUMNS)
-        return;
+    ST7789_172x320& tft = _display.get(index);
 
-    if (row < 0 || row >= ROWS)
-        return;
+    tft.fillRect(0, 0, 172, 4, COLOR_ACCENT);
+    tft.drawFastVLine(8, 74, 140, COLOR_ACCENT_DIM);
 
-    int16_t globalX =
-        column * CELL_WIDTH;
+    tft.setFont(&FreeMono9pt7b);
+    tft.setTextSize(1);
+    tft.setTextColor(COLOR_MUTED);
+    tft.setCursor(20, 34);
+    tft.print(title);
 
-    int16_t globalY =
-        row * CELL_HEIGHT;
+    tft.setFont(&FreeMonoBold18pt7b);
+    tft.setTextSize(2);
+    tft.setTextColor(COLOR_TEXT);
+    tft.setCursor(20, 158);
+    tft.print(value);
 
-    _display.drawText(
-        String(character).c_str(),
-        globalX,
-        globalY + 7,
-        color,
-        nullptr
-    );
+    tft.setTextSize(1);
+    tft.drawFastHLine(20, 222, 132, COLOR_ACCENT_DIM);
 }
 
-
-// ============================================================
-// ОЧИСТКА СИМВОЛА
-// ============================================================
-
-void SplashScreen::clearCharacter(
-    uint16_t column,
-    int16_t row
-)
+void SplashScreen::drawProgress(uint32_t elapsed)
 {
-    if (column >= COLUMNS)
-        return;
+    uint32_t completed = (elapsed * PROGRESS_WIDTH) / DURATION_MS;
 
-    if (row < 0 || row >= ROWS)
-        return;
-
-    int16_t x =
-        column * CELL_WIDTH;
-
-    int16_t y =
-        row * CELL_HEIGHT;
+    if (completed > PROGRESS_WIDTH)
+    {
+        completed = PROGRESS_WIDTH;
+    }
 
     _display.fillRect(
-        x,
-        y,
-        CELL_WIDTH,
-        CELL_HEIGHT,
-        ST77XX_BLACK
+        PROGRESS_X,
+        PROGRESS_Y,
+        PROGRESS_WIDTH,
+        PROGRESS_HEIGHT,
+        COLOR_ACCENT_DIM
     );
-}
 
-
-// ============================================================
-// MATRIX CHARACTERS
-// ============================================================
-
-char SplashScreen::randomCharacter()
-{
-    static const char characters[] =
-        "0123456789"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "abcdefghijklmnopqrstuvwxyz"
-        "@#$%&*+-=<>[]{}"
-        "/\\|";
-
-    constexpr uint16_t count =
-        sizeof(characters) - 1;
-
-    return characters[
-        random(0, count)
-    ];
-}
-
-
-// ============================================================
-// RGB565 GREEN
-// ============================================================
-
-uint16_t SplashScreen::greenColor(
-    uint8_t brightness
-)
-{
-    /*
-        RGB565:
-
-        R = 5 bit
-        G = 6 bit
-        B = 5 bit
-
-        Для Matrix используем только зелёный.
-    */
-
-    uint8_t green =
-        map(
-            brightness,
-            0,
-            255,
-            0,
-            63
+    if (completed > 0)
+    {
+        _display.fillRect(
+            PROGRESS_X,
+            PROGRESS_Y,
+            static_cast<int16_t>(completed),
+            PROGRESS_HEIGHT,
+            COLOR_ACCENT
         );
-
-    return static_cast<uint16_t>(
-        green << 5
-    );
-}
-
-
-// ============================================================
-// ФИНАЛЬНАЯ ВСПЫШКА
-// ============================================================
-
-void SplashScreen::finalFlash()
-{
-    _display.clear(
-        greenColor(80)
-    );
-
-    delay(40);
-
-    _display.clear(
-        greenColor(25)
-    );
-
-    delay(40);
-
-    _display.clear(
-        ST77XX_BLACK
-    );
-
-    delay(100);
+    }
 }

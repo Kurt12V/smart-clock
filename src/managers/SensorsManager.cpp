@@ -1,6 +1,6 @@
 #include "SensorsManager.h"
-#include "../include/Config.h"
-#include "../include/Constants.h"
+#include "Config.h"
+#include "Constants.h"
 
 // ========================================
 // CONSTRUCTOR
