@@ -79,7 +79,7 @@ namespace Config
 namespace Config
 {
     constexpr uint16_t DISPLAY_WIDTH  = 320;
-    constexpr uint16_t DISPLAY_HEIGHT = 240;
+    constexpr uint16_t DISPLAY_HEIGHT = 172;
     constexpr uint8_t  DISPLAY_COUNT  = 4;
 
     constexpr uint32_t DISPLAY_SPI_FREQUENCY = 40000000;   // 40 МГц

@@ -36,8 +36,8 @@ static constexpr uint8_t CHAR_COUNT =
 // TIMING
 // ============================================================
 
-static constexpr uint32_t ANIMATION_TIME = 2200;
-static constexpr uint16_t FRAME_TIME = 30;
+static constexpr uint32_t ANIMATION_TIME = 15200;
+static constexpr uint16_t FRAME_TIME = 150;
 
 
 // ============================================================
@@ -64,16 +64,11 @@ void SplashScreen::show()
 
     clear();
 
-    uint32_t start =
-        millis();
+    uint32_t start = millis();
 
-    while (
-        millis() - start <
-        ANIMATION_TIME
-    )
+    while (millis() - start < ANIMATION_TIME)
     {
         drawFrame();
-
         delay(FRAME_TIME);
     }
 
@@ -81,24 +76,20 @@ void SplashScreen::show()
     // Финальное заполнение зелёным
     // --------------------------------------------------------
 
-    for (uint8_t d = 0; d < DISPLAY_COUNT; d++)
-    {
-        _display
-            .get(d)
-            .fillScreen(
-                BRIGHT_GREEN
-            );
-    }
+    // for (uint8_t d = 0; d < DISPLAY_COUNT; d++)
+    // {
+    //     _display
+    //         .get(d)
+    //         .fillScreen(0xF800);
+    // }
 
-    delay(35);
+    // delay(100);
 
     for (uint8_t d = 0; d < DISPLAY_COUNT; d++)
     {
         _display
             .get(d)
-            .fillScreen(
-                BLACK
-            );
+            .fillScreen(BLACK);
     }
 }
 
@@ -113,23 +104,9 @@ void SplashScreen::initializeRain()
     {
         for (uint8_t c = 0; c < COLUMNS; c++)
         {
-            _head[d][c] =
-                random(
-                    -320,
-                    0
-                );
-
-            _length[d][c] =
-                random(
-                    5,
-                    18
-                );
-
-            _speed[d][c] =
-                random(
-                    1,
-                    4
-                );
+            _head[d][c] = random(-320, 0);
+            _length[d][c] = random(5, 9);
+            _speed[d][c] = random(10, 20);
         }
     }
 }
@@ -145,167 +122,68 @@ void SplashScreen::clear()
     {
         _display
             .get(d)
-            .fillScreen(
-                BLACK
-            );
+            .fillScreen(BLACK);
     }
 }
 
-
-// ============================================================
-// DRAW FRAME
-// ============================================================
-
-void SplashScreen::drawFrame()
+    void SplashScreen::drawFrame()
 {
     for (uint8_t d = 0; d < DISPLAY_COUNT; d++)
     {
-        ST7789_172x320& tft =
-            _display.get(d);
+        ST7789_172x320& tft = _display.get(d);
 
-        // ----------------------------------------------------
-        // Очень лёгкое стирание предыдущего кадра
-        // ----------------------------------------------------
+        tft.setFont(nullptr);
+        tft.setTextSize(1);
 
-        // Чёрные полосы сверху/снизу оставляют ощущение
-        // движения и уменьшают количество старых символов.
-        tft.fillRect(
-            0,
-            0,
-            172,
-            2,
-            BLACK
-        );
-
-        // ----------------------------------------------------
-        // Колонки
-        // ----------------------------------------------------
-
-        for (
-            uint8_t c = 0;
-            c < COLUMNS;
-            c++
-        )
+        for (uint8_t c = 0; c < COLUMNS; c++)
         {
-            const int16_t x =
-                c * 6;
+            const int16_t x = c * 6;
+            const uint8_t length = _length[d][c];
 
-            int16_t head =
-                _head[d][c];
+            // Сначала сдвигаем поток вниз.
+            _head[d][c] += _speed[d][c];
+            const int16_t head = _head[d][c];
 
-            uint8_t length =
-                _length[d][c];
-
-            // ------------------------------------------------
-            // Рисуем хвост
-            // ------------------------------------------------
-
-            for (
-                uint8_t i = 0;
-                i < length;
-                i++
-            )
+            // Убираем символ, который вышел за хвост потока.
+            const int16_t eraseY = head - length * 8;
+            if (eraseY >= 0 && eraseY < 320)
             {
-                int16_t y =
-                    head -
-                    i * 8;
+                tft.fillRect(x, eraseY, 6, 8, BLACK);
+            }
 
-                if (
-                    y < 0 ||
-                    y >= 320
-                )
+            // Рисуем видимую часть потока.
+            for (uint8_t i = 0; i < length; i++)
+            {
+                const int16_t y = head - i * 8;
+
+                if (y < 0 || y >= 320)
                 {
                     continue;
                 }
 
-                char character =
-                    MATRIX_CHARS[
-                        random(
-                            0,
-                            CHAR_COUNT
-                        )
-                    ];
-
-                tft.setFont(nullptr);
-                tft.setTextSize(1);
-
-                // ------------------------------------------------
-                // Голова
-                // ------------------------------------------------
-
                 if (i == 0)
                 {
-                    tft.setTextColor(
-                        BRIGHT_GREEN
-                    );
+                    tft.setTextColor(BRIGHT_GREEN);
                 }
-
-                // ------------------------------------------------
-                // Первые символы
-                // ------------------------------------------------
-
                 else if (i < 3)
                 {
-                    tft.setTextColor(
-                        GREEN
-                    );
+                    tft.setTextColor(GREEN);
                 }
-
-                // ------------------------------------------------
-                // Дальний хвост
-                // ------------------------------------------------
-
                 else
                 {
-                    tft.setTextColor(
-                        DARK_GREEN
-                    );
+                    tft.setTextColor(DARK_GREEN);
                 }
 
-                tft.setCursor(
-                    x,
-                    y
-                );
-
-                tft.print(
-                    character
-                );
+                tft.setCursor(x, y);
+                tft.print(MATRIX_CHARS[random(CHAR_COUNT)]);
             }
 
-            // ------------------------------------------------
-            // Движение
-            // ------------------------------------------------
-
-            _head[d][c] +=
-                _speed[d][c];
-
-            // ------------------------------------------------
-            // Перезапуск колонки
-            // ------------------------------------------------
-
-            if (
-                _head[d][c] >
-                320 +
-                _length[d][c] * 8
-            )
+            // Начинаем поток заново, когда весь хвост прошёл экран.
+            if (head - length * 8 > 320)
             {
-                _head[d][c] =
-                    random(
-                        -160,
-                        -10
-                    );
-
-                _length[d][c] =
-                    random(
-                        5,
-                        18
-                    );
-
-                _speed[d][c] =
-                    random(
-                        1,
-                        4
-                    );
+                _head[d][c] = random(-160, -10);
+                _length[d][c] = random(5, 9);
+                _speed[d][c] = random(10, 20);
             }
         }
     }

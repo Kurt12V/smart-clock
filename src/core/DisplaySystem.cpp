@@ -5,7 +5,7 @@ DisplaySystem::DisplaySystem()
     : _display(),
       _displayManager(_display),
       _splashScreen(_displayManager),
-      _clockScreen(_displayManager),
+    //   _clockScreen(_displayManager),
       _initialized(false)
 {
 }
@@ -34,15 +34,15 @@ void DisplaySystem::showSplash()
     _splashScreen.show();
 }
 
-void DisplaySystem::showClock()
-{
-    if (!_initialized)
-        return;
+// void DisplaySystem::showClock()
+// {
+//     if (!_initialized)
+//         return;
 
-    _clockScreen.draw();
-}
+//     _clockScreen.draw();
+// }
 
-ClockScreen& DisplaySystem::clock()
-{
-    return _clockScreen;
-}
+// ClockScreen& DisplaySystem::clock()
+// {
+//     return _clockScreen;
+// }

@@ -1,5 +1,6 @@
 #include "Display.h"
 #include "Pins.h"
+
 #include <Arduino.h>
 #include <SPI.h>
 #include <Adafruit_GFX.h>
@@ -10,7 +11,8 @@
 // DISPLAY PINS
 // ============================================================
 
-static const int8_t TFT_CS[4] =
+// У каждого экрана отдельный выбор устройства и сброс.
+static const int8_t TFT_CS[DISPLAY_COUNT] =
 {
     PIN_TFT_CS1,
     PIN_TFT_CS2,
@@ -18,7 +20,7 @@ static const int8_t TFT_CS[4] =
     PIN_TFT_CS4
 };
 
-static const int8_t TFT_RST[4] =
+static const int8_t TFT_RST[DISPLAY_COUNT] =
 {
     PIN_TFT_RST1,
     PIN_TFT_RST2,
@@ -34,15 +36,11 @@ static const int8_t TFT_RST[4] =
 ST7789_172x320::ST7789_172x320(
     int8_t cs,
     int8_t dc,
-    int8_t rst,
-    int8_t mosi,
-    int8_t sclk
+    int8_t rst
 )
     : Adafruit_ST7789(
         cs,
         dc,
-        mosi,
-        sclk,
         rst
     )
 {
@@ -55,34 +53,43 @@ ST7789_172x320::ST7789_172x320(
 
 void ST7789_172x320::begin172x320()
 {
-    // Инициализация физического дисплея
+    /*
+     * 40 МГц подходит для коротких качественных проводов.
+     * Если на экране появятся полосы, мерцание или искажённые
+     * символы, замените 40000000 на 20000000.
+     */
+    setSPISpeed(40000000);
+
+    /*
+     * Реальный размер видимой области данной панели:
+     * 172 x 320 пикселей.
+     */
     init(
         172,
         320,
         SPI_MODE0
     );
 
-    // Для конкретного ST7789 172x320
-    // требуется смещение по X.
+    /*
+     * Для большинства ST7789 172x320 нужен сдвиг области
+     * изображения на 34 пикселя по горизонтали.
+     */
     setColRowStart(
         34,
         0
     );
 
-    // Безопасная скорость SPI
-    setSPISpeed(
-        8000000
-    );
+    // Вертикальная ориентация: 172 пикселя в ширину, 320 в высоту.
+    setRotation(0);
 
-    // Ориентация
-    setRotation(
-        0
-    );
+    /*
+     * У многих панелей ST7789 цвета выглядят правильно только
+     * с инверсией. Если чёрный фон выглядит зелёным или цвета
+     * выглядят негативом, замените true на false.
+     */
+    invertDisplay(true);
 
-    // Инверсия цветов
-    invertDisplay(
-        true
-    );
+    fillScreen(ST77XX_BLACK);
 }
 
 
@@ -93,7 +100,7 @@ void ST7789_172x320::begin172x320()
 Display::Display()
     : _initialized(false)
 {
-    for (uint8_t i = 0; i < 4; i++)
+    for (uint8_t i = 0; i < DISPLAY_COUNT; i++)
     {
         _display[i] = nullptr;
     }
@@ -106,13 +113,10 @@ Display::Display()
 
 Display::~Display()
 {
-    for (uint8_t i = 0; i < 4; i++)
+    for (uint8_t i = 0; i < DISPLAY_COUNT; i++)
     {
-        if (_display[i] != nullptr)
-        {
-            delete _display[i];
-            _display[i] = nullptr;
-        }
+        delete _display[i];
+        _display[i] = nullptr;
     }
 }
 
@@ -133,107 +137,74 @@ bool Display::begin()
     // BACKLIGHT
     // --------------------------------------------------------
 
-    pinMode(
-        PIN_TFT_BL,
-        OUTPUT
-    );
+    pinMode(PIN_TFT_BL, OUTPUT);
 
-    digitalWrite(
-        PIN_TFT_BL,
-        HIGH
-    );
+    /*
+     * Обычный вариант: HIGH включает подсветку.
+     * Если дисплеи светятся при LOW, поменяйте HIGH и LOW
+     * в этой строке и в setBacklight().
+     */
+    digitalWrite(PIN_TFT_BL, HIGH);
 
 
     // --------------------------------------------------------
-    // SPI
+    // SHARED SPI BUS
     // --------------------------------------------------------
     //
-    // Все четыре дисплея используют одну SPI-шину.
+    // SCLK — общий тактовый провод.
+    // MOSI — общий провод данных от платы к дисплеям.
+    // DC   — общий провод выбора «команда или данные».
     //
-    // SCLK  -> общий
-    // MOSI  -> общий
-    // DC    -> общий
-    //
-    // CS    -> отдельный
-    // RST   -> отдельный
+    // CS и RST — отдельные для каждого дисплея.
     //
     // --------------------------------------------------------
 
     SPI.begin(
         PIN_TFT_SCLK,
-        -1,
+        -1,             // MISO не нужен: дисплеи только получают данные.
         PIN_TFT_MOSI,
         -1
     );
 
+    pinMode(PIN_TFT_DC, OUTPUT);
+    digitalWrite(PIN_TFT_DC, LOW);
+
 
     // --------------------------------------------------------
-    // INITIALIZE FOUR DISPLAYS
+    // PREPARE ALL CHIP-SELECT AND RESET PINS
     // --------------------------------------------------------
 
-    for (uint8_t i = 0; i < 4; i++)
+    for (uint8_t i = 0; i < DISPLAY_COUNT; i++)
     {
-        // Создаем объект дисплея
-        _display[i] =
-            new ST7789_172x320(
-                TFT_CS[i],
-                PIN_TFT_DC,
-                TFT_RST[i],
-                PIN_TFT_MOSI,
-                PIN_TFT_SCLK
-            );
+        pinMode(TFT_CS[i], OUTPUT);
+        digitalWrite(TFT_CS[i], HIGH);
 
-
-        // ----------------------------------------------------
-        // CS
-        // ----------------------------------------------------
-
-        pinMode(
-            TFT_CS[i],
-            OUTPUT
-        );
-
-        digitalWrite(
-            TFT_CS[i],
-            HIGH
-        );
-
-
-        // ----------------------------------------------------
-        // RST
-        // ----------------------------------------------------
-
-        pinMode(
-            TFT_RST[i],
-            OUTPUT
-        );
-
-        digitalWrite(
-            TFT_RST[i],
-            HIGH
-        );
-
-
-        // ----------------------------------------------------
-        // INITIALIZE ST7789
-        // ----------------------------------------------------
-
-        _display[i]->begin172x320();
-
-
-        // ----------------------------------------------------
-        // CLEAR DISPLAY
-        // ----------------------------------------------------
-
-        _display[i]->fillScreen(
-            ST77XX_BLACK
-        );
+        pinMode(TFT_RST[i], OUTPUT);
+        digitalWrite(TFT_RST[i], HIGH);
     }
 
 
     // --------------------------------------------------------
-    // FINISHED
+    // INITIALIZE DISPLAYS ONE AT A TIME
     // --------------------------------------------------------
+
+    for (uint8_t i = 0; i < DISPLAY_COUNT; i++)
+    {
+        _display[i] = new ST7789_172x320(
+            TFT_CS[i],
+            PIN_TFT_DC,
+            TFT_RST[i]
+        );
+
+        if (_display[i] == nullptr)
+        {
+            return false;
+        }
+
+        _display[i]->begin172x320();
+        _display[i]->fillScreen(ST77XX_BLACK);
+    }
+
 
     _initialized = true;
 
@@ -245,11 +216,10 @@ bool Display::begin()
 // GET DISPLAY
 // ============================================================
 
-ST7789_172x320& Display::get(
-    uint8_t index
-)
+ST7789_172x320& Display::get(uint8_t index)
 {
-    if (index >= 4)
+    // Защита от случайного номера вне диапазона 0–3.
+    if (index >= DISPLAY_COUNT)
     {
         index = 0;
     }
@@ -262,13 +232,10 @@ ST7789_172x320& Display::get(
 // BACKLIGHT
 // ============================================================
 
-void Display::setBacklight(
-    bool state
-)
+void Display::setBacklight(bool state)
 {
     digitalWrite(
         PIN_TFT_BL,
         state ? HIGH : LOW
     );
 }
-

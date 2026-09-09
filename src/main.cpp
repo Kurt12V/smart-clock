@@ -6,11 +6,9 @@ DisplaySystem displaySystem;
 void setup()
 {
     Serial.begin(115200);
-    delay(500);
 
     // Инициализация дисплеев
     displaySystem.begin();
-
     // =========================
     // ВРЕМЯ
     // 01:23

@@ -13,7 +13,7 @@ public:
 
 private:
     static constexpr uint8_t DISPLAY_COUNT = 4;
-    static constexpr uint8_t COLUMNS = 28;
+    static constexpr uint8_t COLUMNS = 40;
 
     DisplayManager& _display;
 
@@ -24,4 +24,4 @@ private:
     void initializeRain();
     void drawFrame();
     void clear();
-}
+};

@@ -15,13 +15,13 @@ public:
     void showSplash();
     void showClock();
 
-    ClockScreen& clock();
+    // ClockScreen& clock();
 
 private:
     Display _display;
     DisplayManager _displayManager;
     SplashScreen _splashScreen;
-    ClockScreen _clockScreen;
+    // ClockScreen _clockScreen;
 
     bool _initialized;
 };
