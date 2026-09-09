@@ -3,20 +3,13 @@
 #include <Arduino.h>
 #include <Adafruit_GFX.h>
 
-#include "ui/Display.h"
-
+#include "../ui/Display.h"
 
 class DisplayManager
 {
 public:
-
-    // ========================================================
-    // Размер одного дисплея
-    // ========================================================
-
-    static constexpr int16_t DISPLAY_WIDTH  = 172;
+    static constexpr int16_t DISPLAY_WIDTH = 172;
     static constexpr int16_t DISPLAY_HEIGHT = 320;
-
     static constexpr uint8_t DISPLAY_COUNT = 4;
 
     static constexpr int16_t TOTAL_WIDTH =
@@ -25,24 +18,12 @@ public:
     static constexpr int16_t TOTAL_HEIGHT =
         DISPLAY_HEIGHT;
 
-
     explicit DisplayManager(
         Display& display
     );
 
-
-    // ========================================================
-    // Инициализация
-    // ========================================================
-
     bool begin();
-
     bool isInitialized() const;
-
-
-    // ========================================================
-    // Физические дисплеи
-    // ========================================================
 
     ST7789_172x320& get(
         uint8_t index
@@ -52,11 +33,6 @@ public:
         uint8_t index
     );
 
-
-    // ========================================================
-    // Очистка
-    // ========================================================
-
     void clear(
         uint16_t color = ST77XX_BLACK
     );
@@ -65,18 +41,6 @@ public:
         uint8_t index,
         uint16_t color = ST77XX_BLACK
     );
-
-
-    // ========================================================
-    // Общий виртуальный Canvas
-    //
-    // X:
-    //
-    // 0   ... 171   = Display 1
-    // 172 ... 343   = Display 2
-    // 344 ... 515   = Display 3
-    // 516 ... 687   = Display 4
-    // ========================================================
 
     void drawPixel(
         int16_t x,
@@ -128,11 +92,6 @@ public:
         uint16_t color
     );
 
-
-    // ========================================================
-    // Текст на виртуальном Canvas
-    // ========================================================
-
     void drawText(
         const char* text,
         int16_t x,
@@ -140,11 +99,6 @@ public:
         uint16_t color,
         const GFXfont* font
     );
-
-
-    // ========================================================
-    // Работа с координатами
-    // ========================================================
 
     bool validPoint(
         int16_t x,
@@ -159,27 +113,14 @@ public:
         int16_t x
     ) const;
 
-
-    // ========================================================
-    // Цвет
-    // ========================================================
-
     uint16_t dimColor(
         uint16_t color,
         uint8_t amount
     );
 
-
 private:
-
     Display& _display;
-
     bool _initialized;
-
-
-    // ========================================================
-    // Внутренние функции
-    // ========================================================
 
     bool validRect(
         int16_t x,

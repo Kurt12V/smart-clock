@@ -1,7 +1,10 @@
-// #pragma once
+// src/ui/screens/ClockScreen.h
+
+#pragma once
 
 #include <Arduino.h>
-#include "./managers/DisplayManager.h"
+#include "../../managers/DisplayManager.h"
+
 class ClockScreen
 {
 public:
@@ -28,34 +31,28 @@ public:
         const char* battery
     );
 
-    void notify(
-        const char* message
-    );
+    void notify(const char* message);
 
     void draw();
 
-// private:
-//     DisplayManager& _display;
+private:
+    DisplayManager& _display;
 
-    // Время
     uint8_t _hour1 = 0;
     uint8_t _hour2 = 0;
     uint8_t _minute1 = 0;
     uint8_t _minute2 = 0;
 
-    // Дата
     char _day[12] = {};
     uint8_t _date = 1;
     uint8_t _month = 1;
     uint16_t _year = 2026;
 
-    // Датчики
     char _temperature[16] = {};
     char _humidity[16] = {};
     char _light[16] = {};
     char _battery[16] = {};
 
-    // Уведомление
     char _notification[96] = {};
     bool _hasNotification = false;
 
@@ -63,6 +60,5 @@ public:
     void drawScreen2();
     void drawScreen3();
     void drawScreen4();
-
     void drawNotification();
 };

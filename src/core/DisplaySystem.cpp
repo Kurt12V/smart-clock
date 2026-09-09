@@ -1,11 +1,11 @@
 #include "DisplaySystem.h"
+
 #include <Arduino.h>
 
 DisplaySystem::DisplaySystem()
     : _display(),
       _displayManager(_display),
       _splashScreen(_displayManager),
-    //   _clockScreen(_displayManager),
       _initialized(false)
 {
 }
@@ -13,7 +13,9 @@ DisplaySystem::DisplaySystem()
 void DisplaySystem::begin()
 {
     if (_initialized)
+    {
         return;
+    }
 
     if (!_displayManager.begin())
     {
@@ -29,25 +31,19 @@ void DisplaySystem::begin()
 void DisplaySystem::startSplash()
 {
     if (!_initialized)
+    {
         return;
+    }
 
     _splashScreen.start();
 }
 
 bool DisplaySystem::updateSplash()
 {
-    return _initialized && _splashScreen.update();
-}
+    if (!_initialized)
+    {
+        return false;
+    }
 
-// void DisplaySystem::showClock()
-// {
-//     if (!_initialized)
-//         return;
-
-//     _clockScreen.draw();
-// }
-
-ClockScreen& DisplaySystem::clock()
-{
-    return _clockScreen;
+    return _splashScreen.update();
 }
