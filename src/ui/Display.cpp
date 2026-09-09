@@ -3,16 +3,13 @@
 
 #include <Arduino.h>
 #include <SPI.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_ST7789.h>
 
 
 // ============================================================
-// DISPLAY PINS
+// Массивы GPIO
 // ============================================================
 
-// У каждого экрана отдельный выбор устройства и сброс.
-static const int8_t TFT_CS[DISPLAY_COUNT] =
+static const int8_t TFT_CS[4] =
 {
     PIN_TFT_CS1,
     PIN_TFT_CS2,
@@ -20,7 +17,7 @@ static const int8_t TFT_CS[DISPLAY_COUNT] =
     PIN_TFT_CS4
 };
 
-static const int8_t TFT_RST[DISPLAY_COUNT] =
+static const int8_t TFT_RST[4] =
 {
     PIN_TFT_RST1,
     PIN_TFT_RST2,
@@ -30,7 +27,7 @@ static const int8_t TFT_RST[DISPLAY_COUNT] =
 
 
 // ============================================================
-// ST7789 172x320
+// ST7789_172x320
 // ============================================================
 
 ST7789_172x320::ST7789_172x320(
@@ -48,81 +45,202 @@ ST7789_172x320::ST7789_172x320(
 
 
 // ============================================================
-// DISPLAY INITIALIZATION
+// Инициализация одного дисплея
 // ============================================================
 
 void ST7789_172x320::begin172x320()
 {
-    /*
-     * 40 МГц подходит для коротких качественных проводов.
-     * Если на экране появятся полосы, мерцание или искажённые
-     * символы, замените 40000000 на 20000000.
-     */
-    setSPISpeed(40000000);
-
-    /*
-     * Реальный размер видимой области данной панели:
-     * 172 x 320 пикселей.
-     */
+    // Инициализация физического дисплея
     init(
         172,
         320,
         SPI_MODE0
     );
 
-    /*
-     * Для большинства ST7789 172x320 нужен сдвиг области
-     * изображения на 34 пикселя по горизонтали.
-     */
+    // Для конкретного ST7789 172x320
+    // требуется смещение по X.
     setColRowStart(
         34,
         0
     );
 
-    // Вертикальная ориентация: 172 пикселя в ширину, 320 в высоту.
-    setRotation(0);
+    // Безопасная скорость SPI
+    setSPISpeed(
+        8000000
+    );
 
-    /*
-     * У многих панелей ST7789 цвета выглядят правильно только
-     * с инверсией. Если чёрный фон выглядит зелёным или цвета
-     * выглядят негативом, замените true на false.
-     */
-    invertDisplay(true);
+    // Ориентация
+    setRotation(
+        0
+    );
 
-    fillScreen(ST77XX_BLACK);
+    // Инверсия цветов
+    invertDisplay(
+        true
+    );
 }
 
 
 // ============================================================
-// CONSTRUCTOR
+// Display constructor
 // ============================================================
 
 Display::Display()
-    : _initialized(false)
+    :
+      _display
+      {
+          ST7789_172x320(
+              PIN_TFT_CS1,
+              PIN_TFT_DC,
+              PIN_TFT_RST1,
+              PIN_TFT_MOSI,
+              PIN_TFT_SCLK
+          ),
+
+          ST7789_172x320(
+              PIN_TFT_CS2,
+              PIN_TFT_DC,
+              PIN_TFT_RST2,
+              PIN_TFT_MOSI,
+              PIN_TFT_SCLK
+          ),
+
+          ST7789_172x320(
+              PIN_TFT_CS3,
+              PIN_TFT_DC,
+              PIN_TFT_RST3,
+              PIN_TFT_MOSI,
+              PIN_TFT_SCLK
+          ),
+
+          ST7789_172x320(
+              PIN_TFT_CS4,
+              PIN_TFT_DC,
+              PIN_TFT_RST4,
+              PIN_TFT_MOSI,
+              PIN_TFT_SCLK
+          )
+      },
+
+      _initialized(false),
+      _backlight(false)
 {
-    for (uint8_t i = 0; i < DISPLAY_COUNT; i++)
+    for (uint8_t i = 0; i < 4; i++)
     {
-        _display[i] = nullptr;
+        pinMode(
+            TFT_CS[i],
+            OUTPUT
+        );
+
+        /*
+         * Все дисплеи выключены.
+         */
+        digitalWrite(
+            TFT_CS[i],
+            HIGH
+        );
+    }
+
+
+    /*
+     * --------------------------------------------------------
+     * RST
+     * --------------------------------------------------------
+     */
+
+    for (uint8_t i = 0; i < COUNT; i++)
+    {
+        pinMode(
+            TFT_RST[i],
+            OUTPUT
+        );
+
+        /*
+         * Не держим дисплей в reset.
+         */
+        digitalWrite(
+            TFT_RST[i],
+            HIGH
+        );
     }
 }
 
 
 // ============================================================
-// DESTRUCTOR
+// Выключить все дисплеи
 // ============================================================
 
-Display::~Display()
+void Display::disableAllDisplays()
 {
-    for (uint8_t i = 0; i < DISPLAY_COUNT; i++)
+    for (uint8_t i = 0; i < 4; i++)
     {
-        delete _display[i];
-        _display[i] = nullptr;
+        if (_display[i] != nullptr)
+        {
+            delete _display[i];
+            _display[i] = nullptr;
+        }
     }
 }
 
 
 // ============================================================
-// BEGIN
+// Инициализация одного дисплея
+// ============================================================
+
+bool Display::initializeDisplay(
+    uint8_t index
+)
+{
+    if (index >= COUNT)
+    {
+        return false;
+    }
+
+
+    /*
+     * Очень важно:
+     *
+     * перед инициализацией конкретного
+     * дисплея все остальные CS должны
+     * быть HIGH.
+     */
+
+    disableAllDisplays();
+
+
+    /*
+     * Выбираем только этот дисплей.
+     */
+
+    digitalWrite(
+        TFT_CS[index],
+        LOW
+    );
+
+
+    /*
+     * Инициализация ST7789.
+     */
+
+    _display[index].begin172x320();
+
+
+    /*
+     * После init снова снимаем CS.
+     */
+
+    digitalWrite(
+        TFT_CS[index],
+        HIGH
+    );
+
+
+    return true;
+}
+
+
+// ============================================================
+// begin()
 // ============================================================
 
 bool Display::begin()
@@ -137,25 +255,29 @@ bool Display::begin()
     // BACKLIGHT
     // --------------------------------------------------------
 
-    pinMode(PIN_TFT_BL, OUTPUT);
+    pinMode(
+        PIN_TFT_BL,
+        OUTPUT
+    );
 
-    /*
-     * Обычный вариант: HIGH включает подсветку.
-     * Если дисплеи светятся при LOW, поменяйте HIGH и LOW
-     * в этой строке и в setBacklight().
-     */
-    digitalWrite(PIN_TFT_BL, HIGH);
+    digitalWrite(
+        PIN_TFT_BL,
+        HIGH
+    );
 
 
     // --------------------------------------------------------
-    // SHARED SPI BUS
+    // SPI
     // --------------------------------------------------------
     //
-    // SCLK — общий тактовый провод.
-    // MOSI — общий провод данных от платы к дисплеям.
-    // DC   — общий провод выбора «команда или данные».
+    // Все четыре дисплея используют одну SPI-шину.
     //
-    // CS и RST — отдельные для каждого дисплея.
+    // SCLK  -> общий
+    // MOSI  -> общий
+    // DC    -> общий
+    //
+    // CS    -> отдельный
+    // RST   -> отдельный
     //
     // --------------------------------------------------------
 
@@ -171,40 +293,72 @@ bool Display::begin()
 
 
     // --------------------------------------------------------
-    // PREPARE ALL CHIP-SELECT AND RESET PINS
+    // INITIALIZE FOUR DISPLAYS
     // --------------------------------------------------------
 
-    for (uint8_t i = 0; i < DISPLAY_COUNT; i++)
+    for (uint8_t i = 0; i < 4; i++)
     {
-        pinMode(TFT_CS[i], OUTPUT);
-        digitalWrite(TFT_CS[i], HIGH);
+        // Создаем объект дисплея
+        _display[i] =
+            new ST7789_172x320(
+                TFT_CS[i],
+                PIN_TFT_DC,
+                TFT_RST[i],
+                PIN_TFT_MOSI,
+                PIN_TFT_SCLK
+            );
 
-        pinMode(TFT_RST[i], OUTPUT);
-        digitalWrite(TFT_RST[i], HIGH);
-    }
 
+        // ----------------------------------------------------
+        // CS
+        // ----------------------------------------------------
 
-    // --------------------------------------------------------
-    // INITIALIZE DISPLAYS ONE AT A TIME
-    // --------------------------------------------------------
-
-    for (uint8_t i = 0; i < DISPLAY_COUNT; i++)
-    {
-        _display[i] = new ST7789_172x320(
+        pinMode(
             TFT_CS[i],
-            PIN_TFT_DC,
-            TFT_RST[i]
+            OUTPUT
         );
 
-        if (_display[i] == nullptr)
-        {
-            return false;
-        }
+        digitalWrite(
+            TFT_CS[i],
+            HIGH
+        );
+
+
+        // ----------------------------------------------------
+        // RST
+        // ----------------------------------------------------
+
+        pinMode(
+            TFT_RST[i],
+            OUTPUT
+        );
+
+        digitalWrite(
+            TFT_RST[i],
+            HIGH
+        );
+
+
+        // ----------------------------------------------------
+        // INITIALIZE ST7789
+        // ----------------------------------------------------
 
         _display[i]->begin172x320();
-        _display[i]->fillScreen(ST77XX_BLACK);
+
+
+        // ----------------------------------------------------
+        // CLEAR DISPLAY
+        // ----------------------------------------------------
+
+        _display[i]->fillScreen(
+            ST77XX_BLACK
+        );
     }
 
+
+    // --------------------------------------------------------
+    // FINISHED
+    // --------------------------------------------------------
 
     _initialized = true;
 
@@ -213,23 +367,137 @@ bool Display::begin()
 
 
 // ============================================================
-// GET DISPLAY
+// Проверка инициализации
 // ============================================================
 
-ST7789_172x320& Display::get(uint8_t index)
+bool Display::isInitialized() const
 {
-    // Защита от случайного номера вне диапазона 0–3.
-    if (index >= DISPLAY_COUNT)
-    {
-        index = 0;
-    }
-
-    return *_display[index];
+    return _initialized;
 }
 
 
 // ============================================================
-// BACKLIGHT
+// Получить дисплей
+// ============================================================
+
+ST7789_172x320& Display::get(uint8_t index)
+{
+    if (index >= 4)
+    {
+        index = 0;
+    }
+
+    return _display[index];
+}
+
+
+// ============================================================
+// Получить указатель
+// ============================================================
+
+ST7789_172x320* Display::getPtr(
+    uint8_t index
+)
+{
+    if (index >= COUNT)
+    {
+        return nullptr;
+    }
+
+    return &_display[index];
+}
+
+
+// ============================================================
+// Выбрать дисплей
+// ============================================================
+
+void Display::select(
+    uint8_t index
+)
+{
+    if (index >= COUNT)
+    {
+        return;
+    }
+
+
+    /*
+     * Сначала выключаем все.
+     */
+    disableAllDisplays();
+
+
+    /*
+     * Затем выбираем только один.
+     */
+    digitalWrite(
+        TFT_CS[index],
+        LOW
+    );
+}
+
+
+// ============================================================
+// Снять выбор со всех
+// ============================================================
+
+void Display::deselectAll()
+{
+    disableAllDisplays();
+}
+
+
+// ============================================================
+// Очистить все дисплеи
+// ============================================================
+
+void Display::clear(
+    uint16_t color
+)
+{
+    for (uint8_t i = 0; i < COUNT; i++)
+    {
+        select(i);
+
+        _display[i].fillScreen(
+            color
+        );
+    }
+
+    deselectAll();
+}
+
+
+// ============================================================
+// Очистить один дисплей
+// ============================================================
+
+void Display::clear(
+    uint8_t index,
+    uint16_t color
+)
+{
+    if (index >= COUNT)
+    {
+        return;
+    }
+
+    select(index);
+
+    _display[index].fillScreen(
+        color
+    );
+
+    digitalWrite(
+        TFT_CS[index],
+        HIGH
+    );
+}
+
+
+// ============================================================
+// Backlight
 // ============================================================
 
 void Display::setBacklight(bool state)
@@ -239,3 +507,4 @@ void Display::setBacklight(bool state)
         state ? HIGH : LOW
     );
 }
+

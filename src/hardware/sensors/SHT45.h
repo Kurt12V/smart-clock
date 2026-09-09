@@ -1,7 +1,7 @@
 #pragma once
 
-#include "./models/Sensor.h"
-#include "./models/SensorData.h"
+#include "models/Sensor.h"
+#include "models/SensorData.h"
 #include <Adafruit_SHT4x.h>
 #include <Arduino.h>
 

@@ -1,10 +1,10 @@
 #pragma once
-#include "./models/Timedata.h"
+#include "models/Timedata.h"
 #include <Arduino.h>
 #include <time.h>
 
-#include "./hardware/rtc/RTC.h"
-#include "../include/Constants.h"
+#include "hardware/rtc/RTC.h"
+#include "Constants.h"
 
 class ClockManager {
 public:

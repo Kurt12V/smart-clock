@@ -1,9 +1,9 @@
 #pragma once
 
-#include "./ui/Display.h"
-#include "./managers/DisplayManager.h"
-#include "./ui/screens/SplashScreen.h"
-#include "./ui/screens/ClockScreen.h"
+#include "ui/Display.h"
+#include "managers/DisplayManager.h"
+#include "ui/screens/SplashScreen.h"
+#include "ui/screens/ClockScreen.h"
 
 class DisplaySystem
 {
@@ -12,7 +12,8 @@ public:
 
     void begin();
 
-    void showSplash();
+    void startSplash();
+    bool updateSplash();
     void showClock();
 
     // ClockScreen& clock();

@@ -1,4 +1,4 @@
-#include "SDCard.h"
+#include "SDcard.h"
 
 SDCard::SDCard()
     : _mounted(false)

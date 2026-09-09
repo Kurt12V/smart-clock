@@ -1,5 +1,5 @@
 #include "RTC.h"
-#include "../include/Pins.h"
+#include "Pins.h"
 #include <Wire.h>
 
 bool RTC::begin() {

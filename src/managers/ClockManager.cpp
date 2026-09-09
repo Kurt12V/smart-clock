@@ -528,15 +528,10 @@ TimeData ClockManager::getTimeData() {
 
 TimeData data;
 
-time_t now = time(nullptr);
-
-if (now < 100000)
-    return data;
-
 struct tm localTime;
 
-// Получаем именно LOCAL TIME
-localtime_r(&now, &localTime);
+if (!getLocalTime(localTime))
+    return data;
 
 data.hour = localTime.tm_hour;
 data.minute = localTime.tm_min;
@@ -550,15 +545,10 @@ DateData ClockManager::getDateData()
 {
 DateData data;
 
-time_t now = time(nullptr);
-
-if (now < 100000)
-    return data;
-
 struct tm localTime;
 
-// Дата тоже должна быть локальной
-localtime_r(&now, &localTime);
+if (!getLocalTime(localTime))
+    return data;
 
 data.year = localTime.tm_year + 1900;
 data.month = localTime.tm_mon + 1;
