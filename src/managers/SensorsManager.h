@@ -30,6 +30,41 @@ String getHumidity() const;
 
 String getLight() const;
 
+    // =====================================================
+    // MICROPHONE
+    // =====================================================
+
+    bool isMicrophoneInitialized() const;
+
+    bool isMicrophoneEnabled() const;
+
+    void setMicrophoneEnabled(
+        bool enabled
+    );
+
+
+    bool startListening();
+
+    void stopListening();
+
+    bool isListening() const;
+
+
+    bool updateAudio();
+
+
+    float getMicrophoneRMS() const;
+
+    float getMicrophoneLevel() const;
+
+    int16_t getMicrophonePeak() const;
+
+
+    /*
+     * Доступ к Microphone для AudioRecorder.
+     */
+
+    Microphone& getMicrophone();
 
 void printData() const;
 
@@ -41,6 +76,7 @@ static constexpr int SENSOR_COUNT = 2;
 
 SHT45Sensor sht45;
 VEML7700Sensor veml7700;
+Microphone microphone;
 
 Sensor* sensors[SENSOR_COUNT];
 

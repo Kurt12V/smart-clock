@@ -60,21 +60,6 @@ bool SplashScreen::update()
         ANIMATION_TIME
     )
     {
-        for (
-            uint8_t d = 0;
-            d < DISPLAY_COUNT;
-            ++d
-        )
-        {
-            _display
-                .get(d)
-                .fillScreen(
-                    BRIGHT_GREEN
-                );
-        }
-
-        delay(35);
-
         clear();
 
         _state = State::Finished;
