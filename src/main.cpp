@@ -2,354 +2,230 @@
 #include <Wire.h>
 #include <vl53l8cx.h>
 
-// ============================================================
-// ESP32-S3
-// ============================================================
+// =========================
+// I2C
+// =========================
 
 #define I2C_SDA 8
 #define I2C_SCL 9
 
-// LP = Low Power Enable
-#define VL53L8CX_LP_PIN 14
+// LP физически подключен к 3.3V
+// GPIO для LP НЕ используется.
 
-// ============================================================
+// =========================
 // VL53L8CX
-// ============================================================
+// =========================
 
-VL53L8CX sensor(
-&Wire,
-VL53L8CX_LP_PIN
-);
+// В зависимости от версии библиотеки конструктор может отличаться.
+// Для версии ST Arduino обычно используется такой вариант:
+VL53L8CX sensor(&Wire, -1);
 
 VL53L8CX_ResultsData results;
 
 uint8_t status = 0;
 uint8_t dataReady = 0;
 
-// ============================================================
-// PRINT 8x8 MATRIX
-// ============================================================
 
-void printMatrix()
-{
-Serial.println();
-Serial.println("================================================");
-Serial.println("                 VL53L8CX 8x8");
-Serial.println("================================================");
-
-```
-for (uint8_t y = 0; y < 8; y++)
-{
-    for (uint8_t x = 0; x < 8; x++)
-    {
-        uint8_t zone = y * 8 + x;
-
-        uint8_t target =
-            results.nb_target_detected[zone];
-
-        if (target == 0)
-        {
-            Serial.print("  -- ");
-        }
-        else
-        {
-            Serial.printf(
-                "%4d ",
-                results.distance_mm[zone]
-            );
-        }
-    }
-
-    Serial.println();
-}
-
-Serial.println("================================================");
-```
-
-}
-
-// ============================================================
-// PRINT ALL ZONES
-// ============================================================
-
-void printDetailedData()
-{
-Serial.println();
-Serial.println("ZONE DATA");
-Serial.println("--------------------------------");
-
-```
-for (uint8_t zone = 0; zone < 64; zone++)
-{
-    uint8_t target =
-        results.nb_target_detected[zone];
-
-    int16_t distance =
-        results.distance_mm[zone];
-
-    uint8_t targetStatus =
-        results.target_status[zone];
-
-    Serial.printf(
-        "Zone %02d | Distance: %4d mm | Targets: %d | Status: %d\n",
-        zone,
-        distance,
-        target,
-        targetStatus
-    );
-}
-
-Serial.println("--------------------------------");
-```
-
-}
-
-// ============================================================
+// =========================
 // SETUP
-// ============================================================
+// =========================
 
 void setup()
 {
-Serial.begin(115200);
+    // UART0
+    Serial0.begin(115200);
 
-```
-delay(1000);
+    delay(1000);
 
-Serial.println();
-Serial.println();
-Serial.println("========================================");
-Serial.println("       VL53L8CX ESP32-S3 TEST");
-Serial.println("========================================");
+    Serial0.println();
+    Serial0.println("================================");
+    Serial0.println("       VL53L8CX TEST");
+    Serial0.println("================================");
 
-// --------------------------------------------------------
-// I2C
-// --------------------------------------------------------
-
-Serial.println();
-Serial.println("[1] Starting I2C...");
-
-Wire.begin(
-    I2C_SDA,
-    I2C_SCL
-);
-
-Wire.setClock(400000);
-
-Serial.printf(
-    "[I2C] SDA = GPIO%d\n",
-    I2C_SDA
-);
-
-Serial.printf(
-    "[I2C] SCL = GPIO%d\n",
-    I2C_SCL
-);
-
-Serial.println("[I2C] READY");
-
-// --------------------------------------------------------
-// Sensor begin
-// --------------------------------------------------------
-
-Serial.println();
-Serial.println("[2] Starting VL53L8CX...");
-
-status = sensor.begin();
-
-Serial.printf(
-    "[VL53L8CX] begin() = %u\n",
-    status
-);
-
-if (status != 0)
-{
-    Serial.println();
-    Serial.println("ERROR: VL53L8CX begin FAILED");
-    Serial.println();
-    Serial.println("Check:");
-    Serial.println("  - VIN");
-    Serial.println("  - GND");
-    Serial.println("  - SDA");
-    Serial.println("  - SCL");
-    Serial.println("  - SPI_I2C_N = GND");
-    Serial.println();
-
-    while (true)
-    {
-        delay(1000);
-    }
-}
-
-Serial.println("[VL53L8CX] BEGIN OK");
-
-// --------------------------------------------------------
-// Initialize sensor
-// --------------------------------------------------------
-
-Serial.println();
-Serial.println("[3] Initializing sensor...");
-Serial.println("    Please wait...");
-
-status = sensor.init();
-
-Serial.printf(
-    "[VL53L8CX] init() = %u\n",
-    status
-);
-
-if (status != 0)
-{
-    Serial.println();
-    Serial.println("ERROR: VL53L8CX init FAILED");
-    Serial.println();
-
-    while (true)
-    {
-        delay(1000);
-    }
-}
-
-Serial.println("[VL53L8CX] INITIALIZED");
-
-// --------------------------------------------------------
-// Resolution
-// --------------------------------------------------------
-
-Serial.println();
-Serial.println("[4] Setting resolution 8x8...");
-
-status =
-    sensor.set_resolution(
-        VL53L8CX_RESOLUTION_8X8
+    // I2C
+    Wire.begin(
+        I2C_SDA,
+        I2C_SCL
     );
 
-Serial.printf(
-    "[VL53L8CX] set_resolution() = %u\n",
-    status
-);
+    Wire.setClock(400000);
 
-if (status != 0)
-{
-    Serial.println(
-        "ERROR: Failed to set 8x8 resolution"
-    );
+    Serial0.println("[I2C] SDA = GPIO8");
+    Serial0.println("[I2C] SCL = GPIO9");
+    Serial0.println("[I2C] Speed = 400 kHz");
 
-    while (true)
+    // =========================
+    // SENSOR BEGIN
+    // =========================
+
+    Serial0.println();
+    Serial0.println("[VL53L8CX] begin...");
+
+    status = sensor.begin();
+
+    if (status != 0)
     {
-        delay(1000);
+        Serial0.print("[VL53L8CX] begin FAILED, status = ");
+        Serial0.println(status);
+
+        while (true)
+        {
+            delay(1000);
+        }
     }
-}
 
-Serial.println(
-    "[VL53L8CX] 8x8 RESOLUTION OK"
-);
+    Serial0.println("[VL53L8CX] begin OK");
 
-// --------------------------------------------------------
-// Start ranging
-// --------------------------------------------------------
+    // =========================
+    // SENSOR INIT
+    // =========================
 
-Serial.println();
-Serial.println("[5] Starting ranging...");
+    Serial0.println("[VL53L8CX] init...");
 
-status =
-    sensor.start_ranging();
+    status = sensor.init();
 
-Serial.printf(
-    "[VL53L8CX] start_ranging() = %u\n",
-    status
-);
-
-if (status != 0)
-{
-    Serial.println(
-        "ERROR: start_ranging FAILED"
-    );
-
-    while (true)
+    if (status != 0)
     {
-        delay(1000);
+        Serial0.print("[VL53L8CX] init FAILED, status = ");
+        Serial0.println(status);
+
+        while (true)
+        {
+            delay(1000);
+        }
     }
+
+    Serial0.println("[VL53L8CX] init OK");
+
+    // =========================
+    // 8x8 RESOLUTION
+    // =========================
+
+    status =
+        sensor.set_resolution(
+            VL53L8CX_RESOLUTION_8X8
+        );
+
+    if (status != 0)
+    {
+        Serial0.print("[VL53L8CX] resolution FAILED, status = ");
+        Serial0.println(status);
+
+        while (true)
+        {
+            delay(1000);
+        }
+    }
+
+    Serial0.println("[VL53L8CX] Resolution: 8x8");
+
+    // =========================
+    // START RANGING
+    // =========================
+
+    status =
+        sensor.start_ranging();
+
+    if (status != 0)
+    {
+        Serial0.print("[VL53L8CX] start ranging FAILED, status = ");
+        Serial0.println(status);
+
+        while (true)
+        {
+            delay(1000);
+        }
+    }
+
+    Serial0.println("[VL53L8CX] Ranging STARTED");
+    Serial0.println();
 }
 
-Serial.println();
-Serial.println("========================================");
-Serial.println("        VL53L8CX RANGING STARTED");
-Serial.println("========================================");
 
-Serial.println();
-Serial.println(
-    "Move your hand/object in front of sensor."
-);
-
-Serial.println();
-```
-
-}
-
-// ============================================================
+// =========================
 // LOOP
-// ============================================================
+// =========================
 
 void loop()
 {
-dataReady = 0;
+    // Проверяем, готовы ли новые данные
+    status =
+        sensor.check_data_ready(
+            &dataReady
+        );
 
-```
-// --------------------------------------------------------
-// Check new measurement
-// --------------------------------------------------------
+    if (status != 0)
+    {
+        Serial0.print("[VL53L8CX] check_data_ready error: ");
+        Serial0.println(status);
 
-status =
-    sensor.check_data_ready(
-        &dataReady
-    );
+        delay(100);
+        return;
+    }
 
-if (status != 0)
-{
-    Serial.printf(
-        "[ERROR] check_data_ready = %u\n",
-        status
-    );
+    if (!dataReady)
+    {
+        delay(5);
+        return;
+    }
 
-    delay(100);
+    // Получаем данные
+    status =
+        sensor.get_ranging_data(
+            &results
+        );
 
-    return;
-}
+    if (status != 0)
+    {
+        Serial0.print("[VL53L8CX] get_ranging_data error: ");
+        Serial0.println(status);
 
-if (!dataReady)
-{
-    delay(5);
-    return;
-}
+        delay(50);
+        return;
+    }
 
-// --------------------------------------------------------
-// Read measurement
-// --------------------------------------------------------
+    // =========================
+    // PRINT 8x8
+    // =========================
 
-status =
-    sensor.get_ranging_data(
-        &results
-    );
+    Serial0.println();
+    Serial0.println("---------- DISTANCE ----------");
 
-if (status != 0)
-{
-    Serial.printf(
-        "[ERROR] get_ranging_data = %u\n",
-        status
-    );
+    for (uint8_t y = 0; y < 8; y++)
+    {
+        for (uint8_t x = 0; x < 8; x++)
+        {
+            uint8_t zone =
+                y * 8 + x;
 
-    delay(100);
+            int16_t distance =
+                results.distance_mm[zone];
 
-    return;
-}
+            uint8_t targets =
+                results.nb_target_detected[zone];
 
-// --------------------------------------------------------
-// Print matrix
-// --------------------------------------------------------
+            if (targets == 0)
+            {
+                Serial0.print(" ----");
+            }
+            else
+            {
+                if (distance < 1000)
+                    Serial0.print(" ");
 
-printMatrix();
+                if (distance < 100)
+                    Serial0.print(" ");
 
-delay(100);
-```
+                Serial0.print(distance);
+            }
 
+            Serial0.print(" ");
+        }
+
+        Serial0.println();
+    }
+
+    Serial0.println("------------------------------");
+
+    delay(50);
 }
