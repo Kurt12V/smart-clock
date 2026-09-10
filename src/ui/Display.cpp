@@ -207,7 +207,7 @@ bool Display::begin()
         return false;
     }
 
-    clear(ST77XX_BLACK);
+    clear();
 
     setBacklight(true);
 
