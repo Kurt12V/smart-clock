@@ -7,6 +7,7 @@
 
 #include "hardware/sensors/SHT45.h"
 #include "hardware/sensors/VEML7700.h"
+#include "hardware/sensors/VL53L8CX.h"
 
 class SensorManager {
 public:
@@ -66,6 +67,18 @@ String getLight() const;
 
     Microphone& getMicrophone();
 
+bool isVL53L8CXInitialized() const;
+
+bool updateVL53L8CX();
+
+int16_t getVL53L8CXDistance(uint8_t zone) const;
+uint8_t getVL53L8CXTargets(uint8_t zone) const;
+
+const int16_t* getVL53L8CXDistances() const;
+const uint8_t* getVL53L8CXTargets() const;
+
+VL53L8CXSensor& getVL53L8CX();
+
 void printData() const;
 
 
@@ -76,6 +89,7 @@ static constexpr int SENSOR_COUNT = 2;
 
 SHT45Sensor sht45;
 VEML7700Sensor veml7700;
+VL53L8CXSensor vl53l8cx;
 Microphone microphone;
 
 Sensor* sensors[SENSOR_COUNT];

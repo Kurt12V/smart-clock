@@ -49,6 +49,25 @@ for (int i = 0; i < SENSOR_COUNT; ++i) {
     }
 }
 
+  // -------------------------
+    // VL53L8CX
+    // -------------------------
+
+    Serial.println();
+
+    if (!vl53l8cx.begin())
+    {
+        Serial.println(
+            "[SensorManager] VL53L8CX FAILED"
+        );
+    }
+    else
+    {
+        Serial.println(
+            "[SensorManager] VL53L8CX READY"
+        );
+    }
+
 return allOk;
 
 
@@ -77,7 +96,8 @@ for (int i = 0; i < SENSOR_COUNT; ++i) {
 
     sensors[i]->update(data);
 }
-
+    // VL53L8CX обновляется независимо
+    vl53l8cx.update();
 
 }
 
@@ -239,7 +259,50 @@ Microphone& SensorManager::getMicrophone()
 {
     return microphone;
 }
+// =====================================================
+// VL53L8CX
+// =====================================================
+bool SensorManager::isVL53L8CXInitialized() const
+{
+    return vl53l8cx.isInitialized();
+}
 
+bool SensorManager::updateVL53L8CX()
+{
+    return vl53l8cx.update();
+}
+
+int16_t SensorManager::getVL53L8CXDistance(
+    uint8_t zone
+) const
+{
+    return vl53l8cx.getDistance(zone);
+}
+
+uint8_t SensorManager::getVL53L8CXTargets(
+    uint8_t zone
+) const
+{
+    return vl53l8cx.getTargets(zone);
+}
+
+const int16_t*
+SensorManager::getVL53L8CXDistances() const
+{
+    return vl53l8cx.getDistances();
+}
+
+const uint8_t*
+SensorManager::getVL53L8CXTargets() const
+{
+    return vl53l8cx.getTargets();
+}
+
+VL53L8CXSensor&
+SensorManager::getVL53L8CX()
+{
+    return vl53l8cx;
+} на
 
 
 // ========================================
