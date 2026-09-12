@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
-#include "CobLed.h"
+#include "./hardware/light/CobLed.h"
 
 class CobLedManager
 {

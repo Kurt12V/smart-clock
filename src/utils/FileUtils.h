@@ -6,27 +6,47 @@
 class FileUtils
 {
 public:
-    static bool exists(fs::FS& fs, const char* path);
 
-    static bool createDir(fs::FS& fs, const char* path);
+    static bool exists(
+        fs::FS& fs,
+        const char* path
+    );
 
-    static bool remove(fs::FS& fs, const char* path);
+    static bool createDir(
+        fs::FS& fs,
+        const char* path
+    );
 
-    static bool writeFile(fs::FS& fs,
-                          const char* path,
-                          const String& data);
+    static bool removeFile(
+        fs::FS& fs,
+        const char* path
+    );
 
-    static bool appendFile(fs::FS& fs,
-                           const char* path,
-                           const String& data);
+    static bool writeFile(
+        fs::FS& fs,
+        const char* path,
+        const String& data
+    );
 
-    static String readFile(fs::FS& fs,
-                           const char* path);
+    static bool appendFile(
+        fs::FS& fs,
+        const char* path,
+        const String& data
+    );
 
-    static size_t fileSize(fs::FS& fs,
-                           const char* path);
+    static String readFile(
+        fs::FS& fs,
+        const char* path
+    );
 
-    static bool copyFile(fs::FS& fs,
-                         const char* source,
-                         const char* destination);
+    static size_t fileSize(
+        fs::FS& fs,
+        const char* path
+    );
+
+    static bool copyFile(
+        fs::FS& fs,
+        const char* source,
+        const char* destination
+    );
 };

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
-#include "../hardware/LedMatrix.h"
+#include "./hardware/light/LedMatrix.h"
 
 class LedMatrixManager
 {

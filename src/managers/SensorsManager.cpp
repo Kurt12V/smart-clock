@@ -302,7 +302,7 @@ VL53L8CXSensor&
 SensorManager::getVL53L8CX()
 {
     return vl53l8cx;
-} на
+} 
 
 
 // ========================================
@@ -349,23 +349,7 @@ Serial.println("================================");
     else
     {
         Serial.println("READY");
-    }
-
-
-    Serial.print("Can record:    ");
-    Serial.println(
-        canRecordAudio()
-            ? "YES"
-            : "NO"
-    );
-
-
-    Serial.print("Recording:     ");
-    Serial.println(
-        isRecording()
-            ? "YES"
-            : "NO"
-    );
+    };
 
 
     Serial.print("Mic level:     ");

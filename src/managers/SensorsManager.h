@@ -8,6 +8,7 @@
 #include "hardware/sensors/SHT45.h"
 #include "hardware/sensors/VEML7700.h"
 #include "hardware/sensors/VL53L8CX.h"
+#include "./hardware/audio/Microphone.h"
 
 class SensorManager {
 public:

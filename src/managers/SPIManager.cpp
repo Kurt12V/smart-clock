@@ -1,11 +1,12 @@
-#include "SDManager.h"
+#include "SPIManager.h"
+#include "Pins.h"
 #include "./utils/Logger.h"
 
 // ============================================================
 // CONSTRUCTOR
 // ============================================================
 
-SDManager::SDManager()
+SPIManager::SPIManager()
     : _initialized(false)
 {
 }
@@ -14,63 +15,49 @@ SDManager::SDManager()
 // BEGIN
 // ============================================================
 
-bool SDManager::begin(uint8_t csPin)
+bool SPIManager::begin()
 {
     if (_initialized)
         return true;
 
     Logger::info(
-        "SD",
-        "Initializing SD card..."
+        "SPI",
+        "Initializing SPI bus..."
     );
 
     // --------------------------------------------------------
-    // Проверяем SD
+    // Все CS должны быть HIGH до запуска устройств
     // --------------------------------------------------------
 
-    if (!_card.begin(csPin))
-    {
-        Logger::error(
-            "SD",
-            "Failed to initialize SD card"
-        );
+    pinMode(PIN_TFT_CS1, OUTPUT);
+    pinMode(PIN_TFT_CS2, OUTPUT);
+    pinMode(PIN_TFT_CS3, OUTPUT);
+    pinMode(PIN_TFT_CS4, OUTPUT);
 
-        _initialized = false;
+    pinMode(PIN_SD_CS, OUTPUT);
 
-        return false;
-    }
+    digitalWrite(PIN_TFT_CS1, HIGH);
+    digitalWrite(PIN_TFT_CS2, HIGH);
+    digitalWrite(PIN_TFT_CS3, HIGH);
+    digitalWrite(PIN_TFT_CS4, HIGH);
+
+    digitalWrite(PIN_SD_CS, HIGH);
+
+    // --------------------------------------------------------
+    // Запуск общей SPI-шины
+    // --------------------------------------------------------
+
+    SPI.begin(
+        PIN_SCLK,
+        PIN_SD_MISO,
+        PIN_MOSI
+    );
 
     _initialized = true;
 
-    // --------------------------------------------------------
-    // Информация о карте
-    // --------------------------------------------------------
-
-    SDCardInfo info = _card.getInfo();
-
     Logger::info(
-        "SD",
-        "SD card initialized"
-    );
-
-    Logger::info(
-        "SD",
-        "Total: %s",
-        info.totalSize.c_str()
-    );
-
-    Logger::info(
-        "SD",
-        "Used: %s (%.1f%%)",
-        info.usedSize.c_str(),
-        info.usedPercent
-    );
-
-    Logger::info(
-        "SD",
-        "Free: %s (%.1f%%)",
-        info.freeSize.c_str(),
-        info.freePercent
+        "SPI",
+        "SPI bus initialized"
     );
 
     return true;
@@ -80,18 +67,18 @@ bool SDManager::begin(uint8_t csPin)
 // END
 // ============================================================
 
-void SDManager::end()
+void SPIManager::end()
 {
     if (!_initialized)
         return;
 
-    _card.end();
+    SPI.end();
 
     _initialized = false;
 
     Logger::info(
-        "SD",
-        "SD card unmounted"
+        "SPI",
+        "SPI bus stopped"
     );
 }
 
@@ -99,31 +86,34 @@ void SDManager::end()
 // IS READY
 // ============================================================
 
-bool SDManager::isReady() const
+bool SPIManager::isReady() const
 {
-    return _initialized &&
-           _card.isMounted();
+    return _initialized;
 }
 
 // ============================================================
-// CARD
+// BUS
 // ============================================================
 
-SDCard& SDManager::card()
+SPIClass& SPIManager::bus()
 {
-    return _card;
-}
-
-const SDCard& SDManager::card() const
-{
-    return _card;
+    return SPI;
 }
 
 // ============================================================
-// GET INFO
+// SELECT
 // ============================================================
 
-SDCardInfo SDManager::getInfo() const
+void SPIManager::select(uint8_t csPin)
 {
-    return _card.getInfo();
+    digitalWrite(csPin, LOW);
+}
+
+// ============================================================
+// DESELECT
+// ============================================================
+
+void SPIManager::deselect(uint8_t csPin)
+{
+    digitalWrite(csPin, HIGH);
 }

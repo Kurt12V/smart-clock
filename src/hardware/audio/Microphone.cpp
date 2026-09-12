@@ -109,11 +109,11 @@ bool Microphone::begin()
 
 
     pins.bck_io_num =
-        PIN_MIC_SCK;
+        PIN_INMP_SCK;
 
 
     pins.ws_io_num =
-        PIN_MIC_WS;
+        PIN_INMP_WS;
 
 
     pins.data_out_num =
@@ -121,7 +121,7 @@ bool Microphone::begin()
 
 
     pins.data_in_num =
-        PIN_MIC_SD;
+        PIN_INMP_SD;
 
 
     result =

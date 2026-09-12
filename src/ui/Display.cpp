@@ -181,9 +181,9 @@ bool Display::begin()
     }
 
     SPI.begin(
-        PIN_TFT_SCLK,
+        PIN_SCLK,
         -1,
-        PIN_TFT_MOSI,
+        PIN_MOSI,
         -1
     );
 
