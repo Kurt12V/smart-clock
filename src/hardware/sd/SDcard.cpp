@@ -1,4 +1,4 @@
-#include "SDCard.h"
+#include "SDcard.h"
 
 // ============================================================
 // CONSTRUCTOR
@@ -29,7 +29,7 @@ bool SDCard::begin(uint8_t csPin)
         - SD
 
         SPI должна быть инициализирована один раз
-        в основном коде / SPIManager.
+        через SPIManager.
     */
 
     if (!SD.begin(_csPin, SPI))
@@ -102,8 +102,10 @@ SDCardInfo SDCard::getInfo() const
     if (info.totalBytes > 0)
     {
         info.usedPercent =
-            (static_cast<float>(info.usedBytes) /
-             static_cast<float>(info.totalBytes)) * 100.0f;
+            (
+                static_cast<float>(info.usedBytes) /
+                static_cast<float>(info.totalBytes)
+            ) * 100.0f;
 
         info.freePercent =
             100.0f - info.usedPercent;

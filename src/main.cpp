@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <driver/i2s.h>
 
 #include "Pins.h"
 #include "./managers/SPIManager.h"
@@ -12,89 +13,712 @@ SPIManager spiManager;
 SDManager sdManager;
 
 // ============================================================
-// PRINT DIRECTORY
+// AUDIO
 // ============================================================
 
-void printDirectory(
-    fs::FS& fs,
-    const char* dirname,
-    uint8_t level = 0
+#define I2S_PORT I2S_NUM_0
+
+static constexpr const char* TEST_WAV = "/audio/alarms/alarm_1.wav";
+
+
+// ============================================================
+// WAV INFO
+// ============================================================
+
+struct WavInfo
+{
+    uint16_t audioFormat = 0;
+    uint16_t channels = 0;
+    uint32_t sampleRate = 0;
+    uint16_t bitsPerSample = 0;
+
+    uint32_t dataOffset = 0;
+    uint32_t dataSize = 0;
+
+    bool valid = false;
+};
+
+
+// ============================================================
+// READ LITTLE ENDIAN
+// ============================================================
+
+uint16_t readLE16(File& file)
+{
+    uint8_t b[2];
+
+    if (file.read(b, 2) != 2)
+        return 0;
+
+    return
+        static_cast<uint16_t>(b[0]) |
+        (static_cast<uint16_t>(b[1]) << 8);
+}
+
+
+uint32_t readLE32(File& file)
+{
+    uint8_t b[4];
+
+    if (file.read(b, 4) != 4)
+        return 0;
+
+    return
+        static_cast<uint32_t>(b[0]) |
+        (static_cast<uint32_t>(b[1]) << 8) |
+        (static_cast<uint32_t>(b[2]) << 16) |
+        (static_cast<uint32_t>(b[3]) << 24);
+}
+
+
+// ============================================================
+// READ CHUNK ID
+// ============================================================
+
+bool readChunkId(File& file, char* id)
+{
+    if (file.read(
+            reinterpret_cast<uint8_t*>(id),
+            4
+        ) != 4)
+    {
+        return false;
+    }
+
+    id[4] = '\0';
+
+    return true;
+}
+
+
+// ============================================================
+// PARSE WAV
+// ============================================================
+
+bool parseWav(
+    File& file,
+    WavInfo& wav
 )
 {
-    File root = fs.open(dirname);
+    wav = WavInfo();
 
-    if (!root)
+    // --------------------------------------------------------
+    // RIFF
+    // --------------------------------------------------------
+
+    char riff[5];
+
+    if (!readChunkId(file, riff))
+        return false;
+
+    if (strcmp(riff, "RIFF") != 0)
     {
-        Serial.printf(
-            "ERROR: Cannot open directory: %s\n",
-            dirname
-        );
-
-        return;
+        Serial.println("[WAV] Not RIFF");
+        return false;
     }
 
-    if (!root.isDirectory())
-    {
-        Serial.printf(
-            "ERROR: Not a directory: %s\n",
-            dirname
-        );
+    // File size
+    readLE32(file);
 
-        root.close();
-        return;
+    // WAVE
+    char wave[5];
+
+    if (!readChunkId(file, wave))
+        return false;
+
+    if (strcmp(wave, "WAVE") != 0)
+    {
+        Serial.println("[WAV] Not WAVE");
+        return false;
     }
 
-    File file = root.openNextFile();
+    bool foundFmt = false;
+    bool foundData = false;
 
-    while (file)
+    // --------------------------------------------------------
+    // CHUNKS
+    // --------------------------------------------------------
+
+    while (file.available())
     {
+        char chunkId[5];
+
+        if (!readChunkId(file, chunkId))
+            break;
+
+        uint32_t chunkSize =
+            readLE32(file);
+
+        uint32_t chunkStart =
+            file.position();
+
         // ----------------------------------------------------
-        // Отступ
+        // FORMAT
         // ----------------------------------------------------
 
-        for (uint8_t i = 0; i < level; i++)
+        if (strcmp(chunkId, "fmt ") == 0)
         {
-            Serial.print("    ");
+            wav.audioFormat =
+                readLE16(file);
+
+            wav.channels =
+                readLE16(file);
+
+            wav.sampleRate =
+                readLE32(file);
+
+            // Byte rate
+            readLE32(file);
+
+            // Block align
+            readLE16(file);
+
+            wav.bitsPerSample =
+                readLE16(file);
+
+            foundFmt = true;
         }
 
         // ----------------------------------------------------
-        // DIRECTORY
+        // DATA
         // ----------------------------------------------------
 
-        if (file.isDirectory())
+        else if (strcmp(chunkId, "data") == 0)
         {
-            Serial.print("[DIR]  ");
-            Serial.println(file.name());
+            wav.dataOffset =
+                file.position();
 
-            // Рекурсивно выводим содержимое
-            printDirectory(
-                fs,
-                file.path(),
-                level + 1
-            );
+            wav.dataSize =
+                chunkSize;
+
+            foundData = true;
+
+            break;
         }
 
         // ----------------------------------------------------
-        // FILE
+        // UNKNOWN CHUNK
         // ----------------------------------------------------
 
         else
         {
-            Serial.print("[FILE] ");
-            Serial.print(file.name());
-
-            Serial.print("  (");
-            Serial.print(file.size());
-            Serial.println(" bytes)");
+            file.seek(
+                file.position() + chunkSize
+            );
         }
+
+        // ----------------------------------------------------
+        // RIFF chunks are padded to even size
+        // ----------------------------------------------------
+
+        if (chunkSize & 1)
+        {
+            file.seek(
+                file.position() + 1
+            );
+        }
+
+        // Safety against malformed WAV
+        if (file.position() < chunkStart)
+            return false;
+    }
+
+    // --------------------------------------------------------
+    // VALIDATE
+    // --------------------------------------------------------
+
+    if (!foundFmt)
+    {
+        Serial.println("[WAV] fmt chunk not found");
+        return false;
+    }
+
+    if (!foundData)
+    {
+        Serial.println("[WAV] data chunk not found");
+        return false;
+    }
+
+    // PCM
+    if (wav.audioFormat != 1)
+    {
+        Serial.printf(
+            "[WAV] Unsupported format: %u\n",
+            wav.audioFormat
+        );
+
+        return false;
+    }
+
+    // Stereo
+    if (wav.channels != 2)
+    {
+        Serial.printf(
+            "[WAV] Need stereo, got %u channels\n",
+            wav.channels
+        );
+
+        return false;
+    }
+
+    // 16 bit
+    if (wav.bitsPerSample != 16)
+    {
+        Serial.printf(
+            "[WAV] Need 16-bit, got %u-bit\n",
+            wav.bitsPerSample
+        );
+
+        return false;
+    }
+
+    if (wav.sampleRate == 0)
+    {
+        Serial.println("[WAV] Invalid sample rate");
+        return false;
+    }
+
+    wav.valid = true;
+
+    return true;
+}
+
+
+// ============================================================
+// I2S START
+// ============================================================
+
+bool startI2S(
+    uint32_t sampleRate
+)
+{
+    Serial.println();
+    Serial.println("[I2S] Starting...");
+
+    // --------------------------------------------------------
+    // CONFIG
+    // --------------------------------------------------------
+
+    i2s_config_t config =
+    {
+        .mode =
+            static_cast<i2s_mode_t>(
+                I2S_MODE_MASTER |
+                I2S_MODE_TX
+            ),
+
+        .sample_rate = sampleRate,
+
+        .bits_per_sample =
+            I2S_BITS_PER_SAMPLE_16BIT,
+
+        .channel_format =
+            I2S_CHANNEL_FMT_RIGHT_LEFT,
+
+        .communication_format =
+            I2S_COMM_FORMAT_STAND_I2S,
+
+        .intr_alloc_flags = 0,
+
+        .dma_buf_count = 8,
+
+        .dma_buf_len = 512,
+
+        .use_apll = false,
+
+        .tx_desc_auto_clear = true,
+
+        .fixed_mclk = 0
+    };
+
+    // --------------------------------------------------------
+    // PINS
+    // --------------------------------------------------------
+
+    i2s_pin_config_t pins =
+    {
+        .bck_io_num = PIN_I2S_BCLK,
+
+        .ws_io_num = PIN_I2S_LRCLK,
+
+        .data_out_num = PIN_I2S_DIN,
+
+        .data_in_num = I2S_PIN_NO_CHANGE
+    };
+
+    // --------------------------------------------------------
+    // INSTALL
+    // --------------------------------------------------------
+
+    esp_err_t result =
+        i2s_driver_install(
+            I2S_PORT,
+            &config,
+            0,
+            nullptr
+        );
+
+    if (result != ESP_OK)
+    {
+        Serial.printf(
+            "[I2S] Driver install failed: %s\n",
+            esp_err_to_name(result)
+        );
+
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // SET PINS
+    // --------------------------------------------------------
+
+    result =
+        i2s_set_pin(
+            I2S_PORT,
+            &pins
+        );
+
+    if (result != ESP_OK)
+    {
+        Serial.printf(
+            "[I2S] Pin configuration failed: %s\n",
+            esp_err_to_name(result)
+        );
+
+        i2s_driver_uninstall(I2S_PORT);
+
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // CLEAR BUFFER
+    // --------------------------------------------------------
+
+    i2s_zero_dma_buffer(I2S_PORT);
+
+    Serial.println("[I2S] Started");
+
+    Serial.printf(
+        "[I2S] Sample rate: %lu Hz\n",
+        static_cast<unsigned long>(sampleRate)
+    );
+
+    Serial.println("[I2S] Bits: 16");
+    Serial.println("[I2S] Channels: stereo");
+
+    Serial.printf(
+        "[I2S] BCLK: GPIO%d\n",
+        PIN_I2S_BCLK
+    );
+
+    Serial.printf(
+        "[I2S] LRCLK: GPIO%d\n",
+        PIN_I2S_LRCLK
+    );
+
+    Serial.printf(
+        "[I2S] DIN: GPIO%d\n",
+        PIN_I2S_DIN
+    );
+
+    return true;
+}
+
+
+// ============================================================
+// I2S STOP
+// ============================================================
+
+void stopI2S()
+{
+    Serial.println("[I2S] Stopping...");
+
+    i2s_driver_uninstall(I2S_PORT);
+
+    Serial.println("[I2S] Stopped");
+}
+
+
+// ============================================================
+// PLAY WAV
+// ============================================================
+
+bool playWav(
+    const char* path
+)
+{
+    // --------------------------------------------------------
+    // SD CHECK
+    // --------------------------------------------------------
+
+    if (!sdManager.isReady())
+    {
+        Serial.println(
+            "[AUDIO] SD card is not ready"
+        );
+
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // FILE SYSTEM
+    // --------------------------------------------------------
+
+    fs::FS& fs =
+        sdManager.card().fs();
+
+    // --------------------------------------------------------
+    // CHECK FILE
+    // --------------------------------------------------------
+
+    if (!fs.exists(path))
+    {
+        Serial.printf(
+            "[AUDIO] File not found: %s\n",
+            path
+        );
+
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // OPEN
+    // --------------------------------------------------------
+
+    File file =
+        fs.open(
+            path,
+            FILE_READ
+        );
+
+    if (!file)
+    {
+        Serial.printf(
+            "[AUDIO] Failed to open: %s\n",
+            path
+        );
+
+        return false;
+    }
+
+    Serial.println();
+    Serial.println("==============================");
+    Serial.println(" WAV AUDIO TEST");
+    Serial.println("==============================");
+
+    Serial.printf(
+        "File: %s\n",
+        path
+    );
+
+    Serial.printf(
+        "Size: %lu bytes\n",
+        static_cast<unsigned long>(
+            file.size()
+        )
+    );
+
+    // --------------------------------------------------------
+    // PARSE WAV
+    // --------------------------------------------------------
+
+    WavInfo wav;
+
+    if (!parseWav(file, wav))
+    {
+        Serial.println(
+            "[AUDIO] Invalid WAV file"
+        );
 
         file.close();
 
-        file = root.openNextFile();
+        return false;
     }
 
-    root.close();
+    // --------------------------------------------------------
+    // PRINT INFO
+    // --------------------------------------------------------
+
+    Serial.println();
+    Serial.println("[WAV]");
+    
+    Serial.printf(
+        "Format: %u\n",
+        wav.audioFormat
+    );
+
+    Serial.printf(
+        "Channels: %u\n",
+        wav.channels
+    );
+
+    Serial.printf(
+        "Sample rate: %lu Hz\n",
+        static_cast<unsigned long>(
+            wav.sampleRate
+        )
+    );
+
+    Serial.printf(
+        "Bits: %u\n",
+        wav.bitsPerSample
+    );
+
+    Serial.printf(
+        "Data offset: %lu\n",
+        static_cast<unsigned long>(
+            wav.dataOffset
+        )
+    );
+
+    Serial.printf(
+        "Data size: %lu bytes\n",
+        static_cast<unsigned long>(
+            wav.dataSize
+        )
+    );
+
+    // --------------------------------------------------------
+    // START I2S
+    // --------------------------------------------------------
+
+    if (!startI2S(wav.sampleRate))
+    {
+        file.close();
+
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // SEEK TO AUDIO DATA
+    // --------------------------------------------------------
+
+    if (!file.seek(wav.dataOffset))
+    {
+        Serial.println(
+            "[AUDIO] Failed to seek to data"
+        );
+
+        stopI2S();
+        file.close();
+
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // AUDIO BUFFER
+    // --------------------------------------------------------
+
+    static uint8_t buffer[2048];
+
+    uint32_t remaining =
+        wav.dataSize;
+
+    uint32_t totalPlayed = 0;
+
+    // --------------------------------------------------------
+    // STREAM
+    // --------------------------------------------------------
+
+    Serial.println();
+    Serial.println("[AUDIO] Playing...");
+
+    while (remaining > 0)
+    {
+        size_t toRead =
+            remaining > sizeof(buffer)
+                ? sizeof(buffer)
+                : remaining;
+
+        size_t bytesRead =
+            file.read(
+                buffer,
+                toRead
+            );
+
+        if (bytesRead == 0)
+        {
+            Serial.println(
+                "[AUDIO] Read error"
+            );
+
+            break;
+        }
+
+        size_t bytesWritten = 0;
+
+        esp_err_t result =
+            i2s_write(
+                I2S_PORT,
+                buffer,
+                bytesRead,
+                &bytesWritten,
+                portMAX_DELAY
+            );
+
+        if (result != ESP_OK)
+        {
+            Serial.printf(
+                "[AUDIO] I2S write error: %s\n",
+                esp_err_to_name(result)
+            );
+
+            break;
+        }
+
+        remaining -= bytesRead;
+
+        totalPlayed += bytesWritten;
+    }
+
+    // --------------------------------------------------------
+    // STOP
+    // --------------------------------------------------------
+
+    // Дадим DMA закончить передачу
+    delay(100);
+
+    stopI2S();
+
+    file.close();
+
+    // --------------------------------------------------------
+    // RESULT
+    // --------------------------------------------------------
+
+    Serial.println();
+
+    Serial.printf(
+        "[AUDIO] Played: %lu bytes\n",
+        static_cast<unsigned long>(
+            totalPlayed
+        )
+    );
+
+    if (remaining == 0)
+    {
+        Serial.println(
+            "[AUDIO] Playback finished"
+        );
+
+        Serial.println(
+            "=============================="
+        );
+
+        return true;
+    }
+
+    Serial.println(
+        "[AUDIO] Playback failed"
+    );
+
+    Serial.println(
+        "=============================="
+    );
+
+    return false;
 }
+
 
 // ============================================================
 // SETUP
@@ -107,85 +731,50 @@ void setup()
     delay(1000);
 
     Serial.println();
-    Serial.println("========================================");
-    Serial.println("       ESP32-S3 SD CARD TEST");
-    Serial.println("========================================");
+    Serial.println("================================");
+    Serial.println(" ESP32-S3 AUDIO TEST");
+    Serial.println(" MAX98357A STEREO");
+    Serial.println("================================");
 
-    // ========================================================
+    // --------------------------------------------------------
     // SPI
-    // ========================================================
+    // --------------------------------------------------------
 
     Serial.println();
-    Serial.println("[1] Initializing SPI...");
+    Serial.println("[SYSTEM] Starting SPI...");
 
     if (!spiManager.begin())
     {
-        Serial.println("ERROR: SPI initialization failed!");
+        Serial.println(
+            "[SYSTEM] SPI initialization failed"
+        );
+
         return;
     }
 
-    Serial.println("SPI OK");
-
-    // ========================================================
+    // --------------------------------------------------------
     // SD
-    // ========================================================
+    // --------------------------------------------------------
 
     Serial.println();
-    Serial.println("[2] Initializing SD card...");
+    Serial.println("[SYSTEM] Starting SD...");
 
     if (!sdManager.begin(PIN_SD_CS))
     {
-        Serial.println("ERROR: SD initialization failed!");
+        Serial.println(
+            "[SYSTEM] SD initialization failed"
+        );
+
         return;
     }
 
-    Serial.println("SD OK");
+    // --------------------------------------------------------
+    // PLAY
+    // --------------------------------------------------------
 
-    // ========================================================
-    // SD INFO
-    // ========================================================
-
-    Serial.println();
-    Serial.println("========================================");
-    Serial.println("              SD CARD INFO");
-    Serial.println("========================================");
-
-    SDCardInfo info = sdManager.getInfo();
-
-    Serial.print("Total: ");
-    Serial.println(info.totalSize);
-
-    Serial.print("Used:  ");
-    Serial.print(info.usedSize);
-    Serial.print(" (");
-    Serial.print(info.usedPercent, 1);
-    Serial.println("%)");
-
-    Serial.print("Free:  ");
-    Serial.print(info.freeSize);
-    Serial.print(" (");
-    Serial.print(info.freePercent, 1);
-    Serial.println("%)");
-
-    // ========================================================
-    // DIRECTORY TREE
-    // ========================================================
-
-    Serial.println();
-    Serial.println("========================================");
-    Serial.println("          SD CARD DIRECTORY TREE");
-    Serial.println("========================================");
-
-    printDirectory(
-        sdManager.card().fs(),
-        "/"
-    );
-
-    Serial.println();
-    Serial.println("========================================");
-    Serial.println("              TEST DONE");
-    Serial.println("========================================");
+    playWav(TEST_WAV);
 }
+
 
 // ============================================================
 // LOOP
@@ -193,664 +782,4 @@ void setup()
 
 void loop()
 {
-    // Ничего не делаем
 }
-// ============================================================
-// ============================================================
-// ============================================================
-// ============================================================
-// ============================================================
-// ============================================================
-// ============================================================
-// ============================================================
-// ============================================================
-// ============================================================
-// ============================================================
-// ============================================================
-
-
-
-
-
-
-
-
-
-
-
-
-
-// #include <Arduino.h>
-// #include <driver/i2s.h>
-
-// #include "Pins.h"
-
-// #include "./managers/SPIManager.h"
-// #include "./managers/SDManager.h"
-
-// // ============================================================
-// // MANAGERS
-// // ============================================================
-
-// SPIManager spiManager;
-// SDManager sdManager;
-
-// // ============================================================
-// // I2S
-// // ============================================================
-
-// #define I2S_PORT I2S_NUM_0
-
-// // ============================================================
-// // WAV
-// // ============================================================
-
-// struct WavInfo
-// {
-//     uint32_t sampleRate;
-//     uint16_t channels;
-//     uint16_t bitsPerSample;
-//     uint32_t dataSize;
-// };
-
-// // ============================================================
-// // READ LITTLE ENDIAN
-// // ============================================================
-
-// uint16_t readLE16(File& file)
-// {
-//     uint8_t b[2];
-
-//     if (file.read(b, 2) != 2)
-//         return 0;
-
-//     return
-//         static_cast<uint16_t>(b[0]) |
-//         (static_cast<uint16_t>(b[1]) << 8);
-// }
-
-// uint32_t readLE32(File& file)
-// {
-//     uint8_t b[4];
-
-//     if (file.read(b, 4) != 4)
-//         return 0;
-
-//     return
-//         static_cast<uint32_t>(b[0]) |
-//         (static_cast<uint32_t>(b[1]) << 8) |
-//         (static_cast<uint32_t>(b[2]) << 16) |
-//         (static_cast<uint32_t>(b[3]) << 24);
-// }
-
-// // ============================================================
-// // WAV HEADER
-// // ============================================================
-
-// bool readWavHeader(
-//     File& file,
-//     WavInfo& wav
-// )
-// {
-//     char riff[4];
-//     char wave[4];
-
-//     // --------------------------------------------------------
-//     // RIFF
-//     // --------------------------------------------------------
-
-//     if (file.readBytes(riff, 4) != 4)
-//         return false;
-
-//     if (memcmp(riff, "RIFF", 4) != 0)
-//     {
-//         Serial.println("ERROR: Not RIFF");
-//         return false;
-//     }
-
-//     // RIFF size
-//     readLE32(file);
-
-//     // WAVE
-//     if (file.readBytes(wave, 4) != 4)
-//         return false;
-
-//     if (memcmp(wave, "WAVE", 4) != 0)
-//     {
-//         Serial.println("ERROR: Not WAVE");
-//         return false;
-//     }
-
-//     bool fmtFound = false;
-//     bool dataFound = false;
-
-//     wav.sampleRate = 0;
-//     wav.channels = 0;
-//     wav.bitsPerSample = 0;
-//     wav.dataSize = 0;
-
-//     // --------------------------------------------------------
-//     // CHUNKS
-//     // --------------------------------------------------------
-
-//     while (file.available())
-//     {
-//         char chunkId[4];
-
-//         if (file.readBytes(chunkId, 4) != 4)
-//             return false;
-
-//         uint32_t chunkSize =
-//             readLE32(file);
-
-//         // ----------------------------------------------------
-//         // FORMAT
-//         // ----------------------------------------------------
-
-//         if (memcmp(chunkId, "fmt ", 4) == 0)
-//         {
-//             uint16_t audioFormat =
-//                 readLE16(file);
-
-//             wav.channels =
-//                 readLE16(file);
-
-//             wav.sampleRate =
-//                 readLE32(file);
-
-//             // byte rate
-//             readLE32(file);
-
-//             // block align
-//             readLE16(file);
-
-//             wav.bitsPerSample =
-//                 readLE16(file);
-
-//             // Дополнительные данные fmt
-//             if (chunkSize > 16)
-//             {
-//                 file.seek(
-//                     file.position() +
-//                     (chunkSize - 16)
-//                 );
-//             }
-
-//             // PCM
-//             if (audioFormat != 1)
-//             {
-//                 Serial.println(
-//                     "ERROR: WAV is not PCM"
-//                 );
-
-//                 return false;
-//             }
-
-//             fmtFound = true;
-//         }
-
-//         // ----------------------------------------------------
-//         // DATA
-//         // ----------------------------------------------------
-
-//         else if (memcmp(chunkId, "data", 4) == 0)
-//         {
-//             wav.dataSize = chunkSize;
-
-//             dataFound = true;
-
-//             break;
-//         }
-
-//         // ----------------------------------------------------
-//         // OTHER CHUNK
-//         // ----------------------------------------------------
-
-//         else
-//         {
-//             file.seek(
-//                 file.position() +
-//                 chunkSize
-//             );
-//         }
-
-//         // WAV chunks выравниваются по 2 байта
-//         if (chunkSize & 1)
-//         {
-//             file.seek(
-//                 file.position() + 1
-//             );
-//         }
-//     }
-
-//     if (!fmtFound)
-//     {
-//         Serial.println(
-//             "ERROR: fmt chunk not found"
-//         );
-
-//         return false;
-//     }
-
-//     if (!dataFound)
-//     {
-//         Serial.println(
-//             "ERROR: data chunk not found"
-//         );
-
-//         return false;
-//     }
-
-//     return true;
-// }
-
-// // ============================================================
-// // I2S BEGIN
-// // ============================================================
-
-// bool setupI2S(
-//     uint32_t sampleRate
-// )
-// {
-//     Serial.println(
-//         "Initializing I2S..."
-//     );
-
-//     i2s_config_t config = {};
-
-//     config.mode =
-//         static_cast<i2s_mode_t>(
-//             I2S_MODE_MASTER |
-//             I2S_MODE_TX
-//         );
-
-//     config.sample_rate =
-//         sampleRate;
-
-//     config.bits_per_sample =
-//         I2S_BITS_PER_SAMPLE_16BIT;
-
-//     config.channel_format =
-//         I2S_CHANNEL_FMT_RIGHT_LEFT;
-
-//     config.communication_format =
-//         I2S_COMM_FORMAT_STAND_I2S;
-
-//     config.intr_alloc_flags =
-//         ESP_INTR_FLAG_LEVEL1;
-
-//     config.dma_buf_count = 8;
-//     config.dma_buf_len = 512;
-
-//     config.use_apll = false;
-
-//     config.tx_desc_auto_clear = true;
-
-//     config.fixed_mclk = 0;
-
-//     esp_err_t result =
-//         i2s_driver_install(
-//             I2S_PORT,
-//             &config,
-//             0,
-//             nullptr
-//         );
-
-//     if (result != ESP_OK)
-//     {
-//         Serial.printf(
-//             "I2S driver error: %d\n",
-//             result
-//         );
-
-//         return false;
-//     }
-
-//     // --------------------------------------------------------
-//     // I2S PINS
-//     // --------------------------------------------------------
-
-//     i2s_pin_config_t pins = {};
-
-//     pins.bck_io_num =
-//         PIN_I2S_BCLK;
-
-//     pins.ws_io_num =
-//         PIN_I2S_LRCLK;
-
-//     pins.data_out_num =
-//         PIN_I2S_DIN;
-
-//     pins.data_in_num =
-//         I2S_PIN_NO_CHANGE;
-
-//     result =
-//         i2s_set_pin(
-//             I2S_PORT,
-//             &pins
-//         );
-
-//     if (result != ESP_OK)
-//     {
-//         Serial.printf(
-//             "I2S pin error: %d\n",
-//             result
-//         );
-
-//         i2s_driver_uninstall(
-//             I2S_PORT
-//         );
-
-//         return false;
-//     }
-
-//     i2s_zero_dma_buffer(
-//         I2S_PORT
-//     );
-
-//     Serial.println(
-//         "I2S initialized"
-//     );
-
-//     return true;
-// }
-
-// // ============================================================
-// // PLAY WAV
-// // ============================================================
-
-// bool playWav(
-//     const char* path
-// )
-// {
-//     if (!sdManager.isReady())
-//     {
-//         Serial.println(
-//             "ERROR: SD is not ready"
-//         );
-
-//         return false;
-//     }
-
-//     Serial.printf(
-//         "Opening: %s\n",
-//         path
-//     );
-
-//     // --------------------------------------------------------
-//     // Открываем через SDManager
-//     // --------------------------------------------------------
-
-//     File file =
-//         sdManager.card().open(
-//             path,
-//             FILE_READ
-//         );
-
-//     if (!file)
-//     {
-//         Serial.println(
-//             "ERROR: Cannot open WAV"
-//         );
-
-//         return false;
-//     }
-
-//     Serial.printf(
-//         "File size: %u bytes\n",
-//         file.size()
-//     );
-
-//     // --------------------------------------------------------
-//     // WAV HEADER
-//     // --------------------------------------------------------
-
-//     WavInfo wav;
-
-//     if (!readWavHeader(
-//             file,
-//             wav
-//         ))
-//     {
-//         Serial.println(
-//             "ERROR: Invalid WAV"
-//         );
-
-//         file.close();
-
-//         return false;
-//     }
-
-//     // --------------------------------------------------------
-//     // INFO
-//     // --------------------------------------------------------
-
-//     Serial.println();
-//     Serial.println(
-//         "========== WAV =========="
-//     );
-
-//     Serial.printf(
-//         "Sample rate: %lu Hz\n",
-//         wav.sampleRate
-//     );
-
-//     Serial.printf(
-//         "Channels: %u\n",
-//         wav.channels
-//     );
-
-//     Serial.printf(
-//         "Bits: %u\n",
-//         wav.bitsPerSample
-//     );
-
-//     Serial.printf(
-//         "Data size: %lu bytes\n",
-//         wav.dataSize
-//     );
-
-//     Serial.println(
-//         "=========================="
-//     );
-
-//     // --------------------------------------------------------
-//     // CHECK FORMAT
-//     // --------------------------------------------------------
-
-//     if (wav.channels != 2)
-//     {
-//         Serial.println(
-//             "ERROR: WAV must be stereo"
-//         );
-
-//         file.close();
-
-//         return false;
-//     }
-
-//     if (wav.bitsPerSample != 16)
-//     {
-//         Serial.println(
-//             "ERROR: WAV must be 16-bit"
-//         );
-
-//         file.close();
-
-//         return false;
-//     }
-
-//     // --------------------------------------------------------
-//     // I2S
-//     // --------------------------------------------------------
-
-//     if (!setupI2S(
-//             wav.sampleRate
-//         ))
-//     {
-//         file.close();
-
-//         return false;
-//     }
-
-//     // --------------------------------------------------------
-//     // PLAY
-//     // --------------------------------------------------------
-
-//     Serial.println();
-//     Serial.println(
-//         "========== PLAY =========="
-//     );
-
-//     uint8_t buffer[1024];
-
-//     uint32_t remaining =
-//         wav.dataSize;
-
-//     while (
-//         remaining > 0 &&
-//         file.available()
-//     )
-//     {
-//         size_t bytesToRead =
-//             min(
-//                 static_cast<uint32_t>(
-//                     sizeof(buffer)
-//                 ),
-//                 remaining
-//             );
-
-//         size_t bytesRead =
-//             file.read(
-//                 buffer,
-//                 bytesToRead
-//             );
-
-//         if (bytesRead == 0)
-//         {
-//             Serial.println(
-//                 "ERROR: SD read failed"
-//             );
-
-//             break;
-//         }
-
-//         size_t bytesWritten = 0;
-
-//         esp_err_t result =
-//             i2s_write(
-//                 I2S_PORT,
-//                 buffer,
-//                 bytesRead,
-//                 &bytesWritten,
-//                 portMAX_DELAY
-//             );
-
-//         if (result != ESP_OK)
-//         {
-//             Serial.printf(
-//                 "ERROR: I2S write: %d\n",
-//                 result
-//             );
-
-//             break;
-//         }
-
-//         remaining -= bytesRead;
-//     }
-
-//     // --------------------------------------------------------
-//     // WAIT FOR DMA
-//     // --------------------------------------------------------
-
-//     delay(100);
-
-//     i2s_zero_dma_buffer(
-//         I2S_PORT
-//     );
-
-//     file.close();
-
-//     i2s_driver_uninstall(
-//         I2S_PORT
-//     );
-
-//     Serial.println(
-//         "Playback finished"
-//     );
-
-//     return true;
-// }
-
-// // ============================================================
-// // SETUP
-// // ============================================================
-
-// void setup()
-// {
-//     Serial.begin(115200);
-
-//     delay(1000);
-
-//     Serial.println();
-//     Serial.println(
-//         "=============================="
-//     );
-//     Serial.println(
-//         " ESP32-S3 AUDIO TEST"
-//     );
-//     Serial.println(
-//         "=============================="
-//     );
-
-//     // ========================================================
-//     // SPI
-//     // ========================================================
-
-//     if (!spiManager.begin())
-//     {
-//         Serial.println(
-//             "SPI initialization FAILED"
-//         );
-
-//         return;
-//     }
-
-//     Serial.println(
-//         "SPI OK"
-//     );
-
-//     // ========================================================
-//     // SD
-//     // ========================================================
-
-//     if (!sdManager.begin(PIN_SD_CS))
-//     {
-//         Serial.println(
-//             "SD initialization FAILED"
-//         );
-
-//         return;
-//     }
-
-//     Serial.println(
-//         "SD OK"
-//     );
-
-//     // ========================================================
-//     // PLAY
-//     // ========================================================
-
-//     playWav(
-//         "audio\alarms/alarm_1.wav"
-//     );
-// }
-
-// // ============================================================
-// // LOOP
-// // ============================================================
-
-// void loop()
-// {
-//     // Для теста ничего не делаем
-// }
