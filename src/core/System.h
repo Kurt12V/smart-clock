@@ -33,13 +33,14 @@ public:
 
 
 private:
+    Settings::Data _settings;
+    ClockSystem _clock;
     bool _ready;
 
     // SPIManager _spi;
     // SDManager _sd;
     // DisplaySystem _display;
     SensorManager _sensors;
-    ClockSystem _clock;
     // AudioSystem _audio;
     // LEDManager _led;
     // EncoderManager _encoder;

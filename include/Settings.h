@@ -1,15 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
-
-// ============================================================
-// USER SETTINGS
-//
-// Settings.h содержит только параметры, которые пользователь
-// может изменять во время работы устройства.
-//
-// Config.h содержит аппаратные и системные параметры.
-// ============================================================
+#include "Constants.h"
 
 namespace Settings
 {
@@ -18,279 +10,110 @@ namespace Settings
 // DISPLAY
 // ============================================================
 
-struct Display
-{
-    // Включён ли дисплей
-    bool enabled = true;
-
-    // Яркость 0-100%
-    uint8_t brightness = 80;
-
-    // Автоматическая яркость
-    bool autoBrightness = false;
-
-    // Показывать секунды
-    bool showSeconds = true;
-
-    // Показывать дату
-    bool showDate = true;
-
-    // Показывать день недели
-    bool showDayOfWeek = true;
-
-    // Формат времени
-    bool use24HourFormat = true;
-
-    // Отключать экран ночью
-    bool nightMode = false;
-
-    // Начало ночного режима
-    uint8_t nightStartHour = 23;
-
-    // Конец ночного режима
-    uint8_t nightEndHour = 7;
-
-    // Яркость в ночном режиме
-    uint8_t nightBrightness = 20;
-
-    // Интервал обновления
-    uint16_t refreshRate = 20;
-};
-
+// struct Display
+// {
+//     bool enabled = true;
+//     uint8_t brightness = 100;
+//     bool autoBrightness = false;
+//     uint16_t refreshRate = 60;
+// };
 
 // ============================================================
 // LED MATRIX
 // ============================================================
 
-struct Matrix
-{
-    // Включена ли матрица
-    bool enabled = true;
+// struct Matrix
+// {
+//     bool enabled = true;
+//     uint8_t brightness = 50;
+//     bool autoBrightness = false;
 
-    // Яркость 0-100%
-    uint8_t brightness = 30;
+//     uint8_t width = 16;
+//     uint8_t height = 16;
 
-    // Автоматическая яркость
-    bool autoBrightness = false;
-
-    // Яркость ночью
-    uint8_t nightBrightness = 10;
-
-    // Ночной режим
-    bool nightMode = true;
-
-    // Показывать матрицу во время ожидания
-    bool idleEnabled = true;
-
-    // Анимация по умолчанию
-    uint8_t defaultAnimation = 0;
-
-    // Скорость анимации
-    uint8_t animationSpeed = 50;
-
-    // Цвет матрицы
-    uint8_t colorR = 255;
-    uint8_t colorG = 255;
-    uint8_t colorB = 255;
-
-    // Использовать автоматический цвет
-    bool autoColor = false;
-
-    // Показывать часы на матрице
-    bool showClock = false;
-
-    // Показывать уведомления
-    bool showNotifications = true;
-};
-
+//     bool showEffects = true;
+// };
 
 // ============================================================
 // COB LED
 // ============================================================
 
-struct CobLed
-{
-    // Общий флаг
-    bool enabled = true;
+// struct CobLed
+// {
+//     bool enabled = true;
 
-    // Основная яркость
-    uint8_t brightness = 50;
+//     uint8_t brightness1 = 100;
+//     uint8_t brightness2 = 100;
+//     uint8_t brightness3 = 100;
+//     uint8_t brightness4 = 100;
 
-    // Левая/первая лампа
-    bool led1Enabled = true;
-    uint8_t led1Brightness = 50;
+//     uint16_t fadeTime = 500;
 
-    // Правая/вторая лампа
-    bool led2Enabled = true;
-    uint8_t led2Brightness = 50;
-
-    // Автоматическая яркость
-    bool autoBrightness = false;
-
-    // Ночная яркость
-    uint8_t nightBrightness = 10;
-
-    // Плавное включение
-    bool fadeEnabled = true;
-
-    // Время плавного изменения, мс
-    uint16_t fadeTime = 500;
-};
-
+//     bool smoothTransition = true;
+// };
 
 // ============================================================
 // AUDIO
 // ============================================================
 
-struct Audio
-{
-    // Звук включён
-    bool enabled = true;
+// struct Audio
+// {
+//     bool enabled = true;
 
-    // Громкость 0-100
-    uint8_t volume = 60;
+//     uint8_t volume = 70;
 
-    // Максимальная громкость
-    uint8_t maxVolume = 80;
+//     bool stereo = true;
 
-    // Звуки интерфейса
-    bool interfaceSounds = true;
+//     uint8_t sampleRate = 44;
 
-    // Звук уведомлений
-    bool notificationSounds = true;
-
-    // Звук будильника
-    bool alarmSound = true;
-
-    // Звук таймера
-    bool timerSound = true;
-
-    // Звук запуска
-    bool startupSound = true;
-
-    // Баланс
-    int8_t balance = 0;
-
-    // Эквалайзер
-    bool equalizerEnabled = false;
-
-    // Бас
-    int8_t bass = 0;
-
-    // Средние
-    int8_t mid = 0;
-
-    // Высокие
-    int8_t treble = 0;
-};
-
+//     bool notifications = true;
+//     bool alarms = true;
+//     bool timers = true;
+// };
 
 // ============================================================
 // MICROPHONE
 // ============================================================
 
-struct Microphone
-{
-    // Микрофон включён
-    bool enabled = true;
+// struct Microphone
+// {
+//     bool enabled = true;
 
-    // Автоматическая регулировка усиления
-    bool autoGain = true;
+//     uint8_t gain = 50;
 
-    // Усиление
-    uint8_t gain = 50;
+//     uint32_t sampleRate = 16000;
 
-    // Чувствительность
-    uint8_t sensitivity = 50;
-
-    // Подавление шума
-    bool noiseReduction = true;
-
-    // Обнаружение голоса
-    bool voiceDetection = true;
-
-    // Wake word
-    bool wakeWordEnabled = false;
-};
-
-
-// ============================================================
-// TEMPERATURE / HUMIDITY
-// ============================================================
-
-struct Environment
-{
-    // Температура
-    bool temperatureEnabled = true;
-
-    // Влажность
-    bool humidityEnabled = true;
-
-    // Использовать °C
-    bool celsius = true;
-
-    // Коррекция температуры
-    float temperatureOffset = 0.0f;
-
-    // Коррекция влажности
-    float humidityOffset = 0.0f;
-
-    // Показывать температуру
-    bool showTemperature = true;
-
-    // Показывать влажность
-    bool showHumidity = true;
-};
+//     bool voiceControl = false;
+// };
 
 
 // ============================================================
 // LIGHT SENSOR
 // ============================================================
 
-struct LightSensor
-{
-    // Датчик освещённости
-    bool enabled = true;
+// struct LightSensor
+// {
+//     bool enabled = true;
 
-    // Использовать для автояркости
-    bool autoBrightness = true;
+//     uint32_t updateInterval = 1000;
 
-    // Минимальная яркость
-    uint8_t minBrightness = 10;
-
-    // Максимальная яркость
-    uint8_t maxBrightness = 80;
-
-    // Порог темноты
-    uint16_t darkThreshold = 20;
-
-    // Порог яркого света
-    uint16_t brightThreshold = 500;
-};
-
+//     bool autoBrightness = true;
+// };
 
 // ============================================================
 // DISTANCE SENSOR
 // ============================================================
 
-struct DistanceSensor
-{
-    // VL53L8CX включён
-    bool enabled = true;
+// struct DistanceSensor
+// {
+//     bool enabled = true;
 
-    // Использовать для пробуждения
-    bool wakeOnPresence = true;
+//     uint32_t updateInterval = 500;
 
-    // Использовать для управления интерфейсом
-    bool interactionEnabled = true;
+//     uint16_t maxDistance = 4000;
 
-    // Расстояние присутствия, мм
-    uint16_t presenceDistance = 1000;
-
-    // Время до засыпания после ухода
-    uint16_t absenceTimeout = 30;
-};
-
+//     bool presenceDetection = false;
+// };
 
 // ============================================================
 // CLOCK
@@ -298,329 +121,219 @@ struct DistanceSensor
 
 struct Clock
 {
-    // Автоматическая синхронизация
-    bool autoSync = true;
-
-    // Использовать RTC
-    bool useRTC = true;
-
-    // Использовать NTP
-    bool useNTP = true;
-
-    // 24 часа
-    bool use24HourFormat = true;
-
-    // Показывать секунды
-    bool showSeconds = true;
-
-    // Показывать дату
-    bool showDate = true;
-
-    // Показывать день недели
-    bool showDayOfWeek = true;
-
-    // Показывать год
-    bool showYear = true;
-
-    // Часовой пояс
-    char timezone[32] = "Europe/Moscow";
+    Constants::UtcOffset utcOffset =
+        Constants::UtcOffset::Plus3;
 };
-
 
 // ============================================================
 // NOTIFICATIONS
 // ============================================================
 
-struct Notifications
-{
-    // Уведомления включены
-    bool enabled = true;
+// struct Notifications
+// {
+//     bool enabled = true;
 
-    // Показывать уведомления на дисплее
-    bool displayEnabled = true;
+//     uint8_t duration = 5;
 
-    // Показывать уведомления на матрице
-    bool matrixEnabled = true;
+//     bool sound = true;
 
-    // Звуковые уведомления
-    bool soundEnabled = true;
+//     bool showOnDisplay = true;
 
-    // Показывать системные уведомления
-    bool systemNotifications = true;
-
-    // Показывать уведомления сенсоров
-    bool sensorNotifications = true;
-
-    // Показывать уведомления Wi-Fi
-    bool wifiNotifications = true;
-
-    // Продолжительность уведомления
-    uint16_t duration = 3000;
-};
-
+//     bool showOnMatrix = true;
+// };
 
 // ============================================================
 // ALARM
 // ============================================================
 
-struct Alarm
-{
-    // Будильник включён
-    bool enabled = false;
+// struct Alarm
+// {
+//     bool enabled = false;
 
-    // Час
-    uint8_t hour = 7;
+//     uint8_t hour = 7;
+//     uint8_t minute = 0;
 
-    // Минута
-    uint8_t minute = 0;
+//     bool repeat = false;
 
-    // Дни недели
-    //
-    // bit 0 = Sunday
-    // bit 1 = Monday
-    // bit 2 = Tuesday
-    // bit 3 = Wednesday
-    // bit 4 = Thursday
-    // bit 5 = Friday
-    // bit 6 = Saturday
-    //
-    uint8_t days = 0b0111110;
+//     bool monday = true;
+//     bool tuesday = true;
+//     bool wednesday = true;
+//     bool thursday = true;
+//     bool friday = true;
+//     bool saturday = false;
+//     bool sunday = false;
 
-    // Громкость будильника
-    uint8_t volume = 60;
+//     uint8_t volume = 70;
 
-    // Постепенное увеличение громкости
-    bool fadeIn = true;
+//     bool gradualVolume = true;
 
-    // Длительность плавного увеличения
-    uint16_t fadeTime = 30000;
-
-    // Использовать свет
-    bool useLight = true;
-
-    // Использовать матрицу
-    bool useMatrix = true;
-
-    // Использовать звук
-    bool useSound = true;
-
-    // Повтор будильника
-    bool snoozeEnabled = true;
-
-    // Интервал snooze
-    uint8_t snoozeMinutes = 5;
-};
-
+//     uint16_t fadeTime = 30000;
+// };
 
 // ============================================================
 // TIMER
 // ============================================================
 
-struct Timer
-{
-    bool soundEnabled = true;
+// struct Timer
+// {
+//     bool enabled = true;
 
-    bool displayEnabled = true;
+//     uint32_t defaultDuration = 60;
 
-    bool matrixEnabled = true;
+//     bool sound = true;
 
-    uint8_t volume = 60;
-
-    // Автоматически запускать свет
-    bool lightEnabled = false;
-};
-
+//     bool vibration = false;
+// };
 
 // ============================================================
 // WIFI
 // ============================================================
 
-struct WiFi
-{
-    // Wi-Fi включён
-    bool enabled = true;
+// struct WiFi
+// {
+//     bool enabled = true;
 
-    // Автоматически подключаться
-    bool autoConnect = true;
+//     bool autoConnect = true;
 
-    // Синхронизировать время
-    bool syncTime = true;
+//     bool autoReconnect = true;
 
-    // Подключаться после загрузки
-    bool connectOnBoot = true;
+//     uint32_t reconnectInterval = 10000;
 
-    // Показывать статус на дисплее
-    bool showStatus = true;
-};
+//     uint32_t connectionTimeout = 15000;
 
+//     bool syncTime = true;
+// };
 
 // ============================================================
-// POWER / SLEEP
+// POWER
 // ============================================================
 
-struct Power
-{
-    // Энергосбережение
-    bool sleepEnabled = false;
+// struct Power
+// {
+//     bool sleepEnabled = true;
 
-    // Время бездействия до сна
-    uint16_t sleepMinutes = 10;
+//     uint32_t sleepTimeout = 300000;
 
-    // Выключать дисплеи
-    bool displaySleep = true;
+//     uint8_t sleepBrightness = 10;
 
-    // Выключать матрицу
-    bool matrixSleep = true;
+//     bool displayOff = false;
 
-    // Выключать COB
-    bool cobSleep = true;
+//     bool matrixOff = true;
 
-    // Выключать аудио
-    bool audioSleep = true;
-
-    // Просыпаться при движении
-    bool wakeOnMotion = true;
-
-    // Просыпаться при нажатии энкодера
-    bool wakeOnButton = true;
-
-    // Ночная яркость
-    bool nightMode = true;
-};
-
+//     bool audioOff = true;
+// };
 
 // ============================================================
 // UI
 // ============================================================
 
-struct UI
-{
-    // Тема
-    uint8_t theme = 0;
+// struct UI
+// {
+//     uint8_t brightness = 100;
 
-    // Анимации интерфейса
-    bool animations = true;
+//     bool animations = true;
 
-    // Скорость анимаций
-    uint8_t animationSpeed = 50;
+//     bool sounds = true;
 
-    // Время показа меню
-    uint16_t menuTimeout = 10000;
+//     bool showNotifications = true;
 
-    // Показывать подсказки
-    bool hints = true;
+//     bool showSensors = true;
 
-    // Звуки интерфейса
-    bool sounds = true;
-
-    // Вибрация
-    bool vibration = false;
-};
-
+//     uint16_t animationDuration = 300;
+// };
 
 // ============================================================
 // ENCODER
 // ============================================================
 
-struct Encoder
-{
-    // Инвертировать направление
-    bool inverted = false;
+// struct Encoder
+// {
+//     bool enabled = true;
 
-    // Шаг изменения
-    uint8_t step = 1;
+//     uint8_t stepsPerClick = 1;
 
-    // Быстрое изменение
-    bool acceleration = true;
+//     bool acceleration = true;
 
-    // Скорость ускорения
-    uint8_t accelerationSpeed = 50;
+//     uint16_t accelerationDelay = 100;
 
-    // Нажатие энкодера
-    bool buttonEnabled = true;
-};
+//     bool buttonEnabled = true;
 
+//     uint16_t debounceTime = 50;
+// };
 
 // ============================================================
 // STORAGE
 // ============================================================
 
-struct Storage
-{
-    // Автоматически сохранять настройки
-    bool autoSave = true;
+// struct Storage
+// {
+//     bool enabled = true;
 
-    // Интервал автосохранения
-    uint32_t saveInterval = 60000;
+//     bool useSD = true;
 
-    // Создавать резервную копию
-    bool backupEnabled = true;
-};
+//     bool autoSave = true;
 
+//     uint32_t saveInterval = 30000;
+// };
 
 // ============================================================
 // SYSTEM
 // ============================================================
 
-struct System
-{
-    // Автоматический запуск
-    bool autoStart = true;
+// struct System
+// {
+//     bool debug = true;
 
-    // Показывать splash screen
-    bool splashEnabled = true;
+//     bool serial = true;
 
-    // Длительность splash
-    uint16_t splashDuration = 2000;
+//     uint32_t serialBaud = 115200;
 
-    // Логирование
-    bool loggingEnabled = true;
+//     bool watchdog = true;
 
-    // Отладка
-    bool debugEnabled = false;
-
-    // Язык интерфейса
-    uint8_t language = 0;
-
-    // 0 = русский
-    // 1 = English
-};
-
+//     uint32_t watchdogTimeout = 10000;
+// };
 
 // ============================================================
-// COMPLETE SETTINGS
+// COMPLETE DATA
 // ============================================================
 
 struct Data
 {
-    Display display;
-    Matrix matrix;
-    CobLed cobLed;
+//     Display display;
 
-    Audio audio;
-    Microphone microphone;
+//     Matrix matrix;
 
-    Environment environment;
-    LightSensor lightSensor;
-    DistanceSensor distanceSensor;
+//     CobLed cobLed;
 
-    Clock clock;
+//     Audio audio;
 
-    Notifications notifications;
+//     Microphone microphone;
 
-    Alarm alarm;
-    Timer timer;
+//     Environment environment;
 
-    WiFi wifi;
+//     LightSensor lightSensor;
 
-    Power power;
+//     DistanceSensor distanceSensor;
 
-    UI ui;
-    Encoder encoder;
+     Clock clock;
 
-    Storage storage;
+//     Notifications notifications;
 
-    System system;
+//     Alarm alarm;
+
+//     Timer timer;
+
+//     WiFi wifi;
+
+//     Power power;
+
+//     UI ui;
+
+//     Encoder encoder;
+
+//     Storage storage;
+
+//     System system;
 };
 
 } // namespace Settings

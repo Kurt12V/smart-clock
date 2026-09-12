@@ -1,166 +1,98 @@
 #pragma once
-#include "models/Timedata.h"
+
 #include <Arduino.h>
 #include <time.h>
 
-#include "hardware/rtc/RTC.h"
 #include "Constants.h"
+#include "Settings.h"
+#include "hardware/rtc/RTC.h"
 
-class ClockManager {
+class ClockManager
+{
 public:
+    ClockManager(
+        RTC& rtc,
+        const Settings::Clock& settings
+    );
 
+    bool begin();
 
-ClockManager(RTC& rtcModule);
+    void update();
 
+    // ========================================================
+    // TIME
+    // ========================================================
 
-// ================================
-// INITIALIZATION
-// ================================
+    uint8_t hour() const;
+    uint8_t minute() const;
+    uint8_t second() const;
 
-bool begin(
-    const char* timeZone = "Europe/Moscow"
-);
-// ========================================
-// STRUCTURED TIME
-// ========================================
+    // ========================================================
+    // TIME DIGITS
+    // ========================================================
 
-// Получить время отдельными значениями
-TimeData getTimeData();
+    uint8_t hour1() const;
+    uint8_t hour2() const;
 
-// Получить дату отдельными значениями
-DateData getDateData();
+    uint8_t minute1() const;
+    uint8_t minute2() const;
 
-// ========================================
-// DAY OF WEEK
-// ========================================
+    // ========================================================
+    // DATE
+    // ========================================================
 
-// Получить день недели
-Constants::DayOfWeek getDayOfWeek();
+    uint8_t day() const;
+    uint8_t month() const;
+    uint16_t year() const;
 
+    Constants::DayOfWeek dayOfWeek() const;
 
+    // ========================================================
+    // TIMESTAMP
+    // ========================================================
 
-// ================================
-// TIMEZONE
-// ================================
+    time_t utcTime() const;
+    time_t localTime() const;
 
-bool setTimeZone(
-    const char* timeZone
-);
+    // ========================================================
+    // RTC
+    // ========================================================
 
+    RTC& rtc();
 
-// ================================
-// NTP
-// ================================
+    // ========================================================
+    // STATUS
+    // ========================================================
 
-bool syncFromNTP(
-    const char* ntpServer = "pool.ntp.org",
-    uint8_t maxAttempts = 10
-);
-
-
-// ================================
-// SET TIME
-// ================================
-
-bool setLocalTime(
-    int year,
-    int month,
-    int day,
-    int hour,
-    int minute,
-    int second
-);
-
-
-bool setUTCTime(
-    int year,
-    int month,
-    int day,
-    int hour,
-    int minute,
-    int second
-);
-
-
-// ================================
-// GET TIME
-// ================================
-
-bool getLocalTime(
-    struct tm& timeinfo
-);
-
-
-bool getUTC(
-    struct tm& timeinfo
-);
-
-
-// ================================
-// STRINGS
-// ================================
-
-String getLocalTimeString();
-String getTimeZone() const; 
-
-String getUTCTimeString();
-
-
-// ================================
-// FORMATTING
-// ================================
-
-static String formatTime(
-    const struct tm& timeinfo
-);
-
-
-static String formatDate(
-    const struct tm& timeinfo
-);
-
-
-// ================================
-// DAY OF WEEK
-// ================================
-
-// ================================
-// STATUS
-// ================================
-
-bool isTimeValid();
-
-
-// ================================
-// DEBUG
-// ================================
-
-void printLocalTime();
-
-void printUTCTime();
-
+    bool isValid() const;
 
 private:
+    time_t calculateLocalTime(
+        time_t utc
+    ) const;
 
+    void updateDateTime(
+        time_t localTime
+    );
 
-RTC& _rtc;
+private:
+    RTC& _rtc;
 
-String _timeZone;
+    const Settings::Clock& _settings;
 
-bool _isInitialized = false;
+    time_t _utcTime = 0;
+    time_t _localTime = 0;
 
+    uint8_t _hour = 0;
+    uint8_t _minute = 0;
+    uint8_t _second = 0;
 
-time_t getRtcUnixTime();
+    uint8_t _day = 1;
+    uint8_t _month = 1;
+    uint16_t _year = 2000;
 
+    Constants::DayOfWeek _dayOfWeek =
+        Constants::DayOfWeek::Sunday;
 
-time_t localToUnix(
-    int year,
-    int month,
-    int day,
-    int hour,
-    int minute,
-    int second
-);
-
-
+    bool _valid = false;
 };

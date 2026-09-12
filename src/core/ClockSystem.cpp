@@ -1,294 +1,443 @@
 #include "ClockSystem.h"
-ClockSystem::ClockSystem()
-: clockManager(rtc)
+
+#include <WiFi.h>
+#include <time.h>
+
+// ============================================================
+// CONSTRUCTOR
+// ============================================================
+
+ClockSystem::ClockSystem(
+    const Settings::Clock& settings
+)
+    : _rtc(),
+      _clockManager(_rtc, settings),
+      _settings(settings)
 {
 }
 
-// ========================================
-// INITIALIZATION
-// ========================================
+// ============================================================
+// BEGIN
+// ============================================================
 
-bool ClockSystem::begin(const char* timeZone)
+bool ClockSystem::begin()
 {
-Serial.println();
-Serial.println("================================");
-Serial.println("         CLOCK SYSTEM");
-Serial.println("================================");
-
-// ClockManager owns RTC initialization so the device is initialized once.
-
-if (!clockManager.begin(timeZone))
-{
-    Serial.println("[ClockSystem] CLOCK MANAGER ERROR");
-
-    return false;
+    return _clockManager.begin();
 }
 
-Serial.println("[ClockSystem] CLOCK MANAGER READY");
+// ============================================================
+// UPDATE
+// ============================================================
 
-Serial.println("================================");
-
-return true;
-
-
+void ClockSystem::update()
+{
+    _clockManager.update();
 }
 
-// ========================================
-// NTP SYNCHRONIZATION
-// ========================================
+// ============================================================
+// NTP SYNC
+// ============================================================
 
 bool ClockSystem::syncFromNTP(
-const char* ntpServer,
-uint8_t maxAttempts
+    const char* ntpServer,
+    uint8_t maxAttempts
 )
 {
-return clockManager.syncFromNTP(
-ntpServer,
-maxAttempts
-);
+    if (WiFi.status() != WL_CONNECTED)
+    {
+        return false;
+    }
+
+    // Получаем именно UTC
+    configTime(
+        0,
+        0,
+        ntpServer
+    );
+
+    struct tm timeInfo;
+
+    for (
+        uint8_t attempt = 0;
+        attempt < maxAttempts;
+        ++attempt
+    )
+    {
+        // Важно:
+        // ::getLocalTime — функция Arduino,
+        // а не ClockSystem::getLocalTime()
+        if (::getLocalTime(
+                &timeInfo,
+                1000
+            ))
+        {
+            DateTime utc(
+                timeInfo.tm_year + 1900,
+                timeInfo.tm_mon + 1,
+                timeInfo.tm_mday,
+                timeInfo.tm_hour,
+                timeInfo.tm_min,
+                timeInfo.tm_sec
+            );
+
+            _rtc.setDateTime(
+                utc.year(),
+                utc.month(),
+                utc.day(),
+                utc.hour(),
+                utc.minute(),
+                utc.second()
+            );
+
+            updateManager();
+
+            return true;
+        }
+
+        delay(100);
+    }
+
+    return false;
 }
 
-// ========================================
-// TIMEZONE
-// ========================================
-
-bool ClockSystem::setTimeZone(
-const char* timeZone
-)
-{
-return clockManager.setTimeZone(timeZone);
-}
-
-String ClockSystem::getTimeZone() const
-{
-return clockManager.getTimeZone();
-}
-
-// ========================================
-// SET LOCAL DATE AND TIME
-// ========================================
+// ============================================================
+// SET LOCAL DATE + TIME
+// ============================================================
 
 bool ClockSystem::setLocalDateTime(
-int year,
-int month,
-int day,
-int hour,
-int minute,
-int second
+    uint16_t year,
+    uint8_t month,
+    uint8_t day,
+    uint8_t hour,
+    uint8_t minute,
+    uint8_t second
 )
 {
-return clockManager.setLocalTime(
-year,
-month,
-day,
-hour,
-minute,
-second
-);
+    DateTime local(
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        second
+    );
+
+    const time_t utc =
+        localToUTC(
+            local.unixtime()
+        );
+
+    _rtc.setDateTime(utc);
+
+    updateManager();
+
+    return true;
 }
 
-// ========================================
-// SET UTC DATE AND TIME
-// ========================================
+// ============================================================
+// SET UTC DATE + TIME
+// ============================================================
 
 bool ClockSystem::setUTCDateTime(
-int year,
-int month,
-int day,
-int hour,
-int minute,
-int second
+    uint16_t year,
+    uint8_t month,
+    uint8_t day,
+    uint8_t hour,
+    uint8_t minute,
+    uint8_t second
 )
 {
-return clockManager.setUTCTime(
-year,
-month,
-day,
-hour,
-minute,
-second
-);
+    _rtc.setDateTime(
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        second
+    );
+
+    updateManager();
+
+    return true;
 }
 
-// ========================================
-// SET LOCAL TIME ONLY
-// ========================================
+// ============================================================
+// SET LOCAL TIME
+// ============================================================
 
 bool ClockSystem::setLocalTime(
-int hour,
-int minute,
-int second
+    uint8_t hour,
+    uint8_t minute,
+    uint8_t second
 )
 {
-DateData date = getDateData();
+    // Берём именно локальное время
+    // чтобы корректно работать около полуночи.
+    DateTime currentLocal(
+        getLocalTime()
+    );
 
+    DateTime local(
+        currentLocal.year(),
+        currentLocal.month(),
+        currentLocal.day(),
+        hour,
+        minute,
+        second
+    );
 
-if (!date.valid)
-{
-    return false;
+    const time_t utc =
+        localToUTC(
+            local.unixtime()
+        );
+
+    _rtc.setDateTime(utc);
+
+    updateManager();
+
+    return true;
 }
 
-return setLocalDateTime(
-    date.year,
-    date.month,
-    date.day,
-    hour,
-    minute,
-    second
-);
-
-
-}
-
-// ========================================
-// SET UTC TIME ONLY
-// ========================================
+// ============================================================
+// SET UTC TIME
+// ============================================================
 
 bool ClockSystem::setUTCTime(
-int hour,
-int minute,
-int second
+    uint8_t hour,
+    uint8_t minute,
+    uint8_t second
 )
 {
-struct tm timeinfo;
+    const DateTime currentUTC =
+        _rtc.getDateTime();
 
+    _rtc.setDateTime(
+        currentUTC.year(),
+        currentUTC.month(),
+        currentUTC.day(),
+        hour,
+        minute,
+        second
+    );
 
-if (!clockManager.getUTC(timeinfo))
-{
-    return false;
+    updateManager();
+
+    return true;
 }
 
-return setUTCDateTime(
-    timeinfo.tm_year + 1900,
-    timeinfo.tm_mon + 1,
-    timeinfo.tm_mday,
-    hour,
-    minute,
-    second
-);
-
-
-}
-
-// ========================================
-// SET LOCAL DATE ONLY
-// ========================================
+// ============================================================
+// SET LOCAL DATE
+// ============================================================
 
 bool ClockSystem::setLocalDate(
-int year,
-int month,
-int day
+    uint16_t year,
+    uint8_t month,
+    uint8_t day
 )
 {
-TimeData time = getTimeData();
+    DateTime currentLocal(
+        getLocalTime()
+    );
 
+    DateTime local(
+        year,
+        month,
+        day,
+        currentLocal.hour(),
+        currentLocal.minute(),
+        currentLocal.second()
+    );
 
-if (!time.valid)
-{
-    return false;
+    const time_t utc =
+        localToUTC(
+            local.unixtime()
+        );
+
+    _rtc.setDateTime(utc);
+
+    updateManager();
+
+    return true;
 }
 
-return setLocalDateTime(
-    year,
-    month,
-    day,
-    time.hour,
-    time.minute,
-    time.second
-);
-
-
-}
-
-// ========================================
-// SET UTC DATE ONLY
-// ========================================
+// ============================================================
+// SET UTC DATE
+// ============================================================
 
 bool ClockSystem::setUTCDate(
-int year,
-int month,
-int day
+    uint16_t year,
+    uint8_t month,
+    uint8_t day
 )
 {
-struct tm timeinfo;
+    const DateTime currentUTC =
+        _rtc.getDateTime();
 
+    _rtc.setDateTime(
+        year,
+        month,
+        day,
+        currentUTC.hour(),
+        currentUTC.minute(),
+        currentUTC.second()
+    );
 
-if (!clockManager.getUTC(timeinfo))
+    updateManager();
+
+    return true;
+}
+
+// ============================================================
+// TIME
+// ============================================================
+
+uint8_t ClockSystem::hour() const
 {
-    return false;
+    return _clockManager.hour();
 }
 
-return setUTCDateTime(
-    year,
-    month,
-    day,
-    timeinfo.tm_hour,
-    timeinfo.tm_min,
-    timeinfo.tm_sec
-);
-
-}
-
-// ========================================
-// GET TIME
-// ========================================
-
-TimeData ClockSystem::getTimeData()
+uint8_t ClockSystem::minute() const
 {
-return clockManager.getTimeData();
+    return _clockManager.minute();
 }
 
-// ========================================
-// GET DATE
-// ========================================
-
-DateData ClockSystem::getDateData()
+uint8_t ClockSystem::second() const
 {
-return clockManager.getDateData();
+    return _clockManager.second();
 }
 
-// ========================================
-// DAY OF WEEK
-// ========================================
+// ============================================================
+// TIME DIGITS
+// ============================================================
 
-Constants::DayOfWeek ClockSystem::getDayOfWeek()
+uint8_t ClockSystem::getHourTens() const
 {
-return clockManager.getDayOfWeek();
+    return _clockManager.hour1();
 }
 
-// ========================================
-// HH:MM
-// ========================================
-
-
-// ========================================
-// STATUS
-// ========================================
-
-bool ClockSystem::isTimeValid()
+uint8_t ClockSystem::getHourOnes() const
 {
-return clockManager.isTimeValid();
-}
-uint8_t ClockSystem::getHourTens()
-{
-    return clockManager.getTimeData().getHourTens();
+    return _clockManager.hour2();
 }
 
-uint8_t ClockSystem::getHourOnes()
+uint8_t ClockSystem::getMinuteTens() const
 {
-    return clockManager.getTimeData().getHourOnes();
+    return _clockManager.minute1();
 }
 
-uint8_t ClockSystem::getMinuteTens()
+uint8_t ClockSystem::getMinuteOnes() const
 {
-    return clockManager.getTimeData().getMinuteTens();
+    return _clockManager.minute2();
 }
 
-uint8_t ClockSystem::getMinuteOnes()
+// ============================================================
+// DATE
+// ============================================================
+
+uint8_t ClockSystem::day() const
 {
-    return clockManager.getTimeData().getMinuteOnes();
+    return _clockManager.day();
 }
+
+uint8_t ClockSystem::month() const
+{
+    return _clockManager.month();
+}
+
+uint16_t ClockSystem::year() const
+{
+    return _clockManager.year();
+}
+
+Constants::DayOfWeek ClockSystem::getDayOfWeek() const
+{
+    return _clockManager.dayOfWeek();
+}
+
+// ============================================================
+// TIMESTAMP
+// ============================================================
+
+time_t ClockSystem::getUTCTime() const
+{
+    return _clockManager.utcTime();
+}
+
+time_t ClockSystem::getLocalTime() const
+{
+    return _clockManager.localTime();
+}
+
+// ============================================================
+// RTC
+// ============================================================
+
 DateTime ClockSystem::getRTCDateTime()
 {
-    return rtc.getDateTime();
+    return _rtc.getDateTime();
+}
+
+RTC& ClockSystem::getRTC()
+{
+    return _rtc;
+}
+
+// ============================================================
+// STATUS
+// ============================================================
+
+bool ClockSystem::isTimeValid() const
+{
+    return _clockManager.isValid();
+}
+
+// ============================================================
+// LOCAL -> UTC
+// ============================================================
+
+time_t ClockSystem::localToUTC(
+    time_t local
+) const
+{
+    const int16_t offsetHours =
+        static_cast<int16_t>(
+            _settings.utcOffset
+        );
+
+    return local -
+        (
+            static_cast<time_t>(
+                offsetHours
+            ) * 3600
+        );
+}
+
+// ============================================================
+// UTC -> LOCAL
+// ============================================================
+
+time_t ClockSystem::utcToLocal(
+    time_t utc
+) const
+{
+    const int16_t offsetHours =
+        static_cast<int16_t>(
+            _settings.utcOffset
+        );
+
+    return utc +
+        (
+            static_cast<time_t>(
+                offsetHours
+            ) * 3600
+        );
+}
+
+// ============================================================
+// UPDATE MANAGER
+// ============================================================
+
+void ClockSystem::updateManager()
+{
+    _clockManager.update();
 }

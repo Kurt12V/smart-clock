@@ -6,7 +6,9 @@
 // ============================================================
 
 System::System()
-    : _ready(false)
+    : _settings(),
+      _clock(_settings.clock),
+      _ready(false)
 {
 }
 
@@ -93,14 +95,14 @@ bool System::begin()
 
  Serial.println("[SYSTEM] Clock...");
 
-if (!_clock.begin("Europe/Moscow"))
-{
-    Serial.println("[SYSTEM] Clock FAILED");
-}
-else
-{
-    Serial.println("[SYSTEM] Clock OK");
-}
+    if (!_clock.begin())
+    {
+        Serial.println("[SYSTEM] Clock initialization failed");
+    }
+    else
+    {
+        Serial.println("[SYSTEM] Clock initialized");
+    }
 
 
     // ========================================================
@@ -281,100 +283,65 @@ void System::update()
     // CLOCK
     // ========================================================
 
-    Serial.println();
-    Serial.println("================================");
-    Serial.println("             CLOCK");
-    Serial.println("================================");
+DateTime utc(_clock.getUTCTime());
 
-    if (!_clock.isTimeValid())
-    {
-        Serial.println("Status: INVALID");
-    }
-    else
-    {
-        // ====================================================
-        // INDIVIDUAL DIGITS
-        // ====================================================
-        uint8_t hourTens =
-            _clock.getHourTens();
+Serial.println();
+Serial.println("========== CLOCK ==========");
 
-        uint8_t hourOnes =
-            _clock.getHourOnes();
+Serial.printf(
+    "[TIME] UTC   : %04u-%02u-%02u %02u:%02u:%02u\n",
+    utc.year(),
+    utc.month(),
+    utc.day(),
+    utc.hour(),
+    utc.minute(),
+    utc.second()
+);
 
-        uint8_t minuteTens =
-            _clock.getMinuteTens();
+Serial.printf(
+    "[TIME] Local : %04u-%02u-%02u %02u:%02u:%02u\n",
+    _clock.year(),
+    _clock.month(),
+    _clock.day(),
+    _clock.hour(),
+    _clock.minute(),
+    _clock.second()
+);
 
-        uint8_t minuteOnes =
-            _clock.getMinuteOnes();
+Serial.println();
+Serial.println("[LOCAL DIGITS]");
 
+Serial.printf(
+    "Hour   : %u %u\n",
+    _clock.getHourTens(),
+    _clock.getHourOnes()
+);
 
-        Serial.print("Hour tens:    ");
-        Serial.println(hourTens);
+Serial.printf(
+    "Minute : %u %u\n",
+    _clock.getMinuteTens(),
+    _clock.getMinuteOnes()
+);
 
-        Serial.print("Hour ones:    ");
-        Serial.println(hourOnes);
+Serial.printf(
+    "Second : %u %u\n",
+    _clock.second() / 10,
+    _clock.second() % 10
+);
 
-        Serial.print("Minute tens:  ");
-        Serial.println(minuteTens);
+Serial.printf(
+    "Date   : %02u.%02u.%04u\n",
+    _clock.day(),
+    _clock.month(),
+    _clock.year()
+);
 
-        Serial.print("Minute ones:  ");
-        Serial.println(minuteOnes);
+Serial.printf(
+    "WeekDay: %u\n",
+    static_cast<uint8_t>(_clock.getDayOfWeek())
+);
 
-
-        // ====================================================
-        // FULL TIME
-        // ====================================================
-
-        Serial.printf(
-            "Time: %d%d:%d%d\n",
-            hourTens,
-            hourOnes,
-            minuteTens,
-            minuteOnes
-        );
-
-
-        // ====================================================
-        // DATE
-        // ====================================================
-
-        DateData date =
-            _clock.getDateData();
-
-        if (date.valid)
-        {
-            Serial.printf(
-                "Date: %02d.%02d.%04d\n",
-                date.day,
-                date.month,
-                date.year
-            );
-
-            Serial.print("Day: ");
-
-            Serial.println(
-                static_cast<int>(
-                    date.dayOfWeek
-                )
-            );
-        }
-        else
-        {
-            Serial.println("Date: --");
-        }
-
-
-        // ====================================================
-        // TIMEZONE
-        // ====================================================
-
-        Serial.print("Timezone: ");
-
-        Serial.println(
-            _clock.getTimeZone()
-        );
-    }
-    Serial.println("-------------------------------");
+Serial.println("===========================");
 
 
 
@@ -444,10 +411,10 @@ SensorManager& System::sensors()
 }
 
 
-ClockSystem& System::clock()
-{
-    return _clock;
-}
+// ClockSystem& System::clock()
+// {
+//     return _clock;
+// }
 
 
 // AudioSystem& System::audio()

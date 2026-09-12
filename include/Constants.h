@@ -34,6 +34,38 @@ namespace Constants
         Friday,
         Saturday
     };
+    enum class UtcOffset : int16_t
+{
+    Minus12 = -12,
+    Minus11 = -11,
+    Minus10 = -10,
+    Minus9  = -9,
+    Minus8  = -8,
+    Minus7  = -7,
+    Minus6  = -6,
+    Minus5  = -5,
+    Minus4  = -4,
+    Minus3  = -3,
+    Minus2  = -2,
+    Minus1  = -1,
+
+    UTC = 0,
+
+    Plus1  = 1,
+    Plus2  = 2,
+    Plus3  = 3,
+    Plus4  = 4,
+    Plus5  = 5,
+    Plus6  = 6,
+    Plus7  = 7,
+    Plus8  = 8,
+    Plus9  = 9,
+    Plus10 = 10,
+    Plus11 = 11,
+    Plus12 = 12,
+    Plus13 = 13,
+    Plus14 = 14
+};
 }
 
 

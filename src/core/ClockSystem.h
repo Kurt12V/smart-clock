@@ -1,148 +1,157 @@
 #pragma once
 
 #include <Arduino.h>
+#include <RTClib.h>
+#include <time.h>
+
+#include "Constants.h"
+#include "Settings.h"
 
 #include "hardware/rtc/RTC.h"
 #include "managers/ClockManager.h"
-#include "Pins.h"
 
 class ClockSystem
 {
 public:
+    explicit ClockSystem(
+        const Settings::Clock& settings
+    );
 
-ClockSystem();
+    // ========================================================
+    // SYSTEM
+    // ========================================================
 
+    bool begin();
 
-// ========================================
-// INITIALIZATION
-// ========================================
+    void update();
 
-bool begin(
-    const char* timeZone = "Europe/Moscow"
-);
+    // ========================================================
+    // NTP
+    // ========================================================
 
+    bool syncFromNTP(
+        const char* ntpServer = "pool.ntp.org",
+        uint8_t maxAttempts = 10
+    );
 
-// ========================================
-// SYNCHRONIZATION
-// ========================================
+    // ========================================================
+    // DATE + TIME
+    // ========================================================
 
-// Синхронизация времени RTC через NTP
-bool syncFromNTP(
-    const char* ntpServer = "pool.ntp.org",
-    uint8_t maxAttempts = 10
-);
+    bool setLocalDateTime(
+        uint16_t year,
+        uint8_t month,
+        uint8_t day,
+        uint8_t hour,
+        uint8_t minute,
+        uint8_t second
+    );
 
+    bool setUTCDateTime(
+        uint16_t year,
+        uint8_t month,
+        uint8_t day,
+        uint8_t hour,
+        uint8_t minute,
+        uint8_t second
+    );
 
-// ========================================
-// TIMEZONE
-// ========================================
+    // ========================================================
+    // TIME
+    // ========================================================
 
-// Установить временную зону
-bool setTimeZone(const char* timeZone);
+    bool setLocalTime(
+        uint8_t hour,
+        uint8_t minute,
+        uint8_t second = 0
+    );
 
-// Получить текущую временную зону
-String getTimeZone() const;
+    bool setUTCTime(
+        uint8_t hour,
+        uint8_t minute,
+        uint8_t second = 0
+    );
 
+    // ========================================================
+    // DATE
+    // ========================================================
 
-// ========================================
-// SET LOCAL DATE AND TIME
-// ========================================
+    bool setLocalDate(
+        uint16_t year,
+        uint8_t month,
+        uint8_t day
+    );
 
-// Установить локальные дату и время
-bool setLocalDateTime(
-    int year,
-    int month,
-    int day,
-    int hour,
-    int minute,
-    int second = 0
-);
+    bool setUTCDate(
+        uint16_t year,
+        uint8_t month,
+        uint8_t day
+    );
 
+    // ========================================================
+    // CURRENT TIME
+    // ========================================================
 
-// ========================================
-// SET UTC DATE AND TIME
-// ========================================
+    uint8_t hour() const;
+    uint8_t minute() const;
+    uint8_t second() const;
 
-// Установить UTC дату и время
-bool setUTCDateTime(
-    int year,
-    int month,
-    int day,
-    int hour,
-    int minute,
-    int second = 0
-);
+    // ========================================================
+    // TIME DIGITS
+    // ========================================================
 
+    uint8_t getHourTens() const;
+    uint8_t getHourOnes() const;
 
-// ========================================
-// SET TIME ONLY
-// ========================================
+    uint8_t getMinuteTens() const;
+    uint8_t getMinuteOnes() const;
 
-// Изменить только локальное время
-bool setLocalTime(
-    int hour,
-    int minute,
-    int second = 0
-);
+    // ========================================================
+    // DATE
+    // ========================================================
 
+    uint8_t day() const;
+    uint8_t month() const;
+    uint16_t year() const;
 
-// Изменить только UTC время
-bool setUTCTime(
-    int hour,
-    int minute,
-    int second = 0
-);
+    Constants::DayOfWeek getDayOfWeek() const;
 
+    // ========================================================
+    // TIMESTAMP
+    // ========================================================
 
-// ========================================
-// SET DATE ONLY
-// ========================================
+    time_t getUTCTime() const;
+    time_t getLocalTime() const;
 
-// Изменить только локальную дату
-bool setLocalDate(
-    int year,
-    int month,
-    int day
-);
+    // ========================================================
+    // RTC
+    // ========================================================
 
+    DateTime getRTCDateTime();
 
-// Изменить только UTC дату
-bool setUTCDate(
-    int year,
-    int month,
-    int day
-);
+    RTC& getRTC();
 
+    // ========================================================
+    // STATUS
+    // ========================================================
 
-// ========================================
-// GET DATA
-// ========================================
-
-TimeData getTimeData();
-
-DateData getDateData();
-
-Constants::DayOfWeek getDayOfWeek();
-uint8_t getHourTens();
-uint8_t getHourOnes();
-
-uint8_t getMinuteTens();
-uint8_t getMinuteOnes();
-
-DateTime getRTCDateTime();
-// ========================================
-// STATUS
-// ========================================
-
-bool isTimeValid();
-
+    bool isTimeValid() const;
 
 private:
+    time_t localToUTC(
+        time_t local
+    ) const;
 
+    time_t utcToLocal(
+        time_t utc
+    ) const;
 
-RTC rtc;
+    void updateManager();
 
-ClockManager clockManager;
+private:
+    RTC _rtc;
 
+    ClockManager _clockManager;
 
+    const Settings::Clock& _settings;
 };
