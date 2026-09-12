@@ -6,9 +6,9 @@
 #define PIN_SCLK    12      // SPI Clock
 #define PIN_MOSI    11      // SPI MOSI
 #define PIN_TFT_DC       2      // Data / Command
-#define PIN_TFT_CS1      4      // Дисплей №1
-#define PIN_TFT_CS2      5      // Дисплей №2
-#define PIN_TFT_CS3      6      // Дисплей №3
+#define PIN_TFT_CS1       19    // Дисплей №1
+#define PIN_TFT_CS2       40   // Дисплей №2
+#define PIN_TFT_CS3      41      // Дисплей №3
 #define PIN_TFT_CS4      7      // Дисплей №4
 #define PIN_TFT_RST1     3      // Дисплей №1
 #define PIN_TFT_RST2    10      // Дисплей №2
@@ -43,9 +43,9 @@
 //                 └─> MAX98357A #2 → RIGHT
 // BCLK / LRC / DIN являются ОБЩИМИ.
 // ============================================================
-#define PIN_I2S_BCLK    40      // I2S Bit Clock
-#define PIN_I2S_LRCLK   41      // I2S Left / Right Clock
-#define PIN_I2S_DIN    48      // I2S Data Out
+#define PIN_I2S_BCLK    5     // I2S Bit Clock
+#define PIN_I2S_LRCLK  6     // I2S Left / Right Clock
+#define PIN_I2S_DIN    4      // I2S Data Out
 
 
 // ============================================================

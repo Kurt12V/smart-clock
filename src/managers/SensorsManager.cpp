@@ -349,8 +349,7 @@ Serial.println("================================");
     else
     {
         Serial.println("READY");
-    };
-
+    }
 
     Serial.print("Mic level:     ");
     Serial.println(
