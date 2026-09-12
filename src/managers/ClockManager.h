@@ -37,6 +37,9 @@ public:
     uint8_t minute1() const;
     uint8_t minute2() const;
 
+    uint8_t second1() const;
+    uint8_t second2() const;
+
     // ========================================================
     // DATE
     // ========================================================

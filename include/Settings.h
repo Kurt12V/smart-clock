@@ -189,20 +189,11 @@ struct Clock
 // WIFI
 // ============================================================
 
-// struct WiFi
-// {
-//     bool enabled = true;
-
-//     bool autoConnect = true;
-
-//     bool autoReconnect = true;
-
-//     uint32_t reconnectInterval = 10000;
-
-//     uint32_t connectionTimeout = 15000;
-
-//     bool syncTime = true;
-// };
+struct WiFi
+{
+    String ssid = "";
+    String password = "";
+};
 
 // ============================================================
 // POWER
@@ -323,7 +314,7 @@ struct Data
 
 //     Timer timer;
 
-//     WiFi wifi;
+     WiFi wifi;
 
 //     Power power;
 

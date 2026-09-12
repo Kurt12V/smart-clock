@@ -148,6 +148,16 @@ uint8_t ClockManager::minute2() const
     return _minute % 10;
 }
 
+uint8_t ClockManager::second1() const
+{
+    return _second / 10;
+}
+
+uint8_t ClockManager::second2() const
+{
+    return _second % 10;
+}
+
 // ============================================================
 // DATE
 // ============================================================
