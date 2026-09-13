@@ -235,61 +235,55 @@ bool LVGLManager::initDisplay(uint8_t index)
 void LVGLManager::flushCallback(
     lv_display_t* display,
     const lv_area_t* area,
-    uint8_t* pxMap
+    uint8_t* px_map
 )
 {
-    if (display == nullptr ||
-        area == nullptr ||
-        pxMap == nullptr)
+    Serial.printf(
+        "[FLUSH] display=%p area=(%d,%d)-(%d,%d)\n",
+        display,
+        area->x1,
+        area->y1,
+        area->x2,
+        area->y2
+    );
+
+    DisplayContext* context = nullptr;
+
+    for (uint8_t i = 0; i < DISPLAY_COUNT; ++i)
     {
+        if (_contexts[i].lvDisplay == display)
+        {
+            context = &_contexts[i];
+            break;
+        }
+    }
+
+    if (context == nullptr)
+    {
+        Serial.println("[FLUSH] ERROR: context not found");
+
         lv_display_flush_ready(display);
         return;
     }
 
-    DisplayContext* context =
-        static_cast<DisplayContext*>(
-            lv_display_get_user_data(display)
-        );
+    Adafruit_ST7789& tft = context->tft;
 
-    if (context == nullptr ||
-        context->tft == nullptr)
-    {
-        lv_display_flush_ready(display);
-        return;
-    }
+    const int16_t x = area->x1;
+    const int16_t y = area->y1;
 
-    Adafruit_ST7789& tft = *context->tft;
-
-    // --------------------------------------------------------
-    // Area size
-    // --------------------------------------------------------
-
-    const int32_t width =
+    const uint16_t width =
         area->x2 - area->x1 + 1;
 
-    const int32_t height =
+    const uint16_t height =
         area->y2 - area->y1 + 1;
 
-    if (width <= 0 || height <= 0)
-    {
-        lv_display_flush_ready(display);
-        return;
-    }
-
-    // --------------------------------------------------------
-    // IMPORTANT:
-    //
-    // NO xOffset.
-    //
-    // tft.init(172, 320) already configures the display.
-    // --------------------------------------------------------
-
-    const int32_t x = area->x1;
-    const int32_t y = area->y1;
-
-    // --------------------------------------------------------
-    // Start SPI transaction
-    // --------------------------------------------------------
+    Serial.printf(
+        "[FLUSH] x=%d y=%d w=%d h=%d\n",
+        x,
+        y,
+        width,
+        height
+    );
 
     tft.startWrite();
 
@@ -300,12 +294,8 @@ void LVGLManager::flushCallback(
         height
     );
 
-    // --------------------------------------------------------
-    // LVGL RGB565 buffer
-    // --------------------------------------------------------
-
     uint16_t* pixels =
-        reinterpret_cast<uint16_t*>(pxMap);
+        reinterpret_cast<uint16_t*>(px_map);
 
     const uint32_t count =
         static_cast<uint32_t>(width) *
@@ -315,10 +305,6 @@ void LVGLManager::flushCallback(
     {
         tft.pushColor(pixels[i]);
     }
-
-    // --------------------------------------------------------
-    // End transaction
-    // --------------------------------------------------------
 
     tft.endWrite();
 
