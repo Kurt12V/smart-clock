@@ -6,9 +6,9 @@
 #define PIN_SCLK    12      // SPI Clock
 #define PIN_MOSI    11      // SPI MOSI
 #define PIN_TFT_DC       2      // Data / Command
-#define PIN_TFT_CS1       19    // Дисплей №1
-#define PIN_TFT_CS2       40   // Дисплей №2
-#define PIN_TFT_CS3      41      // Дисплей №3
+#define PIN_TFT_CS1       37    // Дисплей №1
+#define PIN_TFT_CS2       38   // Дисплей №2
+#define PIN_TFT_CS3      39      // Дисплей №3
 #define PIN_TFT_CS4      7      // Дисплей №4
 #define PIN_TFT_RST1     3      // Дисплей №1
 #define PIN_TFT_RST2    10      // Дисплей №2
