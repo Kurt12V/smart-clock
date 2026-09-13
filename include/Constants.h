@@ -34,6 +34,15 @@ namespace Constants
         Friday,
         Saturday
     };
+
+
+    enum class NotificationPriority : uint8_t
+{
+    LOW_PRIORITY      = 0,
+    NORMAL_PRIORITY   = 1,
+    HIGH_PRIORITY     = 2,
+    CRITICAL_PRIORITY = 3
+};
     enum class UtcOffset : int16_t
 {
     Minus12 = -12,

@@ -121,8 +121,7 @@ if (!data.temperatureValid) {
 }
 
 return String(data.temperature, 2)
-    + " "
-    + Constants::UNIT_TEMP_C;
+     + " ";
 
 
 }
@@ -145,8 +144,7 @@ if (!data.temperatureValid) {
 float fahrenheit = celsiusToFahrenheit(data.temperature);
 
 return String(fahrenheit, 2)
-    + " "
-    + Constants::UNIT_TEMP_F;
++ " ";
 
 
 }
@@ -163,8 +161,7 @@ if (!data.humidityValid) {
 }
 
 return String(data.humidity, 2)
-    + " "
-    + Constants::UNIT_HUMID;
++ " ";
 
 
 }
@@ -181,8 +178,7 @@ if (!data.lightValid) {
 }
 
 return String(data.lightLux, 2)
-    + " "
-    + Constants::UNIT_LUX;
++ " ";
 
 
 }

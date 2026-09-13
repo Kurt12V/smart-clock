@@ -129,7 +129,7 @@ void ClockScreen::createUI()
 
     lv_obj_set_style_text_font(
         _topLabel,
-        &lv_font_montserrat_14,
+        &lv_font_montserrat_20,
         LV_PART_MAIN
     );
 
