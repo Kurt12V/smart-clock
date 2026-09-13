@@ -40,14 +40,14 @@ DisplaySystem displaySystem(
 
 void setup()
 {
-    Serial.begin(115200);
+    Serial0.begin(115200);
 
     delay(500);
 
-    Serial.println();
-    Serial.println("==============================");
-    Serial.println("       SMART CLOCK");
-    Serial.println("==============================");
+    Serial0.println();
+    Serial0.println("==============================");
+    Serial0.println("       SMART CLOCK");
+    Serial0.println("==============================");
 
 
     // --------------------------------------------------------
@@ -56,13 +56,13 @@ void setup()
 
     if (!clockSystem.begin())
     {
-        Serial.println(
+        Serial0.println(
             "[ERROR] ClockSystem begin failed"
         );
     }
     else
     {
-        Serial.println(
+        Serial0.println(
             "[OK] ClockSystem"
         );
     }
@@ -74,13 +74,13 @@ void setup()
 
     if (!sensorManager.begin())
     {
-        Serial.println(
+        Serial0.println(
             "[ERROR] SensorManager begin failed"
         );
     }
     else
     {
-        Serial.println(
+        Serial0.println(
             "[OK] SensorManager"
         );
     }
@@ -92,18 +92,18 @@ void setup()
 
     if (!displaySystem.begin())
     {
-        Serial.println(
+        Serial0.println(
             "[ERROR] DisplaySystem begin failed"
         );
 
         return;
     }
 
-    Serial.println(
+    Serial0.println(
         "[OK] DisplaySystem"
     );
 
-    Serial.println(
+    Serial0.println(
         "System started."
     );
 }

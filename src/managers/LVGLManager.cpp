@@ -118,17 +118,17 @@ bool LVGLManager::begin()
         Serial0.print(i + 1);
         Serial0.println(" OK");
     }
-    _tft1.fillScreen(ST77XX_RED);
-    delay(300);
+    // _tft1.fillScreen(ST77XX_RED);
+    // delay(300);
 
-    _tft2.fillScreen(ST77XX_GREEN);
-    delay(300);
+    // _tft2.fillScreen(ST77XX_GREEN);
+    // delay(300);
 
-    _tft3.fillScreen(ST77XX_BLUE);
-    delay(300);
+    // _tft3.fillScreen(ST77XX_BLUE);
+    // delay(300);
 
-    _tft4.fillScreen(ST77XX_WHITE);
-    delay(1000);
+    // _tft4.fillScreen(ST77XX_WHITE);
+    // delay(1000);
     _lastTick = millis();
 
     _initialized = true;
@@ -238,7 +238,7 @@ void LVGLManager::flushCallback(
     uint8_t* px_map
 )
 {
-    Serial.printf(
+    Serial0.printf(
         "[FLUSH] display=%p area=(%d,%d)-(%d,%d)\n",
         display,
         area->x1,
@@ -260,7 +260,7 @@ void LVGLManager::flushCallback(
 
     if (context == nullptr)
     {
-        Serial.println("[FLUSH] ERROR: context not found");
+        Serial0.println("[FLUSH] ERROR: context not found");
 
         lv_display_flush_ready(display);
         return;
@@ -277,7 +277,7 @@ void LVGLManager::flushCallback(
     const uint16_t height =
         area->y2 - area->y1 + 1;
 
-    Serial.printf(
+    Serial0.printf(
         "[FLUSH] x=%d y=%d w=%d h=%d\n",
         x,
         y,
