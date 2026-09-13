@@ -238,73 +238,35 @@ void LVGLManager::flushCallback(
     uint8_t* px_map
 )
 {
-    Serial0.printf(
-        "[FLUSH] display=%p area=(%d,%d)-(%d,%d)\n",
-        display,
-        area->x1,
-        area->y1,
-        area->x2,
-        area->y2
-    );
+    DisplayContext* context =
+        static_cast<DisplayContext*>(
+            lv_display_get_user_data(display)
+        );
 
-    DisplayContext* context = nullptr;
-
-    for (uint8_t i = 0; i < DISPLAY_COUNT; ++i)
-    {
-        if (_contexts[i].lvDisplay == display)
-        {
-            context = &_contexts[i];
-            break;
-        }
-    }
-
-    if (context == nullptr)
+    if (context == nullptr || context->tft == nullptr)
     {
         Serial0.println("[FLUSH] ERROR: context not found");
-
         lv_display_flush_ready(display);
         return;
     }
 
-    Adafruit_ST7789& tft = context->tft;
+    Adafruit_ST7789& tft = *context->tft;   // <-- разыменование указателя
 
     const int16_t x = area->x1;
     const int16_t y = area->y1;
 
-    const uint16_t width =
-        area->x2 - area->x1 + 1;
-
-    const uint16_t height =
-        area->y2 - area->y1 + 1;
-
-    Serial0.printf(
-        "[FLUSH] x=%d y=%d w=%d h=%d\n",
-        x,
-        y,
-        width,
-        height
-    );
+    const uint16_t width  = area->x2 - area->x1 + 1;
+    const uint16_t height = area->y2 - area->y1 + 1;
 
     tft.startWrite();
+    tft.setAddrWindow(x, y, width, height);
 
-    tft.setAddrWindow(
-        x,
-        y,
-        width,
-        height
-    );
-
-    uint16_t* pixels =
-        reinterpret_cast<uint16_t*>(px_map);
-
+    uint16_t* pixels = reinterpret_cast<uint16_t*>(px_map);
     const uint32_t count =
-        static_cast<uint32_t>(width) *
-        static_cast<uint32_t>(height);
+        static_cast<uint32_t>(width) * static_cast<uint32_t>(height);
 
-    for (uint32_t i = 0; i < count; ++i)
-    {
-        tft.pushColor(pixels[i]);
-    }
+    // Быстрее: отправляем весь буфер разом, а не по пикселю.
+    tft.writePixels(pixels, count);
 
     tft.endWrite();
 
