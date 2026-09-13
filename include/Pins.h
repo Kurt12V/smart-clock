@@ -6,14 +6,14 @@
 #define PIN_SCLK    12      // SPI Clock
 #define PIN_MOSI    11      // SPI MOSI
 #define PIN_TFT_DC       2      // Data / Command
-#define PIN_TFT_CS1       37    // Дисплей №1
-#define PIN_TFT_CS2       38   // Дисплей №2
-#define PIN_TFT_CS3      39      // Дисплей №3
-#define PIN_TFT_CS4      7      // Дисплей №4
-#define PIN_TFT_RST1     3      // Дисплей №1
-#define PIN_TFT_RST2    10      // Дисплей №2
-#define PIN_TFT_RST3    13      // Дисплей №3
-#define PIN_TFT_RST4    42      // Дисплей №4
+#define PIN_TFT_CS1       7    // Дисплей №1
+#define PIN_TFT_CS2       37   // Дисплей №2
+#define PIN_TFT_CS3      38      // Дисплей №3
+#define PIN_TFT_CS4      39      // Дисплей №4
+#define PIN_TFT_RST1     42      // Дисплей №1
+#define PIN_TFT_RST2    13      // Дисплей №2
+#define PIN_TFT_RST3    10      // Дисплей №3
+#define PIN_TFT_RST4    3      // Дисплей №4
 #define PIN_TFT_BL       1      // Общая подсветка, PWM
 
 // ============================================================
