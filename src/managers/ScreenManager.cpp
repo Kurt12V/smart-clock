@@ -434,7 +434,7 @@ void ScreenManager::createBottomBar(
 
     lv_obj_set_style_text_font(
         label,
-        &lv_font_montserrat_24,
+        &lv_font_montserrat_28,
         LV_PART_MAIN
     );
 
