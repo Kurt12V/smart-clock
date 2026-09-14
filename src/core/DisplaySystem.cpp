@@ -1,5 +1,10 @@
 #include "DisplaySystem.h"
 
+#include "./utils/Logger.h"
+
+// ============================================================
+// CONSTRUCTOR
+// ============================================================
 
 DisplaySystem::DisplaySystem(
     ClockSystem& clock,
@@ -7,15 +12,20 @@ DisplaySystem::DisplaySystem(
 )
     : _clock(clock),
       _sensors(sensors),
-      _lvgl(),
+
+      _spi(),
+
+      _lvgl(_spi),
+
       _screens(
           clock,
-          sensors
+          sensors,
+          _lvgl
       ),
+
       _initialized(false)
 {
 }
-
 
 // ============================================================
 // BEGIN
@@ -26,29 +36,62 @@ bool DisplaySystem::begin()
     if (_initialized)
         return true;
 
-    // --------------------------------------------------------
-    // LVGL + TFT
-    // --------------------------------------------------------
+    Logger::info(
+        "DISPLAY",
+        "Starting DisplaySystem..."
+    );
 
-    if (!_lvgl.begin())
+    // ========================================================
+    // SPI
+    // ========================================================
+
+    if (!_spi.begin())
     {
+        Logger::info(
+            "DISPLAY",
+            "SPI initialization failed"
+        );
+
         return false;
     }
 
-    // --------------------------------------------------------
+    // ========================================================
+    // LVGL + TFT
+    // ========================================================
+
+    if (!_lvgl.begin())
+    {
+        Logger::info(
+            "DISPLAY",
+            "LVGL initialization failed"
+        );
+
+        return false;
+    }
+
+    // ========================================================
     // SCREENS
-    // --------------------------------------------------------
+    // ========================================================
 
     if (!_screens.begin())
     {
+        Logger::info(
+            "DISPLAY",
+            "ScreenManager initialization failed"
+        );
+
         return false;
     }
 
     _initialized = true;
 
+    Logger::info(
+        "DISPLAY",
+        "DisplaySystem ready"
+    );
+
     return true;
 }
-
 
 // ============================================================
 // UPDATE
@@ -59,16 +102,21 @@ void DisplaySystem::update()
     if (!_initialized)
         return;
 
-    // Обновляем данные UI.
+    // --------------------------------------------------------
+    // Обновление данных экранов
+    // --------------------------------------------------------
+
     _screens.update();
 
-    // Обрабатываем LVGL.
+    // --------------------------------------------------------
+    // Обработка LVGL
+    // --------------------------------------------------------
+
     _lvgl.update();
 }
 
-
 // ============================================================
-// READY
+// IS READY
 // ============================================================
 
 bool DisplaySystem::isReady() const
@@ -76,22 +124,32 @@ bool DisplaySystem::isReady() const
     return _initialized;
 }
 
+// ============================================================
+// SPI
+// ============================================================
+
+SPIManager&
+DisplaySystem::spi()
+{
+    return _spi;
+}
 
 // ============================================================
 // LVGL
 // ============================================================
 
-LVGLManager& DisplaySystem::lvgl()
+LVGLManager&
+DisplaySystem::lvgl()
 {
     return _lvgl;
 }
-
 
 // ============================================================
 // SCREENS
 // ============================================================
 
-ScreenManager& DisplaySystem::screens()
+ScreenManager&
+DisplaySystem::screens()
 {
     return _screens;
 }
