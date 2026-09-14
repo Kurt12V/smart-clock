@@ -2,7 +2,7 @@
 
 #include <cstdio>
 #include <cstring>
-
+#include "./ui/fonts/redring_clock_180.h"
 #include "Constants.h"
 
 // ============================================================
@@ -339,7 +339,7 @@ void ScreenManager::createMainDigit(
 
     lv_obj_set_style_text_font(
         digit,
-        &lv_font_montserrat_48,
+        &redring_clock_180,
         LV_PART_MAIN
     );
 
