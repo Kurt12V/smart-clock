@@ -339,7 +339,7 @@ void ScreenManager::createMainDigit(
 
     lv_obj_set_style_text_font(
         digit,
-        &redring_clock_180,
+        &redring_clock_200,
         LV_PART_MAIN
     );
 
@@ -434,7 +434,7 @@ void ScreenManager::createBottomBar(
 
     lv_obj_set_style_text_font(
         label,
-        &lv_font_montserrat_28,
+        &lv_font_montserrat_24,
         LV_PART_MAIN
     );
 

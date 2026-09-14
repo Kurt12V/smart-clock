@@ -6,7 +6,7 @@ extern "C" {
 
 #include "lvgl.h"
 
-extern const lv_font_t redring_clock_180;
+extern const lv_font_t redring_clock_200;
 
 #ifdef __cplusplus
 }
