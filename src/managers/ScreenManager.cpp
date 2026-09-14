@@ -2,7 +2,7 @@
 
 #include <cstdio>
 #include <cstring>
-#include "./ui/fonts/redring_clock_180.h"
+#include "./ui/fonts/redring_clock_200.h"
 #include "Constants.h"
 
 // ============================================================
