@@ -13,21 +13,18 @@ LVGLTFTPanel::LVGLTFTPanel(
 {
 }
 
+// ============================================================
+// BEGIN
+// ============================================================
+
 bool LVGLTFTPanel::begin()
 {
-    // ========================================================
-    // TFT
-    // ========================================================
-
-    // Контроллер ST7789 обычно имеет RAM 240x320.
-    // Активная область твоего дисплея — 172x320.
     _tft.init(240, 320);
 
     _tft.setRotation(0);
 
     _tft.fillScreen(ST77XX_BLACK);
 
-    // Очистка активной области
     _tft.fillRect(
         _xOffset,
         _yOffset,
@@ -36,23 +33,14 @@ bool LVGLTFTPanel::begin()
         ST77XX_BLACK
     );
 
-    // ========================================================
-    // LVGL DISPLAY
-    // ========================================================
-
-    _display = lv_display_create(
-        WIDTH,
-        HEIGHT
-    );
+    _display =
+        lv_display_create(
+            WIDTH,
+            HEIGHT
+        );
 
     if (_display == nullptr)
-    {
         return false;
-    }
-
-    // ========================================================
-    // BUFFER
-    // ========================================================
 
     lv_display_set_buffers(
         _display,
@@ -62,16 +50,11 @@ bool LVGLTFTPanel::begin()
         LV_DISPLAY_RENDER_MODE_PARTIAL
     );
 
-    // ========================================================
-    // FLUSH
-    // ========================================================
-
     lv_display_set_flush_cb(
         _display,
         flushCallback
     );
 
-    // Сохраняем this в user_data
     lv_display_set_user_data(
         _display,
         this
@@ -82,22 +65,39 @@ bool LVGLTFTPanel::begin()
     return true;
 }
 
-lv_display_t* LVGLTFTPanel::display() const
+// ============================================================
+// DISPLAY
+// ============================================================
+
+lv_display_t*
+LVGLTFTPanel::display() const
 {
     return _display;
 }
+
+// ============================================================
+// READY
+// ============================================================
 
 bool LVGLTFTPanel::isReady() const
 {
     return _ready;
 }
 
-void LVGLTFTPanel::setBacklight(bool state)
+// ============================================================
+// BACKLIGHT
+// ============================================================
+
+void LVGLTFTPanel::setBacklight(
+    bool state
+)
 {
-    // BL управляется отдельно ScreenManager.
-    // Здесь оставлено для расширения.
     (void)state;
 }
+
+// ============================================================
+// FLUSH CALLBACK
+// ============================================================
 
 void LVGLTFTPanel::flushCallback(
     lv_display_t* display,
@@ -107,12 +107,17 @@ void LVGLTFTPanel::flushCallback(
 {
     auto* panel =
         static_cast<LVGLTFTPanel*>(
-            lv_display_get_user_data(display)
+            lv_display_get_user_data(
+                display
+            )
         );
 
     if (panel == nullptr)
     {
-        lv_display_flush_ready(display);
+        lv_display_flush_ready(
+            display
+        );
+
         return;
     }
 
@@ -121,28 +126,46 @@ void LVGLTFTPanel::flushCallback(
         pxMap
     );
 
-    lv_display_flush_ready(display);
+    lv_display_flush_ready(
+        display
+    );
 }
+
+// ============================================================
+// FLUSH
+// ============================================================
 
 void LVGLTFTPanel::flush(
     const lv_area_t* area,
     uint8_t* pxMap
 )
 {
-    const int32_t width =
-        area->x2 - area->x1 + 1;
-
-    const int32_t height =
-        area->y2 - area->y1 + 1;
-
-    if (width <= 0 || height <= 0)
+    if (area == nullptr ||
+        pxMap == nullptr)
     {
         return;
     }
 
-    // LVGL 9 с RGB565.
+    const int32_t width =
+        area->x2 -
+        area->x1 +
+        1;
+
+    const int32_t height =
+        area->y2 -
+        area->y1 +
+        1;
+
+    if (width <= 0 ||
+        height <= 0)
+    {
+        return;
+    }
+
     auto* pixels =
-        reinterpret_cast<uint16_t*>(pxMap);
+        reinterpret_cast<uint16_t*>(
+            pxMap
+        );
 
     _tft.drawRGBBitmap(
         area->x1 + _xOffset,

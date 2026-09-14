@@ -8,12 +8,8 @@
 class LVGLTFTPanel
 {
 public:
-
-    static constexpr uint16_t WIDTH  = 172;
+    static constexpr uint16_t WIDTH = 172;
     static constexpr uint16_t HEIGHT = 320;
-
-    // Частичный буфер.
-    // 172 × 32 × 2 = 11 KB на дисплей.
     static constexpr uint16_t BUFFER_LINES = 32;
 
     LVGLTFTPanel(
@@ -31,7 +27,6 @@ public:
     void setBacklight(bool state);
 
 private:
-
     Adafruit_ST7789& _tft;
 
     int16_t _xOffset;

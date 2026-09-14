@@ -1,26 +1,25 @@
-
 #include <Arduino.h>
 
-#include "Pins.h"
 #include "Config.h"
+#include "Constants.h"
+#include "Pins.h"
+#include "Settings.h"
 
-#include "./core/ClockSystem.h"
-#include "./managers/SensorsManager.h"
-
-#include "./core/DisplaySystem.h"
+#include "core/ClockSystem.h"
+#include "managers/SensorsManager.h"
+#include "core/DisplaySystem.h"
 
 
 // ============================================================
-// OBJECTS
+// SETTINGS
 // ============================================================
 
-// ВАЖНО:
-// Здесь используется твой существующий Settings::Clock.
-// Если у него есть конструктор по умолчанию,
-// это устранит старую ошибку {Plus3}.
+Settings::Clock clockSettings;
 
 
-Settings::Clock clockSettings{};
+// ============================================================
+// SYSTEMS
+// ============================================================
 
 ClockSystem clockSystem(
     clockSettings
@@ -40,72 +39,61 @@ DisplaySystem displaySystem(
 
 void setup()
 {
-    Serial0.begin(115200);
+    Serial.begin(115200);
 
     delay(500);
 
-    Serial0.println();
-    Serial0.println("==============================");
-    Serial0.println("       SMART CLOCK");
-    Serial0.println("==============================");
+    Serial.println();
+    Serial.println("================================");
+    Serial.println("          SMART CLOCK");
+    Serial.println("================================");
 
 
-    // --------------------------------------------------------
+    // ========================================================
     // CLOCK
-    // --------------------------------------------------------
+    // ========================================================
 
     if (!clockSystem.begin())
     {
-        Serial0.println(
-            "[ERROR] ClockSystem begin failed"
-        );
+        Serial.println("ClockSystem: ERROR");
     }
     else
     {
-        Serial0.println(
-            "[OK] ClockSystem"
-        );
+        Serial.println("ClockSystem: OK");
     }
 
 
-    // --------------------------------------------------------
+    // ========================================================
     // SENSORS
-    // --------------------------------------------------------
+    // ========================================================
 
     if (!sensorManager.begin())
     {
-        Serial0.println(
-            "[ERROR] SensorManager begin failed"
-        );
+        Serial.println("SensorManager: ERROR");
     }
     else
     {
-        Serial0.println(
-            "[OK] SensorManager"
-        );
+        Serial.println("SensorManager: OK");
     }
 
 
-    // --------------------------------------------------------
+    // ========================================================
     // DISPLAY
-    // --------------------------------------------------------
+    // ========================================================
 
     if (!displaySystem.begin())
     {
-        Serial0.println(
-            "[ERROR] DisplaySystem begin failed"
-        );
+        Serial.println("DisplaySystem: ERROR");
 
-        return;
+        while (true)
+        {
+            delay(1000);
+        }
     }
 
-    Serial0.println(
-        "[OK] DisplaySystem"
-    );
+    Serial.println("DisplaySystem: OK");
 
-    Serial0.println(
-        "System started."
-    );
+    Serial.println("================================");
 }
 
 
@@ -115,30 +103,17 @@ void setup()
 
 void loop()
 {
-    // --------------------------------------------------------
-    // CLOCK
-    // --------------------------------------------------------
+    // ========================================================
+    // SYSTEMS
+    // ========================================================
 
     clockSystem.update();
-
-
-    // --------------------------------------------------------
-    // SENSORS
-    // --------------------------------------------------------
-
     sensorManager.update();
 
-
-    // --------------------------------------------------------
-    // DISPLAY
-    // --------------------------------------------------------
-
+    // DisplaySystem получает уже актуальные данные
+    // и самостоятельно распределяет их по TFT.
     displaySystem.update();
 
 
-    // --------------------------------------------------------
-    // CPU
-    // --------------------------------------------------------
-
-    delay(2);
+    delay(5);
 }

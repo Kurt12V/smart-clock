@@ -2,12 +2,10 @@
 
 #include <Arduino.h>
 
-#include "./core/ClockSystem.h"
-#include "./managers/SensorsManager.h"
-
-#include "./managers/LVGLManager.h"
-#include "./managers/ScreenManager.h"
-
+#include "core/ClockSystem.h"
+#include "managers/SensorsManager.h"
+#include "managers/LVGLManager.h"
+#include "managers/ScreenManager.h"
 
 class DisplaySystem
 {
@@ -18,12 +16,8 @@ public:
     );
 
     bool begin();
-
     void update();
 
-    bool isReady() const;
-
-    LVGLManager& lvgl();
     ScreenManager& screens();
 
 private:
@@ -31,8 +25,19 @@ private:
     SensorManager& _sensors;
 
     LVGLManager _lvgl;
-
     ScreenManager _screens;
 
     bool _initialized;
+
+    // Обновление содержимого экранов
+    void updateScreens();
+
+    // Обновление времени
+    void updateTime();
+
+    // Обновление показаний датчиков
+    void updateSensors();
+
+    // Обновление даты
+    void updateDate();
 };
