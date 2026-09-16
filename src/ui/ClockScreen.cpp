@@ -7,20 +7,16 @@
 // ============================================================
 
 static constexpr uint32_t COLOR_BACKGROUND = 0x000000;
-
-static constexpr uint32_t COLOR_BAR = 0x0C0E12;
-
-static constexpr uint32_t COLOR_LINE = 0x252830;
-
-static constexpr uint32_t COLOR_TEXT = 0xFFFFFF;
+static constexpr uint32_t COLOR_BAR        = 0x0C0E12;
+static constexpr uint32_t COLOR_LINE       = 0x252830;
+static constexpr uint32_t COLOR_TEXT       = 0xFFFFFF;
 
 
 // ============================================================
-// DISPLAY SIZE
+// DISPLAY
 // ============================================================
 
-static constexpr int16_t SCREEN_WIDTH = 172;
-
+static constexpr int16_t SCREEN_WIDTH  = 172;
 static constexpr int16_t SCREEN_HEIGHT = 320;
 
 
@@ -28,28 +24,53 @@ static constexpr int16_t SCREEN_HEIGHT = 320;
 // TOP BAR
 // ============================================================
 
+static constexpr int16_t TOP_BAR_Y      = 0;
 static constexpr int16_t TOP_BAR_HEIGHT = 38;
-
-static constexpr int16_t TOP_LINE_Y = 38;
+static constexpr int16_t TOP_LINE_Y     = 38;
 
 
 // ============================================================
 // CENTER
 // ============================================================
 
-static constexpr int16_t CENTER_Y = 39;
+static constexpr int16_t CENTER_Y      = 39;
+static constexpr int16_t CENTER_HEIGHT  = 228;
+static constexpr int16_t CENTER_BOTTOM = 266;
 
-static constexpr int16_t CENTER_HEIGHT = 228;
+
+// ============================================================
+// LARGE FONT POSITION
+// ============================================================
+//
+// redring_clock_245 имеет собственные метрики glyph:
+// ofs_y / box_h не совпадают с обычным Montserrat.
+//
+// Поэтому цифру намеренно опускаем относительно
+// верхней границы центральной области.
+//
+// Начальное значение можно менять:
+//   25 - выше
+//   35 - стандарт
+//   45 - ниже
+//
+// ============================================================
+
+static constexpr int16_t LARGE_DIGIT_OFFSET_Y = 35;
+
+
+// ============================================================
+// TWO DIGIT AREA
+// ============================================================
+
+static constexpr int16_t DOUBLE_HEIGHT = 114;
 
 
 // ============================================================
 // BOTTOM BAR
 // ============================================================
 
-static constexpr int16_t BOTTOM_LINE_Y = 267;
-
-static constexpr int16_t BOTTOM_BAR_Y = 268;
-
+static constexpr int16_t BOTTOM_LINE_Y   = 267;
+static constexpr int16_t BOTTOM_BAR_Y    = 268;
 static constexpr int16_t BOTTOM_BAR_HEIGHT = 52;
 
 
@@ -65,13 +86,15 @@ ClockScreen::ClockScreen()
       _topLine(nullptr),
       _topLabel(nullptr),
 
-      _bottomBar(nullptr),
-      _bottomLine(nullptr),
-      _bottomLabel(nullptr),
+      _centerArea(nullptr),
 
       _centerLabel(nullptr),
       _centerTopLabel(nullptr),
       _centerBottomLabel(nullptr),
+
+      _bottomBar(nullptr),
+      _bottomLine(nullptr),
+      _bottomLabel(nullptr),
 
       _centerMode(CenterMode::ONE_DIGIT),
 
@@ -94,9 +117,7 @@ ClockScreen::ClockScreen()
 // BEGIN
 // ============================================================
 
-bool ClockScreen::begin(
-    lv_display_t* display
-)
+bool ClockScreen::begin(lv_display_t* display)
 {
     if (display == nullptr)
         return false;
@@ -118,7 +139,6 @@ bool ClockScreen::begin(
 
     _initialized = true;
 
-    // Apply initial state
     updateTop();
     updateBottom();
     updateCenter();
@@ -138,7 +158,7 @@ void ClockScreen::createUI()
 
 
     // ========================================================
-    // ROOT SCREEN
+    // ROOT
     // ========================================================
 
     lv_obj_set_style_bg_color(
@@ -182,7 +202,7 @@ void ClockScreen::createUI()
     lv_obj_set_pos(
         _topBar,
         0,
-        0
+        TOP_BAR_Y
     );
 
     lv_obj_set_style_bg_color(
@@ -278,7 +298,10 @@ void ClockScreen::createUI()
         LV_PART_MAIN
     );
 
-    // Built-in LVGL font 28
+    // --------------------------------------------------------
+    // Montserrat 28
+    // --------------------------------------------------------
+
     lv_obj_set_style_text_font(
         _topLabel,
         &lv_font_montserrat_28,
@@ -302,6 +325,253 @@ void ClockScreen::createUI()
         LV_ALIGN_CENTER,
         0,
         0
+    );
+
+
+    // ========================================================
+    // CENTER AREA
+    // ========================================================
+    //
+    // Strictly:
+    //
+    // Y = 39
+    // H = 228
+    // END = 267
+    //
+    // Nothing from the large font can visually escape
+    // this area.
+    //
+    // ========================================================
+
+    _centerArea =
+        lv_obj_create(_screen);
+
+    lv_obj_set_size(
+        _centerArea,
+        SCREEN_WIDTH,
+        CENTER_HEIGHT
+    );
+
+    lv_obj_set_pos(
+        _centerArea,
+        0,
+        CENTER_Y
+    );
+
+    lv_obj_set_style_bg_opa(
+        _centerArea,
+        LV_OPA_TRANSP,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_border_width(
+        _centerArea,
+        0,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_radius(
+        _centerArea,
+        0,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_pad_all(
+        _centerArea,
+        0,
+        LV_PART_MAIN
+    );
+
+    // IMPORTANT:
+    // Clip large digits to center area.
+    lv_obj_set_style_clip_corner(
+        _centerArea,
+        true,
+        LV_PART_MAIN
+    );
+
+
+    // ========================================================
+    // SINGLE LARGE DIGIT
+    // ========================================================
+
+    _centerLabel =
+        lv_label_create(_centerArea);
+
+    lv_obj_set_size(
+        _centerLabel,
+        SCREEN_WIDTH,
+        CENTER_HEIGHT
+    );
+
+    lv_obj_set_style_text_color(
+        _centerLabel,
+        lv_color_hex(COLOR_TEXT),
+        LV_PART_MAIN
+    );
+
+    // --------------------------------------------------------
+    // REDRING 245
+    // --------------------------------------------------------
+
+    lv_obj_set_style_text_font(
+        _centerLabel,
+        &redring_clock_245,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_text_align(
+        _centerLabel,
+        LV_TEXT_ALIGN_CENTER,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_pad_left(
+        _centerLabel,
+        0,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_pad_right(
+        _centerLabel,
+        0,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_pad_top(
+        _centerLabel,
+        LARGE_DIGIT_OFFSET_Y,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_pad_bottom(
+        _centerLabel,
+        0,
+        LV_PART_MAIN
+    );
+
+    lv_obj_align(
+        _centerLabel,
+        LV_ALIGN_TOP_MID,
+        0,
+        0
+    );
+
+
+    // ========================================================
+    // TWO DIGITS - TOP
+    // ========================================================
+
+    _centerTopLabel =
+        lv_label_create(_centerArea);
+
+    lv_obj_set_size(
+        _centerTopLabel,
+        SCREEN_WIDTH,
+        DOUBLE_HEIGHT
+    );
+
+    lv_obj_set_style_text_color(
+        _centerTopLabel,
+        lv_color_hex(COLOR_TEXT),
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_text_font(
+        _centerTopLabel,
+        &redring_clock_150,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_text_align(
+        _centerTopLabel,
+        LV_TEXT_ALIGN_CENTER,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_pad_all(
+        _centerTopLabel,
+        0,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_pad_top(
+        _centerTopLabel,
+        LARGE_DIGIT_OFFSET_Y,
+        LV_PART_MAIN
+    );
+
+    lv_obj_align(
+        _centerTopLabel,
+        LV_ALIGN_TOP_MID,
+        0,
+        0
+    );
+
+
+    // ========================================================
+    // TWO DIGITS - BOTTOM
+    // ========================================================
+
+    _centerBottomLabel =
+        lv_label_create(_centerArea);
+
+    lv_obj_set_size(
+        _centerBottomLabel,
+        SCREEN_WIDTH,
+        DOUBLE_HEIGHT
+    );
+
+    lv_obj_set_style_text_color(
+        _centerBottomLabel,
+        lv_color_hex(COLOR_TEXT),
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_text_font(
+        _centerBottomLabel,
+        &redring_clock_150,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_text_align(
+        _centerBottomLabel,
+        LV_TEXT_ALIGN_CENTER,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_pad_all(
+        _centerBottomLabel,
+        0,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_pad_top(
+        _centerBottomLabel,
+        LARGE_DIGIT_OFFSET_Y,
+        LV_PART_MAIN
+    );
+
+    lv_obj_align(
+        _centerBottomLabel,
+        LV_ALIGN_TOP_MID,
+        0,
+        DOUBLE_HEIGHT
+    );
+
+
+    // ========================================================
+    // HIDE DOUBLE DIGITS
+    // ========================================================
+
+    lv_obj_add_flag(
+        _centerTopLabel,
+        LV_OBJ_FLAG_HIDDEN
+    );
+
+    lv_obj_add_flag(
+        _centerBottomLabel,
+        LV_OBJ_FLAG_HIDDEN
     );
 
 
@@ -417,7 +687,10 @@ void ClockScreen::createUI()
         LV_PART_MAIN
     );
 
-    // Built-in LVGL font 28
+    // --------------------------------------------------------
+    // Montserrat 28
+    // --------------------------------------------------------
+
     lv_obj_set_style_text_font(
         _bottomLabel,
         &lv_font_montserrat_28,
@@ -441,172 +714,6 @@ void ClockScreen::createUI()
         LV_ALIGN_CENTER,
         0,
         0
-    );
-
-
-    // ========================================================
-    // CENTER — SINGLE DIGIT / TEXT
-    // ========================================================
-
-    _centerLabel =
-        lv_label_create(_screen);
-
-    lv_obj_set_size(
-        _centerLabel,
-        SCREEN_WIDTH,
-        CENTER_HEIGHT
-    );
-
-    lv_obj_set_style_text_color(
-        _centerLabel,
-        lv_color_hex(COLOR_TEXT),
-        LV_PART_MAIN
-    );
-
-    // Built-in LVGL font 28
-    lv_obj_set_style_text_font(
-        _centerLabel,
-        &lv_font_montserrat_28,
-        LV_PART_MAIN
-    );
-
-    lv_obj_set_style_text_align(
-        _centerLabel,
-        LV_TEXT_ALIGN_CENTER,
-        LV_PART_MAIN
-    );
-
-    lv_obj_set_style_pad_all(
-        _centerLabel,
-        0,
-        LV_PART_MAIN
-    );
-
-    /*
-     * The label occupies exactly the center area:
-     *
-     * Y = 39
-     * H = 228
-     *
-     * Therefore its center is:
-     *
-     * 39 + 228 / 2 = 153
-     */
-
-    lv_obj_align(
-        _centerLabel,
-        LV_ALIGN_TOP_MID,
-        0,
-        CENTER_Y
-    );
-
-
-    // ========================================================
-    // CENTER TOP — TWO DIGITS
-    // ========================================================
-
-    _centerTopLabel =
-        lv_label_create(_screen);
-
-    lv_obj_set_size(
-        _centerTopLabel,
-        SCREEN_WIDTH,
-        114
-    );
-
-    lv_obj_set_style_text_color(
-        _centerTopLabel,
-        lv_color_hex(COLOR_TEXT),
-        LV_PART_MAIN
-    );
-
-    // Built-in LVGL font 28
-    lv_obj_set_style_text_font(
-        _centerTopLabel,
-        &lv_font_montserrat_28,
-        LV_PART_MAIN
-    );
-
-    lv_obj_set_style_text_align(
-        _centerTopLabel,
-        LV_TEXT_ALIGN_CENTER,
-        LV_PART_MAIN
-    );
-
-    lv_obj_set_style_pad_all(
-        _centerTopLabel,
-        0,
-        LV_PART_MAIN
-    );
-
-    // Top half of center
-    lv_obj_align(
-        _centerTopLabel,
-        LV_ALIGN_TOP_MID,
-        0,
-        CENTER_Y
-    );
-
-
-    // ========================================================
-    // CENTER BOTTOM — TWO DIGITS
-    // ========================================================
-
-    _centerBottomLabel =
-        lv_label_create(_screen);
-
-    lv_obj_set_size(
-        _centerBottomLabel,
-        SCREEN_WIDTH,
-        114
-    );
-
-    lv_obj_set_style_text_color(
-        _centerBottomLabel,
-        lv_color_hex(COLOR_TEXT),
-        LV_PART_MAIN
-    );
-
-    // Built-in LVGL font 28
-    lv_obj_set_style_text_font(
-        _centerBottomLabel,
-        &lv_font_montserrat_28,
-        LV_PART_MAIN
-    );
-
-    lv_obj_set_style_text_align(
-        _centerBottomLabel,
-        LV_TEXT_ALIGN_CENTER,
-        LV_PART_MAIN
-    );
-
-    lv_obj_set_style_pad_all(
-        _centerBottomLabel,
-        0,
-        LV_PART_MAIN
-    );
-
-    // Bottom half of center
-    lv_obj_align(
-        _centerBottomLabel,
-        LV_ALIGN_TOP_MID,
-        0,
-        CENTER_Y + 114
-    );
-
-
-    // ========================================================
-    // HIDE VERTICAL LABELS
-    // ========================================================
-
-    lv_obj_add_flag(
-        _centerTopLabel,
-        LV_OBJ_FLAG_HIDDEN
-    );
-
-    lv_obj_add_flag(
-        _centerBottomLabel,
-        LV_OBJ_FLAG_HIDDEN
     );
 }
 
@@ -682,7 +789,7 @@ void ClockScreen::setCenterText(
 
 
 // ============================================================
-// CENTER ONE DIGIT
+// ONE DIGIT
 // ============================================================
 
 void ClockScreen::setCenterText(
@@ -707,7 +814,7 @@ void ClockScreen::setCenterText(
 
 
 // ============================================================
-// CENTER TWO DIGITS VERTICAL
+// TWO DIGITS
 // ============================================================
 
 void ClockScreen::setCenterText(
@@ -761,9 +868,9 @@ void ClockScreen::updateCenter()
         return;
 
 
-    // --------------------------------------------------------
-    // Hide everything first
-    // --------------------------------------------------------
+    // ========================================================
+    // HIDE ALL
+    // ========================================================
 
     lv_obj_add_flag(
         _centerLabel,
@@ -781,9 +888,9 @@ void ClockScreen::updateCenter()
     );
 
 
-    // --------------------------------------------------------
+    // ========================================================
     // ONE DIGIT
-    // --------------------------------------------------------
+    // ========================================================
 
     if (_centerMode ==
         CenterMode::ONE_DIGIT)
@@ -802,9 +909,9 @@ void ClockScreen::updateCenter()
     }
 
 
-    // --------------------------------------------------------
+    // ========================================================
     // TEXT
-    // --------------------------------------------------------
+    // ========================================================
 
     if (_centerMode ==
         CenterMode::TEXT)
@@ -823,9 +930,9 @@ void ClockScreen::updateCenter()
     }
 
 
-    // --------------------------------------------------------
-    // TWO DIGITS VERTICAL
-    // --------------------------------------------------------
+    // ========================================================
+    // TWO DIGITS
+    // ========================================================
 
     if (_centerMode ==
         CenterMode::TWO_DIGITS_VERTICAL)
