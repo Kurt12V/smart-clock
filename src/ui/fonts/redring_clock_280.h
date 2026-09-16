@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-extern const lv_font_t redring_clock_150;
+extern const lv_font_t redring_clock_280;
 
 #ifdef __cplusplus
 }
