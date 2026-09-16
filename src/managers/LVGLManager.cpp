@@ -1,94 +1,63 @@
 #include "LVGLManager.h"
 
-#include "Pins.h"
-#include "./utils/Logger.h"
+#include <SPI.h>
+
 
 // ============================================================
 // CONSTRUCTOR
 // ============================================================
 
-LVGLManager::LVGLManager(SPIManager& spi)
-    : _spi(spi),
-
-      _tft1(
-          PIN_TFT_CS1,
-          PIN_TFT_DC,
-          PIN_TFT_RST1
-      ),
-
+LVGLManager::LVGLManager()
+    : _tft1(
+        PIN_TFT_CS1,
+        PIN_TFT_DC,
+        PIN_TFT_RST1
+    ),
       _tft2(
-          PIN_TFT_CS2,
-          PIN_TFT_DC,
-          PIN_TFT_RST2
-      ),
-
+        PIN_TFT_CS2,
+        PIN_TFT_DC,
+        PIN_TFT_RST2
+    ),
       _tft3(
-          PIN_TFT_CS3,
-          PIN_TFT_DC,
-          PIN_TFT_RST3
-      ),
-
+        PIN_TFT_CS3,
+        PIN_TFT_DC,
+        PIN_TFT_RST3
+    ),
       _tft4(
-          PIN_TFT_CS4,
-          PIN_TFT_DC,
-          PIN_TFT_RST4
-      ),
-
+        PIN_TFT_CS4,
+        PIN_TFT_DC,
+        PIN_TFT_RST4
+    ),
       _initialized(false),
-      _lastUpdate(0)
+      _lastTick(0)
 {
     // --------------------------------------------------------
-    // Context 0
+    // TFT -> CONTEXT
     // --------------------------------------------------------
 
-    _contexts[0] =
+    _contexts[0].index = 0;
+    _contexts[0].tft   = &_tft1;
+
+    _contexts[1].index = 1;
+    _contexts[1].tft   = &_tft2;
+
+    _contexts[2].index = 2;
+    _contexts[2].tft   = &_tft3;
+
+    _contexts[3].index = 3;
+    _contexts[3].tft   = &_tft4;
+
+
+    // --------------------------------------------------------
+    // BUFFER -> CONTEXT
+    // --------------------------------------------------------
+
+    for (uint8_t i = 0; i < DISPLAY_COUNT; ++i)
     {
-        0,
-        &_tft1,
-        nullptr,
-        _buffers[0],
-        false
-    };
-
-    // --------------------------------------------------------
-    // Context 1
-    // --------------------------------------------------------
-
-    _contexts[1] =
-    {
-        1,
-        &_tft2,
-        nullptr,
-        _buffers[1],
-        false
-    };
-
-    // --------------------------------------------------------
-    // Context 2
-    // --------------------------------------------------------
-
-    _contexts[2] =
-    {
-        2,
-        &_tft3,
-        nullptr,
-        _buffers[2],
-        false
-    };
-
-    // --------------------------------------------------------
-    // Context 3
-    // --------------------------------------------------------
-
-    _contexts[3] =
-    {
-        3,
-        &_tft4,
-        nullptr,
-        _buffers[3],
-        false
-    };
+        _contexts[i].buffer = _buffers[i];
+    }
 }
+
 
 // ============================================================
 // BEGIN
@@ -99,55 +68,16 @@ bool LVGLManager::begin()
     if (_initialized)
         return true;
 
-    Logger::info(
-        "LVGL",
-        "Initializing LVGL display system..."
-    );
 
-    // ========================================================
-    // SPI
-    // ========================================================
+    Serial0.println();
+    Serial0.println("==============================");
+    Serial0.println("          LVGL");
+    Serial0.println("==============================");
 
-    if (!_spi.isReady())
-    {
-        Logger::info(
-            "LVGL",
-            "SPI is not initialized. Starting SPI..."
-        );
 
-        if (!_spi.begin())
-        {
-            Logger::info(
-                "LVGL",
-                "SPI initialization failed"
-            );
-
-            return false;
-        }
-    }
-
-    // ========================================================
-    // BACKLIGHT
-    // ========================================================
-
-    pinMode(
-        PIN_TFT_BL,
-        OUTPUT
-    );
-
-    digitalWrite(
-        PIN_TFT_BL,
-        HIGH
-    );
-
-    Logger::info(
-        "LVGL",
-        "TFT backlight ON"
-    );
-
-    // ========================================================
+    // --------------------------------------------------------
     // LVGL
-    // ========================================================
+    // --------------------------------------------------------
 
     lv_init();
 
@@ -158,18 +88,64 @@ bool LVGLManager::begin()
         }
     );
 
-    // ========================================================
-    // TFT DISPLAYS
-    // ========================================================
 
-    for (uint8_t i = 0; i < DISPLAY_COUNT; i++)
+    // --------------------------------------------------------
+    // SPI
+    // --------------------------------------------------------
+
+    SPI.begin(
+        PIN_SCLK,
+        PIN_SD_MISO,
+        PIN_MOSI
+    );
+
+
+    // --------------------------------------------------------
+    // CS
+    // --------------------------------------------------------
+
+    pinMode(PIN_TFT_CS1, OUTPUT);
+    pinMode(PIN_TFT_CS2, OUTPUT);
+    pinMode(PIN_TFT_CS3, OUTPUT);
+    pinMode(PIN_TFT_CS4, OUTPUT);
+
+    digitalWrite(PIN_TFT_CS1, HIGH);
+    digitalWrite(PIN_TFT_CS2, HIGH);
+    digitalWrite(PIN_TFT_CS3, HIGH);
+    digitalWrite(PIN_TFT_CS4, HIGH);
+
+
+    Serial0.println("[LVGL] SPI initialized");
+
+
+    // --------------------------------------------------------
+    // BACKLIGHT
+    // --------------------------------------------------------
+
+    pinMode(PIN_TFT_BL, OUTPUT);
+
+    digitalWrite(
+        PIN_TFT_BL,
+        HIGH
+    );
+
+
+    // --------------------------------------------------------
+    // INITIALIZE DISPLAYS
+    // --------------------------------------------------------
+
+    for (uint8_t i = 0; i < DISPLAY_COUNT; ++i)
     {
+        Serial0.print("[LVGL] Display ");
+        Serial0.print(i + 1);
+        Serial0.println(" init...");
+
+
         if (!initDisplay(i))
         {
-            Logger::info(
-                "LVGL",
-                "Failed to initialize TFT"
-            );
+            Serial0.print("[LVGL] Display ");
+            Serial0.print(i + 1);
+            Serial0.println(" FAILED");
 
             return false;
         }
@@ -177,15 +153,12 @@ bool LVGLManager::begin()
 
     _initialized = true;
 
-    _lastUpdate = millis();
 
-    Logger::info(
-        "LVGL",
-        "LVGL display system initialized"
-    );
+    Serial0.println("[LVGL] All displays initialized");
 
     return true;
 }
+
 
 // ============================================================
 // INIT DISPLAY
@@ -198,53 +171,63 @@ bool LVGLManager::initDisplay(
     if (index >= DISPLAY_COUNT)
         return false;
 
+
     DisplayContext& context =
         _contexts[index];
+
+
+    if (context.tft == nullptr)
+        return false;
+
 
     Adafruit_ST7789& tft =
         *context.tft;
 
-    Logger::info(
-        "LVGL",
-        "Initializing TFT..."
-    );
 
-    // ========================================================
-    // TFT
-    // ========================================================
-
-    /*
-     * ВАЖНО:
-     *
-     * Панель физически 172x320,
-     * но контроллер ST7789 имеет RAM 240x320.
-     *
-     * Поэтому используем init(240,320),
-     * а в flush добавляем X_OFFSET = 34.
-     */
+    // --------------------------------------------------------
+    // TFT INITIALIZATION
+    // --------------------------------------------------------
 
     tft.init(
-        TFT_WIDTH,
-        TFT_HEIGHT
+        WIDTH,
+        HEIGHT
     );
 
+
+    /*
+        Все дисплеи пока имеют одинаковую ориентацию.
+
+        НЕ ставим rotation(2) для TFT2.
+
+        Так как проблема наблюдается только
+        в top/bottom bar, физическую ориентацию
+        дисплея сейчас не меняем.
+    */
+
     tft.setRotation(0);
+
+
+    // --------------------------------------------------------
+    // SPI SPEED
+    // --------------------------------------------------------
 
     tft.setSPISpeed(
         40000000
     );
 
-    // ========================================================
-    // BLACK SCREEN
-    // ========================================================
+
+    // --------------------------------------------------------
+    // CLEAR DISPLAY
+    // --------------------------------------------------------
 
     tft.fillScreen(
         ST77XX_BLACK
     );
 
-    // ========================================================
-    // LVGL DISPLAY
-    // ========================================================
+
+    // --------------------------------------------------------
+    // CREATE LVGL DISPLAY
+    // --------------------------------------------------------
 
     lv_display_t* display =
         lv_display_create(
@@ -252,62 +235,92 @@ bool LVGLManager::initDisplay(
             HEIGHT
         );
 
+
     if (display == nullptr)
     {
-        Logger::info(
-            "LVGL",
-            "lv_display_create failed"
+        Serial0.print(
+            "[LVGL] Failed to create display "
+        );
+
+        Serial0.println(
+            index + 1
         );
 
         return false;
     }
 
+
     context.lvDisplay =
         display;
 
-    // ========================================================
-    // BUFFER
-    // ========================================================
 
-    lv_display_set_buffers(
-        display,
-
-        context.buffer,
-        nullptr,
-
-        sizeof(lv_color_t) *
-        BUFFER_SIZE,
-
-        LV_DISPLAY_RENDER_MODE_PARTIAL
-    );
-
-    // ========================================================
-    // FLUSH CALLBACK
-    // ========================================================
-
-    lv_display_set_flush_cb(
-        display,
-        LVGLManager::flushCallback
-    );
-
-    // ========================================================
+    // --------------------------------------------------------
     // USER DATA
-    // ========================================================
+    // --------------------------------------------------------
 
     lv_display_set_user_data(
         display,
         &context
     );
 
+
+    // --------------------------------------------------------
+    // LVGL BUFFER
+    // --------------------------------------------------------
+
+    lv_display_set_buffers(
+        display,
+
+        context.buffer,
+
+        nullptr,
+
+        BUFFER_SIZE * sizeof(lv_color_t),
+
+        LV_DISPLAY_RENDER_MODE_PARTIAL
+    );
+
+
+    // --------------------------------------------------------
+    // FLUSH CALLBACK
+    // --------------------------------------------------------
+
+    lv_display_set_flush_cb(
+        display,
+        LVGLManager::flushCallback
+    );
+
+
+    // --------------------------------------------------------
+    // STATE
+    // --------------------------------------------------------
+
     context.initialized = true;
 
-    Logger::info(
-        "LVGL",
-        "TFT initialized"
+
+    Serial0.print(
+        "[LVGL] Context "
     );
+
+    Serial0.print(
+        index + 1
+    );
+
+    Serial0.print(
+        " buffer = 0x"
+    );
+
+    Serial0.println(
+        reinterpret_cast<uintptr_t>(
+            context.buffer
+        ),
+        HEX
+    );
+
 
     return true;
 }
+
 
 // ============================================================
 // FLUSH CALLBACK
@@ -319,31 +332,88 @@ void LVGLManager::flushCallback(
     uint8_t* pxMap
 )
 {
+    // --------------------------------------------------------
+    // CHECK DISPLAY
+    // --------------------------------------------------------
+
     if (display == nullptr)
+    {
+        Serial0.println(
+            "[FLUSH] ERROR: display == nullptr"
+        );
+
         return;
+    }
+
+
+    // --------------------------------------------------------
+    // GET CONTEXT
+    // --------------------------------------------------------
 
     DisplayContext* context =
         static_cast<DisplayContext*>(
-            lv_display_get_user_data(display)
+            lv_display_get_user_data(
+                display
+            )
         );
 
-    if (context == nullptr)
-        return;
 
-    if (context->tft == nullptr)
+    if (
+        context == nullptr ||
+        context->tft == nullptr
+    )
+    {
+        Serial0.println(
+            "[FLUSH] ERROR: context not found"
+        );
+
+        lv_display_flush_ready(
+            display
+        );
+
         return;
+    }
+
+
+    if (area == nullptr)
+    {
+        Serial0.println(
+            "[FLUSH] ERROR: area == nullptr"
+        );
+
+        lv_display_flush_ready(
+            display
+        );
+
+        return;
+    }
+
+
+    if (pxMap == nullptr)
+    {
+        Serial0.println(
+            "[FLUSH] ERROR: pxMap == nullptr"
+        );
+
+        lv_display_flush_ready(
+            display
+        );
+
+        return;
+    }
+
 
     // --------------------------------------------------------
-    // Context cannot directly access LVGLManager,
-    // therefore all required physical mapping is done here.
+    // TFT
     // --------------------------------------------------------
 
     Adafruit_ST7789& tft =
         *context->tft;
 
-    // ========================================================
+
+    // --------------------------------------------------------
     // AREA
-    // ========================================================
+    // --------------------------------------------------------
 
     const int16_t x =
         area->x1;
@@ -351,63 +421,142 @@ void LVGLManager::flushCallback(
     const int16_t y =
         area->y1;
 
-    const int16_t width =
-        area->x2 -
-        area->x1 +
-        1;
 
-    const int16_t height =
-        area->y2 -
-        area->y1 +
-        1;
+    const uint16_t width =
+        static_cast<uint16_t>(
+            area->x2 -
+            area->x1 +
+            1
+        );
 
-    // ========================================================
-    // PHYSICAL POSITION
-    // ========================================================
 
-    const int16_t physicalX =
-        x + X_OFFSET;
+    const uint16_t height =
+        static_cast<uint16_t>(
+            area->y2 -
+            area->y1 +
+            1
+        );
 
-    const int16_t physicalY =
-        y + Y_OFFSET;
 
-    // ========================================================
-    // SEND TO TFT
-    // ========================================================
+    const uint32_t pixelCount =
+        static_cast<uint32_t>(width) *
+        static_cast<uint32_t>(height);
+
+
+    // --------------------------------------------------------
+    // DEBUG
+    // --------------------------------------------------------
+
+    /*
+        Пока оставляем диагностику.
+
+        Она позволит увидеть:
+
+        TFT1 -> какие области
+        TFT2 -> какие области
+        TFT3 -> какие области
+        TFT4 -> какие области
+    */
+
+    Serial0.printf(
+        "[FLUSH] TFT%u "
+        "x=%d y=%d "
+        "w=%u h=%u "
+        "pixels=%lu\n",
+
+        context->index + 1,
+
+        x,
+        y,
+
+        width,
+        height,
+
+        static_cast<unsigned long>(
+            pixelCount
+        )
+    );
+
+
+    // --------------------------------------------------------
+    // VALIDATE AREA
+    // --------------------------------------------------------
+
+    if (
+        x < 0 ||
+        y < 0 ||
+        x >= WIDTH ||
+        y >= HEIGHT
+    )
+    {
+        Serial0.println(
+            "[FLUSH] ERROR: invalid start"
+        );
+
+        lv_display_flush_ready(
+            display
+        );
+
+        return;
+    }
+
+
+    if (
+        area->x2 >= WIDTH ||
+        area->y2 >= HEIGHT
+    )
+    {
+        Serial0.println(
+            "[FLUSH] ERROR: invalid end"
+        );
+
+        lv_display_flush_ready(
+            display
+        );
+
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // SEND PIXELS TO TFT
+    // --------------------------------------------------------
+
+    tft.startWrite();
+
 
     tft.setAddrWindow(
-        physicalX,
-        physicalY,
+        x,
+        y,
         width,
         height
     );
+
 
     uint16_t* pixels =
         reinterpret_cast<uint16_t*>(
             pxMap
         );
 
-    const uint32_t pixelCount =
-        static_cast<uint32_t>(
-            width
-        ) *
-        static_cast<uint32_t>(
-            height
-        );
 
     tft.writePixels(
         pixels,
         pixelCount
     );
 
-    // ========================================================
-    // LVGL READY
-    // ========================================================
+
+    tft.endWrite();
+
+
+    // --------------------------------------------------------
+    // TELL LVGL THAT FLUSH IS COMPLETE
+    // --------------------------------------------------------
 
     lv_display_flush_ready(
         display
     );
 }
+
 
 // ============================================================
 // UPDATE
@@ -430,10 +579,11 @@ void LVGLManager::update()
 lv_display_t*
 LVGLManager::display(
     uint8_t index
-)
+) const
 {
     if (index >= DISPLAY_COUNT)
         return nullptr;
+
 
     return _contexts[index].lvDisplay;
 }

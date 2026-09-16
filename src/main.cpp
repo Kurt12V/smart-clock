@@ -1,33 +1,25 @@
 #include <Arduino.h>
 
-// ============================================================
-// CORE
-// ============================================================
-
-#include "Config.h"
 #include "Pins.h"
-#include "Constants.h"
-#include "Version.h"
-
-// ============================================================
-// SYSTEMS
-// ============================================================
-
-#include "Settings.h"
+#include "Config.h"
 
 #include "./core/ClockSystem.h"
 #include "./managers/SensorsManager.h"
+
 #include "./core/DisplaySystem.h"
 
+
 // ============================================================
-// GLOBAL SYSTEM OBJECTS
+// OBJECTS
 // ============================================================
 
-// ------------------------------------------------------------
-// Clock
-// ------------------------------------------------------------
+// ВАЖНО:
+// Здесь используется твой существующий Settings::Clock.
+// Если у него есть конструктор по умолчанию,
+// это устранит старую ошибку {Plus3}.
 
-Settings::Clock clockSettings;
+
+Settings::Clock clockSettings{};
 
 ClockSystem clockSystem(
     clockSettings
@@ -62,133 +54,71 @@ DisplaySystem displaySystem(
 
 void setup()
 {
-    // ========================================================
-    // SERIAL
-    // ========================================================
-
-    Serial.begin(115200);
+    Serial0.begin(115200);
 
     delay(1000);
 
-    Serial.println();
-    Serial.println(
-        "========================================"
-    );
-    Serial.println(
-        "        ESP32-S3 SMART CLOCK"
-    );
-    Serial.println(
-        "========================================"
-    );
+    Serial0.println();
+    Serial0.println("==============================");
+    Serial0.println("       SMART CLOCK");
+    Serial0.println("==============================");
+
 
     // ========================================================
     // CLOCK
-    // ========================================================
-
-    Serial.println(
-        "[MAIN] Initializing ClockSystem..."
-    );
+    // --------------------------------------------------------
 
     if (!clockSystem.begin())
     {
-        Serial.println(
-            "[MAIN] ClockSystem ERROR"
+        Serial0.println(
+            "[ERROR] ClockSystem begin failed"
         );
     }
     else
     {
-        Serial.println(
-            "[MAIN] ClockSystem OK"
+        Serial0.println(
+            "[OK] ClockSystem"
         );
     }
 
-    // ========================================================
-    // SENSORS
-    // ========================================================
 
-    Serial.println(
-        "[MAIN] Initializing SensorManager..."
-    );
+    // --------------------------------------------------------
+    // SENSORS
+    // --------------------------------------------------------
 
     if (!sensorManager.begin())
     {
-        Serial.println(
-            "[MAIN] SensorManager ERROR"
+        Serial0.println(
+            "[ERROR] SensorManager begin failed"
         );
     }
     else
     {
-        Serial.println(
-            "[MAIN] SensorManager OK"
+        Serial0.println(
+            "[OK] SensorManager"
         );
     }
 
-    // ========================================================
+
+    // --------------------------------------------------------
     // DISPLAY
-    // ========================================================
-
-    Serial.println(
-        "[MAIN] Initializing DisplaySystem..."
-    );
-
-    /*
-     * Здесь запускается вся цепочка:
-     *
-     * DisplaySystem
-     *      |
-     *      +-- SPIManager.begin()
-     *      |
-     *      +-- LVGLManager.begin()
-     *      |      |
-     *      |      +-- Backlight GPIO1
-     *      |      +-- LVGL
-     *      |      +-- TFT1
-     *      |      +-- TFT2
-     *      |      +-- TFT3
-     *      |      +-- TFT4
-     *      |
-     *      +-- ScreenManager.begin()
-     */
+    // --------------------------------------------------------
 
     if (!displaySystem.begin())
     {
-        Serial.println(
-            "[MAIN] DisplaySystem ERROR"
+        Serial0.println(
+            "[ERROR] DisplaySystem begin failed"
         );
 
-        /*
-         * Дисплей является основной частью интерфейса.
-         * Если он не запустился, остаёмся здесь,
-         * чтобы ошибка была явно видна в Serial.
-         */
-
-        while (true)
-        {
-            delay(1000);
-
-            Serial.println(
-                "[MAIN] DisplaySystem is not available"
-            );
-        }
+        return;
     }
 
-    Serial.println(
-        "[MAIN] DisplaySystem OK"
+    Serial0.println(
+        "[OK] DisplaySystem"
     );
 
-    // ========================================================
-    // SYSTEM READY
-    // ========================================================
-
-    Serial.println();
-    Serial.println(
-        "========================================"
-    );
-    Serial.println(
-        "          SYSTEM READY"
-    );
-    Serial.println(
-        "========================================"
+    Serial0.println(
+        "System started."
     );
 }
 
@@ -198,45 +128,30 @@ void setup()
 
 void loop()
 {
-    // ========================================================
+    // --------------------------------------------------------
     // CLOCK
-    // ========================================================
+    // --------------------------------------------------------
 
     clockSystem.update();
 
-    // ========================================================
+
+    // --------------------------------------------------------
     // SENSORS
-    // ========================================================
+    // --------------------------------------------------------
 
     sensorManager.update();
 
-    // ========================================================
-    // DISPLAY
-    // ========================================================
 
-    /*
-     * DisplaySystem.update() выполняет:
-     *
-     * ScreenManager.update()
-     * LVGLManager.update()
-     *
-     * ScreenManager обновляет:
-     * - время
-     * - температуру
-     * - влажность
-     * - освещённость
-     * - дату
-     *
-     * LVGLManager:
-     * - обрабатывает LVGL
-     * - отправляет изменённые области на TFT
-     */
+    // --------------------------------------------------------
+    // DISPLAY
+    // --------------------------------------------------------
 
     displaySystem.update();
 
-    // ========================================================
-    // MINIMAL DELAY
-    // ========================================================
 
-    delay(1);
+    // --------------------------------------------------------
+    // CPU
+    // --------------------------------------------------------
+
+    delay(2);
 }
