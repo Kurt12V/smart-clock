@@ -24,6 +24,21 @@ namespace Constants
 
 namespace Constants
 {
+    enum class Event : uint8_t
+    {
+        NONE,
+
+        ROTATE_CW,
+        ROTATE_CCW,
+
+        PRESS,
+        RELEASE,
+
+        LONG_PRESS,
+        DOUBLE_PRESS
+    };
+
+
     enum class DayOfWeek : uint8_t
     {
         Sunday = 0,

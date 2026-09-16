@@ -18,13 +18,11 @@
 #include "./core/ClockSystem.h"
 #include "./managers/SensorsManager.h"
 #include "./core/DisplaySystem.h"
-#include "./managers/EncoderManager.h"
+#include "./managers/InputManager.h"
 
-EncoderManager encoder(
-    PIN_ENCODER_CLK,
-    PIN_ENCODER_DT,
-    PIN_ENCODER_SW
-);
+InputManager inputManager;
+
+
 Settings::Clock clockSettings;
 
 ClockSystem clockSystem(
@@ -139,15 +137,15 @@ void setup()
     Serial0.println(
         "[MAIN] DisplaySystem OK"
     );
-Serial0.println("[MAIN] Initializing EncoderManager...");
+Serial0.println("[MAIN] Initializing InputManager...");
 
-if (!encoder.begin())
+if (!inputManager.begin())
 {
-    Serial0.println("[MAIN] Encoder ERROR");
+    Serial0.println("[MAIN] InputManager ERROR");
 }
 else
 {
-    Serial0.println("[MAIN] Encoder OK");
+    Serial0.println("[MAIN] InputManager OK");
 }
     // ========================================================
     // SYSTEM READY
@@ -189,44 +187,47 @@ void loop()
     // ========================================================
     // MINIMAL DELAY
     // ========================================================
-encoder.update();
+inputManager.update();
 
-EncoderManager::Event event;
+Constants::Event event;
 
 while (
-    (event = encoder.getEvent())
-    != EncoderManager::Event::NONE
+    (event = inputManager.getEvent())
+    != Constants::Event::NONE
 )
 {
     switch (event)
     {
-        case EncoderManager::Event::ROTATE_CW:
-            Serial0.println("[ENCODER] CW");
+        case Constants::Event::ROTATE_CW:
+            Serial0.println("[INPUT] ROTATE CW");
             break;
 
-        case EncoderManager::Event::ROTATE_CCW:
-            Serial0.println("[ENCODER] CCW");
+        case Constants::Event::ROTATE_CCW:
+            Serial0.println("[INPUT] ROTATE CCW");
             break;
 
-        case EncoderManager::Event::PRESS:
-            Serial0.println("[ENCODER] PRESS");
+        case Constants::Event::PRESS:
+            Serial0.println("[INPUT] PRESS");
             break;
 
-        case EncoderManager::Event::RELEASE:
-            Serial0.println("[ENCODER] RELEASE");
+        case Constants::Event::RELEASE:
+            Serial0.println("[INPUT] RELEASE");
             break;
 
-        case EncoderManager::Event::LONG_PRESS:
-            Serial0.println("[ENCODER] LONG PRESS");
+        case Constants::Event::LONG_PRESS:
+            Serial0.println("[INPUT] LONG PRESS");
             break;
 
-        case EncoderManager::Event::DOUBLE_PRESS:
-            Serial0.println("[ENCODER] DOUBLE PRESS");
+        case Constants::Event::DOUBLE_PRESS:
+            Serial0.println("[INPUT] DOUBLE PRESS");
             break;
 
+        case Constants::Event::NONE:
         default:
             break;
     }
 }
+
+
     delay(1);
 }

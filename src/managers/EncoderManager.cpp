@@ -1,8 +1,7 @@
 #include "EncoderManager.h"
 
-
 // ============================================================
-// GLOBAL ENCODER INSTANCE
+// GLOBAL INSTANCE FOR ISR
 // ============================================================
 
 static EncoderManager* g_encoderInstance = nullptr;
@@ -22,13 +21,11 @@ EncoderManager::EncoderManager(
       _swPin(swPin),
 
       _initialized(false),
-
       _buttonPressed(false),
 
       _position(0),
       _lastPosition(0),
       _reportedPosition(0),
-
       _lastCLK(HIGH),
 
       _buttonDownTime(0),
@@ -43,7 +40,7 @@ EncoderManager::EncoderManager(
 {
     for (uint8_t i = 0; i < EVENT_QUEUE_SIZE; i++)
     {
-        _eventQueue[i] = Event::NONE;
+        _eventQueue[i] = Constants::Event::NONE;
     }
 }
 
@@ -57,79 +54,63 @@ bool EncoderManager::begin()
     if (_initialized)
         return true;
 
-
     // --------------------------------------------------------
-    // GPIO
-    // --------------------------------------------------------
-
-    pinMode(
-        _clkPin,
-        INPUT_PULLUP
-    );
-
-    pinMode(
-        _dtPin,
-        INPUT_PULLUP
-    );
-
-    pinMode(
-        _swPin,
-        INPUT_PULLUP
-    );
-
-
-    // --------------------------------------------------------
-    // Initial encoder state
+    // PINS
     // --------------------------------------------------------
 
-    _lastCLK =
-        digitalRead(_clkPin);
+    pinMode(_clkPin, INPUT_PULLUP);
+    pinMode(_dtPin, INPUT_PULLUP);
+    pinMode(_swPin, INPUT_PULLUP);
+
+    // --------------------------------------------------------
+    // ROTARY INITIAL STATE
+    // --------------------------------------------------------
+
+    _lastCLK = digitalRead(_clkPin);
 
     _position = 0;
-
     _lastPosition = 0;
-
     _reportedPosition = 0;
 
-
     // --------------------------------------------------------
-    // Initial button state
+    // BUTTON INITIAL STATE
     // --------------------------------------------------------
 
     _buttonPressed =
         digitalRead(_swPin) == LOW;
 
-    _buttonDownTime =
-        millis();
+    uint32_t now = millis();
 
-    _lastButtonChange =
-        millis();
-
+    _buttonDownTime = now;
+    _lastButtonChange = now;
     _lastReleaseTime = 0;
 
     _longPressTriggered = false;
-
     _doublePressPending = false;
 
+    // --------------------------------------------------------
+    // EVENT QUEUE
+    // --------------------------------------------------------
+
+    _eventHead = 0;
+    _eventTail = 0;
+
+    for (uint8_t i = 0; i < EVENT_QUEUE_SIZE; i++)
+    {
+        _eventQueue[i] = Constants::Event::NONE;
+    }
 
     // --------------------------------------------------------
-    // Save instance for ISR
+    // ISR INSTANCE
     // --------------------------------------------------------
 
-    g_encoderInstance =
-        this;
-
-
-    // --------------------------------------------------------
-    // Encoder interrupt
-    // --------------------------------------------------------
+    g_encoderInstance = this;
 
     attachInterrupt(
         digitalPinToInterrupt(_clkPin),
         EncoderManager::encoderISR,
         CHANGE
     );
-
 
     _initialized = true;
 
@@ -138,7 +119,7 @@ bool EncoderManager::begin()
 
 
 // ============================================================
-// ENCODER ISR
+// ROTARY ISR
 // ============================================================
 
 void IRAM_ATTR EncoderManager::encoderISR()
@@ -146,43 +127,33 @@ void IRAM_ATTR EncoderManager::encoderISR()
     if (g_encoderInstance == nullptr)
         return;
 
-
     EncoderManager* encoder =
         g_encoderInstance;
 
-
     uint8_t clk =
-        digitalRead(
-            encoder->_clkPin
-        );
+        digitalRead(encoder->_clkPin);
 
     uint8_t dt =
-        digitalRead(
-            encoder->_dtPin
-        );
-
+        digitalRead(encoder->_dtPin);
 
     // --------------------------------------------------------
-    // Detect CLK transition
+    // Нет изменения CLK
     // --------------------------------------------------------
 
     if (clk == encoder->_lastCLK)
         return;
 
-
     encoder->_lastCLK = clk;
 
-
     // --------------------------------------------------------
-    // Count only rising edge
+    // Работаем только на HIGH
     // --------------------------------------------------------
 
     if (clk != HIGH)
         return;
 
-
     // --------------------------------------------------------
-    // Direction
+    // Направление
     // --------------------------------------------------------
 
     if (dt == LOW)
@@ -205,37 +176,29 @@ void EncoderManager::update()
     if (!_initialized)
         return;
 
-
     processRotation();
-
     processButton();
 }
 
 
 // ============================================================
-// PROCESS ROTATION
+// ROTATION PROCESSING
 // ============================================================
 
 void EncoderManager::processRotation()
 {
-    int32_t position =
-        _position;
-
+    int32_t position = _position;
 
     int32_t delta =
         position - _lastPosition;
 
-
     if (delta == 0)
         return;
 
-
-    _lastPosition =
-        position;
-
+    _lastPosition = position;
 
     // --------------------------------------------------------
-    // Clockwise
+    // CLOCKWISE
     // --------------------------------------------------------
 
     if (delta > 0)
@@ -243,14 +206,13 @@ void EncoderManager::processRotation()
         for (int32_t i = 0; i < delta; i++)
         {
             addEvent(
-                Event::ROTATE_CW
+                Constants::Event::ROTATE_CW
             );
         }
     }
 
-
     // --------------------------------------------------------
-    // Counter-clockwise
+    // COUNTER CLOCKWISE
     // --------------------------------------------------------
 
     else
@@ -258,7 +220,7 @@ void EncoderManager::processRotation()
         for (int32_t i = 0; i < -delta; i++)
         {
             addEvent(
-                Event::ROTATE_CCW
+                Constants::Event::ROTATE_CCW
             );
         }
     }
@@ -266,27 +228,25 @@ void EncoderManager::processRotation()
 
 
 // ============================================================
-// PROCESS BUTTON
+// BUTTON PROCESSING
 // ============================================================
 
 void EncoderManager::processButton()
 {
-    uint32_t now =
-        millis();
-
+    uint32_t now = millis();
 
     bool currentPressed =
         digitalRead(_swPin) == LOW;
 
 
     // ========================================================
-    // BUTTON STATE CHANGE
+    // BUTTON STATE CHANGED
     // ========================================================
 
     if (currentPressed != _buttonPressed)
     {
         // ----------------------------------------------------
-        // Debounce
+        // DEBOUNCE
         // ----------------------------------------------------
 
         if (
@@ -297,47 +257,51 @@ void EncoderManager::processButton()
             return;
         }
 
-
-        _lastButtonChange =
-            now;
-
+        _lastButtonChange = now;
 
         _buttonPressed =
             currentPressed;
 
 
         // ====================================================
-        // BUTTON PRESSED
+        // BUTTON DOWN
         // ====================================================
 
         if (_buttonPressed)
         {
-            _buttonDownTime =
-                now;
+            _buttonDownTime = now;
 
-            _longPressTriggered =
-                false;
+            _longPressTriggered = false;
 
-
-            addEvent(
-                Event::PRESS
-            );
+            // ------------------------------------------------
+            // ВАЖНО:
+            //
+            // НИКАКОГО PRESS ЗДЕСЬ НЕТ.
+            //
+            // Мы пока не знаем:
+            //
+            //   PRESS
+            //   DOUBLE_PRESS
+            //   LONG_PRESS
+            //
+            // Поэтому ждём.
+            // ------------------------------------------------
 
             return;
         }
 
 
         // ====================================================
-        // BUTTON RELEASED
+        // BUTTON UP
         // ====================================================
 
         addEvent(
-            Event::RELEASE
+            Constants::Event::RELEASE
         );
 
 
         // ----------------------------------------------------
-        // Check second click
+        // ЕСЛИ ЭТО ВТОРОЕ НАЖАТИЕ
         // ----------------------------------------------------
 
         if (
@@ -347,34 +311,31 @@ void EncoderManager::processButton()
                 <= DOUBLE_PRESS_MS
         )
         {
-            // -----------------------------------------------
-            // Double click detected
-            // -----------------------------------------------
+            // Второе нажатие подтверждено
+            _doublePressPending = false;
 
-            _doublePressPending =
-                false;
+            // ------------------------------------------------
+            // Только DOUBLE_PRESS
+            // ------------------------------------------------
 
             addEvent(
-                Event::DOUBLE_PRESS
+                Constants::Event::DOUBLE_PRESS
             );
         }
+
+        // ----------------------------------------------------
+        // ПЕРВОЕ НАЖАТИЕ
+        // ----------------------------------------------------
+
         else
         {
-            // -----------------------------------------------
-            // First click
-            // -----------------------------------------------
-
-            _doublePressPending =
-                true;
+            // Пока не выдаём PRESS.
+            //
+            // Ждём DOUBLE_PRESS_MS.
+            _doublePressPending = true;
         }
 
-
-        // ----------------------------------------------------
-        // Save current release time
-        // ----------------------------------------------------
-
-        _lastReleaseTime =
-            now;
+        _lastReleaseTime = now;
     }
 
 
@@ -384,43 +345,52 @@ void EncoderManager::processButton()
 
     if (
         _buttonPressed &&
-        !_longPressTriggered
+        !_longPressTriggered &&
+        (now - _buttonDownTime)
+            >= LONG_PRESS_MS
     )
     {
-        if (
-            now - _buttonDownTime
-            >= LONG_PRESS_MS
-        )
-        {
-            _longPressTriggered =
-                true;
+        _longPressTriggered = true;
 
+        // ----------------------------------------------------
+        // Это точно не обычный PRESS.
+        // ----------------------------------------------------
 
-            addEvent(
-                Event::LONG_PRESS
-            );
-        }
+        _doublePressPending = false;
+
+        // ----------------------------------------------------
+        // Только LONG_PRESS
+        // ----------------------------------------------------
+
+        addEvent(
+            Constants::Event::LONG_PRESS
+        );
     }
 
 
     // ========================================================
-    // DOUBLE CLICK TIMEOUT
+    // SINGLE PRESS
     // ========================================================
 
     if (
         _doublePressPending &&
         !_buttonPressed &&
-        _lastReleaseTime != 0
+        _lastReleaseTime != 0 &&
+        (now - _lastReleaseTime)
+            > DOUBLE_PRESS_MS
     )
     {
-        if (
-            now - _lastReleaseTime
-            > DOUBLE_PRESS_MS
-        )
-        {
-            _doublePressPending =
-                false;
-        }
+        // ----------------------------------------------------
+        // Второго нажатия не было.
+        //
+        // Значит это обычный PRESS.
+        // ----------------------------------------------------
+
+        _doublePressPending = false;
+
+        addEvent(
+            Constants::Event::PRESS
+        );
     }
 }
 
@@ -430,32 +400,30 @@ void EncoderManager::processButton()
 // ============================================================
 
 void EncoderManager::addEvent(
-    Event event
+    Constants::Event event
 )
 {
-    if (event == Event::NONE)
+    if (
+        event == Constants::Event::NONE
+    )
+    {
         return;
-
+    }
 
     uint8_t next =
         (_eventHead + 1)
         % EVENT_QUEUE_SIZE;
 
-
     // --------------------------------------------------------
-    // Queue full
+    // QUEUE FULL
     // --------------------------------------------------------
 
     if (next == _eventTail)
         return;
 
+    _eventQueue[_eventHead] = event;
 
-    _eventQueue[_eventHead] =
-        event;
-
-
-    _eventHead =
-        next;
+    _eventHead = next;
 }
 
 
@@ -463,37 +431,29 @@ void EncoderManager::addEvent(
 // GET EVENT
 // ============================================================
 
-EncoderManager::Event
-EncoderManager::getEvent()
+Constants::Event EncoderManager::getEvent()
 {
-    if (
-        _eventTail ==
-        _eventHead
-    )
+    if (_eventTail == _eventHead)
     {
-        return Event::NONE;
+        return Constants::Event::NONE;
     }
 
-
-    Event event =
+    Constants::Event event =
         _eventQueue[_eventTail];
 
-
     _eventQueue[_eventTail] =
-        Event::NONE;
-
+        Constants::Event::NONE;
 
     _eventTail =
         (_eventTail + 1)
         % EVENT_QUEUE_SIZE;
-
 
     return event;
 }
 
 
 // ============================================================
-// GET POSITION
+// POSITION
 // ============================================================
 
 int32_t EncoderManager::getPosition() const
@@ -502,50 +462,30 @@ int32_t EncoderManager::getPosition() const
 }
 
 
-// ============================================================
-// GET DELTA
-// ============================================================
-
 int32_t EncoderManager::getDelta()
 {
-    int32_t position =
-        _position;
-
+    int32_t position = _position;
 
     int32_t delta =
         position - _reportedPosition;
 
-
-    _reportedPosition =
-        position;
-
+    _reportedPosition = position;
 
     return delta;
 }
 
 
-// ============================================================
-// SET POSITION
-// ============================================================
-
 void EncoderManager::setPosition(
     int32_t position
 )
 {
-    _position =
-        position;
+    _position = position;
 
-    _lastPosition =
-        position;
+    _lastPosition = position;
 
-    _reportedPosition =
-        position;
+    _reportedPosition = position;
 }
 
-
-// ============================================================
-// RESET POSITION
-// ============================================================
 
 void EncoderManager::resetPosition()
 {
@@ -564,46 +504,34 @@ bool EncoderManager::isPressed() const
 
 
 // ============================================================
-// WAS PRESSED
+// EVENT HELPERS
 // ============================================================
 
 bool EncoderManager::wasPressed()
 {
     return getEvent()
-        == Event::PRESS;
+        == Constants::Event::PRESS;
 }
 
-
-// ============================================================
-// WAS RELEASED
-// ============================================================
 
 bool EncoderManager::wasReleased()
 {
     return getEvent()
-        == Event::RELEASE;
+        == Constants::Event::RELEASE;
 }
 
-
-// ============================================================
-// WAS LONG PRESSED
-// ============================================================
 
 bool EncoderManager::wasLongPressed()
 {
     return getEvent()
-        == Event::LONG_PRESS;
+        == Constants::Event::LONG_PRESS;
 }
 
-
-// ============================================================
-// WAS DOUBLE PRESSED
-// ============================================================
 
 bool EncoderManager::wasDoublePressed()
 {
     return getEvent()
-        == Event::DOUBLE_PRESS;
+        == Constants::Event::DOUBLE_PRESS;
 }
 
 
