@@ -1,12 +1,18 @@
 #pragma once
 
 #include <Arduino.h>
+
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
 
 class BluetoothManager;
+class BluetoothSubscriptionManager;
+
+// ============================================================
+// SERVER CALLBACKS
+// ============================================================
 
 class BluetoothServerCallbacks : public BLEServerCallbacks
 {
@@ -20,6 +26,10 @@ private:
     BluetoothManager& _manager;
 };
 
+// ============================================================
+// RX CALLBACKS
+// ============================================================
+
 class BluetoothRxCallbacks : public BLECharacteristicCallbacks
 {
 public:
@@ -31,10 +41,16 @@ private:
     BluetoothManager& _manager;
 };
 
+// ============================================================
+// BLUETOOTH MANAGER
+// ============================================================
+
 class BluetoothManager
 {
 public:
-    static constexpr const char* DEVICE_NAME = "SmartClock";
+
+    static constexpr const char* DEVICE_NAME =
+        "SmartClock";
 
     static constexpr const char* SERVICE_UUID =
         "7A1F0001-5C3A-4D8B-9E21-123456789001";
@@ -46,6 +62,7 @@ public:
         "7A1F0003-5C3A-4D8B-9E21-123456789001";
 
 public:
+
     BluetoothManager();
 
     bool begin();
@@ -54,22 +71,50 @@ public:
     bool isReady() const;
     bool isConnected() const;
 
+    // --------------------------------------------------------
+    // SUBSCRIPTIONS
+    // --------------------------------------------------------
+
+    void setSubscriptionManager(
+        BluetoothSubscriptionManager* manager
+    );
+
+    BluetoothSubscriptionManager*
+    getSubscriptionManager();
+
+    // --------------------------------------------------------
+    // TX
+    // --------------------------------------------------------
+
     bool send(const String& data);
     bool send(const char* data);
+
+    // --------------------------------------------------------
+    // RX
+    // --------------------------------------------------------
 
     bool hasCommand() const;
     String getCommand();
 
     void clearCommand();
 
+    // --------------------------------------------------------
+    // CALLBACKS
+    // --------------------------------------------------------
+
     void handleConnect();
     void handleDisconnect();
-    void handleReceive(const String& data);
+
+    void handleReceive(
+        const String& data
+    );
 
 private:
+
     void startAdvertising();
 
 private:
+
     BLEServer* _server;
     BLEService* _service;
 
@@ -78,6 +123,8 @@ private:
 
     BluetoothServerCallbacks* _serverCallbacks;
     BluetoothRxCallbacks* _rxCallbacks;
+
+    BluetoothSubscriptionManager* _subscriptions;
 
     volatile bool _ready;
     volatile bool _connected;
