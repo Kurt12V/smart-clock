@@ -308,6 +308,34 @@ bool LVGLManager::initDisplay(
 
     return true;
 }
+bool LVGLManager::testDisplays()
+{
+    Logger::info("LVGL", "Running TFT hardware test...");
+
+    for (uint8_t i = 0; i < DISPLAY_COUNT; i++)
+    {
+        DisplayContext& context = _contexts[i];
+
+        if (context.tft == nullptr)
+        {
+            Logger::info("LVGL", "TFT pointer is null");
+            return false;
+        }
+
+        Adafruit_ST7789& tft = *context.tft;
+
+        Logger::info(
+            "LVGL",
+            "Filling TFT..."
+        );
+
+        tft.fillScreen(ST77XX_RED);
+
+        delay(500);
+    }
+
+    return true;
+}
 
 // ============================================================
 // FLUSH CALLBACK

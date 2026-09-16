@@ -69,6 +69,7 @@ bool DisplaySystem::begin()
 
         return false;
     }
+    _lvgl.testDisplays();
 
     // ========================================================
     // SCREENS
