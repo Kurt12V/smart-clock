@@ -1,14 +1,15 @@
 #include "redring_clock_150.h"
 
 #include <stdint.h>
-#include "lvgl.h"
+#include <lvgl.h>
 
 
-// ============================================================
-// BITMAP DATA
-// ============================================================
+/* ============================================================
+ * BITMAP
+ * ============================================================ */
 
-static const uint8_t glyph_bitmap[] = {
+static const uint8_t redring_clock_150_glyph_bitmap[] =
+{
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -3693,62 +3694,66 @@ static const uint8_t glyph_bitmap[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
 
-// ============================================================
-// GLYPH DESCRIPTORS
-// ============================================================
+/* ============================================================
+ * UNICODE MAP
+ * ============================================================ */
 
-static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc[] = {
-    { .bitmap_index = 0, .adv_w = 0, .box_w = 0, .box_h = 0, .ofs_x = 0, .ofs_y = 0 },
-    { .bitmap_index = 0, .adv_w = 93, .box_w = 101, .box_h = 117, .ofs_x = -4, .ofs_y = 41 },
-    { .bitmap_index = 5967, .adv_w = 93, .box_w = 101, .box_h = 114, .ofs_x = -4, .ofs_y = 42 },
-    { .bitmap_index = 11781, .adv_w = 93, .box_w = 101, .box_h = 115, .ofs_x = -4, .ofs_y = 41 },
-    { .bitmap_index = 17646, .adv_w = 93, .box_w = 101, .box_h = 117, .ofs_x = -4, .ofs_y = 41 },
-    { .bitmap_index = 23613, .adv_w = 93, .box_w = 101, .box_h = 114, .ofs_x = -4, .ofs_y = 42 },
-    { .bitmap_index = 29427, .adv_w = 93, .box_w = 101, .box_h = 115, .ofs_x = -4, .ofs_y = 43 },
-    { .bitmap_index = 35292, .adv_w = 93, .box_w = 101, .box_h = 117, .ofs_x = -4, .ofs_y = 41 },
-    { .bitmap_index = 41259, .adv_w = 93, .box_w = 101, .box_h = 113, .ofs_x = -4, .ofs_y = 43 },
-    { .bitmap_index = 47022, .adv_w = 93, .box_w = 101, .box_h = 117, .ofs_x = -4, .ofs_y = 41 },
-    { .bitmap_index = 52989, .adv_w = 93, .box_w = 101, .box_h = 117, .ofs_x = -4, .ofs_y = 41 },
-};
-
-
-// ============================================================
-// UNICODE MAP
-// ============================================================
-
-static const uint16_t unicode_list[] = {
+static const uint16_t redring_clock_150_unicode_list[] =
+{
     48, 49, 50, 51, 52, 53, 54, 55, 56, 57
 };
 
 
-// ============================================================
-// CMAP
-// ============================================================
+/* ============================================================
+ * GLYPH DESCRIPTORS
+ * ============================================================ */
 
-static const lv_font_fmt_txt_cmap_t cmaps[] = {
+static const lv_font_fmt_txt_glyph_dsc_t redring_clock_150_glyph_dsc[] =
+{
+    { .bitmap_index = 0, .adv_w = 1488, .box_w = 101, .box_h = 117, .ofs_x = -4, .ofs_y = 49 },
+    { .bitmap_index = 5967, .adv_w = 1488, .box_w = 101, .box_h = 114, .ofs_x = -4, .ofs_y = 50 },
+    { .bitmap_index = 11781, .adv_w = 1488, .box_w = 101, .box_h = 115, .ofs_x = -4, .ofs_y = 49 },
+    { .bitmap_index = 17646, .adv_w = 1488, .box_w = 101, .box_h = 117, .ofs_x = -4, .ofs_y = 49 },
+    { .bitmap_index = 23613, .adv_w = 1488, .box_w = 101, .box_h = 114, .ofs_x = -4, .ofs_y = 50 },
+    { .bitmap_index = 29427, .adv_w = 1488, .box_w = 101, .box_h = 115, .ofs_x = -4, .ofs_y = 51 },
+    { .bitmap_index = 35292, .adv_w = 1488, .box_w = 101, .box_h = 117, .ofs_x = -4, .ofs_y = 49 },
+    { .bitmap_index = 41259, .adv_w = 1488, .box_w = 101, .box_h = 113, .ofs_x = -4, .ofs_y = 51 },
+    { .bitmap_index = 47022, .adv_w = 1488, .box_w = 101, .box_h = 117, .ofs_x = -4, .ofs_y = 49 },
+    { .bitmap_index = 52989, .adv_w = 1488, .box_w = 101, .box_h = 117, .ofs_x = -4, .ofs_y = 49 }
+};
+
+
+/* ============================================================
+ * CMAP
+ * ============================================================ */
+
+static const lv_font_fmt_txt_cmap_t redring_clock_150_cmaps[] =
+{
     {
         .range_start = 48,
         .range_length = 10,
         .glyph_id_start = 1,
-        .unicode_list = unicode_list,
+        .unicode_list = redring_clock_150_unicode_list,
         .glyph_id_ofs_list = NULL,
-        .list_length = 10
+        .list_length = 10,
+        .type = LV_FONT_FMT_TXT_CMAP_SPARSE_TINY
     }
 };
 
 
-// ============================================================
-// FONT DESCRIPTION
-// ============================================================
+/* ============================================================
+ * FONT DESCRIPTION
+ * ============================================================ */
 
-static const lv_font_fmt_txt_dsc_t font_dsc = {
-    .glyph_bitmap = glyph_bitmap,
-    .glyph_dsc = glyph_dsc,
-    .cmaps = cmaps,
+static const lv_font_fmt_txt_dsc_t redring_clock_150_font_dsc =
+{
+    .glyph_bitmap = redring_clock_150_glyph_bitmap,
+    .glyph_dsc = redring_clock_150_glyph_dsc,
+    .cmaps = redring_clock_150_cmaps,
     .kern_dsc = NULL,
     .kern_scale = 0,
     .cmap_num = 1,
@@ -3758,11 +3763,12 @@ static const lv_font_fmt_txt_dsc_t font_dsc = {
 };
 
 
-// ============================================================
-// FONT
-// ============================================================
+/* ============================================================
+ * FONT
+ * ============================================================ */
 
-const lv_font_t redring_clock_150 = {
+const lv_font_t redring_clock_150 =
+{
     .get_glyph_dsc = lv_font_get_glyph_dsc_fmt_txt,
     .get_glyph_bitmap = lv_font_get_bitmap_fmt_txt,
     .line_height = 150,
@@ -3770,7 +3776,7 @@ const lv_font_t redring_clock_150 = {
     .subpx = LV_FONT_SUBPX_NONE,
     .underline_position = 0,
     .underline_thickness = 0,
-    .dsc = &font_dsc,
+    .dsc = &redring_clock_150_font_dsc,
     .fallback = NULL,
     .user_data = NULL
 };
