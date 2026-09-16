@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include <lvgl.h>
 
-#include "fonts/redring_clock_245.h"
+#include "fonts/redring_clock_300.h"
 #include "fonts/redring_clock_150.h"
 
 enum class CenterMode : uint8_t

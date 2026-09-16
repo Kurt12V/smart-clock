@@ -55,7 +55,8 @@ static constexpr int16_t CENTER_BOTTOM = 266;
 //
 // ============================================================
 
-static constexpr int16_t LARGE_DIGIT_OFFSET_Y = 35;
+static constexpr int16_t LARGE_DIGIT_OFFSET_Y = 130;
+static constexpr int16_t LARGE_DIGIT_OFFSET_Y2 = 35;
 
 
 // ============================================================
@@ -416,7 +417,7 @@ void ClockScreen::createUI()
 
     lv_obj_set_style_text_font(
         _centerLabel,
-        &redring_clock_245,
+        &redring_clock_300,
         LV_PART_MAIN
     );
 
@@ -497,7 +498,7 @@ void ClockScreen::createUI()
 
     lv_obj_set_style_pad_top(
         _centerTopLabel,
-        LARGE_DIGIT_OFFSET_Y,
+        LARGE_DIGIT_OFFSET_Y2,
         LV_PART_MAIN
     );
 
@@ -548,7 +549,7 @@ void ClockScreen::createUI()
 
     lv_obj_set_style_pad_top(
         _centerBottomLabel,
-        LARGE_DIGIT_OFFSET_Y,
+        LARGE_DIGIT_OFFSET_Y2,
         LV_PART_MAIN
     );
 
