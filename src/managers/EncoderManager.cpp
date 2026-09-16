@@ -54,16 +54,12 @@ bool EncoderManager::begin()
     if (_initialized)
         return true;
 
-    // --------------------------------------------------------
-    // PINS
-    // --------------------------------------------------------
-
     pinMode(_clkPin, INPUT_PULLUP);
     pinMode(_dtPin, INPUT_PULLUP);
     pinMode(_swPin, INPUT_PULLUP);
 
     // --------------------------------------------------------
-    // ROTARY INITIAL STATE
+    // ROTARY
     // --------------------------------------------------------
 
     _lastCLK = digitalRead(_clkPin);
@@ -73,7 +69,7 @@ bool EncoderManager::begin()
     _reportedPosition = 0;
 
     // --------------------------------------------------------
-    // BUTTON INITIAL STATE
+    // BUTTON
     // --------------------------------------------------------
 
     _buttonPressed =
@@ -101,7 +97,7 @@ bool EncoderManager::begin()
     }
 
     // --------------------------------------------------------
-    // ISR INSTANCE
+    // ISR
     // --------------------------------------------------------
 
     g_encoderInstance = this;
@@ -136,17 +132,13 @@ void IRAM_ATTR EncoderManager::encoderISR()
     uint8_t dt =
         digitalRead(encoder->_dtPin);
 
-    // --------------------------------------------------------
-    // Нет изменения CLK
-    // --------------------------------------------------------
-
     if (clk == encoder->_lastCLK)
         return;
 
     encoder->_lastCLK = clk;
 
     // --------------------------------------------------------
-    // Работаем только на HIGH
+    // Только фронт HIGH
     // --------------------------------------------------------
 
     if (clk != HIGH)
@@ -182,7 +174,7 @@ void EncoderManager::update()
 
 
 // ============================================================
-// ROTATION PROCESSING
+// ROTATION
 // ============================================================
 
 void EncoderManager::processRotation()
@@ -228,7 +220,7 @@ void EncoderManager::processRotation()
 
 
 // ============================================================
-// BUTTON PROCESSING
+// BUTTON
 // ============================================================
 
 void EncoderManager::processButton()
@@ -273,19 +265,13 @@ void EncoderManager::processButton()
 
             _longPressTriggered = false;
 
-            // ------------------------------------------------
-            // ВАЖНО:
+            // Никакого PRESS здесь.
             //
-            // НИКАКОГО PRESS ЗДЕСЬ НЕТ.
+            // Пока ждём, что произойдёт:
             //
-            // Мы пока не знаем:
-            //
-            //   PRESS
-            //   DOUBLE_PRESS
-            //   LONG_PRESS
-            //
-            // Поэтому ждём.
-            // ------------------------------------------------
+            // SHORT PRESS
+            // DOUBLE PRESS
+            // LONG PRESS
 
             return;
         }
@@ -301,7 +287,31 @@ void EncoderManager::processButton()
 
 
         // ----------------------------------------------------
-        // ЕСЛИ ЭТО ВТОРОЕ НАЖАТИЕ
+        // КРИТИЧЕСКИЙ МОМЕНТ
+        //
+        // Если это было LONG_PRESS,
+        // полностью заканчиваем эту последовательность.
+        //
+        // Никакого:
+        //
+        // PRESS
+        // DOUBLE_PRESS
+        //
+        // после LONG_PRESS быть не должно.
+        // ----------------------------------------------------
+
+        if (_longPressTriggered)
+        {
+            _doublePressPending = false;
+
+            _lastReleaseTime = 0;
+
+            return;
+        }
+
+
+        // ----------------------------------------------------
+        // ВТОРОЕ НАЖАТИЕ
         // ----------------------------------------------------
 
         if (
@@ -311,31 +321,28 @@ void EncoderManager::processButton()
                 <= DOUBLE_PRESS_MS
         )
         {
-            // Второе нажатие подтверждено
             _doublePressPending = false;
 
-            // ------------------------------------------------
-            // Только DOUBLE_PRESS
-            // ------------------------------------------------
+            _lastReleaseTime = 0;
 
+            // Только DOUBLE_PRESS
             addEvent(
                 Constants::Event::DOUBLE_PRESS
             );
+
+            return;
         }
+
 
         // ----------------------------------------------------
         // ПЕРВОЕ НАЖАТИЕ
         // ----------------------------------------------------
 
-        else
-        {
-            // Пока не выдаём PRESS.
-            //
-            // Ждём DOUBLE_PRESS_MS.
-            _doublePressPending = true;
-        }
+        _doublePressPending = true;
 
         _lastReleaseTime = now;
+
+        return;
     }
 
 
@@ -353,10 +360,12 @@ void EncoderManager::processButton()
         _longPressTriggered = true;
 
         // ----------------------------------------------------
-        // Это точно не обычный PRESS.
+        // Отменяем ожидание обычного PRESS
         // ----------------------------------------------------
 
         _doublePressPending = false;
+
+        _lastReleaseTime = 0;
 
         // ----------------------------------------------------
         // Только LONG_PRESS
@@ -365,6 +374,8 @@ void EncoderManager::processButton()
         addEvent(
             Constants::Event::LONG_PRESS
         );
+
+        return;
     }
 
 
@@ -380,13 +391,13 @@ void EncoderManager::processButton()
             > DOUBLE_PRESS_MS
     )
     {
-        // ----------------------------------------------------
-        // Второго нажатия не было.
-        //
-        // Значит это обычный PRESS.
-        // ----------------------------------------------------
-
         _doublePressPending = false;
+
+        _lastReleaseTime = 0;
+
+        // ----------------------------------------------------
+        // Только теперь подтверждаем обычный PRESS
+        // ----------------------------------------------------
 
         addEvent(
             Constants::Event::PRESS
@@ -414,10 +425,7 @@ void EncoderManager::addEvent(
         (_eventHead + 1)
         % EVENT_QUEUE_SIZE;
 
-    // --------------------------------------------------------
-    // QUEUE FULL
-    // --------------------------------------------------------
-
+    // Очередь заполнена
     if (next == _eventTail)
         return;
 
