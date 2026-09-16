@@ -18,15 +18,13 @@
 #include "./core/ClockSystem.h"
 #include "./managers/SensorsManager.h"
 #include "./core/DisplaySystem.h"
+#include "./managers/EncoderManager.h"
 
-// ============================================================
-// GLOBAL SYSTEM OBJECTS
-// ============================================================
-
-// ------------------------------------------------------------
-// Clock
-// ------------------------------------------------------------
-
+EncoderManager encoder(
+    PIN_ENCODER_CLK,
+    PIN_ENCODER_DT,
+    PIN_ENCODER_SW
+);
 Settings::Clock clockSettings;
 
 ClockSystem clockSystem(
@@ -38,19 +36,6 @@ ClockSystem clockSystem(
 // ------------------------------------------------------------
 
 SensorManager sensorManager;
-
-// ------------------------------------------------------------
-// Display
-//
-// DisplaySystem внутри содержит:
-//
-// SPIManager
-// LVGLManager
-// ScreenManager
-//
-// Поэтому main.cpp не управляет SPI/TFT напрямую.
-// ------------------------------------------------------------
-
 DisplaySystem displaySystem(
     clockSystem,
     sensorManager
@@ -66,18 +51,18 @@ void setup()
     // SERIAL
     // ========================================================
 
-    Serial.begin(115200);
+    Serial0.begin(115200);
 
     delay(1000);
 
-    Serial.println();
-    Serial.println(
+    Serial0.println();
+    Serial0.println(
         "========================================"
     );
-    Serial.println(
+    Serial0.println(
         "        ESP32-S3 SMART CLOCK"
     );
-    Serial.println(
+    Serial0.println(
         "========================================"
     );
 
@@ -85,19 +70,19 @@ void setup()
     // CLOCK
     // ========================================================
 
-    Serial.println(
+    Serial0.println(
         "[MAIN] Initializing ClockSystem..."
     );
 
     if (!clockSystem.begin())
     {
-        Serial.println(
+        Serial0.println(
             "[MAIN] ClockSystem ERROR"
         );
     }
     else
     {
-        Serial.println(
+        Serial0.println(
             "[MAIN] ClockSystem OK"
         );
     }
@@ -106,19 +91,19 @@ void setup()
     // SENSORS
     // ========================================================
 
-    Serial.println(
+    Serial0.println(
         "[MAIN] Initializing SensorManager..."
     );
 
     if (!sensorManager.begin())
     {
-        Serial.println(
+        Serial0.println(
             "[MAIN] SensorManager ERROR"
         );
     }
     else
     {
-        Serial.println(
+        Serial0.println(
             "[MAIN] SensorManager OK"
         );
     }
@@ -127,67 +112,55 @@ void setup()
     // DISPLAY
     // ========================================================
 
-    Serial.println(
+    Serial0.println(
         "[MAIN] Initializing DisplaySystem..."
     );
 
-    /*
-     * Здесь запускается вся цепочка:
-     *
-     * DisplaySystem
-     *      |
-     *      +-- SPIManager.begin()
-     *      |
-     *      +-- LVGLManager.begin()
-     *      |      |
-     *      |      +-- Backlight GPIO1
-     *      |      +-- LVGL
-     *      |      +-- TFT1
-     *      |      +-- TFT2
-     *      |      +-- TFT3
-     *      |      +-- TFT4
-     *      |
-     *      +-- ScreenManager.begin()
-     */
+ 
 
     if (!displaySystem.begin())
     {
-        Serial.println(
+        Serial0.println(
             "[MAIN] DisplaySystem ERROR"
         );
 
-        /*
-         * Дисплей является основной частью интерфейса.
-         * Если он не запустился, остаёмся здесь,
-         * чтобы ошибка была явно видна в Serial.
-         */
+
 
         while (true)
         {
             delay(1000);
 
-            Serial.println(
+            Serial0.println(
                 "[MAIN] DisplaySystem is not available"
             );
         }
     }
 
-    Serial.println(
+    Serial0.println(
         "[MAIN] DisplaySystem OK"
     );
+Serial0.println("[MAIN] Initializing EncoderManager...");
 
+if (!encoder.begin())
+{
+    Serial0.println("[MAIN] Encoder ERROR");
+}
+else
+{
+    Serial0.println("[MAIN] Encoder OK");
+}
     // ========================================================
     // SYSTEM READY
     // ========================================================
 
-    Serial.println();
-    Serial.println(
+    Serial0.println();
+    Serial0.println(
         "========================================"
     );
-    Serial.println(
+    Serial0.println(
         "          SYSTEM READY"
     );
-    Serial.println(
+    Serial0.println(
         "========================================"
     );
 }
@@ -210,33 +183,50 @@ void loop()
 
     sensorManager.update();
 
-    // ========================================================
-    // DISPLAY
-    // ========================================================
-
-    /*
-     * DisplaySystem.update() выполняет:
-     *
-     * ScreenManager.update()
-     * LVGLManager.update()
-     *
-     * ScreenManager обновляет:
-     * - время
-     * - температуру
-     * - влажность
-     * - освещённость
-     * - дату
-     *
-     * LVGLManager:
-     * - обрабатывает LVGL
-     * - отправляет изменённые области на TFT
-     */
 
     displaySystem.update();
 
     // ========================================================
     // MINIMAL DELAY
     // ========================================================
+encoder.update();
 
+EncoderManager::Event event;
+
+while (
+    (event = encoder.getEvent())
+    != EncoderManager::Event::NONE
+)
+{
+    switch (event)
+    {
+        case EncoderManager::Event::ROTATE_CW:
+            Serial0.println("[ENCODER] CW");
+            break;
+
+        case EncoderManager::Event::ROTATE_CCW:
+            Serial0.println("[ENCODER] CCW");
+            break;
+
+        case EncoderManager::Event::PRESS:
+            Serial0.println("[ENCODER] PRESS");
+            break;
+
+        case EncoderManager::Event::RELEASE:
+            Serial0.println("[ENCODER] RELEASE");
+            break;
+
+        case EncoderManager::Event::LONG_PRESS:
+            Serial0.println("[ENCODER] LONG PRESS");
+            break;
+
+        case EncoderManager::Event::DOUBLE_PRESS:
+            Serial0.println("[ENCODER] DOUBLE PRESS");
+            break;
+
+        default:
+            break;
+    }
+}
     delay(1);
 }
