@@ -55,8 +55,8 @@ static constexpr int16_t CENTER_BOTTOM = 266;
 //
 // ============================================================
 
-static constexpr int16_t LARGE_DIGIT_OFFSET_Y = 130;
-static constexpr int16_t LARGE_DIGIT_OFFSET_Y2 = 35;
+static constexpr int16_t LARGE_DIGIT_OFFSET_Y = 5;
+static constexpr int16_t LARGE_DIGIT_OFFSET_Y2 = 0;
 
 
 // ============================================================
