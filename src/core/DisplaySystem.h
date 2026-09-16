@@ -7,10 +7,6 @@
 #include "./core/ClockSystem.h"
 #include "./managers/SensorsManager.h"
 
-#include "./managers/LVGLManager.h"
-#include "./managers/ScreenManager.h"
-
-
 class DisplaySystem
 {
 public:
@@ -21,11 +17,15 @@ public:
     );
 
     bool begin();
+
     void update();
 
     bool isReady() const;
 
+    SPIManager& spi();
+
     LVGLManager& lvgl();
+
     ScreenManager& screens();
 
 private:
@@ -44,6 +44,10 @@ private:
     // --------------------------------------------------------
 
     LVGLManager _lvgl;
+
+    // --------------------------------------------------------
+    // Screens
+    // --------------------------------------------------------
 
     ScreenManager _screens;
 

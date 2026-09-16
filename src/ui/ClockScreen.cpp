@@ -1,32 +1,50 @@
 #include "ClockScreen.h"
 
-#include <cstdio>
 #include <cstring>
+
+// ============================================================
+// COLORS
+// ============================================================
+
+static constexpr uint32_t COLOR_BACKGROUND = 0x000000;
+static constexpr uint32_t COLOR_BAR        = 0x0C0E12;
+static constexpr uint32_t COLOR_LINE       = 0x252830;
+static constexpr uint32_t COLOR_TEXT       = 0xFFFFFF;
+
+
+// ============================================================
+// CONSTRUCTOR
+// ============================================================
 
 ClockScreen::ClockScreen()
     : _display(nullptr),
-
-      _root(nullptr),
+      _screen(nullptr),
 
       _topBar(nullptr),
-      _topLabel(nullptr),
-      _digit(nullptr),
-      _bottomBar(nullptr),
-      _bottomLabel(nullptr),
       _topLine(nullptr),
+
+      _bottomBar(nullptr),
       _bottomLine(nullptr),
-      _visible(true)
+
+      _topLabel(nullptr),
+      _bottomLabel(nullptr),
+
+      _centerLabel(nullptr),
+      _centerTopLabel(nullptr),
+      _centerBottomLabel(nullptr),
+
+      _centerMode(CenterMode::ONE_DIGIT),
+
+      _visible(true),
+      _initialized(false)
 {
-    _centerText[0] = '\0';
     _topText[0] = '\0';
     _bottomText[0] = '\0';
-    _lastBottomText[0] = '\0';
+
+    _centerText[0] = '\0';
+    _centerTopText[0] = '\0';
+    _centerBottomText[0] = '\0';
 }
-
-
-// ============================================================
-// BEGIN
-// ============================================================
 
 
 // ============================================================
@@ -35,25 +53,30 @@ ClockScreen::ClockScreen()
 
 bool ClockScreen::begin(lv_display_t* display)
 {
+    if (display == nullptr)
+        return false;
+
+    if (_initialized)
+        return true;
+
     _display = display;
 
-    if (_display == nullptr)
-    {
-        return;
-    }
+    // --------------------------------------------------------
+    // Получаем активный screen LVGL
+    // --------------------------------------------------------
 
-    _root = lv_display_get_screen_active(
-        _display
-    );
+    _screen = lv_display_get_screen_active(_display);
 
-    if (_root == nullptr)
-    {
-        return;
-    }
+    if (_screen == nullptr)
+        return false;
 
-    lv_obj_clean(_root);
+    // --------------------------------------------------------
+    // Создание UI
+    // --------------------------------------------------------
 
     createUI();
+
+    _initialized = true;
 
     return true;
 }
@@ -65,44 +88,43 @@ bool ClockScreen::begin(lv_display_t* display)
 
 void ClockScreen::createUI()
 {
-    _root = lv_display_get_screen_active(_display);
-
-    if (_root == nullptr)
+    if (_screen == nullptr)
         return;
 
-    // --------------------------------------------------------
+    // ========================================================
     // ROOT
     // ========================================================
 
     lv_obj_set_style_bg_color(
-        _root,
-        lv_color_hex(0x050608),
+        _screen,
+        lv_color_hex(COLOR_BACKGROUND),
         LV_PART_MAIN
     );
 
-
     lv_obj_set_style_bg_opa(
-        _root,
+        _screen,
         LV_OPA_COVER,
         LV_PART_MAIN
     );
 
     lv_obj_set_style_border_width(
-        _root,
+        _screen,
+        0,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_pad_all(
+        _screen,
         0,
         LV_PART_MAIN
     );
 
 
-    // --------------------------------------------------------
+    // ========================================================
     // TOP BAR
-    // --------------------------------------------------------
+    // ========================================================
 
-    _topBar = lv_obj_create(_root);
-
-    lv_obj_remove_style_all(
-        _topBar
-    );
+    _topBar = lv_obj_create(_screen);
 
     lv_obj_set_size(
         _topBar,
@@ -110,99 +132,42 @@ void ClockScreen::createUI()
         38
     );
 
-    lv_obj_align(
+    lv_obj_set_pos(
         _topBar,
         0,
         0
     );
 
-
-    lv_obj_set_style_bg_opa(
+    lv_obj_set_style_bg_color(
         _topBar,
-        LV_OPA_TRANSP,
-        0
-    );
-
-
-    lv_obj_set_style_border_width(
-        _topBar,
-        lv_color_hex(0x0C0E12),
+        lv_color_hex(COLOR_BAR),
         LV_PART_MAIN
     );
 
-
-    lv_obj_set_style_pad_all(
+    lv_obj_set_style_bg_opa(
         _topBar,
         LV_OPA_COVER,
         LV_PART_MAIN
     );
 
-
-    // ========================================================
-    // TOP TEXT
-    // ========================================================
-
-    _topLabel = lv_label_create(
-        _topBar
-    );
-
-    lv_label_set_text(
-        _topLabel,
-        ""
-    );
-
-
-    // --------------------------------------------------------
-    // TOP LABEL
-    // --------------------------------------------------------
-
-    _topLabel = lv_label_create(_topBar);
-
-
-    lv_obj_set_style_text_color(
-        _topLabel,
-        lv_color_hex(0xFFFFFF),
-        0
-    );
-
-    lv_obj_set_style_text_font(
-        _topLabel,
-        &lv_font_montserrat_20,
-        0
-    );
-
-    lv_obj_set_style_text_color(
-        _topLabel,
-        lv_color_hex(0xA5AAB5),
-        LV_PART_MAIN
-    );
-
-    lv_obj_set_style_text_align(
-        _topLabel,
-        LV_TEXT_ALIGN_CENTER,
-        LV_PART_MAIN
-    );
-
-    lv_obj_align(
-        _topLabel,
-        LV_ALIGN_CENTER,
+    lv_obj_set_style_border_width(
+        _topBar,
         0,
-        0
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_pad_all(
+        _topBar,
+        0,
+        LV_PART_MAIN
     );
 
 
-
-    // --------------------------------------------------------
+    // ========================================================
     // TOP LINE
-    // --------------------------------------------------------
+    // ========================================================
 
-    _topLine = lv_obj_create(
-        _root
-    );
-
-    lv_obj_remove_style_all(
-        _topLine
-    );
+    _topLine = lv_obj_create(_screen);
 
     lv_obj_set_size(
         _topLine,
@@ -210,19 +175,17 @@ void ClockScreen::createUI()
         1
     );
 
-    lv_obj_align(
+    lv_obj_set_pos(
         _topLine,
         0,
         38
     );
 
-
     lv_obj_set_style_bg_color(
         _topLine,
-        lv_color_hex(0x252830),
+        lv_color_hex(COLOR_LINE),
         LV_PART_MAIN
     );
-
 
     lv_obj_set_style_bg_opa(
         _topLine,
@@ -230,63 +193,18 @@ void ClockScreen::createUI()
         LV_PART_MAIN
     );
 
-    // ========================================================
-    // MAIN DIGIT
-    // ========================================================
-
-    _digit = lv_label_create(
-        _root
-    );
-
-    lv_label_set_text(
-        _digit,
-        "0"
-    );
-
-    lv_obj_set_size(
-        _digit,
-        172,
-        150
-    );
-
-    lv_obj_set_style_text_font(
-        _digit,
-        &lv_font_montserrat_20,
-        LV_PART_MAIN
-    );
-
-
-    lv_obj_set_style_text_color(
-        _digit,
-        lv_color_hex(0xF4F5F7),
-        LV_PART_MAIN
-    );
-
-
-    lv_obj_set_style_text_align(
-        _centerTopLabel,
-        LV_TEXT_ALIGN_CENTER,
-        LV_PART_MAIN
-    );
-
-    lv_obj_align(
-        _digit,
-        LV_ALIGN_CENTER,
+    lv_obj_set_style_border_width(
+        _topLine,
         0,
-        -4
+        LV_PART_MAIN
     );
+
 
     // ========================================================
     // BOTTOM BAR
     // ========================================================
 
-    _bottomBar = lv_obj_create(
-        _root
-    );
-
-    lv_obj_remove_style_all(
-        _bottomBar
-    );
+    _bottomBar = lv_obj_create(_screen);
 
     lv_obj_set_size(
         _bottomBar,
@@ -294,73 +212,133 @@ void ClockScreen::createUI()
         52
     );
 
-
     lv_obj_set_pos(
         _bottomBar,
         0,
         268
     );
 
-
-    lv_obj_set_style_bg_opa(
+    lv_obj_set_style_bg_color(
         _bottomBar,
-        LV_OPA_TRANSP,
-        0
-    );
-
-
-    lv_obj_set_style_border_width(
-        _bottomBar,
-        lv_color_hex(0x0C0E12),
+        lv_color_hex(COLOR_BAR),
         LV_PART_MAIN
     );
 
-
-    lv_obj_set_style_pad_all(
+    lv_obj_set_style_bg_opa(
         _bottomBar,
         LV_OPA_COVER,
         LV_PART_MAIN
     );
 
-
-    // ========================================================
-    // BOTTOM TEXT
-    // ========================================================
-
-    _bottomLabel = lv_label_create(
-        _bottomBar
+    lv_obj_set_style_border_width(
+        _bottomBar,
+        0,
+        LV_PART_MAIN
     );
 
-    lv_label_set_text(
-        _bottomLabel,
-        ""
+    lv_obj_set_style_pad_all(
+        _bottomBar,
+        0,
+        LV_PART_MAIN
     );
 
 
-    // --------------------------------------------------------
+    // ========================================================
+    // BOTTOM LINE
+    // ========================================================
+
+    _bottomLine = lv_obj_create(_screen);
+
+    lv_obj_set_size(
+        _bottomLine,
+        172,
+        1
+    );
+
+    lv_obj_set_pos(
+        _bottomLine,
+        0,
+        267
+    );
+
+    lv_obj_set_style_bg_color(
+        _bottomLine,
+        lv_color_hex(COLOR_LINE),
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_bg_opa(
+        _bottomLine,
+        LV_OPA_COVER,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_border_width(
+        _bottomLine,
+        0,
+        LV_PART_MAIN
+    );
+
+
+    // ========================================================
+    // TOP LABEL
+    // ========================================================
+
+    _topLabel = lv_label_create(_topBar);
+
+    lv_obj_set_width(
+        _topLabel,
+        172
+    );
+
+    lv_obj_set_style_text_color(
+        _topLabel,
+        lv_color_hex(COLOR_TEXT),
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_text_font(
+        _topLabel,
+        &redring_clock_200,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_text_align(
+        _topLabel,
+        LV_TEXT_ALIGN_CENTER,
+        LV_PART_MAIN
+    );
+
+    lv_obj_align(
+        _topLabel,
+        LV_ALIGN_CENTER,
+        0,
+        0
+    );
+
+
+    // ========================================================
     // BOTTOM LABEL
-    // --------------------------------------------------------
+    // ========================================================
 
     _bottomLabel = lv_label_create(_bottomBar);
 
     lv_obj_set_width(
         _bottomLabel,
-        152
+        172
+    );
+
+    lv_obj_set_style_text_color(
+        _bottomLabel,
+        lv_color_hex(COLOR_TEXT),
+        LV_PART_MAIN
     );
 
     lv_obj_set_style_text_font(
         _bottomLabel,
-        &lv_font_montserrat_20,
+        &redring_clock_200,
         LV_PART_MAIN
     );
-
-
-    lv_obj_set_style_text_color(
-        _bottomLabel,
-        lv_color_hex(0xD5D8DE),
-        LV_PART_MAIN
-    );
-
 
     lv_obj_set_style_text_align(
         _bottomLabel,
@@ -376,199 +354,155 @@ void ClockScreen::createUI()
     );
 
 
+    // ========================================================
+    // CENTER LABEL
+    // ========================================================
 
-    // --------------------------------------------------------
-    // BOTTOM LINE
-    // --------------------------------------------------------
-
-    _bottomLine = lv_obj_create(
-        _root
-    );
-
-    lv_obj_remove_style_all(
-        _bottomLine
-    );
+    _centerLabel = lv_label_create(_screen);
 
     lv_obj_set_size(
-        _bottomLine,
+        _centerLabel,
         172,
-        1
+        228
     );
 
+    lv_obj_set_style_text_color(
+        _centerLabel,
+        lv_color_hex(COLOR_TEXT),
+        LV_PART_MAIN
+    );
 
-    lv_obj_set_pos(
-        _bottomLine,
+    lv_obj_set_style_text_font(
+        _centerLabel,
+        &redring_clock_200,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_text_align(
+        _centerLabel,
+        LV_TEXT_ALIGN_CENTER,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_pad_all(
+        _centerLabel,
         0,
-        267
-    );
-
-
-    lv_obj_set_style_bg_color(
-        _bottomLine,
-        lv_color_hex(0x252830),
         LV_PART_MAIN
     );
 
+    lv_obj_align(
+        _centerLabel,
+        LV_ALIGN_TOP_MID,
+        0,
+        39
+    );
 
-    lv_obj_set_style_bg_opa(
-        _bottomLine,
-        LV_OPA_COVER,
+
+    // ========================================================
+    // CENTER TOP LABEL
+    // ========================================================
+
+    _centerTopLabel = lv_label_create(_screen);
+
+    lv_obj_set_size(
+        _centerTopLabel,
+        172,
+        114
+    );
+
+    lv_obj_set_style_text_color(
+        _centerTopLabel,
+        lv_color_hex(COLOR_TEXT),
         LV_PART_MAIN
     );
-}
 
-void ClockScreen::setDigit(
-    uint8_t digit
-)
-{
-    if (digit > 9)
-    {
-        return;
-    }
-
-    char buffer[2];
-
-    buffer[0] = '0' + digit;
-    buffer[1] = '\0';
-
-    setCenterText(buffer);
-}
-
-
-// ============================================================
-// CENTER TEXT
-// ============================================================
-
-
-// ============================================================
-// SET CENTER TEXT
-// ============================================================
-
-void ClockScreen::setCenterText(const char* text)
-{
-    if (text == nullptr)
-    {
-        text = "";
-    }
-
-    if (strcmp(
-        _centerText,
-        text
-    ) == 0)
-    {
-        return;
-    }
-
-    copyText(
-        _centerText,
-        sizeof(_centerText),
-        text
+    lv_obj_set_style_text_font(
+        _centerTopLabel,
+        &redring_clock_200,
+        LV_PART_MAIN
     );
 
-    if (_digit != nullptr)
-    {
-        lv_label_set_text(
-            _digit,
-            _centerText
-        );
-    }
-}
-
-void ClockScreen::setTopText(
-    const char* text
-)
-{
-    if (text == nullptr)
-    {
-        text = "";
-    }
-
-    if (strcmp(
-        _topText,
-        text
-    ) == 0)
-    {
-        return;
-
-    copyText(
-        _topText,
-        text,
-        sizeof(_topText) - 1
+    lv_obj_set_style_text_align(
+        _centerTopLabel,
+        LV_TEXT_ALIGN_CENTER,
+        LV_PART_MAIN
     );
 
-    if (_topLabel != nullptr)
-    {
-        lv_label_set_text(
-            _topLabel,
-            _topText
-        );
-    }
-}
-
-void ClockScreen::setBottomText(const char* text)
-{
-    if (text == nullptr)
-    {
-        text = "";
-    }
-
-    if (strcmp(
-        _bottomText,
-        text
-    ) == 0)
-    {
-        return;
-    }
-
-    copyText(
-        _bottomText,
-        text,
-        sizeof(_bottomText) - 1
+    lv_obj_set_style_pad_all(
+        _centerTopLabel,
+        0,
+        LV_PART_MAIN
     );
 
-    if (_bottomLabel != nullptr)
-    {
-        lv_label_set_text(
-            _bottomLabel,
-            _bottomText
-        );
-    }
-}
-
-void ClockScreen::setVisible(bool visible)
-{
-    if (_root == nullptr)
-    {
-        return;
+    lv_obj_align(
+        _centerTopLabel,
+        LV_ALIGN_TOP_MID,
+        0,
+        39
+    );
 
 
-    if (_root == nullptr)
-        return;
+    // ========================================================
+    // CENTER BOTTOM LABEL
+    // ========================================================
 
-    if (_visible)
-    {
-        lv_obj_clear_flag(
-            _root,
-            LV_OBJ_FLAG_HIDDEN
-        );
-    }
-    else
-    {
-        lv_obj_add_flag(
-            _root,
-            LV_OBJ_FLAG_HIDDEN
-        );
-    }
-}
+    _centerBottomLabel = lv_label_create(_screen);
+
+    lv_obj_set_size(
+        _centerBottomLabel,
+        172,
+        114
+    );
+
+    lv_obj_set_style_text_color(
+        _centerBottomLabel,
+        lv_color_hex(COLOR_TEXT),
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_text_font(
+        _centerBottomLabel,
+        &redring_clock_200,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_text_align(
+        _centerBottomLabel,
+        LV_TEXT_ALIGN_CENTER,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_pad_all(
+        _centerBottomLabel,
+        0,
+        LV_PART_MAIN
+    );
+
+    lv_obj_align(
+        _centerBottomLabel,
+        LV_ALIGN_TOP_MID,
+        0,
+        153
+    );
 
 
-// ============================================================
-// IS VISIBLE
-// ============================================================
+    // ========================================================
+    // INITIAL VISIBILITY
+    // ========================================================
 
-bool ClockScreen::isVisible() const
-{
-    return _visible;
+    lv_obj_add_flag(
+        _centerTopLabel,
+        LV_OBJ_FLAG_HIDDEN
+    );
+
+    lv_obj_add_flag(
+        _centerBottomLabel,
+        LV_OBJ_FLAG_HIDDEN
+    );
+
+    updateTop();
+    updateBottom();
+    updateCenter();
 }
 
 
@@ -582,13 +516,8 @@ void ClockScreen::copyText(
     const char* source
 )
 {
-    if (
-        destination == nullptr ||
-        destinationSize == 0
-    )
-    {
+    if (destination == nullptr || destinationSize == 0)
         return;
-    }
 
     if (source == nullptr)
     {
@@ -602,7 +531,311 @@ void ClockScreen::copyText(
         destinationSize - 1
     );
 
-    destination[
-        destinationSize - 1
-    ] = '\0';
+    destination[destinationSize - 1] = '\0';
+}
+
+
+// ============================================================
+// CENTER MODE
+// ============================================================
+
+void ClockScreen::setCenterMode(CenterMode mode)
+{
+    if (!_initialized)
+    {
+        _centerMode = mode;
+        return;
+    }
+
+    _centerMode = mode;
+
+    updateCenter();
+}
+
+
+// ============================================================
+// CENTER TEXT
+// ============================================================
+
+void ClockScreen::setCenterText(const char* text)
+{
+    copyText(
+        _centerText,
+        sizeof(_centerText),
+        text
+    );
+
+    _centerMode = CenterMode::TEXT;
+
+    updateCenter();
+}
+
+
+// ============================================================
+// CENTER ONE DIGIT
+// ============================================================
+
+void ClockScreen::setCenterText(uint8_t digit)
+{
+    if (digit > 9)
+        digit = 0;
+
+    snprintf(
+        _centerText,
+        sizeof(_centerText),
+        "%u",
+        digit
+    );
+
+    _centerMode = CenterMode::ONE_DIGIT;
+
+    updateCenter();
+}
+
+
+// ============================================================
+// CENTER TWO DIGITS
+// ============================================================
+
+void ClockScreen::setCenterText(
+    uint8_t topDigit,
+    uint8_t bottomDigit
+)
+{
+    if (topDigit > 9)
+        topDigit = 0;
+
+    if (bottomDigit > 9)
+        bottomDigit = 0;
+
+    snprintf(
+        _centerTopText,
+        sizeof(_centerTopText),
+        "%u",
+        topDigit
+    );
+
+    snprintf(
+        _centerBottomText,
+        sizeof(_centerBottomText),
+        "%u",
+        bottomDigit
+    );
+
+    _centerMode = CenterMode::TWO_DIGITS_VERTICAL;
+
+    updateCenter();
+}
+
+
+// ============================================================
+// UPDATE CENTER
+// ============================================================
+
+void ClockScreen::updateCenter()
+{
+    if (!_initialized)
+        return;
+
+    if (_centerLabel == nullptr ||
+        _centerTopLabel == nullptr ||
+        _centerBottomLabel == nullptr)
+    {
+        return;
+    }
+
+    // --------------------------------------------------------
+    // Hide all center labels first
+    // --------------------------------------------------------
+
+    lv_obj_add_flag(
+        _centerLabel,
+        LV_OBJ_FLAG_HIDDEN
+    );
+
+    lv_obj_add_flag(
+        _centerTopLabel,
+        LV_OBJ_FLAG_HIDDEN
+    );
+
+    lv_obj_add_flag(
+        _centerBottomLabel,
+        LV_OBJ_FLAG_HIDDEN
+    );
+
+
+    // --------------------------------------------------------
+    // ONE DIGIT
+    // --------------------------------------------------------
+
+    if (_centerMode == CenterMode::ONE_DIGIT)
+    {
+        lv_label_set_text(
+            _centerLabel,
+            _centerText
+        );
+
+        lv_obj_clear_flag(
+            _centerLabel,
+            LV_OBJ_FLAG_HIDDEN
+        );
+
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // TEXT
+    // --------------------------------------------------------
+
+    if (_centerMode == CenterMode::TEXT)
+    {
+        lv_label_set_text(
+            _centerLabel,
+            _centerText
+        );
+
+        lv_obj_clear_flag(
+            _centerLabel,
+            LV_OBJ_FLAG_HIDDEN
+        );
+
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // TWO VERTICAL DIGITS
+    // --------------------------------------------------------
+
+    if (_centerMode == CenterMode::TWO_DIGITS_VERTICAL)
+    {
+        lv_label_set_text(
+            _centerTopLabel,
+            _centerTopText
+        );
+
+        lv_label_set_text(
+            _centerBottomLabel,
+            _centerBottomText
+        );
+
+        lv_obj_clear_flag(
+            _centerTopLabel,
+            LV_OBJ_FLAG_HIDDEN
+        );
+
+        lv_obj_clear_flag(
+            _centerBottomLabel,
+            LV_OBJ_FLAG_HIDDEN
+        );
+    }
+}
+
+
+// ============================================================
+// TOP TEXT
+// ============================================================
+
+void ClockScreen::setTopText(const char* text)
+{
+    copyText(
+        _topText,
+        sizeof(_topText),
+        text
+    );
+
+    updateTop();
+}
+
+
+// ============================================================
+// UPDATE TOP
+// ============================================================
+
+void ClockScreen::updateTop()
+{
+    if (!_initialized)
+        return;
+
+    if (_topLabel == nullptr)
+        return;
+
+    lv_label_set_text(
+        _topLabel,
+        _topText
+    );
+}
+
+
+// ============================================================
+// BOTTOM TEXT
+// ============================================================
+
+void ClockScreen::setBottomText(const char* text)
+{
+    copyText(
+        _bottomText,
+        sizeof(_bottomText),
+        text
+    );
+
+    updateBottom();
+}
+
+
+// ============================================================
+// UPDATE BOTTOM
+// ============================================================
+
+void ClockScreen::updateBottom()
+{
+    if (!_initialized)
+        return;
+
+    if (_bottomLabel == nullptr)
+        return;
+
+    lv_label_set_text(
+        _bottomLabel,
+        _bottomText
+    );
+}
+
+
+// ============================================================
+// VISIBLE
+// ============================================================
+
+void ClockScreen::setVisible(bool visible)
+{
+    _visible = visible;
+
+    if (!_initialized || _screen == nullptr)
+        return;
+
+    if (visible)
+    {
+        lv_obj_clear_flag(
+            _screen,
+            LV_OBJ_FLAG_HIDDEN
+        );
+    }
+    else
+    {
+        lv_obj_add_flag(
+            _screen,
+            LV_OBJ_FLAG_HIDDEN
+        );
+    }
+}
+
+
+// ============================================================
+// IS VISIBLE
+// ============================================================
+
+bool ClockScreen::isVisible() const
+{
+    return _visible;
 }

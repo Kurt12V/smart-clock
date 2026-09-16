@@ -1,5 +1,11 @@
+
 #include "DisplaySystem.h"
 
+#include "./utils/Logger.h"
+
+// ============================================================
+// CONSTRUCTOR
+// ============================================================
 
 DisplaySystem::DisplaySystem(
     ClockSystem& clock,
@@ -7,11 +13,17 @@ DisplaySystem::DisplaySystem(
 )
     : _clock(clock),
       _sensors(sensors),
-      _lvgl(),
+
+      _spi(),
+
+      _lvgl(_spi),
+
       _screens(
           clock,
-          sensors
+          sensors,
+          _lvgl
       ),
+
       _initialized(false)
 {
 }
@@ -25,78 +37,59 @@ bool DisplaySystem::begin()
     if (_initialized)
         return true;
 
-    // --------------------------------------------------------
+    Logger::info(
+        "DISPLAY",
+        "Starting DisplaySystem..."
+    );
+
+    // ========================================================
+    // SPI
+    // ========================================================
+
+    if (!_spi.begin())
+    {
+        Logger::info(
+            "DISPLAY",
+            "SPI initialization failed"
+        );
+
+        return false;
+    }
+
+    // ========================================================
     // LVGL + TFT
-    // --------------------------------------------------------
+    // ========================================================
 
     if (!_lvgl.begin())
     {
+        Logger::info(
+            "DISPLAY",
+            "LVGL initialization failed"
+        );
+
         return false;
     }
 
-    // --------------------------------------------------------
+    // ========================================================
     // SCREENS
-    // --------------------------------------------------------
+    // ========================================================
 
     if (!_screens.begin())
     {
+        Logger::info(
+            "DISPLAY",
+            "ScreenManager initialization failed"
+        );
+
         return false;
     }
 
-    Serial.println("DisplaySystem: ScreenManager OK");
-
-
-    // ========================================================
-    // CENTER MODES
-    // ========================================================
-
-    // Screen 0:
-    // одна цифра
-    _screens.setCenterMode(
-        0,
-        ScreenManager::CenterMode::ONE_DIGIT
-    );
-
-    // Screen 1:
-    // две цифры вертикально
-    _screens.setCenterMode(
-        1,
-        ScreenManager::CenterMode::TWO_DIGITS_VERTICAL
-    );
-
-    // Screen 2:
-    // одна цифра
-    _screens.setCenterMode(
-        2,
-        ScreenManager::CenterMode::ONE_DIGIT
-    );
-
-    // Screen 3:
-    // одна цифра
-    _screens.setCenterMode(
-        3,
-        ScreenManager::CenterMode::ONE_DIGIT
-    );
-
-
-    // ========================================================
-    // INITIAL TOP BARS
-    // ========================================================
-
-    _screens.setTopText(0, "");
-    _screens.setTopText(1, "");
-    _screens.setTopText(2, "");
-    _screens.setTopText(3, "");
-
-
-    // ========================================================
-    // INITIAL DATA
-    // ========================================================
-
-    updateScreens();
-
-
     _initialized = true;
+
+    Logger::info(
+        "DISPLAY",
+        "DisplaySystem ready"
+    );
 
     return true;
 }
@@ -110,56 +103,26 @@ void DisplaySystem::update()
     if (!_initialized)
         return;
 
-    // Обновляем данные UI.
+    // --------------------------------------------------------
+    // Обновление данных экранов
+    // --------------------------------------------------------
+
     _screens.update();
 
-    // Обрабатываем LVGL.
+    // --------------------------------------------------------
+    // Обработка LVGL
+    // --------------------------------------------------------
+
     _lvgl.update();
 }
 
 // ============================================================
-// READY
+// IS READY
 // ============================================================
 
-void DisplaySystem::updateSensors()
+bool DisplaySystem::isReady() const
 {
-    // ========================================================
-    // TEMPERATURE
-    // ========================================================
-
-    String temperature =
-        _sensors.getTemperatureC();
-
-    _screens.setBottomText(
-        0,
-        temperature.c_str()
-    );
-
-
-    // ========================================================
-    // HUMIDITY
-    // ========================================================
-
-    String humidity =
-        _sensors.getHumidity();
-
-    _screens.setBottomText(
-        1,
-        humidity.c_str()
-    );
-
-
-    // ========================================================
-    // LIGHT
-    // ========================================================
-
-    String light =
-        _sensors.getLight();
-
-    _screens.setBottomText(
-        2,
-        light.c_str()
-    );
+    return _initialized;
 }
 
 // ============================================================
@@ -173,31 +136,17 @@ DisplaySystem::spi()
 }
 
 // ============================================================
-// DATE
+// LVGL
 // ============================================================
 
-LVGLManager& DisplaySystem::lvgl()
+LVGLManager&
+DisplaySystem::lvgl()
 {
-    char dateText[32];
-
-    snprintf(
-        dateText,
-        sizeof(dateText),
-        "%02u.%02u.%04u",
-        _clock.day(),
-        _clock.month(),
-        _clock.year()
-    );
-
-
-    _screens.setBottomText(
-        3,
-        dateText
-    );
+    return _lvgl;
 }
 
 // ============================================================
-// SCREENS ACCESS
+// SCREENS
 // ============================================================
 
 ScreenManager&
@@ -205,3 +154,4 @@ DisplaySystem::screens()
 {
     return _screens;
 }
+
