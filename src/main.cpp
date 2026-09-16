@@ -20,7 +20,7 @@
 #include "./core/DisplaySystem.h"
 #include "./managers/InputManager.h"
 
-InputManager inputManager;
+#include "./core/BluetoothSystem.h"
 
 
 Settings::Clock clockSettings;
@@ -42,7 +42,7 @@ DisplaySystem displaySystem(
 // ============================================================
 // SETUP
 // ============================================================
-
+BluetoothSystem bluetoothSystem( sensorManager, clockSystem );
 void setup()
 {
     // ========================================================
@@ -134,19 +134,23 @@ void setup()
         }
     }
 
-    Serial0.println(
-        "[MAIN] DisplaySystem OK"
-    );
-Serial0.println("[MAIN] Initializing InputManager...");
+    // ========================================================
+    // BLUETOOTH
+    // ========================================================
 
-if (!inputManager.begin())
-{
-    Serial0.println("[MAIN] InputManager ERROR");
-}
-else
-{
-    Serial0.println("[MAIN] InputManager OK");
-}
+    if (!bluetoothSystem.begin())
+    {
+        Serial.println(
+            "ERROR: Bluetooth initialization failed"
+        );
+
+        return;
+    }
+
+    Serial.println(
+        "Bluetooth OK"
+    );
+    
     // ========================================================
     // SYSTEM READY
     // ========================================================
@@ -187,47 +191,19 @@ void loop()
     // ========================================================
     // MINIMAL DELAY
     // ========================================================
-inputManager.update();
 
-Constants::Event event;
-
-while (
-    (event = inputManager.getEvent())
-    != Constants::Event::NONE
-)
-{
-    switch (event)
-    {
-        case Constants::Event::ROTATE_CW:
-            Serial0.println("[INPUT] ROTATE CW");
-            break;
-
-        case Constants::Event::ROTATE_CCW:
-            Serial0.println("[INPUT] ROTATE CCW");
-            break;
-
-        case Constants::Event::PRESS:
-            Serial0.println("[INPUT] PRESS");
-            break;
-
-        case Constants::Event::RELEASE:
-            Serial0.println("[INPUT] RELEASE");
-            break;
-
-        case Constants::Event::LONG_PRESS:
-            Serial0.println("[INPUT] LONG PRESS");
-            break;
-
-        case Constants::Event::DOUBLE_PRESS:
-            Serial0.println("[INPUT] DOUBLE PRESS");
-            break;
-
-        case Constants::Event::NONE:
-        default:
-            break;
-    }
-}
+    bluetoothSystem.update();
+    // --------------------------------------------------------
+    // Bluetooth
+    // --------------------------------------------------------
 
 
+    // --------------------------------------------------------
+    // Commands from phone
+    // --------------------------------------------------------
+
+    
     delay(1);
 }
+
+
