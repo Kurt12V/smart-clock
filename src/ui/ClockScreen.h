@@ -3,12 +3,6 @@
 #include <Arduino.h>
 #include <lvgl.h>
 
-#include "fonts/redring_clock_200.h"
-
-// ============================================================
-// CENTER MODE
-// ============================================================
-
 enum class CenterMode : uint8_t
 {
     ONE_DIGIT,
@@ -16,28 +10,31 @@ enum class CenterMode : uint8_t
     TEXT
 };
 
-
-// ============================================================
-// CLOCK SCREEN
-// ============================================================
-
 class ClockScreen
 {
 public:
 
     ClockScreen();
 
-    bool begin(lv_display_t* display);
+    bool begin(
+        lv_display_t* display
+    );
 
     // --------------------------------------------------------
-    // Center
+    // CENTER
     // --------------------------------------------------------
 
-    void setCenterMode(CenterMode mode);
+    void setCenterMode(
+        CenterMode mode
+    );
 
-    void setCenterText(const char* text);
+    void setCenterText(
+        const char* text
+    );
 
-    void setCenterText(uint8_t digit);
+    void setCenterText(
+        uint8_t digit
+    );
 
     void setCenterText(
         uint8_t topDigit,
@@ -45,18 +42,24 @@ public:
     );
 
     // --------------------------------------------------------
-    // Top / Bottom
+    // TOP / BOTTOM
     // --------------------------------------------------------
 
-    void setTopText(const char* text);
+    void setTopText(
+        const char* text
+    );
 
-    void setBottomText(const char* text);
+    void setBottomText(
+        const char* text
+    );
 
     // --------------------------------------------------------
-    // Visibility
+    // VISIBILITY
     // --------------------------------------------------------
 
-    void setVisible(bool visible);
+    void setVisible(
+        bool visible
+    );
 
     bool isVisible() const;
 
@@ -75,7 +78,7 @@ private:
     void updateBottom();
 
     // --------------------------------------------------------
-    // Helpers
+    // STRING
     // --------------------------------------------------------
 
     void copyText(
@@ -83,6 +86,8 @@ private:
         size_t destinationSize,
         const char* source
     );
+
+private:
 
     // --------------------------------------------------------
     // LVGL
@@ -93,24 +98,28 @@ private:
     lv_obj_t* _screen;
 
     // --------------------------------------------------------
-    // Bars
+    // TOP BAR
     // --------------------------------------------------------
 
     lv_obj_t* _topBar;
 
     lv_obj_t* _topLine;
 
+    lv_obj_t* _topLabel;
+
+    // --------------------------------------------------------
+    // BOTTOM BAR
+    // --------------------------------------------------------
+
     lv_obj_t* _bottomBar;
 
     lv_obj_t* _bottomLine;
 
-    // --------------------------------------------------------
-    // Labels
-    // --------------------------------------------------------
-
-    lv_obj_t* _topLabel;
-
     lv_obj_t* _bottomLabel;
+
+    // --------------------------------------------------------
+    // CENTER
+    // --------------------------------------------------------
 
     lv_obj_t* _centerLabel;
 
@@ -119,10 +128,14 @@ private:
     lv_obj_t* _centerBottomLabel;
 
     // --------------------------------------------------------
-    // State
+    // CENTER MODE
     // --------------------------------------------------------
 
     CenterMode _centerMode;
+
+    // --------------------------------------------------------
+    // TEXT
+    // --------------------------------------------------------
 
     char _topText[64];
 
@@ -133,6 +146,10 @@ private:
     char _centerTopText[8];
 
     char _centerBottomText[8];
+
+    // --------------------------------------------------------
+    // STATE
+    // --------------------------------------------------------
 
     bool _visible;
 

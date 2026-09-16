@@ -7,9 +7,50 @@
 // ============================================================
 
 static constexpr uint32_t COLOR_BACKGROUND = 0x000000;
-static constexpr uint32_t COLOR_BAR        = 0x0C0E12;
-static constexpr uint32_t COLOR_LINE       = 0x252830;
-static constexpr uint32_t COLOR_TEXT       = 0xFFFFFF;
+
+static constexpr uint32_t COLOR_BAR = 0x0C0E12;
+
+static constexpr uint32_t COLOR_LINE = 0x252830;
+
+static constexpr uint32_t COLOR_TEXT = 0xFFFFFF;
+
+
+// ============================================================
+// DISPLAY SIZE
+// ============================================================
+
+static constexpr int16_t SCREEN_WIDTH = 172;
+
+static constexpr int16_t SCREEN_HEIGHT = 320;
+
+
+// ============================================================
+// TOP BAR
+// ============================================================
+
+static constexpr int16_t TOP_BAR_HEIGHT = 38;
+
+static constexpr int16_t TOP_LINE_Y = 38;
+
+
+// ============================================================
+// CENTER
+// ============================================================
+
+static constexpr int16_t CENTER_Y = 39;
+
+static constexpr int16_t CENTER_HEIGHT = 228;
+
+
+// ============================================================
+// BOTTOM BAR
+// ============================================================
+
+static constexpr int16_t BOTTOM_LINE_Y = 267;
+
+static constexpr int16_t BOTTOM_BAR_Y = 268;
+
+static constexpr int16_t BOTTOM_BAR_HEIGHT = 52;
 
 
 // ============================================================
@@ -22,11 +63,10 @@ ClockScreen::ClockScreen()
 
       _topBar(nullptr),
       _topLine(nullptr),
+      _topLabel(nullptr),
 
       _bottomBar(nullptr),
       _bottomLine(nullptr),
-
-      _topLabel(nullptr),
       _bottomLabel(nullptr),
 
       _centerLabel(nullptr),
@@ -39,10 +79,13 @@ ClockScreen::ClockScreen()
       _initialized(false)
 {
     _topText[0] = '\0';
+
     _bottomText[0] = '\0';
 
     _centerText[0] = '\0';
+
     _centerTopText[0] = '\0';
+
     _centerBottomText[0] = '\0';
 }
 
@@ -51,7 +94,9 @@ ClockScreen::ClockScreen()
 // BEGIN
 // ============================================================
 
-bool ClockScreen::begin(lv_display_t* display)
+bool ClockScreen::begin(
+    lv_display_t* display
+)
 {
     if (display == nullptr)
         return false;
@@ -61,22 +106,22 @@ bool ClockScreen::begin(lv_display_t* display)
 
     _display = display;
 
-    // --------------------------------------------------------
-    // Получаем активный screen LVGL
-    // --------------------------------------------------------
-
-    _screen = lv_display_get_screen_active(_display);
+    _screen =
+        lv_display_get_screen_active(
+            _display
+        );
 
     if (_screen == nullptr)
         return false;
 
-    // --------------------------------------------------------
-    // Создание UI
-    // --------------------------------------------------------
-
     createUI();
 
     _initialized = true;
+
+    // Apply initial state
+    updateTop();
+    updateBottom();
+    updateCenter();
 
     return true;
 }
@@ -91,8 +136,9 @@ void ClockScreen::createUI()
     if (_screen == nullptr)
         return;
 
+
     // ========================================================
-    // ROOT
+    // ROOT SCREEN
     // ========================================================
 
     lv_obj_set_style_bg_color(
@@ -124,12 +170,13 @@ void ClockScreen::createUI()
     // TOP BAR
     // ========================================================
 
-    _topBar = lv_obj_create(_screen);
+    _topBar =
+        lv_obj_create(_screen);
 
     lv_obj_set_size(
         _topBar,
-        172,
-        38
+        SCREEN_WIDTH,
+        TOP_BAR_HEIGHT
     );
 
     lv_obj_set_pos(
@@ -151,6 +198,12 @@ void ClockScreen::createUI()
     );
 
     lv_obj_set_style_border_width(
+        _topBar,
+        0,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_radius(
         _topBar,
         0,
         LV_PART_MAIN
@@ -167,18 +220,19 @@ void ClockScreen::createUI()
     // TOP LINE
     // ========================================================
 
-    _topLine = lv_obj_create(_screen);
+    _topLine =
+        lv_obj_create(_screen);
 
     lv_obj_set_size(
         _topLine,
-        172,
+        SCREEN_WIDTH,
         1
     );
 
     lv_obj_set_pos(
         _topLine,
         0,
-        38
+        TOP_LINE_Y
     );
 
     lv_obj_set_style_bg_color(
@@ -199,23 +253,75 @@ void ClockScreen::createUI()
         LV_PART_MAIN
     );
 
+    lv_obj_set_style_pad_all(
+        _topLine,
+        0,
+        LV_PART_MAIN
+    );
+
+
+    // ========================================================
+    // TOP LABEL
+    // ========================================================
+
+    _topLabel =
+        lv_label_create(_topBar);
+
+    lv_obj_set_width(
+        _topLabel,
+        SCREEN_WIDTH
+    );
+
+    lv_obj_set_style_text_color(
+        _topLabel,
+        lv_color_hex(COLOR_TEXT),
+        LV_PART_MAIN
+    );
+
+    // Built-in LVGL font 28
+    lv_obj_set_style_text_font(
+        _topLabel,
+        &lv_font_montserrat_28,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_text_align(
+        _topLabel,
+        LV_TEXT_ALIGN_CENTER,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_pad_all(
+        _topLabel,
+        0,
+        LV_PART_MAIN
+    );
+
+    lv_obj_align(
+        _topLabel,
+        LV_ALIGN_CENTER,
+        0,
+        0
+    );
+
 
     // ========================================================
     // BOTTOM BAR
     // ========================================================
 
-    _bottomBar = lv_obj_create(_screen);
+    _bottomBar =
+        lv_obj_create(_screen);
 
     lv_obj_set_size(
         _bottomBar,
-        172,
-        52
+        SCREEN_WIDTH,
+        BOTTOM_BAR_HEIGHT
     );
 
     lv_obj_set_pos(
         _bottomBar,
         0,
-        268
+        BOTTOM_BAR_Y
     );
 
     lv_obj_set_style_bg_color(
@@ -236,6 +342,12 @@ void ClockScreen::createUI()
         LV_PART_MAIN
     );
 
+    lv_obj_set_style_radius(
+        _bottomBar,
+        0,
+        LV_PART_MAIN
+    );
+
     lv_obj_set_style_pad_all(
         _bottomBar,
         0,
@@ -247,18 +359,19 @@ void ClockScreen::createUI()
     // BOTTOM LINE
     // ========================================================
 
-    _bottomLine = lv_obj_create(_screen);
+    _bottomLine =
+        lv_obj_create(_screen);
 
     lv_obj_set_size(
         _bottomLine,
-        172,
+        SCREEN_WIDTH,
         1
     );
 
     lv_obj_set_pos(
         _bottomLine,
         0,
-        267
+        BOTTOM_LINE_Y
     );
 
     lv_obj_set_style_bg_color(
@@ -279,41 +392,10 @@ void ClockScreen::createUI()
         LV_PART_MAIN
     );
 
-
-    // ========================================================
-    // TOP LABEL
-    // ========================================================
-
-    _topLabel = lv_label_create(_topBar);
-
-    lv_obj_set_width(
-        _topLabel,
-        172
-    );
-
-    lv_obj_set_style_text_color(
-        _topLabel,
-        lv_color_hex(COLOR_TEXT),
-        LV_PART_MAIN
-    );
-
-    lv_obj_set_style_text_font(
-        _topLabel,
-        &redring_clock_200,
-        LV_PART_MAIN
-    );
-
-    lv_obj_set_style_text_align(
-        _topLabel,
-        LV_TEXT_ALIGN_CENTER,
-        LV_PART_MAIN
-    );
-
-    lv_obj_align(
-        _topLabel,
-        LV_ALIGN_CENTER,
+    lv_obj_set_style_pad_all(
+        _bottomLine,
         0,
-        0
+        LV_PART_MAIN
     );
 
 
@@ -321,11 +403,12 @@ void ClockScreen::createUI()
     // BOTTOM LABEL
     // ========================================================
 
-    _bottomLabel = lv_label_create(_bottomBar);
+    _bottomLabel =
+        lv_label_create(_bottomBar);
 
     lv_obj_set_width(
         _bottomLabel,
-        172
+        SCREEN_WIDTH
     );
 
     lv_obj_set_style_text_color(
@@ -334,15 +417,22 @@ void ClockScreen::createUI()
         LV_PART_MAIN
     );
 
+    // Built-in LVGL font 28
     lv_obj_set_style_text_font(
         _bottomLabel,
-        &redring_clock_200,
+        &lv_font_montserrat_28,
         LV_PART_MAIN
     );
 
     lv_obj_set_style_text_align(
         _bottomLabel,
         LV_TEXT_ALIGN_CENTER,
+        LV_PART_MAIN
+    );
+
+    lv_obj_set_style_pad_all(
+        _bottomLabel,
+        0,
         LV_PART_MAIN
     );
 
@@ -355,15 +445,16 @@ void ClockScreen::createUI()
 
 
     // ========================================================
-    // CENTER LABEL
+    // CENTER — SINGLE DIGIT / TEXT
     // ========================================================
 
-    _centerLabel = lv_label_create(_screen);
+    _centerLabel =
+        lv_label_create(_screen);
 
     lv_obj_set_size(
         _centerLabel,
-        172,
-        228
+        SCREEN_WIDTH,
+        CENTER_HEIGHT
     );
 
     lv_obj_set_style_text_color(
@@ -372,9 +463,10 @@ void ClockScreen::createUI()
         LV_PART_MAIN
     );
 
+    // Built-in LVGL font 28
     lv_obj_set_style_text_font(
         _centerLabel,
-        &redring_clock_200,
+        &lv_font_montserrat_28,
         LV_PART_MAIN
     );
 
@@ -390,23 +482,35 @@ void ClockScreen::createUI()
         LV_PART_MAIN
     );
 
+    /*
+     * The label occupies exactly the center area:
+     *
+     * Y = 39
+     * H = 228
+     *
+     * Therefore its center is:
+     *
+     * 39 + 228 / 2 = 153
+     */
+
     lv_obj_align(
         _centerLabel,
         LV_ALIGN_TOP_MID,
         0,
-        39
+        CENTER_Y
     );
 
 
     // ========================================================
-    // CENTER TOP LABEL
+    // CENTER TOP — TWO DIGITS
     // ========================================================
 
-    _centerTopLabel = lv_label_create(_screen);
+    _centerTopLabel =
+        lv_label_create(_screen);
 
     lv_obj_set_size(
         _centerTopLabel,
-        172,
+        SCREEN_WIDTH,
         114
     );
 
@@ -416,9 +520,10 @@ void ClockScreen::createUI()
         LV_PART_MAIN
     );
 
+    // Built-in LVGL font 28
     lv_obj_set_style_text_font(
         _centerTopLabel,
-        &redring_clock_200,
+        &lv_font_montserrat_28,
         LV_PART_MAIN
     );
 
@@ -434,23 +539,25 @@ void ClockScreen::createUI()
         LV_PART_MAIN
     );
 
+    // Top half of center
     lv_obj_align(
         _centerTopLabel,
         LV_ALIGN_TOP_MID,
         0,
-        39
+        CENTER_Y
     );
 
 
     // ========================================================
-    // CENTER BOTTOM LABEL
+    // CENTER BOTTOM — TWO DIGITS
     // ========================================================
 
-    _centerBottomLabel = lv_label_create(_screen);
+    _centerBottomLabel =
+        lv_label_create(_screen);
 
     lv_obj_set_size(
         _centerBottomLabel,
-        172,
+        SCREEN_WIDTH,
         114
     );
 
@@ -460,9 +567,10 @@ void ClockScreen::createUI()
         LV_PART_MAIN
     );
 
+    // Built-in LVGL font 28
     lv_obj_set_style_text_font(
         _centerBottomLabel,
-        &redring_clock_200,
+        &lv_font_montserrat_28,
         LV_PART_MAIN
     );
 
@@ -478,16 +586,17 @@ void ClockScreen::createUI()
         LV_PART_MAIN
     );
 
+    // Bottom half of center
     lv_obj_align(
         _centerBottomLabel,
         LV_ALIGN_TOP_MID,
         0,
-        153
+        CENTER_Y + 114
     );
 
 
     // ========================================================
-    // INITIAL VISIBILITY
+    // HIDE VERTICAL LABELS
     // ========================================================
 
     lv_obj_add_flag(
@@ -499,10 +608,6 @@ void ClockScreen::createUI()
         _centerBottomLabel,
         LV_OBJ_FLAG_HIDDEN
     );
-
-    updateTop();
-    updateBottom();
-    updateCenter();
 }
 
 
@@ -516,7 +621,10 @@ void ClockScreen::copyText(
     const char* source
 )
 {
-    if (destination == nullptr || destinationSize == 0)
+    if (destination == nullptr)
+        return;
+
+    if (destinationSize == 0)
         return;
 
     if (source == nullptr)
@@ -539,15 +647,14 @@ void ClockScreen::copyText(
 // CENTER MODE
 // ============================================================
 
-void ClockScreen::setCenterMode(CenterMode mode)
+void ClockScreen::setCenterMode(
+    CenterMode mode
+)
 {
-    if (!_initialized)
-    {
-        _centerMode = mode;
-        return;
-    }
-
     _centerMode = mode;
+
+    if (!_initialized)
+        return;
 
     updateCenter();
 }
@@ -557,7 +664,9 @@ void ClockScreen::setCenterMode(CenterMode mode)
 // CENTER TEXT
 // ============================================================
 
-void ClockScreen::setCenterText(const char* text)
+void ClockScreen::setCenterText(
+    const char* text
+)
 {
     copyText(
         _centerText,
@@ -565,7 +674,8 @@ void ClockScreen::setCenterText(const char* text)
         text
     );
 
-    _centerMode = CenterMode::TEXT;
+    _centerMode =
+        CenterMode::TEXT;
 
     updateCenter();
 }
@@ -575,7 +685,9 @@ void ClockScreen::setCenterText(const char* text)
 // CENTER ONE DIGIT
 // ============================================================
 
-void ClockScreen::setCenterText(uint8_t digit)
+void ClockScreen::setCenterText(
+    uint8_t digit
+)
 {
     if (digit > 9)
         digit = 0;
@@ -587,14 +699,15 @@ void ClockScreen::setCenterText(uint8_t digit)
         digit
     );
 
-    _centerMode = CenterMode::ONE_DIGIT;
+    _centerMode =
+        CenterMode::ONE_DIGIT;
 
     updateCenter();
 }
 
 
 // ============================================================
-// CENTER TWO DIGITS
+// CENTER TWO DIGITS VERTICAL
 // ============================================================
 
 void ClockScreen::setCenterText(
@@ -622,7 +735,8 @@ void ClockScreen::setCenterText(
         bottomDigit
     );
 
-    _centerMode = CenterMode::TWO_DIGITS_VERTICAL;
+    _centerMode =
+        CenterMode::TWO_DIGITS_VERTICAL;
 
     updateCenter();
 }
@@ -637,15 +751,18 @@ void ClockScreen::updateCenter()
     if (!_initialized)
         return;
 
-    if (_centerLabel == nullptr ||
-        _centerTopLabel == nullptr ||
-        _centerBottomLabel == nullptr)
-    {
+    if (_centerLabel == nullptr)
         return;
-    }
+
+    if (_centerTopLabel == nullptr)
+        return;
+
+    if (_centerBottomLabel == nullptr)
+        return;
+
 
     // --------------------------------------------------------
-    // Hide all center labels first
+    // Hide everything first
     // --------------------------------------------------------
 
     lv_obj_add_flag(
@@ -668,7 +785,8 @@ void ClockScreen::updateCenter()
     // ONE DIGIT
     // --------------------------------------------------------
 
-    if (_centerMode == CenterMode::ONE_DIGIT)
+    if (_centerMode ==
+        CenterMode::ONE_DIGIT)
     {
         lv_label_set_text(
             _centerLabel,
@@ -688,7 +806,8 @@ void ClockScreen::updateCenter()
     // TEXT
     // --------------------------------------------------------
 
-    if (_centerMode == CenterMode::TEXT)
+    if (_centerMode ==
+        CenterMode::TEXT)
     {
         lv_label_set_text(
             _centerLabel,
@@ -705,10 +824,11 @@ void ClockScreen::updateCenter()
 
 
     // --------------------------------------------------------
-    // TWO VERTICAL DIGITS
+    // TWO DIGITS VERTICAL
     // --------------------------------------------------------
 
-    if (_centerMode == CenterMode::TWO_DIGITS_VERTICAL)
+    if (_centerMode ==
+        CenterMode::TWO_DIGITS_VERTICAL)
     {
         lv_label_set_text(
             _centerTopLabel,
@@ -737,7 +857,9 @@ void ClockScreen::updateCenter()
 // TOP TEXT
 // ============================================================
 
-void ClockScreen::setTopText(const char* text)
+void ClockScreen::setTopText(
+    const char* text
+)
 {
     copyText(
         _topText,
@@ -772,7 +894,9 @@ void ClockScreen::updateTop()
 // BOTTOM TEXT
 // ============================================================
 
-void ClockScreen::setBottomText(const char* text)
+void ClockScreen::setBottomText(
+    const char* text
+)
 {
     copyText(
         _bottomText,
@@ -804,14 +928,19 @@ void ClockScreen::updateBottom()
 
 
 // ============================================================
-// VISIBLE
+// VISIBILITY
 // ============================================================
 
-void ClockScreen::setVisible(bool visible)
+void ClockScreen::setVisible(
+    bool visible
+)
 {
     _visible = visible;
 
-    if (!_initialized || _screen == nullptr)
+    if (!_initialized)
+        return;
+
+    if (_screen == nullptr)
         return;
 
     if (visible)
