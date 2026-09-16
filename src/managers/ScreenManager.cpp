@@ -120,7 +120,7 @@ bool ScreenManager::begin()
     // --------------------------------------------------------
 
     _screens[1].setCenterMode(
-        CenterMode::TWO_DIGITS_VERTICAL
+        CenterMode::ONE_DIGIT
     );
 
 
@@ -281,7 +281,6 @@ void ScreenManager::updateClock()
     // ========================================================
 
     _screens[1].setCenterText(
-        hourTens,
         hourOnes
     );
 

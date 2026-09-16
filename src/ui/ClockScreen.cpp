@@ -844,7 +844,7 @@ void ClockScreen::setCenterText(
     );
 
     _centerMode =
-        CenterMode::TWO_DIGITS_VERTICAL;
+        CenterMode::ONE_DIGIT;
 
     updateCenter();
 }
