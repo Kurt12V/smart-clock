@@ -13,10 +13,17 @@ namespace BluetoothCommands
     // SYSTEM
     // ========================================================
 
-    static constexpr const char* HELLO       = "hello";
-    static constexpr const char* PING        = "ping";
-    static constexpr const char* GET_INFO    = "get_info";
-    static constexpr const char* GET_STATUS  = "get_status";
+    static constexpr const char* HELLO =
+        "hello";
+
+    static constexpr const char* PING =
+        "ping";
+
+    static constexpr const char* GET_INFO =
+        "get_info";
+
+    static constexpr const char* GET_STATUS =
+        "get_status";
 
     // ========================================================
     // SUBSCRIPTIONS
@@ -147,6 +154,9 @@ namespace BluetoothCommands
     static constexpr const char* CLOCK_FORMAT =
         "clock_format";
 
+    // ========================================================
+    // HELPERS
+    // ========================================================
 
     bool has(
         const char* command
@@ -216,6 +226,10 @@ namespace BluetoothCommands
         const char* topic
     );
 }
+
+// ============================================================
+// COMMAND ROUTER
+// ============================================================
 
 bool BluetoothCommands_handle(
     const BluetoothProtocol::Request& request,

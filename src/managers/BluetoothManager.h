@@ -17,10 +17,17 @@ class BluetoothSubscriptionManager;
 class BluetoothServerCallbacks : public BLEServerCallbacks
 {
 public:
-    explicit BluetoothServerCallbacks(BluetoothManager& manager);
+    explicit BluetoothServerCallbacks(
+        BluetoothManager& manager
+    );
 
-    void onConnect(BLEServer* server) override;
-    void onDisconnect(BLEServer* server) override;
+    void onConnect(
+        BLEServer* server
+    ) override;
+
+    void onDisconnect(
+        BLEServer* server
+    ) override;
 
 private:
     BluetoothManager& _manager;
@@ -33,9 +40,13 @@ private:
 class BluetoothRxCallbacks : public BLECharacteristicCallbacks
 {
 public:
-    explicit BluetoothRxCallbacks(BluetoothManager& manager);
+    explicit BluetoothRxCallbacks(
+        BluetoothManager& manager
+    );
 
-    void onWrite(BLECharacteristic* characteristic) override;
+    void onWrite(
+        BLECharacteristic* characteristic
+    ) override;
 
 private:
     BluetoothManager& _manager;
@@ -61,9 +72,7 @@ public:
 
     // --------------------------------------------------------
     // RX
-    //
     // Android -> ESP32
-    //
     // WRITE / WRITE_NR
     // --------------------------------------------------------
 
@@ -72,9 +81,7 @@ public:
 
     // --------------------------------------------------------
     // TX
-    //
     // ESP32 -> Android
-    //
     // NOTIFY
     // --------------------------------------------------------
 
@@ -86,9 +93,11 @@ public:
     BluetoothManager();
 
     bool begin();
+
     void update();
 
     bool isReady() const;
+
     bool isConnected() const;
 
     // --------------------------------------------------------
@@ -106,8 +115,13 @@ public:
     // TX
     // --------------------------------------------------------
 
-    bool send(const String& data);
-    bool send(const char* data);
+    bool send(
+        const String& data
+    );
+
+    bool send(
+        const char* data
+    );
 
     // --------------------------------------------------------
     // RX
@@ -135,9 +149,14 @@ private:
 
     void startAdvertising();
 
+    void processCommand(
+        const String& message
+    );
+
 private:
 
     BLEServer* _server;
+
     BLEService* _service;
 
     // ESP32 -> Android
@@ -147,13 +166,16 @@ private:
     BLECharacteristic* _rxCharacteristic;
 
     BLEServerCallbacks* _serverCallbacks;
+
     BluetoothRxCallbacks* _rxCallbacks;
 
     BluetoothSubscriptionManager* _subscriptions;
 
     volatile bool _ready;
+
     volatile bool _connected;
 
     String _command;
+
     volatile bool _commandAvailable;
 };

@@ -2,6 +2,10 @@
 
 namespace
 {
+    // ========================================================
+    // RESULT
+    // ========================================================
+
     struct CommandResult
     {
         bool handled;
@@ -45,6 +49,24 @@ namespace
     }
 
     // ========================================================
+    // HELLO
+    // ========================================================
+
+    CommandResult handleHello()
+    {
+        return ok();
+    }
+
+    // ========================================================
+    // PING
+    // ========================================================
+
+    CommandResult handlePing()
+    {
+        return ok();
+    }
+
+    // ========================================================
     // SUBSCRIBE
     // ========================================================
 
@@ -64,7 +86,9 @@ namespace
             );
         }
 
-        if (!BluetoothCommands::isValidTopic(topic))
+        if (!BluetoothCommands::isValidTopic(
+            topic
+        ))
         {
             return fail(
                 "INVALID_TOPIC",
@@ -72,13 +96,23 @@ namespace
             );
         }
 
-        if (!subscriptions.subscribe(topic))
+        if (!subscriptions.subscribe(
+            topic
+        ))
         {
             return fail(
                 "SUBSCRIBE_FAILED",
                 "Unable to subscribe"
             );
         }
+
+        Serial0.print(
+            "[BLE] Subscribed: "
+        );
+
+        Serial0.println(
+            topic
+        );
 
         return ok();
     }
@@ -103,7 +137,9 @@ namespace
             );
         }
 
-        if (!BluetoothCommands::isValidTopic(topic))
+        if (!BluetoothCommands::isValidTopic(
+            topic
+        ))
         {
             return fail(
                 "INVALID_TOPIC",
@@ -111,32 +147,41 @@ namespace
             );
         }
 
-        subscriptions.unsubscribe(topic);
+        subscriptions.unsubscribe(
+            topic
+        );
+
+        Serial0.print(
+            "[BLE] Unsubscribed: "
+        );
+
+        Serial0.println(
+            topic
+        );
 
         return ok();
     }
 
     // ========================================================
-    // HELLO
+    // UNSUBSCRIBE ALL
     // ========================================================
 
-    CommandResult handleHello()
+    CommandResult handleUnsubscribeAll(
+        BluetoothSubscriptionManager& subscriptions
+    )
     {
-        return ok();
-    }
+        subscriptions.clear();
 
-    // ========================================================
-    // PING
-    // ========================================================
+        Serial0.println(
+            "[BLE] All subscriptions cleared"
+        );
 
-    CommandResult handlePing()
-    {
         return ok();
     }
 }
 
 // ============================================================
-// HELPERS
+// HAS COMMAND
 // ============================================================
 
 bool BluetoothCommands::has(
@@ -193,6 +238,10 @@ bool BluetoothCommands::has(
         strcmp(command, CLOCK_FORMAT) == 0;
 }
 
+// ============================================================
+// GET BOOL
+// ============================================================
+
 bool BluetoothCommands::getBool(
     JsonObjectConst data,
     const char* key,
@@ -201,6 +250,10 @@ bool BluetoothCommands::getBool(
 {
     return data[key] | defaultValue;
 }
+
+// ============================================================
+// GET INT
+// ============================================================
 
 int BluetoothCommands::getInt(
     JsonObjectConst data,
@@ -211,6 +264,10 @@ int BluetoothCommands::getInt(
     return data[key] | defaultValue;
 }
 
+// ============================================================
+// GET UINT
+// ============================================================
+
 uint32_t BluetoothCommands::getUInt(
     JsonObjectConst data,
     const char* key,
@@ -219,6 +276,10 @@ uint32_t BluetoothCommands::getUInt(
 {
     return data[key] | defaultValue;
 }
+
+// ============================================================
+// GET FLOAT
+// ============================================================
 
 float BluetoothCommands::getFloat(
     JsonObjectConst data,
@@ -229,6 +290,10 @@ float BluetoothCommands::getFloat(
     return data[key] | defaultValue;
 }
 
+// ============================================================
+// GET STRING
+// ============================================================
+
 String BluetoothCommands::getString(
     JsonObjectConst data,
     const char* key,
@@ -238,8 +303,14 @@ String BluetoothCommands::getString(
     const char* value =
         data[key] | defaultValue;
 
-    return String(value);
+    return String(
+        value
+    );
 }
+
+// ============================================================
+// RANGE
+// ============================================================
 
 bool BluetoothCommands::inRange(
     int value,
@@ -252,6 +323,10 @@ bool BluetoothCommands::inRange(
         value <= maxValue;
 }
 
+// ============================================================
+// VALID TIME
+// ============================================================
+
 bool BluetoothCommands::validTime(
     int hour,
     int minute,
@@ -263,6 +338,10 @@ bool BluetoothCommands::validTime(
         inRange(minute, 0, 59) &&
         inRange(second, 0, 59);
 }
+
+// ============================================================
+// VALID DATE
+// ============================================================
 
 bool BluetoothCommands::validDate(
     int year,
@@ -279,26 +358,54 @@ bool BluetoothCommands::validDate(
         day <= 31;
 }
 
+// ============================================================
+// VALID BRIGHTNESS
+// ============================================================
+
 bool BluetoothCommands::validBrightness(
     int value
 )
 {
-    return inRange(value, 0, 100);
+    return inRange(
+        value,
+        0,
+        100
+    );
 }
+
+// ============================================================
+// VALID VOLUME
+// ============================================================
 
 bool BluetoothCommands::validVolume(
     int value
 )
 {
-    return inRange(value, 0, 100);
+    return inRange(
+        value,
+        0,
+        100
+    );
 }
+
+// ============================================================
+// VALID COB
+// ============================================================
 
 bool BluetoothCommands::validCobId(
     int id
 )
 {
-    return inRange(id, 1, 4);
+    return inRange(
+        id,
+        1,
+        4
+    );
 }
+
+// ============================================================
+// VALID TOPIC
+// ============================================================
 
 bool BluetoothCommands::isValidTopic(
     const char* topic
@@ -308,14 +415,45 @@ bool BluetoothCommands::isValidTopic(
         return false;
 
     return
-        strcmp(topic, BluetoothTopics::SENSORS) == 0 ||
-        strcmp(topic, BluetoothTopics::CLOCK) == 0 ||
-        strcmp(topic, BluetoothTopics::ALARMS) == 0 ||
-        strcmp(topic, BluetoothTopics::LIGHT) == 0 ||
-        strcmp(topic, BluetoothTopics::SOUND) == 0 ||
-        strcmp(topic, BluetoothTopics::TIMER) == 0 ||
-        strcmp(topic, BluetoothTopics::STOPWATCH) == 0 ||
-        strcmp(topic, BluetoothTopics::SYSTEM) == 0;
+        strcmp(
+            topic,
+            BluetoothTopics::SENSORS
+        ) == 0 ||
+
+        strcmp(
+            topic,
+            BluetoothTopics::CLOCK
+        ) == 0 ||
+
+        strcmp(
+            topic,
+            BluetoothTopics::ALARMS
+        ) == 0 ||
+
+        strcmp(
+            topic,
+            BluetoothTopics::LIGHT
+        ) == 0 ||
+
+        strcmp(
+            topic,
+            BluetoothTopics::SOUND
+        ) == 0 ||
+
+        strcmp(
+            topic,
+            BluetoothTopics::TIMER
+        ) == 0 ||
+
+        strcmp(
+            topic,
+            BluetoothTopics::STOPWATCH
+        ) == 0 ||
+
+        strcmp(
+            topic,
+            BluetoothTopics::SYSTEM
+        ) == 0;
 }
 
 // ============================================================
@@ -340,28 +478,40 @@ bool BluetoothCommands_handle(
     CommandResult result =
         unknown();
 
-    // --------------------------------------------------------
-    // SYSTEM
-    // --------------------------------------------------------
+    // ========================================================
+    // HELLO
+    // ========================================================
 
-    if (strcmp(command, BluetoothCommands::HELLO) == 0)
+    if (strcmp(
+        command,
+        BluetoothCommands::HELLO
+    ) == 0)
     {
-        result = handleHello();
-    }
-    else if (
-        strcmp(command, BluetoothCommands::PING) == 0
-    )
-    {
-        result = handlePing();
+        result =
+            handleHello();
     }
 
-    // --------------------------------------------------------
-    // SUBSCRIPTIONS
-    // --------------------------------------------------------
+    // ========================================================
+    // PING
+    // ========================================================
 
-    else if (
-        strcmp(command, BluetoothCommands::SUBSCRIBE) == 0
-    )
+    else if (strcmp(
+        command,
+        BluetoothCommands::PING
+    ) == 0)
+    {
+        result =
+            handlePing();
+    }
+
+    // ========================================================
+    // SUBSCRIBE
+    // ========================================================
+
+    else if (strcmp(
+        command,
+        BluetoothCommands::SUBSCRIBE
+    ) == 0)
     {
         result =
             handleSubscribe(
@@ -369,9 +519,15 @@ bool BluetoothCommands_handle(
                 subscriptions
             );
     }
-    else if (
-        strcmp(command, BluetoothCommands::UNSUBSCRIBE) == 0
-    )
+
+    // ========================================================
+    // UNSUBSCRIBE
+    // ========================================================
+
+    else if (strcmp(
+        command,
+        BluetoothCommands::UNSUBSCRIBE
+    ) == 0)
     {
         result =
             handleUnsubscribe(
@@ -379,22 +535,29 @@ bool BluetoothCommands_handle(
                 subscriptions
             );
     }
-    else if (
-        strcmp(command, BluetoothCommands::UNSUBSCRIBE_ALL) == 0
-    )
-    {
-        subscriptions.clear();
 
-        result = ok();
+    // ========================================================
+    // UNSUBSCRIBE ALL
+    // ========================================================
+
+    else if (strcmp(
+        command,
+        BluetoothCommands::UNSUBSCRIBE_ALL
+    ) == 0)
+    {
+        result =
+            handleUnsubscribeAll(
+                subscriptions
+            );
     }
 
-    // --------------------------------------------------------
-    // NOT IMPLEMENTED YET
-    // --------------------------------------------------------
+    // ========================================================
+    // KNOWN BUT NOT IMPLEMENTED
+    // ========================================================
 
-    else if (
-        BluetoothCommands::has(command)
-    )
+    else if (BluetoothCommands::has(
+        command
+    ))
     {
         result =
             fail(
@@ -403,9 +566,9 @@ bool BluetoothCommands_handle(
             );
     }
 
-    // --------------------------------------------------------
+    // ========================================================
     // UNKNOWN
-    // --------------------------------------------------------
+    // ========================================================
 
     if (!result.handled)
     {
@@ -419,6 +582,10 @@ bool BluetoothCommands_handle(
         return false;
     }
 
+    // ========================================================
+    // ERROR
+    // ========================================================
+
     if (!result.success)
     {
         response =
@@ -431,8 +598,14 @@ bool BluetoothCommands_handle(
         return false;
     }
 
+    // ========================================================
+    // SUCCESS
+    // ========================================================
+
     response =
-        BluetoothProtocol::response(id);
+        BluetoothProtocol::response(
+            id
+        );
 
     return true;
 }

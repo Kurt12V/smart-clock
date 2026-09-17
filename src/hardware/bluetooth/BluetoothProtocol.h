@@ -6,14 +6,19 @@
 class BluetoothProtocol
 {
 public:
+
     static constexpr uint8_t VERSION = 1;
+
     static constexpr size_t JSON_SIZE = 1024;
 
     struct Request
     {
         uint8_t version = 0;
+
         uint32_t id = 0;
+
         String command;
+
         JsonObject data;
     };
 
@@ -23,7 +28,9 @@ public:
         Request& request
     );
 
-    static String response(uint32_t id);
+    static String response(
+        uint32_t id
+    );
 
     static String response(
         uint32_t id,
@@ -46,5 +53,6 @@ public:
     );
 
 private:
+
     BluetoothProtocol() = delete;
 };

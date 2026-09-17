@@ -4,9 +4,9 @@
 #include <ArduinoJson.h>
 
 #include "./managers/BluetoothManager.h"
-#include "BluetoothProtocol.h"
+#include "./BluetoothProtocol.h"
 #include "./managers/BluetoothSubscriptionManager.h"
-#include "BluetoothTopics.h"
+#include "./BluetoothTopics.h"
 
 #include "./managers/SensorsManager.h"
 #include "./core/ClockSystem.h"
@@ -14,6 +14,7 @@
 class BluetoothPublisher
 {
 public:
+
     static constexpr uint32_t SENSOR_INTERVAL_MS =
         1000;
 
@@ -22,6 +23,8 @@ public:
 
     static constexpr uint32_t SYSTEM_INTERVAL_MS =
         5000;
+
+public:
 
     BluetoothPublisher(
         BluetoothManager& bluetooth,
@@ -37,7 +40,9 @@ public:
     bool isReady() const;
 
     void publishSensors();
+
     void publishClock();
+
     void publishSystem();
 
     void publishAlarms(
@@ -61,6 +66,7 @@ public:
     );
 
 private:
+
     bool canPublish(
         const char* topic
     ) const;
@@ -71,16 +77,20 @@ private:
     );
 
 private:
+
     BluetoothManager& _bluetooth;
+
     BluetoothSubscriptionManager& _subscriptions;
 
     SensorManager& _sensors;
+
     ClockSystem& _clock;
 
     bool _initialized;
 
     uint32_t _lastSensorPublish;
+
     uint32_t _lastClockPublish;
+
     uint32_t _lastSystemPublish;
 };
-

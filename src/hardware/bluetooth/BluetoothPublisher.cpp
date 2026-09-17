@@ -1,5 +1,9 @@
 #include "BluetoothPublisher.h"
 
+// ============================================================
+// CONSTRUCTOR
+// ============================================================
+
 BluetoothPublisher::BluetoothPublisher(
     BluetoothManager& bluetooth,
     BluetoothSubscriptionManager& subscriptions,
@@ -17,61 +21,103 @@ BluetoothPublisher::BluetoothPublisher(
 {
 }
 
+// ============================================================
+// BEGIN
+// ============================================================
+
 bool BluetoothPublisher::begin()
 {
     if (_initialized)
+    {
         return true;
+    }
 
-    _lastSensorPublish = millis();
-    _lastClockPublish = millis();
-    _lastSystemPublish = millis();
+    uint32_t now =
+        millis();
 
-    _initialized = true;
+    _lastSensorPublish =
+        now;
+
+    _lastClockPublish =
+        now;
+
+    _lastSystemPublish =
+        now;
+
+    _initialized =
+        true;
 
     return true;
 }
 
+// ============================================================
+// UPDATE
+// ============================================================
+
 void BluetoothPublisher::update()
 {
     if (!_initialized)
+    {
         return;
+    }
 
     if (!_bluetooth.isConnected())
+    {
         return;
+    }
 
-    const uint32_t now =
+    uint32_t now =
         millis();
+
+    // --------------------------------------------------------
+    // SENSORS
+    // --------------------------------------------------------
 
     if (
         now - _lastSensorPublish >=
         SENSOR_INTERVAL_MS
     )
     {
-        _lastSensorPublish = now;
+        _lastSensorPublish =
+            now;
 
         publishSensors();
     }
+
+    // --------------------------------------------------------
+    // CLOCK
+    // --------------------------------------------------------
 
     if (
         now - _lastClockPublish >=
         CLOCK_INTERVAL_MS
     )
     {
-        _lastClockPublish = now;
+        _lastClockPublish =
+            now;
 
         publishClock();
     }
+
+    // --------------------------------------------------------
+    // SYSTEM
+    // --------------------------------------------------------
 
     if (
         now - _lastSystemPublish >=
         SYSTEM_INTERVAL_MS
     )
     {
-        _lastSystemPublish = now;
+        _lastSystemPublish =
+            now;
 
         publishSystem();
     }
 }
+
+// ============================================================
+// READY
+// ============================================================
 
 bool BluetoothPublisher::isReady() const
 {
@@ -79,7 +125,7 @@ bool BluetoothPublisher::isReady() const
 }
 
 // ============================================================
-// CHECK
+// CAN PUBLISH
 // ============================================================
 
 bool BluetoothPublisher::canPublish(
@@ -87,19 +133,27 @@ bool BluetoothPublisher::canPublish(
 ) const
 {
     if (!_initialized)
+    {
         return false;
+    }
 
     if (!_bluetooth.isConnected())
+    {
         return false;
+    }
 
-    if (!_subscriptions.isSubscribed(topic))
+    if (!_subscriptions.isSubscribed(
+        topic
+    ))
+    {
         return false;
+    }
 
     return true;
 }
 
 // ============================================================
-// SEND
+// SEND PUBLISH
 // ============================================================
 
 bool BluetoothPublisher::sendPublish(
@@ -108,7 +162,9 @@ bool BluetoothPublisher::sendPublish(
 )
 {
     if (!canPublish(topic))
+    {
         return false;
+    }
 
     String message =
         BluetoothProtocol::publish(
@@ -116,7 +172,9 @@ bool BluetoothPublisher::sendPublish(
             data
         );
 
-    return _bluetooth.send(message);
+    return _bluetooth.send(
+        message
+    );
 }
 
 // ============================================================
@@ -137,32 +195,79 @@ void BluetoothPublisher::publishSensors()
     JsonObject data =
         document.to<JsonObject>();
 
+    // --------------------------------------------------------
+    // TEMPERATURE
+    // --------------------------------------------------------
+
     String temperature =
         _sensors.getTemperatureC();
+
+    if (temperature == "--")
+    {
+        data["temperature"] =
+            nullptr;
+    }
+    else
+    {
+        data["temperature"] =
+            temperature.toFloat();
+    }
+
+    // --------------------------------------------------------
+    // HUMIDITY
+    // --------------------------------------------------------
 
     String humidity =
         _sensors.getHumidity();
 
+    if (humidity == "--")
+    {
+        data["humidity"] =
+            nullptr;
+    }
+    else
+    {
+        data["humidity"] =
+            humidity.toFloat();
+    }
+
+    // --------------------------------------------------------
+    // LIGHT
+    // --------------------------------------------------------
+
     String light =
         _sensors.getLight();
 
-    if (temperature == "--")
-        data["temperature"] = nullptr;
-    else
-        data["temperature"] =
-            temperature.toFloat();
-
-    if (humidity == "--")
-        data["humidity"] = nullptr;
-    else
-        data["humidity"] =
-            humidity.toFloat();
-
     if (light == "--")
-        data["light"] = nullptr;
+    {
+        data["light"] =
+            nullptr;
+    }
     else
+    {
         data["light"] =
             light.toFloat();
+    }
+
+    // --------------------------------------------------------
+    // DISTANCE
+    // --------------------------------------------------------
+
+    // Если в твоём SensorManager уже есть getDistance(),
+    // раскомментируй этот блок.
+    //
+    // String distance =
+    //     _sensors.getDistance();
+    //
+    // if (distance == "--")
+    // {
+    //     data["distance"] = nullptr;
+    // }
+    // else
+    // {
+    //     data["distance"] =
+    //         distance.toFloat();
+    // }
 
     sendPublish(
         BluetoothTopics::SENSORS,
@@ -254,7 +359,7 @@ void BluetoothPublisher::publishSystem()
 }
 
 // ============================================================
-// EVENT TOPICS
+// ALARMS
 // ============================================================
 
 void BluetoothPublisher::publishAlarms(
@@ -267,6 +372,10 @@ void BluetoothPublisher::publishAlarms(
     );
 }
 
+// ============================================================
+// LIGHT
+// ============================================================
+
 void BluetoothPublisher::publishLight(
     JsonObjectConst data
 )
@@ -276,6 +385,10 @@ void BluetoothPublisher::publishLight(
         data
     );
 }
+
+// ============================================================
+// SOUND
+// ============================================================
 
 void BluetoothPublisher::publishSound(
     JsonObjectConst data
@@ -287,6 +400,10 @@ void BluetoothPublisher::publishSound(
     );
 }
 
+// ============================================================
+// TIMER
+// ============================================================
+
 void BluetoothPublisher::publishTimer(
     JsonObjectConst data
 )
@@ -296,6 +413,10 @@ void BluetoothPublisher::publishTimer(
         data
     );
 }
+
+// ============================================================
+// STOPWATCH
+// ============================================================
 
 void BluetoothPublisher::publishStopwatch(
     JsonObjectConst data

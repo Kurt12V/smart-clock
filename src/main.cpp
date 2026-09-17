@@ -1,171 +1,128 @@
 #include <Arduino.h>
 
-// ============================================================
-// CORE
-// ============================================================
-
 #include "Config.h"
 #include "Pins.h"
 #include "Constants.h"
 #include "Version.h"
 
-// ============================================================
-// SYSTEMS
-// ============================================================
-
-#include "Settings.h"
-
 #include "./core/ClockSystem.h"
 #include "./managers/SensorsManager.h"
-#include "./core/DisplaySystem.h"
-#include "./managers/InputManager.h"
 
-#include "./core/BluetoothSystem.h"
+#include "./managers/BluetoothManager.h"
+#include "./managers/BluetoothSubscriptionManager.h"
+#include "./hardware/bluetooth/BluetoothPublisher.h"
 
 
+// ============================================================
+// GLOBAL OBJECTS
+// ============================================================
 Settings::Clock clockSettings;
-
-ClockSystem clockSystem(
-    clockSettings
-);
-
-// ------------------------------------------------------------
-// Sensors
-// ------------------------------------------------------------
-
+ClockSystem clockSystem(clockSettings);
 SensorManager sensorManager;
-DisplaySystem displaySystem(
-    clockSystem,
-    sensorManager
+
+BluetoothManager bluetoothManager;
+BluetoothSubscriptionManager bluetoothSubscriptions;
+
+BluetoothPublisher bluetoothPublisher(
+    bluetoothManager,
+    bluetoothSubscriptions,
+    sensorManager,
+    clockSystem
 );
+
 
 // ============================================================
 // SETUP
 // ============================================================
-BluetoothSystem bluetoothSystem( sensorManager, clockSystem );
+
 void setup()
 {
-    // ========================================================
-    // SERIAL
-    // ========================================================
+    Serial.begin(115200);
 
-    Serial0.begin(115200);
+    delay(500);
 
-    delay(1000);
+    Serial.println();
+    Serial.println("================================");
+    Serial.println("      SMART CLOCK ESP32-S3");
+    Serial.println("================================");
 
-    Serial0.println();
-    Serial0.println(
-        "========================================"
-    );
-    Serial0.println(
-        "        ESP32-S3 SMART CLOCK"
-    );
-    Serial0.println(
-        "========================================"
-    );
-
-    // ========================================================
+    // --------------------------------------------------------
     // CLOCK
-    // ========================================================
+    // --------------------------------------------------------
 
-    Serial0.println(
-        "[MAIN] Initializing ClockSystem..."
-    );
+    Serial.println("[INIT] ClockSystem...");
 
     if (!clockSystem.begin())
     {
-        Serial0.println(
-            "[MAIN] ClockSystem ERROR"
-        );
+        Serial.println("[INIT] ClockSystem FAILED");
     }
     else
     {
-        Serial0.println(
-            "[MAIN] ClockSystem OK"
-        );
+        Serial.println("[INIT] ClockSystem OK");
     }
 
-    // ========================================================
-    // SENSORS
-    // ========================================================
 
-    Serial0.println(
-        "[MAIN] Initializing SensorManager..."
-    );
+    // --------------------------------------------------------
+    // SENSORS
+    // --------------------------------------------------------
+
+    Serial.println("[INIT] SensorManager...");
 
     if (!sensorManager.begin())
     {
-        Serial0.println(
-            "[MAIN] SensorManager ERROR"
-        );
+        Serial.println("[INIT] SensorManager FAILED");
     }
     else
     {
-        Serial0.println(
-            "[MAIN] SensorManager OK"
-        );
+        Serial.println("[INIT] SensorManager OK");
     }
 
-    // ========================================================
-    // DISPLAY
-    // ========================================================
 
-    Serial0.println(
-        "[MAIN] Initializing DisplaySystem..."
-    );
-
- 
-
-    if (!displaySystem.begin())
-    {
-        Serial0.println(
-            "[MAIN] DisplaySystem ERROR"
-        );
-
-
-
-        while (true)
-        {
-            delay(1000);
-
-            Serial0.println(
-                "[MAIN] DisplaySystem is not available"
-            );
-        }
-    }
-
-    // ========================================================
+    // --------------------------------------------------------
     // BLUETOOTH
-    // ========================================================
+    // --------------------------------------------------------
 
-    if (!bluetoothSystem.begin())
+    Serial.println("[INIT] BluetoothManager...");
+
+    if (!bluetoothManager.begin())
     {
-        Serial.println(
-            "ERROR: Bluetooth initialization failed"
-        );
-
-        return;
+        Serial.println("[INIT] BluetoothManager FAILED");
+    }
+    else
+    {
+        Serial.println("[INIT] BluetoothManager OK");
     }
 
-    Serial.println(
-        "Bluetooth OK"
-    );
-    
-    // ========================================================
-    // SYSTEM READY
-    // ========================================================
 
-    Serial0.println();
-    Serial0.println(
-        "========================================"
-    );
-    Serial0.println(
-        "          SYSTEM READY"
-    );
-    Serial0.println(
-        "========================================"
-    );
+    // --------------------------------------------------------
+    // BLUETOOTH PUBLISHER
+    // --------------------------------------------------------
+
+    Serial.println("[INIT] BluetoothPublisher...");
+
+    if (!bluetoothPublisher.begin())
+    {
+        Serial.println("[INIT] BluetoothPublisher FAILED");
+    }
+    else
+    {
+        Serial.println("[INIT] BluetoothPublisher OK");
+    }
+
+
+    // --------------------------------------------------------
+    // READY
+    // --------------------------------------------------------
+
+    Serial.println();
+    Serial.println("================================");
+    Serial.println("       SMART CLOCK READY");
+    Serial.println("================================");
+    Serial.println();
+
+    Serial.println("[SYSTEM] BLE waiting for connection...");
 }
+
 
 // ============================================================
 // LOOP
@@ -173,37 +130,61 @@ void setup()
 
 void loop()
 {
-    // ========================================================
+    // --------------------------------------------------------
     // CLOCK
-    // ========================================================
+    // --------------------------------------------------------
 
     clockSystem.update();
 
-    // ========================================================
+
+    // --------------------------------------------------------
     // SENSORS
-    // ========================================================
+    // --------------------------------------------------------
 
     sensorManager.update();
 
 
-    displaySystem.update();
-
-    // ========================================================
-    // MINIMAL DELAY
-    // ========================================================
-
-    bluetoothSystem.update();
     // --------------------------------------------------------
-    // Bluetooth
+    // BLUETOOTH COMMAND PROCESSING
     // --------------------------------------------------------
+    //
+    // Здесь обрабатываются команды:
+    //
+    // hello
+    // ping
+    // subscribe
+    // unsubscribe
+    // unsubscribe_all
+    // get_info
+    // get_status
+    // ...
+    //
+    // BluetoothManager получает JSON из BLE callback,
+    // а здесь уже разбирает и выполняет его.
+    // --------------------------------------------------------
+
+    bluetoothManager.update();
 
 
     // --------------------------------------------------------
-    // Commands from phone
+    // BLUETOOTH PUBLISHER
+    // --------------------------------------------------------
+    //
+    // Публикует:
+    //
+    // sensors -> раз в 1 сек
+    // clock   -> раз в 1 сек
+    // system  -> раз в 5 сек
+    //
+    // Только если Android подписан на соответствующий topic.
     // --------------------------------------------------------
 
-    
+    bluetoothPublisher.update();
+
+
+    // --------------------------------------------------------
+    // SMALL DELAY
+    // --------------------------------------------------------
+
     delay(1);
 }
-
-
