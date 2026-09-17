@@ -1,4 +1,3 @@
-
 #include "BluetoothManager.h"
 
 #include "BluetoothSubscriptionManager.h"
@@ -75,6 +74,8 @@ void BluetoothRxCallbacks::onWrite(
 
     String command;
 
+    command.reserve(value.length());
+
     for (size_t i = 0; i < value.length(); ++i)
     {
         command +=
@@ -122,62 +123,40 @@ bool BluetoothManager::begin()
     }
 
     Serial0.println();
-    Serial0.println(
-        "================================"
-    );
-    Serial0.println(
-        "[BLE] STARTING BLUETOOTH"
-    );
-    Serial0.println(
-        "================================"
-    );
+    Serial0.println("================================");
+    Serial0.println("[BLE] STARTING BLUETOOTH");
+    Serial0.println("================================");
 
     // --------------------------------------------------------
-    // DEVICE
+    // DEVICE INFORMATION
     // --------------------------------------------------------
 
-    Serial0.print(
-        "[BLE] Device name: "
-    );
+    Serial0.print("[BLE] Device name: ");
+    Serial0.println(DEVICE_NAME);
 
-    Serial0.println(
-        DEVICE_NAME
-    );
+    Serial0.print("[BLE] Service UUID: ");
+    Serial0.println(SERVICE_UUID);
 
-    Serial0.print(
-        "[BLE] Service UUID: "
-    );
+    Serial0.print("[BLE] RX UUID: ");
+    Serial0.println(RX_CHARACTERISTIC_UUID);
 
-    Serial0.println(
-        SERVICE_UUID
-    );
-
-    Serial0.print(
-        "[BLE] TX UUID: "
-    );
-
-    Serial0.println(
-        TX_CHARACTERISTIC_UUID
-    );
-
-    Serial0.print(
-        "[BLE] RX UUID: "
-    );
-
-    Serial0.println(
-        RX_CHARACTERISTIC_UUID
-    );
+    Serial0.print("[BLE] TX UUID: ");
+    Serial0.println(TX_CHARACTERISTIC_UUID);
 
     // --------------------------------------------------------
     // BLE INIT
     // --------------------------------------------------------
 
     Serial0.println(
-        "[BLE] BLEDevice::init()"
+        "[BLE] Initializing BLE..."
     );
 
     BLEDevice::init(
         DEVICE_NAME
+    );
+
+    Serial0.println(
+        "[BLE] BLE initialized"
     );
 
     // --------------------------------------------------------
@@ -194,7 +173,7 @@ bool BluetoothManager::begin()
     if (_server == nullptr)
     {
         Serial0.println(
-            "[BLE] ERROR: server creation failed"
+            "[BLE] ERROR: failed to create GATT server"
         );
 
         return false;
@@ -212,6 +191,15 @@ bool BluetoothManager::begin()
         new BluetoothServerCallbacks(
             *this
         );
+
+    if (_serverCallbacks == nullptr)
+    {
+        Serial0.println(
+            "[BLE] ERROR: failed to create server callbacks"
+        );
+
+        return false;
+    }
 
     _server->setCallbacks(
         _serverCallbacks
@@ -237,7 +225,7 @@ bool BluetoothManager::begin()
     if (_service == nullptr)
     {
         Serial0.println(
-            "[BLE] ERROR: service creation failed"
+            "[BLE] ERROR: failed to create service"
         );
 
         return false;
@@ -248,43 +236,14 @@ bool BluetoothManager::begin()
     );
 
     // ========================================================
-    // TX
-    // ========================================================
-
-    Serial0.println(
-        "[BLE] Creating TX characteristic..."
-    );
-
-    _txCharacteristic =
-        _service->createCharacteristic(
-            TX_CHARACTERISTIC_UUID,
-            BLECharacteristic::PROPERTY_READ |
-            BLECharacteristic::PROPERTY_NOTIFY
-        );
-
-    if (_txCharacteristic == nullptr)
-    {
-        Serial0.println(
-            "[BLE] ERROR: TX characteristic creation failed"
-        );
-
-        return false;
-    }
-
-    _txCharacteristic->addDescriptor(
-        new BLE2902()
-    );
-
-    _txCharacteristic->setValue(
-        "{\"v\":1,\"type\":\"hello\",\"device\":\"SmartClock\"}"
-    );
-
-    Serial0.println(
-        "[BLE] TX characteristic created"
-    );
-
-    // ========================================================
-    // RX
+    // RX CHARACTERISTIC
+    //
+    // Android -> ESP32
+    //
+    // UUID ...0002
+    //
+    // WRITE
+    // WRITE_NR
     // ========================================================
 
     Serial0.println(
@@ -294,6 +253,7 @@ bool BluetoothManager::begin()
     _rxCharacteristic =
         _service->createCharacteristic(
             RX_CHARACTERISTIC_UUID,
+
             BLECharacteristic::PROPERTY_WRITE |
             BLECharacteristic::PROPERTY_WRITE_NR
         );
@@ -301,16 +261,29 @@ bool BluetoothManager::begin()
     if (_rxCharacteristic == nullptr)
     {
         Serial0.println(
-            "[BLE] ERROR: RX characteristic creation failed"
+            "[BLE] ERROR: failed to create RX characteristic"
         );
 
         return false;
     }
 
+    // --------------------------------------------------------
+    // RX CALLBACK
+    // --------------------------------------------------------
+
     _rxCallbacks =
         new BluetoothRxCallbacks(
             *this
         );
+
+    if (_rxCallbacks == nullptr)
+    {
+        Serial0.println(
+            "[BLE] ERROR: failed to create RX callbacks"
+        );
+
+        return false;
+    }
 
     _rxCharacteristic->setCallbacks(
         _rxCallbacks
@@ -320,38 +293,167 @@ bool BluetoothManager::begin()
         "[BLE] RX characteristic created"
     );
 
+    Serial0.print(
+        "[BLE] RX UUID: "
+    );
+
+    Serial0.println(
+        RX_CHARACTERISTIC_UUID
+    );
+
+    Serial0.println(
+        "[BLE] RX properties:"
+    );
+
+    Serial0.println(
+        "       WRITE"
+    );
+
+    Serial0.println(
+        "       WRITE_NR"
+    );
+
+    // ========================================================
+    // TX CHARACTERISTIC
+    //
+    // ESP32 -> Android
+    //
+    // UUID ...0003
+    //
+    // NOTIFY
+    // ========================================================
+
+    Serial0.println(
+        "[BLE] Creating TX characteristic..."
+    );
+
+    _txCharacteristic =
+        _service->createCharacteristic(
+            TX_CHARACTERISTIC_UUID,
+
+            BLECharacteristic::PROPERTY_NOTIFY
+        );
+
+    if (_txCharacteristic == nullptr)
+    {
+        Serial0.println(
+            "[BLE] ERROR: failed to create TX characteristic"
+        );
+
+        return false;
+    }
+
+    Serial0.println(
+        "[BLE] TX characteristic created"
+    );
+
+    Serial0.print(
+        "[BLE] TX UUID: "
+    );
+
+    Serial0.println(
+        TX_CHARACTERISTIC_UUID
+    );
+
+    Serial0.println(
+        "[BLE] TX properties:"
+    );
+
+    Serial0.println(
+        "       NOTIFY"
+    );
+
     // --------------------------------------------------------
-    // SERVICE START
+    // CCCD
+    //
+    // Required by Android notifications
+    // UUID = 0x2902
     // --------------------------------------------------------
 
     Serial0.println(
-        "[BLE] Starting service..."
+        "[BLE] Adding TX CCCD descriptor..."
+    );
+
+    BLE2902* cccd =
+        new BLE2902();
+
+    if (cccd == nullptr)
+    {
+        Serial0.println(
+            "[BLE] ERROR: failed to allocate BLE2902"
+        );
+
+        return false;
+    }
+
+    _txCharacteristic->addDescriptor(
+        cccd
+    );
+
+    Serial0.println(
+        "[BLE] TX CCCD added"
+    );
+
+    Serial0.println(
+        "[BLE] TX notifications enabled"
+    );
+
+    // --------------------------------------------------------
+    // INITIAL TX VALUE
+    // --------------------------------------------------------
+
+    _txCharacteristic->setValue(
+        "{\"v\":1,\"type\":\"hello\",\"device\":\"SmartClock\"}"
+    );
+
+    Serial0.println(
+        "[BLE] Initial TX value configured"
+    );
+
+    // ========================================================
+    // START SERVICE
+    // ========================================================
+
+    Serial0.println(
+        "[BLE] Starting GATT service..."
     );
 
     _service->start();
 
     Serial0.println(
-        "[BLE] Service started"
+        "[BLE] GATT service started"
     );
 
-    // --------------------------------------------------------
+    // ========================================================
     // ADVERTISING
-    // --------------------------------------------------------
+    // ========================================================
 
     startAdvertising();
 
+    // --------------------------------------------------------
+    // READY
+    // --------------------------------------------------------
+
     _ready = true;
+    _connected = false;
 
     Serial0.println();
-    Serial0.println(
-        "================================"
-    );
-    Serial0.println(
-        "[BLE] BLUETOOTH READY"
-    );
-    Serial0.println(
-        "================================"
-    );
+    Serial0.println("================================");
+    Serial0.println("[BLE] BLUETOOTH READY");
+    Serial0.println("================================");
+
+    Serial0.print("[BLE] Device: ");
+    Serial0.println(DEVICE_NAME);
+
+    Serial0.print("[BLE] Service: ");
+    Serial0.println(SERVICE_UUID);
+
+    Serial0.print("[BLE] RX: ");
+    Serial0.println(RX_CHARACTERISTIC_UUID);
+
+    Serial0.print("[BLE] TX: ");
+    Serial0.println(TX_CHARACTERISTIC_UUID);
+
     Serial0.println();
 
     return true;
@@ -379,13 +481,25 @@ void BluetoothManager::startAdvertising()
         return;
     }
 
+    // --------------------------------------------------------
+    // SERVICE UUID
+    // --------------------------------------------------------
+
     advertising->addServiceUUID(
         SERVICE_UUID
     );
 
+    // --------------------------------------------------------
+    // SCAN RESPONSE
+    // --------------------------------------------------------
+
     advertising->setScanResponse(
         true
     );
+
+    // --------------------------------------------------------
+    // CONNECTION PARAMETERS
+    // --------------------------------------------------------
 
     advertising->setMinPreferred(
         0x06
@@ -395,6 +509,10 @@ void BluetoothManager::startAdvertising()
         0x12
     );
 
+    // --------------------------------------------------------
+    // START
+    // --------------------------------------------------------
+
     BLEDevice::startAdvertising();
 
     Serial0.println(
@@ -402,11 +520,19 @@ void BluetoothManager::startAdvertising()
     );
 
     Serial0.print(
-        "[BLE] Device: "
+        "[BLE] Device name: "
     );
 
     Serial0.println(
         DEVICE_NAME
+    );
+
+    Serial0.print(
+        "[BLE] Advertising service: "
+    );
+
+    Serial0.println(
+        SERVICE_UUID
     );
 }
 
@@ -417,7 +543,11 @@ void BluetoothManager::startAdvertising()
 void BluetoothManager::update()
 {
     if (!_ready)
+    {
         return;
+    }
+
+    // Reserved for future BLE processing.
 }
 
 // ============================================================
@@ -449,11 +579,15 @@ void BluetoothManager::setSubscriptionManager(
 
     if (_subscriptions != nullptr)
     {
-        Serial0.println("attached");
+        Serial0.println(
+            "attached"
+        );
     }
     else
     {
-        Serial0.println("null");
+        Serial0.println(
+            "null"
+        );
     }
 }
 
@@ -474,6 +608,10 @@ void BluetoothManager::handleConnect()
     Serial0.println(
         "[BLE] Connection state = CONNECTED"
     );
+
+    Serial0.println(
+        "[BLE] Waiting for Android to enable TX notifications..."
+    );
 }
 
 // ============================================================
@@ -484,10 +622,17 @@ void BluetoothManager::handleDisconnect()
 {
     _connected = false;
 
+    // --------------------------------------------------------
+    // CLEAR RX COMMAND
+    // --------------------------------------------------------
+
     _command = "";
     _commandAvailable = false;
 
-    // Сбрасываем подписки при отключении.
+    // --------------------------------------------------------
+    // CLEAR SUBSCRIPTIONS
+    // --------------------------------------------------------
+
     if (_subscriptions != nullptr)
     {
         _subscriptions->clear();
@@ -500,6 +645,10 @@ void BluetoothManager::handleDisconnect()
     Serial0.println(
         "[BLE] Connection state = DISCONNECTED"
     );
+
+    // --------------------------------------------------------
+    // RESTART ADVERTISING
+    // --------------------------------------------------------
 
     delay(100);
 
@@ -514,7 +663,9 @@ void BluetoothManager::handleReceive(
     const String& data)
 {
     if (data.length() == 0)
+    {
         return;
+    }
 
     _command = data;
     _commandAvailable = true;
@@ -537,30 +688,38 @@ bool BluetoothManager::hasCommand() const
     return _commandAvailable;
 }
 
+// ============================================================
+// GET COMMAND
+// ============================================================
+
 String BluetoothManager::getCommand()
 {
     if (!_commandAvailable)
+    {
         return String();
+    }
 
     String result =
         _command;
 
     _command = "";
-
     _commandAvailable = false;
 
     return result;
 }
 
+// ============================================================
+// CLEAR COMMAND
+// ============================================================
+
 void BluetoothManager::clearCommand()
 {
     _command = "";
-
     _commandAvailable = false;
 }
 
 // ============================================================
-// SEND
+// SEND STRING
 // ============================================================
 
 bool BluetoothManager::send(
@@ -572,12 +731,16 @@ bool BluetoothManager::send(
 }
 
 // ============================================================
-// SEND
+// SEND C-STRING
 // ============================================================
 
 bool BluetoothManager::send(
     const char* data)
 {
+    // --------------------------------------------------------
+    // CHECK READY
+    // --------------------------------------------------------
+
     if (!_ready)
     {
         Serial0.println(
@@ -586,6 +749,10 @@ bool BluetoothManager::send(
 
         return false;
     }
+
+    // --------------------------------------------------------
+    // CHECK CONNECTION
+    // --------------------------------------------------------
 
     if (!_connected)
     {
@@ -596,6 +763,10 @@ bool BluetoothManager::send(
         return false;
     }
 
+    // --------------------------------------------------------
+    // CHECK CHARACTERISTIC
+    // --------------------------------------------------------
+
     if (_txCharacteristic == nullptr)
     {
         Serial0.println(
@@ -604,6 +775,10 @@ bool BluetoothManager::send(
 
         return false;
     }
+
+    // --------------------------------------------------------
+    // CHECK DATA
+    // --------------------------------------------------------
 
     if (data == nullptr)
     {
@@ -614,6 +789,26 @@ bool BluetoothManager::send(
         return false;
     }
 
+    // --------------------------------------------------------
+    // CHECK LENGTH
+    // --------------------------------------------------------
+
+    size_t length =
+        strlen(data);
+
+    if (length == 0)
+    {
+        Serial0.println(
+            "[BLE TX] ERROR: empty data"
+        );
+
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // LOG
+    // --------------------------------------------------------
+
     Serial0.print(
         "[BLE TX] "
     );
@@ -622,12 +817,23 @@ bool BluetoothManager::send(
         data
     );
 
+    // --------------------------------------------------------
+    // SET VALUE
+    // --------------------------------------------------------
+
     _txCharacteristic->setValue(
         data
     );
 
+    // --------------------------------------------------------
+    // NOTIFY
+    // --------------------------------------------------------
+
     _txCharacteristic->notify();
+
+    Serial0.println(
+        "[BLE TX] Notification sent"
+    );
 
     return true;
 }
-

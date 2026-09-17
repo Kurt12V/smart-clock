@@ -52,13 +52,33 @@ public:
     static constexpr const char* DEVICE_NAME =
         "SmartClock";
 
+    // --------------------------------------------------------
+    // SERVICE
+    // --------------------------------------------------------
+
     static constexpr const char* SERVICE_UUID =
         "7A1F0001-5C3A-4D8B-9E21-123456789001";
 
-    static constexpr const char* TX_CHARACTERISTIC_UUID =
-        "7A1F0002-5C3A-4D8B-9E21-123456789001";
+    // --------------------------------------------------------
+    // RX
+    //
+    // Android -> ESP32
+    //
+    // WRITE / WRITE_NR
+    // --------------------------------------------------------
 
     static constexpr const char* RX_CHARACTERISTIC_UUID =
+        "7A1F0002-5C3A-4D8B-9E21-123456789001";
+
+    // --------------------------------------------------------
+    // TX
+    //
+    // ESP32 -> Android
+    //
+    // NOTIFY
+    // --------------------------------------------------------
+
+    static constexpr const char* TX_CHARACTERISTIC_UUID =
         "7A1F0003-5C3A-4D8B-9E21-123456789001";
 
 public:
@@ -94,6 +114,7 @@ public:
     // --------------------------------------------------------
 
     bool hasCommand() const;
+
     String getCommand();
 
     void clearCommand();
@@ -103,6 +124,7 @@ public:
     // --------------------------------------------------------
 
     void handleConnect();
+
     void handleDisconnect();
 
     void handleReceive(
@@ -118,10 +140,13 @@ private:
     BLEServer* _server;
     BLEService* _service;
 
+    // ESP32 -> Android
     BLECharacteristic* _txCharacteristic;
+
+    // Android -> ESP32
     BLECharacteristic* _rxCharacteristic;
 
-    BluetoothServerCallbacks* _serverCallbacks;
+    BLEServerCallbacks* _serverCallbacks;
     BluetoothRxCallbacks* _rxCallbacks;
 
     BluetoothSubscriptionManager* _subscriptions;
