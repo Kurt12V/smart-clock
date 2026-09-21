@@ -1,162 +1,113 @@
 
 #include <Arduino.h>
 
-#include "Pins.h"
-#include "./hardware/light/CobLed.h"
-#include "./managers/CobLedManager.h"
-
-// ============================================================
-// COB
-// ============================================================
-
-CobLed cob1(PIN_PWM_LD1, 0, 1000, 8);
-CobLed cob2(PIN_PWM_LD2, 1, 1000, 8);
-CobLed cob3(PIN_PWM_LD3, 2, 1000, 8);
-CobLed cob4(PIN_PWM_LD4, 3, 1000, 8);
-
-CobLedManager cobManager(
-    cob1,
-    cob2,
-    cob3,
-    cob4
-);
-
-// ============================================================
-// НАСТРОЙКИ
-// ============================================================
-
-constexpr uint32_t STEP_TIME = 10;
-
-// Текущий COB
-uint8_t currentCob = 1;
-
-// Текущая яркость
-int brightness = 0;
-
-// Направление
-bool increasing = true;
-
-// ============================================================
-// Установка яркости всех COB
-// ============================================================
-
-void setAllOff()
-{
-    cobManager.setBrightness(1, 0);
-    cobManager.setBrightness(2, 0);
-    cobManager.setBrightness(3, 0);
-    cobManager.setBrightness(4, 0);
-
-    cobManager.off();
-}
-
-// ============================================================
-// SETUP
-// ============================================================
+#define COB1 18
+#define COB2 46
+#define COB3 40
+#define COB4 41
 
 void setup()
 {
-    Serial0.begin(115200);
+    Serial.begin(115200);
 
-    delay(500);
+    delay(1000);
 
-    Serial0.println();
-    Serial0.println("==============================");
-    Serial0.println("4 COB FADE TEST");
-    Serial0.println("==============================");
+    pinMode(COB1, OUTPUT);
+    pinMode(COB2, OUTPUT);
+    pinMode(COB3, OUTPUT);
+    pinMode(COB4, OUTPUT);
 
-    cobManager.begin();
+    // Сначала LOW
+    digitalWrite(COB1, LOW);
+    digitalWrite(COB2, LOW);
+    digitalWrite(COB3, LOW);
+    digitalWrite(COB4, LOW);
 
-    // Сначала всё выключено
-    cobManager.off();
-
-    cobManager.setBrightness(1, 0);
-    cobManager.setBrightness(2, 0);
-    cobManager.setBrightness(3, 0);
-    cobManager.setBrightness(4, 0);
-
-    delay(500);
-
-    // Включаем состояние ON,
-    // но яркость пока 0
-    cobManager.on();
-
-    Serial0.println("START");
+    Serial.println("================================");
+    Serial.println("LD1500SB GPIO TEST");
+    Serial.println("================================");
 }
-
-// ============================================================
-// LOOP
-// ============================================================
 
 void loop()
 {
-    static uint32_t lastUpdate = 0;
-
-    uint32_t now = millis();
-
-    if (now - lastUpdate < STEP_TIME)
-        return;
-
-    lastUpdate = now;
-
     // ========================================================
-    // ПЛАВНОЕ УВЕЛИЧЕНИЕ
+    // ВСЕ ВЫКЛ
     // ========================================================
 
-    if (increasing)
-    {
-        brightness++;
+    Serial.println("ALL LOW");
 
-        if (brightness >= 255)
-        {
-            brightness = 255;
-            increasing = false;
+    digitalWrite(COB1, LOW);
+    digitalWrite(COB2, LOW);
+    digitalWrite(COB3, LOW);
+    digitalWrite(COB4, LOW);
 
-            Serial0.print("COB ");
-            Serial0.print(currentCob);
-            Serial0.println(" FULL");
-        }
-    }
+    delay(3000);
+
 
     // ========================================================
-    // ПЛАВНОЕ УМЕНЬШЕНИЕ
+    // COB1
     // ========================================================
 
-    else
-    {
-        brightness--;
+    Serial.println("COB1 HIGH");
 
-        if (brightness <= 0)
-        {
-            brightness = 0;
-            increasing = true;
+    digitalWrite(COB1, HIGH);
 
-            Serial0.print("COB ");
-            Serial0.print(currentCob);
-            Serial0.println(" OFF");
+    delay(2000);
 
-            // Следующий COB
-            currentCob++;
+    Serial.println("COB1 LOW");
 
-            if (currentCob > 4)
-                currentCob = 1;
-        }
-    }
+    digitalWrite(COB1, LOW);
+
+    delay(1000);
+
 
     // ========================================================
-    // Устанавливаем яркость ТОЛЬКО текущего COB
+    // COB2
     // ========================================================
 
-    cobManager.setBrightness(
-        currentCob,
-        brightness
-    );
+    Serial.println("COB2 HIGH");
 
-    // Остальные обязательно выключены
-    for (uint8_t i = 1; i <= 4; i++)
-    {
-        if (i != currentCob)
-            cobManager.setBrightness(i, 0);
-    }
+    digitalWrite(COB2, HIGH);
+
+    delay(2000);
+
+    Serial.println("COB2 LOW");
+
+    digitalWrite(COB2, LOW);
+
+    delay(1000);
+
+
+    // ========================================================
+    // COB3
+    // ========================================================
+
+    Serial.println("COB3 HIGH");
+
+    digitalWrite(COB3, HIGH);
+
+    delay(2000);
+
+    Serial.println("COB3 LOW");
+
+    digitalWrite(COB3, LOW);
+
+    delay(1000);
+
+
+    // ========================================================
+    // COB4
+    // ========================================================
+
+    Serial.println("COB4 HIGH");
+
+    digitalWrite(COB4, HIGH);
+
+    delay(2000);
+
+    Serial.println("COB4 LOW");
+
+    digitalWrite(COB4, LOW);
+
+    delay(1000);
 }
-
