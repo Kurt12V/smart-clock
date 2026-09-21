@@ -17,10 +17,6 @@ public:
 
     static constexpr i2s_port_t I2S_PORT = I2S_NUM_0;
 
-    static constexpr int I2S_BCLK = 26;
-    static constexpr int I2S_LRC  = 25;
-    static constexpr int I2S_DOUT = 22;
-
     static constexpr uint32_t DEFAULT_SAMPLE_RATE = 44100;
 
     static constexpr uint16_t BITS_PER_SAMPLE = 16;
