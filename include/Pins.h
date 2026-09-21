@@ -64,7 +64,7 @@
 // ============================================================
 
 #define PIN_PWM_LD1 18 
-#define PIN_PWM_LD2 46
+#define PIN_PWM_LD2 46 
 #define PIN_PWM_LD3 40 
 #define PIN_PWM_LD4 41
 
