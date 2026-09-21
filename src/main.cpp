@@ -1,10 +1,10 @@
 #include <Arduino.h>
 
 // 4 канала: GPIO4..7 -> входы EN четырёх драйверов LD1500SB
-#define COB1 4
-#define COB2 5
-#define COB3 6
-#define COB4 7
+#define COB1 40
+#define COB2 41
+#define COB3 20
+#define COB4 21
 
 const uint8_t pins[4] = { COB1, COB2, COB3, COB4 };
 
