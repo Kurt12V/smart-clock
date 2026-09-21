@@ -3,30 +3,221 @@
 #include "Settings.h"
 
 #include "./managers/SPIManager.h"
+
 #include "./managers/SDManager.h"
+#include "./managers/MicrophoneManager.h"
 #include "./managers/SoundManager.h"
 
-// ============================================================
-// SETTINGS
-// ============================================================
+#include "./hardware/audio/Microphone.h"
+#include "./hardware/audio/AudioRecorder.h"
 
-Settings::Data settings;
 
 // ============================================================
 // HARDWARE
 // ============================================================
 
-SPIManager spiManager;
-SDManager sdManager;
+static constexpr uint8_t SD_CS_PIN = 35;
+
 
 // ============================================================
-// SOUND
+// RECORDING TEST
 // ============================================================
+
+static constexpr char RECORDING_PATH[] =
+    "/audio/recordings/test.wav";
+
+static constexpr uint32_t RECORDING_DURATION_MS =
+    5000;
+
+
+// ============================================================
+// GLOBAL OBJECTS
+// ============================================================
+
+Settings::Data settings;
+
+SPIManager spiManager;
+
+SDManager sdManager;
+
+Microphone microphone;
+
+AudioRecorder audioRecorder(
+    microphone,
+    sdManager.card().fs()
+);
+
+MicrophoneManager microphoneManager(
+    microphone,
+    audioRecorder
+);
 
 SoundManager soundManager(
     sdManager,
     settings.audio
 );
+
+
+// ============================================================
+// TEST STATE
+// ============================================================
+
+bool recordingFinished = false;
+
+uint32_t recordingStartTime = 0;
+
+
+// ============================================================
+// FINISH RECORDING
+// ============================================================
+
+void finishRecording()
+{
+    if (recordingFinished)
+        return;
+
+    recordingFinished = true;
+
+    Serial0.println();
+    Serial0.println("==============================");
+    Serial0.println(" FINISH RECORDING");
+    Serial0.println("==============================");
+
+
+    // --------------------------------------------------------
+    // STOP RECORDING
+    // --------------------------------------------------------
+
+    microphoneManager.stopRecording();
+
+
+    Serial0.print(
+        "[TEST] Recorded bytes: "
+    );
+
+    Serial0.println(
+        microphoneManager.getRecordedBytes()
+    );
+
+
+    Serial0.print(
+        "[TEST] Recorded samples: "
+    );
+
+    Serial0.println(
+        microphoneManager.getRecordedSamples()
+    );
+
+
+    Serial0.print(
+        "[TEST] Duration: "
+    );
+
+    Serial0.print(
+        microphoneManager.getRecordingDurationMs()
+    );
+
+    Serial0.println(" ms");
+
+
+    // --------------------------------------------------------
+    // STOP MICROPHONE
+    // --------------------------------------------------------
+
+    microphoneManager.stopListening();
+
+
+    // --------------------------------------------------------
+    // CHECK FILE
+    // --------------------------------------------------------
+
+    if (!sdManager.card().exists(RECORDING_PATH))
+    {
+        Serial0.println(
+            "[TEST] ERROR: WAV file does not exist"
+        );
+
+        return;
+    }
+
+
+    File file =
+        sdManager.card().fs().open(
+            RECORDING_PATH,
+            FILE_READ
+        );
+
+
+    if (!file)
+    {
+        Serial0.println(
+            "[TEST] ERROR: cannot open WAV file"
+        );
+
+        return;
+    }
+
+
+    Serial0.print(
+        "[TEST] WAV file size: "
+    );
+
+    Serial0.println(
+        file.size()
+    );
+
+    file.close();
+
+
+    // --------------------------------------------------------
+    // START SOUND SYSTEM
+    // --------------------------------------------------------
+
+    Serial0.println();
+
+    Serial0.println(
+        "[TEST] Starting SoundManager..."
+    );
+
+
+    if (!soundManager.begin())
+    {
+        Serial0.println(
+            "[TEST] ERROR: SoundManager.begin() failed"
+        );
+
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // PLAY RECORDING
+    // --------------------------------------------------------
+
+    Serial0.println();
+
+    Serial0.println(
+        "[TEST] Playing recorded WAV..."
+    );
+
+
+    if (!soundManager.playWav(
+        RECORDING_PATH
+    ))
+    {
+        Serial0.println(
+            "[TEST] ERROR: failed to play WAV"
+        );
+
+        return;
+    }
+
+
+    Serial0.println(
+        "[TEST] PLAYBACK STARTED"
+    );
+}
+
 
 // ============================================================
 // SETUP
@@ -39,245 +230,106 @@ void setup()
     delay(1000);
 
     Serial0.println();
-    Serial0.println("================================");
-    Serial0.println(" SmartClock - Audio Test");
-    Serial0.println("================================");
+    Serial0.println("==============================");
+    Serial0.println(" SMART CLOCK AUDIO TEST");
+    Serial0.println("==============================");
 
-    // ========================================================
-    // AUDIO SETTINGS
-    // ========================================================
-
-    Serial0.println();
-    Serial0.println("Audio settings:");
-
-    Serial0.print("Enabled: ");
-    Serial0.println(
-        settings.audio.enabled
-            ? "YES"
-            : "NO"
-    );
-
-    Serial0.print("Global volume: ");
-    Serial0.print(
-        settings.audio.volume
-    );
-    Serial0.println("%");
-
-    Serial0.print("Sample rate: ");
-    Serial0.print(
-        settings.audio.sampleRate
-    );
-    Serial0.println(" kHz");
 
     // ========================================================
     // SPI
     // ========================================================
 
-    Serial0.println();
-    Serial0.println("[1] Starting SPI...");
-
-    if (!spiManager.begin())
-    {
-        Serial0.println(
-            "[ERROR] SPI initialization failed!"
-        );
-
-        return;
-    }
-
     Serial0.println(
-        "[OK] SPI initialized"
+        "[TEST] Starting SPI..."
     );
+
+    spiManager.begin();
+
 
     // ========================================================
     // SD
     // ========================================================
 
-    Serial0.println();
-    Serial0.println("[2] Starting SD...");
+    Serial0.println(
+        "[TEST] Starting SD..."
+    );
 
-    // SD CS = GPIO35
-    if (!sdManager.begin(35))
+    if (!sdManager.begin(SD_CS_PIN))
     {
         Serial0.println(
-            "[ERROR] SD initialization failed!"
+            "[TEST] ERROR: SD initialization failed"
         );
 
         return;
     }
 
+
     Serial0.println(
-        "[OK] SD initialized"
+        "[TEST] SD READY"
     );
 
+
     // ========================================================
-    // ALARM FILE
+    // MICROPHONE
     // ========================================================
 
-    const char* alarmPath =
-        "/audio/alarms/alarm_1.wav";
-
-    Serial0.println();
-    Serial0.print(
-        "[3] Checking alarm file: "
+    Serial0.println(
+        "[TEST] Starting microphone..."
     );
 
-    Serial0.println(alarmPath);
-
-    if (!sdManager.card().exists(alarmPath))
+    if (!microphoneManager.begin())
     {
         Serial0.println(
-            "[ERROR] Alarm file not found!"
-        );
-
-        Serial0.println();
-        Serial0.println(
-            "Expected path on SD:"
-        );
-
-        Serial0.println(
-            "/audio/alarms/alarm_1.wav"
+            "[TEST] ERROR: microphone initialization failed"
         );
 
         return;
     }
 
+
     Serial0.println(
-        "[OK] Alarm file found"
+        "[TEST] MICROPHONE READY"
     );
 
+
     // ========================================================
-    // SOUND MANAGER
+    // LISTENING
     // ========================================================
 
-    Serial0.println();
-    Serial0.println(
-        "[4] Starting SoundManager..."
-    );
-
-    if (!soundManager.begin())
+    if (!microphoneManager.startListening())
     {
         Serial0.println(
-            "[ERROR] SoundManager initialization failed!"
+            "[TEST] ERROR: failed to start microphone"
         );
 
         return;
     }
 
-    Serial0.println(
-        "[OK] SoundManager initialized"
-    );
 
     // ========================================================
-    // SHOW VOLUME
+    // START RECORDING
     // ========================================================
 
-    Serial0.println();
-    Serial0.println(
-        "================================"
-    );
-
-    Serial0.print(
-        "Global volume: "
-    );
-
-    Serial0.print(
-        soundManager.getGlobalVolume()
-    );
-
-    Serial0.println("%");
-
-    Serial0.println(
-        "Alarm volume: 100% LOCAL"
-    );
-
-    Serial0.println(
-        "Global volume does NOT affect alarm."
-    );
-
-    Serial0.println(
-        "================================"
-    );
-
-    // ========================================================
-    // PLAY ALARM
-    // ========================================================
-    //
-    // Local volume = 100%
-    //
-    // Fade-in = 30 seconds
-    //
-    // Fade-out = 0
-    //
-    // Curve = Exponential
-    //
-    // Settings.audio.volume = 20%
-    // DOES NOT affect this alarm.
-    //
-    // ========================================================
-
-    Serial0.println();
-    Serial0.println(
-        "Starting alarm..."
-    );
-
-    bool result =
-        soundManager.playAlarm(
-            alarmPath,
-
-            100,    // local volume
-
-            30000,  // fade-in 30 sec
-
-            0,      // no fade-out
-
-            SoundManager::FadeCurve::Exponential
-        );
-
-    if (!result)
+    if (!microphoneManager.startRecording(
+        RECORDING_PATH
+    ))
     {
         Serial0.println(
-            "[ERROR] Failed to start alarm!"
+            "[TEST] ERROR: failed to start recording"
         );
 
         return;
     }
 
-    Serial0.println(
-        "[OK] Alarm started"
-    );
+
+    recordingStartTime = millis();
 
     Serial0.println();
     Serial0.println(
-        "Commands:"
+        "[TEST] RECORDING STARTED"
     );
-
-    Serial0.println(
-        "  p - pause"
-    );
-
-    Serial0.println(
-        "  r - resume"
-    );
-
-    Serial0.println(
-        "  s - stop"
-    );
-
-    Serial0.println(
-        "  f - fade-out 3 sec"
-    );
-
-    Serial0.println(
-        "  + - local volume +10%"
-    );
-
-    Serial0.println(
-        "  - - local volume -10%"
-    );
-
-    Serial0.println();
 }
+
 
 // ============================================================
 // LOOP
@@ -285,152 +337,68 @@ void setup()
 
 void loop()
 {
-    soundManager.update();
+    // --------------------------------------------------------
+    // MICROPHONE + RECORDER
+    // --------------------------------------------------------
 
-    // ========================================================
-    // SERIAL COMMANDS
-    // ========================================================
-
-    if (Serial0.available())
+    if (!recordingFinished)
     {
-        char command =
-            Serial0.read();
+        microphoneManager.update();
 
-        switch (command)
+
+        // ----------------------------------------------------
+        // DEBUG LEVEL
+        // ----------------------------------------------------
+
+        static uint32_t lastPrint = 0;
+
+        if (millis() - lastPrint >= 500)
         {
-            // ------------------------------------------------
-            // PAUSE
-            // ------------------------------------------------
+            lastPrint = millis();
 
-            case 'p':
-            case 'P':
-            {
-                Serial0.println(
-                    "[CMD] Pause"
-                );
+            Serial0.print(
+                "[MIC] RMS="
+            );
 
-                soundManager.pause();
+            Serial0.print(
+                microphoneManager.getRMS()
+            );
 
-                break;
-            }
+            Serial0.print(
+                " LEVEL="
+            );
 
-            // ------------------------------------------------
-            // RESUME
-            // ------------------------------------------------
+            Serial0.print(
+                microphoneManager.getLevel()
+            );
 
-            case 'r':
-            case 'R':
-            {
-                Serial0.println(
-                    "[CMD] Resume"
-                );
+            Serial0.print(
+                " PEAK="
+            );
 
-                soundManager.resume();
+            Serial0.println(
+                microphoneManager.getPeak()
+            );
+        }
 
-                break;
-            }
 
-            // ------------------------------------------------
-            // STOP
-            // ------------------------------------------------
+        // ----------------------------------------------------
+        // RECORDING TIME
+        // ----------------------------------------------------
 
-            case 's':
-            case 'S':
-            {
-                Serial0.println(
-                    "[CMD] Stop"
-                );
-
-                soundManager.stop();
-
-                break;
-            }
-
-            // ------------------------------------------------
-            // FADE OUT
-            // ------------------------------------------------
-
-            case 'f':
-            case 'F':
-            {
-                Serial0.println(
-                    "[CMD] Fade-out 3 sec"
-                );
-
-                soundManager.fadeOut(
-                    3000,
-                    SoundManager::FadeCurve::Exponential
-                );
-
-                break;
-            }
-
-            // ------------------------------------------------
-            // VOLUME +
-            // ------------------------------------------------
-
-            case '+':
-            {
-                uint8_t volume =
-                    soundManager.getLocalVolume();
-
-                if (volume <= 90)
-                    volume += 10;
-                else
-                    volume = 100;
-
-                soundManager.setLocalVolume(
-                    volume
-                );
-
-                Serial0.print(
-                    "[CMD] Local volume: "
-                );
-
-                Serial0.print(
-                    volume
-                );
-
-                Serial0.println("%");
-
-                break;
-            }
-
-            // ------------------------------------------------
-            // VOLUME -
-            // ------------------------------------------------
-
-            case '-':
-            {
-                uint8_t volume =
-                    soundManager.getLocalVolume();
-
-                if (volume >= 10)
-                    volume -= 10;
-                else
-                    volume = 0;
-
-                soundManager.setLocalVolume(
-                    volume
-                );
-
-                Serial0.print(
-                    "[CMD] Local volume: "
-                );
-
-                Serial0.print(
-                    volume
-                );
-
-                Serial0.println("%");
-
-                break;
-            }
-
-            default:
-                break;
+        if (
+            millis() - recordingStartTime
+            >= RECORDING_DURATION_MS
+        )
+        {
+            finishRecording();
         }
     }
 
-    delay(1);
+
+    // --------------------------------------------------------
+    // PLAYBACK
+    // --------------------------------------------------------
+
+    soundManager.update();
 }
