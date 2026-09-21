@@ -1,31 +1,44 @@
+
 #include "Microphone.h"
 
 #include <Arduino.h>
-#include <driver/i2s.h>
+#include <cmath>
+#include <cstring>
 
 #include "./managers/I2SManager.h"
 
+// ============================================================
+// CONFIG
+// ============================================================
+
+namespace
+{
+    constexpr uint32_t READ_TIMEOUT_MS = 100;
+
+    constexpr float MAX_LEVEL = 1.0f;
+}
 
 // ============================================================
 // CONSTRUCTOR
 // ============================================================
 
-Microphone::Microphone(
-    I2SManager& i2sManager
-)
-    : i2sManager(i2sManager),
+Microphone::Microphone(I2SManager& manager)
+    : i2sManager(manager),
       initialized(false),
-      enabled(true),
       listening(false),
-      audioChunkSize(0),
+      enabled(true),
       audioChunkId(0),
-      newAudio(false),
+      audioChunkSize(0),
       rms(0.0f),
       level(0.0f),
       peak(0)
 {
+    memset(
+        audioBuffer,
+        0,
+        sizeof(audioBuffer)
+    );
 }
-
 
 // ============================================================
 // BEGIN
@@ -34,44 +47,83 @@ Microphone::Microphone(
 bool Microphone::begin()
 {
     if (initialized)
+    {
         return true;
+    }
 
+    Serial.println();
+    Serial.println("[MIC] ========================================");
+    Serial.println("[MIC] Initializing INMP441");
+    Serial.println("[MIC] ========================================");
 
-    if (!i2sManager.isInitialized())
+    // --------------------------------------------------------
+    // I2S
+    // --------------------------------------------------------
+
+    if (!i2sManager.beginMicrophone(
+            DEFAULT_SAMPLE_RATE))
     {
         Serial.println(
-            "[Microphone] ERROR: "
-            "I2SManager is not initialized"
+            "[MIC] ERROR: I2SManager.beginMicrophone() failed"
         );
 
         return false;
     }
 
-
-    if (
-        !i2sManager.beginMicrophone(16000)
-    )
-    {
-        Serial.println(
-            "[Microphone] ERROR: "
-            "failed to initialize I2S"
-        );
-
-        return false;
-    }
-
+    // --------------------------------------------------------
+    // RESET STATE
+    // --------------------------------------------------------
 
     initialized = true;
+    listening = false;
 
+    audioChunkId = 0;
+    audioChunkSize = 0;
 
-    Serial.println(
-        "[Microphone] READY"
+    rms = 0.0f;
+    level = 0.0f;
+    peak = 0;
+
+    memset(
+        audioBuffer,
+        0,
+        sizeof(audioBuffer)
     );
 
+    // --------------------------------------------------------
+    // INFO
+    // --------------------------------------------------------
+
+    Serial.printf(
+        "[MIC] Name: %s\n",
+        getName()
+    );
+
+    Serial.printf(
+        "[MIC] Sample rate: %lu Hz\n",
+        static_cast<unsigned long>(
+            DEFAULT_SAMPLE_RATE
+        )
+    );
+
+    Serial.printf(
+        "[MIC] Buffer samples: %u\n",
+        static_cast<unsigned>(
+            AUDIO_SAMPLES
+        )
+    );
+
+    Serial.printf(
+        "[MIC] Buffer bytes: %u\n",
+        static_cast<unsigned>(
+            sizeof(audioBuffer)
+        )
+    );
+
+    Serial.println("[MIC] Initialized");
 
     return true;
 }
-
 
 // ============================================================
 // END
@@ -80,26 +132,35 @@ bool Microphone::begin()
 void Microphone::end()
 {
     if (!initialized)
+    {
         return;
+    }
 
+    Serial.println("[MIC] Stopping");
 
     stopListening();
 
-
     i2sManager.endMicrophone();
-
 
     initialized = false;
 
+    audioChunkSize = 0;
 
-    Serial.println(
-        "[Microphone] STOPPED"
+    rms = 0.0f;
+    level = 0.0f;
+    peak = 0;
+
+    memset(
+        audioBuffer,
+        0,
+        sizeof(audioBuffer)
     );
+
+    Serial.println("[MIC] Stopped");
 }
 
-
 // ============================================================
-// LISTENING
+// START LISTENING
 // ============================================================
 
 bool Microphone::startListening()
@@ -107,58 +168,59 @@ bool Microphone::startListening()
     if (!initialized)
     {
         Serial.println(
-            "[Microphone] ERROR: "
-            "not initialized"
+            "[MIC] ERROR: microphone is not initialized"
         );
 
         return false;
     }
-
 
     if (!enabled)
     {
         Serial.println(
-            "[Microphone] ERROR: "
-            "microphone disabled"
+            "[MIC] ERROR: microphone is disabled"
         );
 
         return false;
     }
 
-
     if (listening)
+    {
         return true;
+    }
 
+    // --------------------------------------------------------
+    // CLEAR DMA
+    // --------------------------------------------------------
 
-    i2s_zero_dma_buffer(
-        i2sManager.microphonePort()
-    );
+    if (!i2sManager.clearMicrophone())
+    {
+        Serial.println(
+            "[MIC] ERROR: clearMicrophone() failed"
+        );
 
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // RESET AUDIO STATE
+    // --------------------------------------------------------
 
     audioChunkSize = 0;
 
-    audioChunkId = 0;
-
-    newAudio = false;
-
     rms = 0.0f;
-
     level = 0.0f;
-
     peak = 0;
 
+    // --------------------------------------------------------
+    // START
+    // --------------------------------------------------------
 
     listening = true;
 
-
-    Serial.println(
-        "[Microphone] LISTENING"
-    );
-
+    Serial.println("[MIC] Listening started");
 
     return true;
 }
-
 
 // ============================================================
 // STOP LISTENING
@@ -167,59 +229,16 @@ bool Microphone::startListening()
 void Microphone::stopListening()
 {
     if (!listening)
+    {
         return;
-
+    }
 
     listening = false;
 
-    newAudio = false;
+    audioChunkSize = 0;
 
-
-    Serial.println(
-        "[Microphone] LISTENING STOPPED"
-    );
+    Serial.println("[MIC] Listening stopped");
 }
-
-
-// ============================================================
-// ENABLE
-// ============================================================
-
-void Microphone::setEnabled(
-    bool enabled
-)
-{
-    this->enabled = enabled;
-
-
-    if (!enabled)
-    {
-        stopListening();
-    }
-}
-
-
-bool Microphone::isEnabled() const
-{
-    return enabled;
-}
-
-
-// ============================================================
-// STATUS
-// ============================================================
-
-bool Microphone::isInitialized() const
-{
-    return initialized;
-}
-
-
-bool Microphone::isListening() const
-{
-    return listening;
-}
-
 
 // ============================================================
 // UPDATE AUDIO
@@ -228,211 +247,242 @@ bool Microphone::isListening() const
 bool Microphone::updateAudio()
 {
     if (!initialized)
+    {
         return false;
-
-
-    if (!enabled)
-        return false;
-
+    }
 
     if (!listening)
+    {
         return false;
+    }
 
+    if (!enabled)
+    {
+        return false;
+    }
 
-    int32_t rawBuffer[
-        BUFFER_SAMPLES
-    ];
+    // ========================================================
+    // TEMPORARY RAW BUFFER
+    // ========================================================
 
+    int32_t rawBuffer[AUDIO_SAMPLES];
+
+    memset(
+        rawBuffer,
+        0,
+        sizeof(rawBuffer)
+    );
+
+    // ========================================================
+    // READ I2S
+    // ========================================================
 
     size_t bytesRead = 0;
 
-
-    esp_err_t result =
-        i2s_read(
-            i2sManager.microphonePort(),
+    if (!i2sManager.readMicrophone(
             rawBuffer,
             sizeof(rawBuffer),
-            &bytesRead,
-            0
-        );
-
-
-    if (result != ESP_OK)
-        return false;
-
-
-    if (bytesRead == 0)
-        return false;
-
-
-    size_t samples =
-        bytesRead /
-        sizeof(int32_t);
-
-
-    if (samples > BUFFER_SAMPLES)
-        samples = BUFFER_SAMPLES;
-
-
-    for (
-        size_t i = 0;
-        i < samples;
-        ++i
-    )
+            bytesRead,
+            READ_TIMEOUT_MS))
     {
-        int32_t sample =
-            rawBuffer[i] >> 14;
-
-
-        if (sample > 32767)
-            sample = 32767;
-
-        if (sample < -32768)
-            sample = -32768;
-
-
-        audioBuffer[i] =
-            (int16_t)sample;
+        return false;
     }
 
+    if (bytesRead == 0)
+    {
+        return false;
+    }
 
-    audioChunkSize = samples;
+    // ========================================================
+    // CALCULATE SAMPLE COUNT
+    // ========================================================
 
-    audioChunkId++;
+    size_t samplesRead =
+        bytesRead / sizeof(int32_t);
 
-    newAudio = true;
+    if (samplesRead > AUDIO_SAMPLES)
+    {
+        samplesRead = AUDIO_SAMPLES;
+    }
 
+    if (samplesRead == 0)
+    {
+        return false;
+    }
 
-    analyzeAudio(
-        audioBuffer,
-        audioChunkSize
+    // ========================================================
+    // CONVERT 32-BIT I2S -> 16-BIT PCM
+    // ========================================================
+
+    for (size_t i = 0; i < samplesRead; ++i)
+    {
+        int32_t value = rawBuffer[i];
+
+        /*
+         * INMP441 delivers audio packed into
+         * a 32-bit I2S word.
+         *
+         * We reduce it to signed 16-bit PCM.
+         */
+
+        value >>= 14;
+
+        // ----------------------------------------------------
+        // CLAMP
+        // ----------------------------------------------------
+
+        if (value > 32767)
+        {
+            value = 32767;
+        }
+        else if (value < -32768)
+        {
+            value = -32768;
+        }
+
+        audioBuffer[i] =
+            static_cast<int16_t>(value);
+    }
+
+    // --------------------------------------------------------
+    // SAVE SIZE
+    // --------------------------------------------------------
+
+    audioChunkSize = samplesRead;
+
+    // ========================================================
+    // AUDIO ANALYSIS
+    // ========================================================
+
+    double sumSquares = 0.0;
+
+    int16_t currentPeak = 0;
+
+    for (size_t i = 0; i < samplesRead; ++i)
+    {
+        const int16_t sample =
+            audioBuffer[i];
+
+        // ----------------------------------------------------
+        // NORMALIZED SAMPLE
+        // ----------------------------------------------------
+
+        const float normalized =
+            static_cast<float>(sample) / 32768.0f;
+
+        // ----------------------------------------------------
+        // RMS
+        // ----------------------------------------------------
+
+        sumSquares +=
+            static_cast<double>(normalized) *
+            static_cast<double>(normalized);
+
+        // ----------------------------------------------------
+        // PEAK
+        // ----------------------------------------------------
+
+        int32_t absoluteValue =
+            static_cast<int32_t>(sample);
+
+        if (absoluteValue < 0)
+        {
+            absoluteValue = -absoluteValue;
+        }
+
+        if (absoluteValue > currentPeak)
+        {
+            currentPeak =
+                static_cast<int16_t>(
+                    absoluteValue
+                );
+        }
+    }
+
+    // ========================================================
+    // RMS
+    // ========================================================
+
+    rms = sqrtf(
+        static_cast<float>(
+            sumSquares /
+            static_cast<double>(samplesRead)
+        )
     );
 
+    // ========================================================
+    // LEVEL
+    // ========================================================
+
+    level = rms;
+
+    if (level < 0.0f)
+    {
+        level = 0.0f;
+    }
+
+    if (level > MAX_LEVEL)
+    {
+        level = MAX_LEVEL;
+    }
+
+    // ========================================================
+    // PEAK
+    // ========================================================
+
+    peak = currentPeak;
+
+    // ========================================================
+    // CHUNK ID
+    // ========================================================
+
+    ++audioChunkId;
 
     return true;
 }
 
-
 // ============================================================
-// CHUNK
+// HAS NEW AUDIO
 // ============================================================
 
 bool Microphone::hasNewAudio() const
 {
-    return newAudio;
+    return audioChunkSize > 0;
 }
 
-
-size_t Microphone::getAudioChunk(
-    const int16_t*& data
-) const
-{
-    data = audioBuffer;
-
-    return audioChunkSize;
-}
-
-
-size_t Microphone::getAudioChunkSize() const
-{
-    return audioChunkSize;
-}
-
+// ============================================================
+// AUDIO CHUNK ID
+// ============================================================
 
 uint32_t Microphone::getAudioChunkId() const
 {
     return audioChunkId;
 }
 
-
 // ============================================================
-// ANALYSIS
+// AUDIO CHUNK
 // ============================================================
 
-void Microphone::analyzeAudio(
-    const int16_t* samples,
-    size_t count
-)
+size_t Microphone::getAudioChunk(
+    const int16_t*& samples
+) const
 {
-    if (
-        samples == nullptr ||
-        count == 0
-    )
-    {
-        rms = 0.0f;
-        level = 0.0f;
-        peak = 0;
+    samples = audioBuffer;
 
-        return;
-    }
-
-
-    double sumSquares = 0.0;
-
-    int16_t maximumPeak = 0;
-
-
-    for (
-        size_t i = 0;
-        i < count;
-        ++i
-    )
-    {
-        int32_t value =
-            samples[i];
-
-
-        int32_t absolute =
-            abs(value);
-
-
-        if (
-            absolute >
-            maximumPeak
-        )
-        {
-            maximumPeak =
-                (int16_t)
-                min(
-                    absolute,
-                    32767
-                );
-        }
-
-
-        sumSquares +=
-            (double)value *
-            (double)value;
-    }
-
-
-    rms =
-        sqrt(
-            sumSquares /
-            (double)count
-        );
-
-
-    peak =
-        maximumPeak;
-
-
-    level =
-        rms /
-        8000.0f;
-
-
-    if (level < 0.0f)
-        level = 0.0f;
-
-
-    if (level > 1.0f)
-        level = 1.0f;
+    return audioChunkSize;
 }
 
+// ============================================================
+// AUDIO CHUNK SIZE
+// ============================================================
+
+size_t Microphone::getAudioChunkSize() const
+{
+    return audioChunkSize;
+}
 
 // ============================================================
-// ANALYSIS GETTERS
+// RMS
 // ============================================================
 
 float Microphone::getRMS() const
@@ -440,18 +490,64 @@ float Microphone::getRMS() const
     return rms;
 }
 
+// ============================================================
+// LEVEL
+// ============================================================
 
 float Microphone::getLevel() const
 {
     return level;
 }
 
+// ============================================================
+// PEAK
+// ============================================================
 
 int16_t Microphone::getPeak() const
 {
     return peak;
 }
 
+// ============================================================
+// INITIALIZED
+// ============================================================
+
+bool Microphone::isInitialized() const
+{
+    return initialized;
+}
+
+// ============================================================
+// LISTENING
+// ============================================================
+
+bool Microphone::isListening() const
+{
+    return listening;
+}
+
+// ============================================================
+// ENABLED
+// ============================================================
+
+bool Microphone::isEnabled() const
+{
+    return enabled;
+}
+
+// ============================================================
+// SET ENABLED
+// ============================================================
+
+void Microphone::setEnabled(bool value)
+{
+    enabled = value;
+
+    if (!enabled)
+    {
+        stopListening();
+    }
+}
 
 // ============================================================
 // NAME

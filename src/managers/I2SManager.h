@@ -1,8 +1,17 @@
 #pragma once
 
 #include <Arduino.h>
-#include <driver/i2s.h>
 
+// ============================================================
+// I2SManager
+//
+// Центральное управление I2S.
+//
+// Port 0 -> INMP441 microphone
+// Port 1 -> MAX98357A speaker
+//
+// driver/i2s.h здесь НЕ подключаем.
+// ============================================================
 
 class I2SManager
 {
@@ -12,12 +21,8 @@ public:
     // PORTS
     // ========================================================
 
-    static constexpr i2s_port_t MICROPHONE_PORT =
-        I2S_NUM_0;
-
-    static constexpr i2s_port_t SPEAKER_PORT =
-        I2S_NUM_1;
-
+    static constexpr int MICROPHONE_PORT = 0;
+    static constexpr int SPEAKER_PORT = 1;
 
     // ========================================================
     // CONSTRUCTOR
@@ -25,15 +30,14 @@ public:
 
     I2SManager();
 
-
     // ========================================================
-    // BEGIN / END
+    // GLOBAL
     // ========================================================
 
     bool begin();
-
     void end();
 
+    bool isInitialized() const;
 
     // ========================================================
     // MICROPHONE
@@ -47,6 +51,18 @@ public:
 
     bool isMicrophoneInitialized() const;
 
+    int microphonePort() const;
+
+    // Очистить DMA буфер микрофона.
+    bool clearMicrophone();
+
+    // Прочитать данные с микрофона.
+    bool readMicrophone(
+        void* buffer,
+        size_t size,
+        size_t& bytesRead,
+        uint32_t timeoutMs = 100
+    );
 
     // ========================================================
     // SPEAKER
@@ -60,35 +76,48 @@ public:
 
     bool isSpeakerInitialized() const;
 
+    int speakerPort() const;
+
+    bool startSpeaker();
+
+    bool stopSpeaker();
+
+    bool clearSpeaker();
+
+    bool writeSpeaker(
+        const uint8_t* data,
+        size_t bytes,
+        size_t& bytesWritten,
+        uint32_t timeoutMs = 100
+    );
 
     // ========================================================
-    // STATUS
+    // DEBUG
     // ========================================================
-
-    bool isInitialized() const;
 
     bool isPortInstalled(
-        i2s_port_t port
+        int port
     ) const;
-
-
-    // ========================================================
-    // ACCESS
-    // ========================================================
-
-    i2s_port_t microphonePort() const;
-
-    i2s_port_t speakerPort() const;
-
 
 private:
 
-    bool initialized;
+    // ========================================================
+    // STATE
+    // ========================================================
 
-    bool microphoneInitialized;
+    bool _initialized;
 
-    bool speakerInitialized;
+    bool _microphoneInitialized;
 
+    bool _speakerInitialized;
+
+    // ========================================================
+    // SAMPLE RATES
+    // ========================================================
+
+    uint32_t _microphoneSampleRate;
+
+    uint32_t _speakerSampleRate;
 
     // ========================================================
     // INTERNAL

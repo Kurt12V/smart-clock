@@ -4,27 +4,7 @@
 #include <cmath>
 
 // ============================================================
-// WAV helpers
-// ============================================================
-
-static uint16_t readLE16(const uint8_t* p)
-{
-    return
-        static_cast<uint16_t>(p[0]) |
-        (static_cast<uint16_t>(p[1]) << 8);
-}
-
-static uint32_t readLE32(const uint8_t* p)
-{
-    return
-        static_cast<uint32_t>(p[0]) |
-        (static_cast<uint32_t>(p[1]) << 8) |
-        (static_cast<uint32_t>(p[2]) << 16) |
-        (static_cast<uint32_t>(p[3]) << 24);
-}
-
-// ============================================================
-// Constructor
+// CONSTRUCTOR
 // ============================================================
 
 SoundManager::SoundManager(
@@ -37,33 +17,19 @@ SoundManager::SoundManager(
       _i2sManager(i2sManager),
       _initialized(false),
       _state(State::STOPPED),
-      _file(),
-      _wav(),
       _positionBytes(0),
+      _durationMs(0),
       _localVolume(100),
-      _fadeEnabled(false),
+      _fadeInEnabled(false),
+      _fadeOutEnabled(false),
+      _fadeInMs(0),
+      _fadeOutMs(0),
       _fadeStartMs(0),
-      _fadeDurationMs(0),
+      _fadeStopMs(0),
       _fadeCurve(FadeCurve::Linear),
-      _fadeStartVolume(0),
-      _fadeTargetVolume(0)
+      _lastStatusMs(0)
 {
-    _currentPath[0] = '\0';
-
-    memset(
-        _buffer,
-        0,
-        sizeof(_buffer)
-    );
-}
-
-// ============================================================
-// Destructor
-// ============================================================
-
-SoundManager::~SoundManager()
-{
-    end();
+    memset(&_wav, 0, sizeof(_wav));
 }
 
 // ============================================================
@@ -72,93 +38,59 @@ SoundManager::~SoundManager()
 
 bool SoundManager::begin()
 {
-    Serial.println();
-    Serial.println("========================================");
-    Serial.println("[SOUND] SoundManager::begin()");
-    Serial.println("========================================");
+    Serial0.println();
+    Serial0.println("========================================");
+    Serial0.println("[SOUND] SoundManager::begin()");
+    Serial0.println("========================================");
 
-    if (_initialized)
-    {
-        Serial.println("[SOUND] Already initialized");
-        return true;
-    }
-
-    // --------------------------------------------------------
-    // SD
-    // --------------------------------------------------------
-
-    Serial.println("[SOUND] Checking SD...");
+    Serial0.println("[SOUND] Checking SD...");
 
     if (!_sdManager.isReady())
     {
-        Serial.println("[SOUND] ERROR: SD is not ready");
+        Serial0.println("[SOUND] ERROR: SD not ready");
         return false;
     }
 
-    Serial.println("[SOUND] SD ready");
+    Serial0.println("[SOUND] SD ready");
 
-    // --------------------------------------------------------
-    // Settings
-    // --------------------------------------------------------
-
-    Serial.printf(
+    Serial0.printf(
         "[SOUND] Enabled: %s\n",
         _settings.enabled ? "YES" : "NO"
     );
 
-    Serial.printf(
+    Serial0.printf(
         "[SOUND] Global volume: %u\n",
         _settings.volume
     );
 
-    Serial.printf(
+    Serial0.printf(
         "[SOUND] Sample rate setting: %u kHz\n",
         _settings.sampleRate
     );
 
-    if (!_settings.enabled)
-    {
-        Serial.println(
-            "[SOUND] WARNING: audio disabled in settings"
-        );
-    }
-
-    // --------------------------------------------------------
-    // I2S manager
-    // --------------------------------------------------------
-
-    Serial.println("[SOUND] Checking I2SManager...");
+    Serial0.println("[SOUND] Checking I2SManager...");
 
     if (!_i2sManager.isInitialized())
     {
-        Serial.println(
-            "[SOUND] ERROR: I2SManager is not initialized"
+        Serial0.println(
+            "[SOUND] ERROR: I2SManager not initialized"
         );
 
         return false;
     }
 
-    Serial.printf(
+    Serial0.printf(
         "[SOUND] Speaker port: I2S_NUM_%d\n",
-        static_cast<int>(
-            _i2sManager.speakerPort()
-        )
+        _i2sManager.speakerPort()
     );
 
-    // --------------------------------------------------------
-    // Do NOT initialize speaker here with fixed 44100.
-    //
-    // WAV sample rate will be read from file first.
-    // --------------------------------------------------------
-
-    Serial.println(
-        "[SOUND] Speaker I2S will be configured "
-        "from WAV sample rate"
+    Serial0.println(
+        "[SOUND] Speaker I2S will be configured from WAV sample rate"
     );
 
     _initialized = true;
 
-    Serial.println("[SOUND] SoundManager initialized");
+    Serial0.println("[SOUND] SoundManager initialized");
 
     return true;
 }
@@ -169,343 +101,11 @@ bool SoundManager::begin()
 
 void SoundManager::end()
 {
-    Serial.println("[SOUND] SoundManager::end()");
-
     stop();
 
-    if (_i2sManager.isSpeakerInitialized())
-    {
-        Serial.println(
-            "[SOUND] Releasing speaker I2S"
-        );
-
-        _i2sManager.endSpeaker();
-    }
-
     _initialized = false;
-}
 
-// ============================================================
-// IS INITIALIZED
-// ============================================================
-
-bool SoundManager::isInitialized() const
-{
-    return _initialized;
-}
-
-// ============================================================
-// PLAY WAV
-// ============================================================
-
-bool SoundManager::playWav(const char* path)
-{
-    Serial.println();
-    Serial.println("----------------------------------------");
-    Serial.println("[SOUND] playWav()");
-    Serial.println("----------------------------------------");
-
-    Serial.printf(
-        "[SOUND] Path: %s\n",
-        path ? path : "(null)"
-    );
-
-    if (!_initialized)
-    {
-        Serial.println(
-            "[SOUND] FAIL: SoundManager not initialized"
-        );
-
-        return false;
-    }
-
-    if (!_settings.enabled)
-    {
-        Serial.println(
-            "[SOUND] FAIL: audio disabled in settings"
-        );
-
-        return false;
-    }
-
-    return playWavLocal(
-        path,
-        100
-    );
-}
-
-// ============================================================
-// PLAY WAV LOCAL
-// ============================================================
-
-bool SoundManager::playWavLocal(
-    const char* path,
-    uint8_t localVolume
-)
-{
-    Serial.println();
-    Serial.println("----------------------------------------");
-    Serial.println("[SOUND] playWavLocal()");
-    Serial.println("----------------------------------------");
-
-    if (!path)
-    {
-        Serial.println(
-            "[SOUND] FAIL: path == nullptr"
-        );
-
-        return false;
-    }
-
-    Serial.printf(
-        "[SOUND] File: %s\n",
-        path
-    );
-
-    Serial.printf(
-        "[SOUND] Local volume: %u\n",
-        localVolume
-    );
-
-    // --------------------------------------------------------
-    // Stop previous playback
-    // --------------------------------------------------------
-
-    if (_state != State::STOPPED)
-    {
-        Serial.println(
-            "[SOUND] Stopping previous playback"
-        );
-
-        stop();
-    }
-
-    _localVolume = localVolume;
-
-    // --------------------------------------------------------
-    // Open WAV
-    // --------------------------------------------------------
-
-    Serial.println(
-        "[SOUND] Step 1: opening WAV"
-    );
-
-    if (!openWav(path))
-    {
-        Serial.println(
-            "[SOUND] FAIL: openWav()"
-        );
-
-        return false;
-    }
-
-    Serial.println(
-        "[SOUND] Step 1 OK"
-    );
-
-    // --------------------------------------------------------
-    // WAV validation
-    // --------------------------------------------------------
-
-    Serial.println(
-        "[SOUND] Step 2: validating WAV"
-    );
-
-    if (!validateWav())
-    {
-        Serial.println(
-            "[SOUND] FAIL: WAV validation"
-        );
-
-        closeFile();
-
-        return false;
-    }
-
-    Serial.println(
-        "[SOUND] Step 2 OK"
-    );
-
-    printWavInfo();
-
-    // --------------------------------------------------------
-    // Configure I2S according to WAV
-    // --------------------------------------------------------
-
-    Serial.println(
-        "[SOUND] Step 3: configuring speaker I2S"
-    );
-
-    if (!configureSpeaker())
-    {
-        Serial.println(
-            "[SOUND] FAIL: configureSpeaker()"
-        );
-
-        closeFile();
-
-        return false;
-    }
-
-    Serial.println(
-        "[SOUND] Step 3 OK"
-    );
-
-    // --------------------------------------------------------
-    // Seek to PCM data
-    // --------------------------------------------------------
-
-    Serial.printf(
-        "[SOUND] Step 4: seeking to data offset %lu\n",
-        static_cast<unsigned long>(
-            _wav.dataOffset
-        )
-    );
-
-    if (!_file.seek(_wav.dataOffset))
-    {
-        Serial.println(
-            "[SOUND] FAIL: file.seek(dataOffset)"
-        );
-
-        closeFile();
-
-        return false;
-    }
-
-    _positionBytes = 0;
-
-    Serial.println(
-        "[SOUND] Step 4 OK"
-    );
-
-    // --------------------------------------------------------
-    // Start I2S
-    // --------------------------------------------------------
-
-    if (!_i2sManager.isSpeakerInitialized())
-    {
-        Serial.println(
-            "[SOUND] FAIL: speaker I2S is not initialized"
-        );
-
-        closeFile();
-
-        return false;
-    }
-
-    i2s_port_t port = _i2sManager.speakerPort();
-
-    Serial.printf(
-        "[SOUND] Starting I2S port I2S_NUM_%d\n",
-        static_cast<int>(port)
-    );
-
-    esp_err_t err = i2s_start(port);
-
-    if (err != ESP_OK)
-    {
-        Serial.printf(
-            "[SOUND] FAIL: i2s_start() = %s\n",
-            esp_err_to_name(err)
-        );
-
-        closeFile();
-
-        return false;
-    }
-
-    // --------------------------------------------------------
-    // State
-    // --------------------------------------------------------
-
-    _state = State::PLAYING;
-
-    strncpy(
-        _currentPath,
-        path,
-        sizeof(_currentPath) - 1
-    );
-
-    _currentPath[
-        sizeof(_currentPath) - 1
-    ] = '\0';
-
-    Serial.println(
-        "[SOUND] Playback started successfully"
-    );
-
-    Serial.printf(
-        "[SOUND] Effective volume: %u\n",
-        getEffectiveVolume()
-    );
-
-    return true;
-}
-
-// ============================================================
-// PLAY ALARM
-// ============================================================
-
-bool SoundManager::playAlarm(
-    const char* path,
-    uint8_t localVolume,
-    uint32_t fadeInMs,
-    uint32_t fadeOutMs,
-    FadeCurve curve
-)
-{
-    Serial.println();
-    Serial.println("----------------------------------------");
-    Serial.println("[SOUND] playAlarm()");
-    Serial.println("----------------------------------------");
-
-    Serial.printf(
-        "[SOUND] Path: %s\n",
-        path ? path : "(null)"
-    );
-
-    Serial.printf(
-        "[SOUND] Local volume: %u\n",
-        localVolume
-    );
-
-    Serial.printf(
-        "[SOUND] Fade in: %lu ms\n",
-        static_cast<unsigned long>(fadeInMs)
-    );
-
-    Serial.printf(
-        "[SOUND] Fade out: %lu ms\n",
-        static_cast<unsigned long>(fadeOutMs)
-    );
-
-    if (!playWavLocal(
-        path,
-        localVolume
-    ))
-    {
-        return false;
-    }
-
-    _fadeEnabled = false;
-
-    if (fadeInMs > 0)
-    {
-        _fadeEnabled = true;
-
-        _fadeStartMs = millis();
-        _fadeDurationMs = fadeInMs;
-
-        _fadeCurve = curve;
-
-        _fadeStartVolume = 0;
-        _fadeTargetVolume = localVolume;
-
-        _state = State::FADING_IN;
-    }
-
-    return true;
+    Serial0.println("[SOUND] SoundManager stopped");
 }
 
 // ============================================================
@@ -517,249 +117,271 @@ void SoundManager::update()
     if (!_initialized)
         return;
 
-    if (
-        _state == State::STOPPED ||
-        _state == State::PAUSED
-    )
-    {
+    if (_state != State::PLAYING)
         return;
-    }
 
-    updateFade();
-
-    if (_state == State::FADING_IN)
-    {
-        // Playback continues.
-    }
-
-    if (_state == State::FADING_OUT)
-    {
-        // Playback continues.
-    }
-
-    // --------------------------------------------------------
-    // Read PCM
-    // --------------------------------------------------------
-
-    if (!readAndPlayChunk())
-    {
-        return;
-    }
-}
-
-// ============================================================
-// READ AND PLAY CHUNK
-// ============================================================
-
-bool SoundManager::readAndPlayChunk()
-{
     if (!_file)
     {
-        printError(
-            "readAndPlayChunk(): file invalid"
-        );
-
         finishPlayback();
-
-        return false;
+        return;
     }
 
-    uint32_t remaining =
-        _wav.dataSize - _positionBytes;
+    readAndPlayChunk();
 
-    if (remaining == 0)
+    if (millis() - _lastStatusMs >= 1000)
     {
-        Serial.println(
-            "[SOUND] End of WAV data"
+        _lastStatusMs = millis();
+
+        Serial0.printf(
+            "[PLAY] %lu / %lu ms\n",
+            static_cast<unsigned long>(getPositionMs()),
+            static_cast<unsigned long>(_durationMs)
         );
-
-        finishPlayback();
-
-        return false;
     }
-
-    size_t toRead =
-        remaining > BUFFER_SIZE
-            ? BUFFER_SIZE
-            : remaining;
-
-    // Align to sample frame.
-    if (_wav.blockAlign > 0)
-    {
-        toRead -=
-            toRead % _wav.blockAlign;
-    }
-
-    if (toRead == 0)
-    {
-        Serial.println(
-            "[SOUND] ERROR: aligned read size == 0"
-        );
-
-        finishPlayback();
-
-        return false;
-    }
-
-    size_t bytesRead =
-        _file.read(
-            _buffer,
-            toRead
-        );
-
-    if (bytesRead == 0)
-    {
-        Serial.println(
-            "[SOUND] ERROR: file.read() returned 0"
-        );
-
-        finishPlayback();
-
-        return false;
-    }
-
-    // --------------------------------------------------------
-    // PCM16 processing
-    // --------------------------------------------------------
-
-    if (_wav.bitsPerSample == 16)
-    {
-        int16_t* samples =
-            reinterpret_cast<int16_t*>(
-                _buffer
-            );
-
-        size_t sampleCount =
-            bytesRead / sizeof(int16_t);
-
-        uint8_t volume =
-            calculateCurrentVolume();
-
-        applyVolume(
-            samples,
-            sampleCount,
-            volume
-        );
-
-        // ----------------------------------------------------
-        // Stereo -> mono
-        // ----------------------------------------------------
-
-        if (_wav.channels == 2)
-        {
-            downmixStereoToMono(
-                samples,
-                sampleCount
-            );
-
-            size_t monoSamples =
-                sampleCount / 2;
-
-            bytesRead =
-                monoSamples *
-                sizeof(int16_t);
-        }
-    }
-
-    // --------------------------------------------------------
-    // Write to I2S
-    // --------------------------------------------------------
-
-    if (!writeAudio(
-        _buffer,
-        bytesRead
-    ))
-    {
-        Serial.println(
-            "[SOUND] ERROR: writeAudio() failed"
-        );
-
-        finishPlayback();
-
-        return false;
-    }
-
-    _positionBytes +=
-        static_cast<uint32_t>(
-            _wav.blockAlign *
-            (
-                _wav.channels == 2
-                    ? (bytesRead / 2)
-                    : (bytesRead / 2)
-            )
-        );
-
-    // Protect position from overflow.
-    if (_positionBytes > _wav.dataSize)
-    {
-        _positionBytes = _wav.dataSize;
-    }
-
-    if (_positionBytes >= _wav.dataSize)
-    {
-        Serial.println(
-            "[SOUND] WAV playback completed"
-        );
-
-        finishPlayback();
-    }
-
-    return true;
 }
 
 // ============================================================
-// WRITE AUDIO
+// PLAY WAV
 // ============================================================
 
-bool SoundManager::writeAudio(
-    const uint8_t* data,
-    size_t bytes
+bool SoundManager::playWav(const char* path)
+{
+    Serial0.println();
+    Serial0.println("----------------------------------------");
+    Serial0.println("[SOUND] playWav()");
+    Serial0.println("----------------------------------------");
+
+    Serial0.printf(
+        "[SOUND] Path: %s\n",
+        path
+    );
+
+    return playWavLocal(path, 100);
+}
+
+// ============================================================
+// PLAY WAV LOCAL
+// ============================================================
+
+bool SoundManager::playWavLocal(
+    const char* path,
+    uint8_t localVolume
 )
 {
-    if (!data || bytes == 0)
-        return false;
+    Serial0.println();
+    Serial0.println("----------------------------------------");
+    Serial0.println("[SOUND] playWavLocal()");
+    Serial0.println("----------------------------------------");
 
-    if (!_i2sManager.isSpeakerInitialized())
+    if (!_initialized)
     {
-        Serial.println(
-            "[SOUND] writeAudio: speaker not initialized"
+        Serial0.println(
+            "[SOUND] ERROR: SoundManager not initialized"
         );
 
         return false;
     }
 
-    size_t totalWritten = 0;
-
-    i2s_port_t port =
-        _i2sManager.speakerPort();
-
-    esp_err_t err =
-        i2s_write(
-            port,
-            data,
-            bytes,
-            &totalWritten,
-            0
-        );
-
-    if (err != ESP_OK)
+    if (!_settings.enabled)
     {
-        Serial.printf(
-            "[SOUND] i2s_write ERROR: %s\n",
-            esp_err_to_name(err)
+        Serial0.println(
+            "[SOUND] ERROR: audio disabled in settings"
         );
 
         return false;
     }
 
-    if (totalWritten == 0)
+    if (path == nullptr)
     {
-        Serial.println(
-            "[SOUND] i2s_write wrote 0 bytes"
+        Serial0.println(
+            "[SOUND] ERROR: path is NULL"
         );
 
         return false;
     }
+
+    Serial0.printf(
+        "[SOUND] File: %s\n",
+        path
+    );
+
+    Serial0.printf(
+        "[SOUND] Local volume: %u\n",
+        localVolume
+    );
+
+    stop();
+
+    _localVolume = constrain(localVolume, 0, 100);
+
+    // ========================================================
+    // STEP 1
+    // ========================================================
+
+    Serial0.println("[SOUND] Step 1: opening WAV");
+
+    if (!openWav(path))
+    {
+        Serial0.println("[SOUND] Step 1 FAILED");
+        return false;
+    }
+
+    Serial0.println("[SOUND] Step 1 OK");
+
+    // ========================================================
+    // STEP 2
+    // ========================================================
+
+    Serial0.println("[SOUND] Step 2: validating WAV");
+
+    if (!validateWav())
+    {
+        Serial0.println("[SOUND] Step 2 FAILED");
+
+        _file.close();
+
+        return false;
+    }
+
+    Serial0.println("[SOUND] Step 2 OK");
+
+    // ========================================================
+    // WAV INFO
+    // ========================================================
+
+    Serial0.println();
+    Serial0.println("[SOUND] ========== WAV INFO ==========");
+
+    Serial0.printf(
+        "[SOUND] Format:       %u\n",
+        _wav.audioFormat
+    );
+
+    Serial0.printf(
+        "[SOUND] Channels:     %u\n",
+        _wav.channels
+    );
+
+    Serial0.printf(
+        "[SOUND] Sample rate:  %lu Hz\n",
+        static_cast<unsigned long>(_wav.sampleRate)
+    );
+
+    Serial0.printf(
+        "[SOUND] Byte rate:    %lu\n",
+        static_cast<unsigned long>(_wav.byteRate)
+    );
+
+    Serial0.printf(
+        "[SOUND] Block align:  %u\n",
+        _wav.blockAlign
+    );
+
+    Serial0.printf(
+        "[SOUND] Bits/sample:  %u\n",
+        _wav.bitsPerSample
+    );
+
+    Serial0.printf(
+        "[SOUND] Data offset:  %lu\n",
+        static_cast<unsigned long>(_wav.dataOffset)
+    );
+
+    Serial0.printf(
+        "[SOUND] Data size:    %lu\n",
+        static_cast<unsigned long>(_wav.dataSize)
+    );
+
+    Serial0.printf(
+        "[SOUND] Duration:      %lu ms\n",
+        static_cast<unsigned long>(_durationMs)
+    );
+
+    Serial0.println("[SOUND] =================================");
+
+    // ========================================================
+    // STEP 3
+    // ========================================================
+
+    Serial0.println("[SOUND] Step 3: configuring speaker I2S");
+
+    Serial0.printf(
+        "[SOUND] Configuring speaker for %lu Hz\n",
+        static_cast<unsigned long>(_wav.sampleRate)
+    );
+
+    if (!_i2sManager.beginSpeaker(_wav.sampleRate))
+    {
+        Serial0.println(
+            "[SOUND] ERROR: speaker configuration failed"
+        );
+
+        _file.close();
+
+        return false;
+    }
+
+    Serial0.printf(
+        "[SOUND] Speaker I2S configured: %lu Hz\n",
+        static_cast<unsigned long>(_wav.sampleRate)
+    );
+
+    Serial0.println("[SOUND] Step 3 OK");
+
+    // ========================================================
+    // STEP 4
+    // ========================================================
+
+    Serial0.printf(
+        "[SOUND] Step 4: seeking to data offset %lu\n",
+        static_cast<unsigned long>(_wav.dataOffset)
+    );
+
+    if (!_file.seek(_wav.dataOffset))
+    {
+        Serial0.println("[SOUND] Step 4 FAILED");
+
+        _file.close();
+
+        return false;
+    }
+
+    _positionBytes = 0;
+
+    Serial0.println("[SOUND] Step 4 OK");
+
+    // ========================================================
+    // START I2S
+    // ========================================================
+
+    Serial0.printf(
+        "[SOUND] Starting I2S port I2S_NUM_%d\n",
+        _i2sManager.speakerPort()
+    );
+
+    if (!_i2sManager.startSpeaker())
+    {
+        Serial0.println(
+            "[SOUND] ERROR: startSpeaker() failed"
+        );
+
+        _file.close();
+
+        return false;
+    }
+
+    _state = State::PLAYING;
+
+    _lastStatusMs = millis();
+
+    Serial0.println(
+        "[SOUND] Playback started successfully"
+    );
+
+    Serial0.printf(
+        "[SOUND] Effective volume: %u\n",
+        getEffectiveVolume()
+    );
 
     return true;
 }
@@ -768,67 +390,41 @@ bool SoundManager::writeAudio(
 // OPEN WAV
 // ============================================================
 
-bool SoundManager::openWav(
-    const char* path
-)
+bool SoundManager::openWav(const char* path)
 {
-    Serial.printf(
+    Serial0.printf(
         "[SOUND] openWav(): %s\n",
         path
     );
 
-    fs::FS& fs =
-        _sdManager.card().fs();
+    Serial0.println("[SOUND] Opening file...");
 
-    Serial.println(
-        "[SOUND] Opening file..."
-    );
-
-    _file = fs.open(
-        path,
-        FILE_READ
-    );
+    _file =
+        _sdManager.card().fs().open(
+            path,
+            FILE_READ
+        );
 
     if (!_file)
     {
-        Serial.println(
-            "[SOUND] ERROR: fs.open() failed"
-        );
-
-        Serial.printf(
-            "[SOUND] Path checked: %s\n",
-            path
+        Serial0.println(
+            "[SOUND] ERROR: failed to open file"
         );
 
         return false;
     }
 
-    Serial.printf(
+    Serial0.printf(
         "[SOUND] File opened, size: %lu bytes\n",
-        static_cast<unsigned long>(
-            _file.size()
-        )
+        static_cast<unsigned long>(_file.size())
     );
 
-    if (_file.size() < 44)
+    Serial0.println("[SOUND] Parsing WAV header...");
+
+    if (!parseWav(_file))
     {
-        Serial.println(
-            "[SOUND] ERROR: file smaller than WAV header"
-        );
-
-        _file.close();
-
-        return false;
-    }
-
-    Serial.println(
-        "[SOUND] Parsing WAV header..."
-    );
-
-    if (!parseWavHeader(_file))
-    {
-        Serial.println(
-            "[SOUND] ERROR: parseWavHeader() failed"
+        Serial0.println(
+            "[SOUND] ERROR: WAV parsing failed"
         );
 
         _file.close();
@@ -840,97 +436,54 @@ bool SoundManager::openWav(
 }
 
 // ============================================================
-// PARSE WAV HEADER
+// PARSE WAV
 // ============================================================
 
-bool SoundManager::parseWavHeader(
-    File& file
-)
+bool SoundManager::parseWav(File& file)
 {
-    _wav = WavInfo();
+    uint8_t header[12];
 
-    if (!file.seek(0))
+    if (file.read(header, sizeof(header)) != sizeof(header))
     {
-        Serial.println(
-            "[SOUND] WAV: seek(0) failed"
+        Serial0.println(
+            "[SOUND] ERROR: cannot read RIFF header"
         );
 
         return false;
     }
 
-    uint8_t riff[12];
-
-    if (file.read(
-        riff,
-        sizeof(riff)
-    ) != sizeof(riff))
+    if (memcmp(header, "RIFF", 4) != 0)
     {
-        Serial.println(
-            "[SOUND] WAV: cannot read RIFF header"
-        );
-
-        return false;
-    }
-
-    Serial.printf(
-        "[SOUND] RIFF: %c%c%c%c\n",
-        riff[0],
-        riff[1],
-        riff[2],
-        riff[3]
-    );
-
-    Serial.printf(
-        "[SOUND] Format: %c%c%c%c\n",
-        riff[8],
-        riff[9],
-        riff[10],
-        riff[11]
-    );
-
-    if (
-        memcmp(
-            riff,
-            "RIFF",
-            4
-        ) != 0
-    )
-    {
-        Serial.println(
+        Serial0.println(
             "[SOUND] ERROR: missing RIFF"
         );
 
         return false;
     }
 
-    if (
-        memcmp(
-            riff + 8,
-            "WAVE",
-            4
-        ) != 0
-    )
+    if (memcmp(header + 8, "WAVE", 4) != 0)
     {
-        Serial.println(
+        Serial0.println(
             "[SOUND] ERROR: missing WAVE"
         );
 
         return false;
     }
 
+    Serial0.println("[SOUND] RIFF: RIFF");
+    Serial0.println("[SOUND] Format: WAVE");
+
     bool foundFmt = false;
     bool foundData = false;
 
-    while (file.position() + 8 <= file.size())
+    while (file.available())
     {
         uint8_t chunkHeader[8];
 
-        if (
-            file.read(
+        if (file.read(
                 chunkHeader,
-                8
-            ) != 8
-        )
+                sizeof(chunkHeader)
+            ) != sizeof(chunkHeader))
         {
             break;
         }
@@ -946,113 +499,159 @@ bool SoundManager::parseWavHeader(
         chunkId[4] = '\0';
 
         uint32_t chunkSize =
-            readLE32(
-                chunkHeader + 4
-            );
+            static_cast<uint32_t>(chunkHeader[4]) |
+            (static_cast<uint32_t>(chunkHeader[5]) << 8) |
+            (static_cast<uint32_t>(chunkHeader[6]) << 16) |
+            (static_cast<uint32_t>(chunkHeader[7]) << 24);
 
-        uint32_t chunkDataPosition =
-            file.position();
+        uint32_t chunkDataOffset =
+            static_cast<uint32_t>(file.position());
 
-        Serial.printf(
+        Serial0.printf(
             "[SOUND] Chunk '%s', size=%lu, offset=%lu\n",
             chunkId,
             static_cast<unsigned long>(chunkSize),
-            static_cast<unsigned long>(
-                chunkDataPosition
-            )
+            static_cast<unsigned long>(chunkDataOffset)
         );
 
-        // ----------------------------------------------------
-        // fmt
-        // ----------------------------------------------------
+        // ====================================================
+        // FMT
+        // ====================================================
 
-        if (
-            memcmp(
-                chunkId,
-                "fmt ",
-                4
-            ) == 0
-        )
+        if (memcmp(chunkId, "fmt ", 4) == 0)
         {
-            if (!parseFmtChunk(
-                file,
-                chunkSize
-            ))
+            if (chunkSize < 16)
+            {
+                Serial0.println(
+                    "[SOUND] ERROR: invalid fmt chunk"
+                );
+
+                return false;
+            }
+
+            uint8_t fmt[16];
+
+            if (file.read(fmt, 16) != 16)
             {
                 return false;
             }
 
+            _wav.audioFormat =
+                static_cast<uint16_t>(fmt[0]) |
+                (static_cast<uint16_t>(fmt[1]) << 8);
+
+            _wav.channels =
+                static_cast<uint16_t>(fmt[2]) |
+                (static_cast<uint16_t>(fmt[3]) << 8);
+
+            _wav.sampleRate =
+                static_cast<uint32_t>(fmt[4]) |
+                (static_cast<uint32_t>(fmt[5]) << 8) |
+                (static_cast<uint32_t>(fmt[6]) << 16) |
+                (static_cast<uint32_t>(fmt[7]) << 24);
+
+            _wav.byteRate =
+                static_cast<uint32_t>(fmt[8]) |
+                (static_cast<uint32_t>(fmt[9]) << 8) |
+                (static_cast<uint32_t>(fmt[10]) << 16) |
+                (static_cast<uint32_t>(fmt[11]) << 24);
+
+            _wav.blockAlign =
+                static_cast<uint16_t>(fmt[12]) |
+                (static_cast<uint16_t>(fmt[13]) << 8);
+
+            _wav.bitsPerSample =
+                static_cast<uint16_t>(fmt[14]) |
+                (static_cast<uint16_t>(fmt[15]) << 8);
+
+            Serial0.println("[SOUND] fmt parsed:");
+
+            Serial0.printf(
+                "         format       = %u\n",
+                _wav.audioFormat
+            );
+
+            Serial0.printf(
+                "         channels     = %u\n",
+                _wav.channels
+            );
+
+            Serial0.printf(
+                "         sample rate  = %lu\n",
+                static_cast<unsigned long>(_wav.sampleRate)
+            );
+
+            Serial0.printf(
+                "         byte rate    = %lu\n",
+                static_cast<unsigned long>(_wav.byteRate)
+            );
+
+            Serial0.printf(
+                "         block align  = %u\n",
+                _wav.blockAlign
+            );
+
+            Serial0.printf(
+                "         bits/sample  = %u\n",
+                _wav.bitsPerSample
+            );
+
+            // Jump to end of fmt chunk.
+            file.seek(
+                chunkDataOffset + chunkSize
+            );
+
             foundFmt = true;
         }
 
-        // ----------------------------------------------------
-        // data
-        // ----------------------------------------------------
+        // ====================================================
+        // DATA
+        // ====================================================
 
-        else if (
-            memcmp(
-                chunkId,
-                "data",
-                4
-            ) == 0
-        )
+        else if (memcmp(chunkId, "data", 4) == 0)
         {
             _wav.dataOffset =
-                chunkDataPosition;
+                chunkDataOffset;
 
             _wav.dataSize =
                 chunkSize;
 
-            foundData = true;
-
-            Serial.printf(
+            Serial0.printf(
                 "[SOUND] PCM data offset: %lu\n",
                 static_cast<unsigned long>(
                     _wav.dataOffset
                 )
             );
 
-            Serial.printf(
+            Serial0.printf(
                 "[SOUND] PCM data size: %lu\n",
                 static_cast<unsigned long>(
                     _wav.dataSize
                 )
             );
 
-            // We can stop after fmt + data.
-            if (foundFmt)
-            {
-                break;
-            }
+            foundData = true;
+
+            break;
         }
 
-        // ----------------------------------------------------
-        // Skip unknown chunk
-        // ----------------------------------------------------
-
-        uint32_t nextPosition =
-            chunkDataPosition +
-            chunkSize;
-
-        // WAV chunks are word aligned.
-        if (chunkSize & 1)
+        // Unknown chunk.
+        else
         {
-            nextPosition++;
-        }
+            uint32_t next =
+                chunkDataOffset + chunkSize;
 
-        if (!file.seek(nextPosition))
-        {
-            Serial.println(
-                "[SOUND] ERROR: cannot skip WAV chunk"
-            );
+            // WAV chunks are word aligned.
+            if (chunkSize & 1)
+                next++;
 
-            return false;
+            file.seek(next);
         }
     }
 
     if (!foundFmt)
     {
-        Serial.println(
+        Serial0.println(
             "[SOUND] ERROR: fmt chunk not found"
         );
 
@@ -1061,127 +660,26 @@ bool SoundManager::parseWavHeader(
 
     if (!foundData)
     {
-        Serial.println(
+        Serial0.println(
             "[SOUND] ERROR: data chunk not found"
         );
 
         return false;
     }
 
-    _wav.valid = true;
-
-    return true;
-}
-
-// ============================================================
-// PARSE FMT
-// ============================================================
-
-bool SoundManager::parseFmtChunk(
-    File& file,
-    uint32_t chunkSize
-)
-{
-    if (chunkSize < 16)
+    if (_wav.byteRate == 0)
     {
-        Serial.println(
-            "[SOUND] ERROR: fmt chunk < 16 bytes"
-        );
-
         return false;
     }
 
-    uint8_t fmt[16];
-
-    if (
-        file.read(
-            fmt,
-            16
-        ) != 16
-    )
-    {
-        Serial.println(
-            "[SOUND] ERROR: cannot read fmt chunk"
-        );
-
-        return false;
-    }
-
-    _wav.audioFormat =
-        readLE16(fmt + 0);
-
-    _wav.channels =
-        readLE16(fmt + 2);
-
-    _wav.sampleRate =
-        readLE32(fmt + 4);
-
-    _wav.byteRate =
-        readLE32(fmt + 8);
-
-    _wav.blockAlign =
-        readLE16(fmt + 12);
-
-    _wav.bitsPerSample =
-        readLE16(fmt + 14);
-
-    Serial.println(
-        "[SOUND] fmt parsed:"
-    );
-
-    Serial.printf(
-        "         format       = %u\n",
-        _wav.audioFormat
-    );
-
-    Serial.printf(
-        "         channels     = %u\n",
-        _wav.channels
-    );
-
-    Serial.printf(
-        "         sample rate  = %lu\n",
-        static_cast<unsigned long>(
-            _wav.sampleRate
-        )
-    );
-
-    Serial.printf(
-        "         byte rate    = %lu\n",
-        static_cast<unsigned long>(
+    _durationMs =
+        static_cast<uint32_t>(
+            (
+                static_cast<uint64_t>(_wav.dataSize) *
+                1000ULL
+            ) /
             _wav.byteRate
-        )
-    );
-
-    Serial.printf(
-        "         block align  = %u\n",
-        _wav.blockAlign
-    );
-
-    Serial.printf(
-        "         bits/sample  = %u\n",
-        _wav.bitsPerSample
-    );
-
-    // Skip any extended fmt data.
-    if (chunkSize > 16)
-    {
-        uint32_t extra =
-            chunkSize - 16;
-
-        if (
-            !file.seek(
-                file.position() + extra
-            )
-        )
-        {
-            Serial.println(
-                "[SOUND] ERROR: fmt skip failed"
-            );
-
-            return false;
-        }
-    }
+        );
 
     return true;
 }
@@ -1192,18 +690,9 @@ bool SoundManager::parseFmtChunk(
 
 bool SoundManager::validateWav() const
 {
-    if (!_wav.valid)
-    {
-        Serial.println(
-            "[SOUND] WAV invalid flag"
-        );
-
-        return false;
-    }
-
     if (_wav.audioFormat != 1)
     {
-        Serial.printf(
+        Serial0.printf(
             "[SOUND] ERROR: unsupported audio format: %u\n",
             _wav.audioFormat
         );
@@ -1211,12 +700,10 @@ bool SoundManager::validateWav() const
         return false;
     }
 
-    if (
-        _wav.channels != 1 &&
-        _wav.channels != 2
-    )
+    if (_wav.channels != 1 &&
+        _wav.channels != 2)
     {
-        Serial.printf(
+        Serial0.printf(
             "[SOUND] ERROR: unsupported channels: %u\n",
             _wav.channels
         );
@@ -1224,20 +711,20 @@ bool SoundManager::validateWav() const
         return false;
     }
 
-    if (_wav.bitsPerSample != 16)
+    if (_wav.sampleRate == 0)
     {
-        Serial.printf(
-            "[SOUND] ERROR: unsupported bits/sample: %u\n",
-            _wav.bitsPerSample
+        Serial0.println(
+            "[SOUND] ERROR: invalid sample rate"
         );
 
         return false;
     }
 
-    if (_wav.sampleRate == 0)
+    if (_wav.bitsPerSample != 16)
     {
-        Serial.println(
-            "[SOUND] ERROR: sample rate == 0"
+        Serial0.printf(
+            "[SOUND] ERROR: only 16-bit PCM supported, got %u\n",
+            _wav.bitsPerSample
         );
 
         return false;
@@ -1245,40 +732,13 @@ bool SoundManager::validateWav() const
 
     if (_wav.blockAlign == 0)
     {
-        Serial.println(
-            "[SOUND] ERROR: block align == 0"
-        );
-
         return false;
     }
 
     if (_wav.dataSize == 0)
     {
-        Serial.println(
-            "[SOUND] ERROR: data size == 0"
-        );
-
-        return false;
-    }
-
-    if (
-        _wav.dataOffset +
-        _wav.dataSize >
-        _file.size()
-    )
-    {
-        Serial.printf(
-            "[SOUND] ERROR: data extends beyond file "
-            "(offset=%lu size=%lu file=%lu)\n",
-            static_cast<unsigned long>(
-                _wav.dataOffset
-            ),
-            static_cast<unsigned long>(
-                _wav.dataSize
-            ),
-            static_cast<unsigned long>(
-                _file.size()
-            )
+        Serial0.println(
+            "[SOUND] ERROR: empty PCM data"
         );
 
         return false;
@@ -1288,106 +748,158 @@ bool SoundManager::validateWav() const
 }
 
 // ============================================================
-// CONFIGURE SPEAKER
+// READ + PLAY CHUNK
 // ============================================================
 
-bool SoundManager::configureSpeaker()
+bool SoundManager::readAndPlayChunk()
 {
-    Serial.printf(
-        "[SOUND] Configuring speaker for %lu Hz\n",
-        static_cast<unsigned long>(
-            _wav.sampleRate
-        )
+    if (!_file)
+        return false;
+
+    uint32_t remaining =
+        _wav.dataSize - _positionBytes;
+
+    if (remaining == 0)
+    {
+        finishPlayback();
+        return true;
+    }
+
+    size_t bytesToRead =
+        min(
+            static_cast<size_t>(remaining),
+            BUFFER_BYTES
+        );
+
+    size_t bytesRead =
+        _file.read(
+            _inputBuffer,
+            bytesToRead
+        );
+
+    if (bytesRead == 0)
+    {
+        finishPlayback();
+        return true;
+    }
+
+    const uint32_t sourceBytesRead =
+        static_cast<uint32_t>(bytesRead);
+
+    size_t outputSamples = 0;
+
+    // ========================================================
+    // MONO
+    // ========================================================
+
+    if (_wav.channels == 1)
+    {
+        size_t sampleCount =
+            bytesRead / 2;
+
+        memcpy(
+            _outputBuffer,
+            _inputBuffer,
+            sampleCount * sizeof(int16_t)
+        );
+
+        outputSamples = sampleCount;
+    }
+
+    // ========================================================
+    // STEREO -> MONO
+    // ========================================================
+
+    else
+    {
+        const int16_t* stereo =
+            reinterpret_cast<const int16_t*>(
+                _inputBuffer
+            );
+
+        size_t stereoSamples =
+            bytesRead / 2;
+
+        size_t frames =
+            stereoSamples / 2;
+
+        for (size_t i = 0; i < frames; ++i)
+        {
+            int32_t left =
+                stereo[i * 2];
+
+            int32_t right =
+                stereo[i * 2 + 1];
+
+            int32_t mixed =
+                (left + right) / 2;
+
+            mixed =
+                constrain(
+                    mixed,
+                    -32768,
+                    32767
+                );
+
+            _outputBuffer[i] =
+                static_cast<int16_t>(mixed);
+        }
+
+        outputSamples = frames;
+    }
+
+    // ========================================================
+    // VOLUME
+    // ========================================================
+
+    uint8_t volume =
+        getEffectiveVolume();
+
+    applyVolume(
+        _outputBuffer,
+        outputSamples,
+        volume
     );
 
-    if (
-        !isSupportedSampleRate(
-            _wav.sampleRate
-        )
-    )
+    // ========================================================
+    // WRITE
+    // ========================================================
+
+    size_t outputBytes =
+        outputSamples * sizeof(int16_t);
+
+    size_t bytesWritten = 0;
+
+    if (!_i2sManager.writeSpeaker(
+            reinterpret_cast<const uint8_t*>(
+                _outputBuffer
+            ),
+            outputBytes,
+            bytesWritten,
+            100
+        ))
     {
-        Serial.printf(
-            "[SOUND] WARNING: unusual sample rate %lu\n",
-            static_cast<unsigned long>(
-                _wav.sampleRate
-            )
-        );
-    }
-
-    // --------------------------------------------------------
-    // If already initialized, release current configuration.
-    // --------------------------------------------------------
-
-    if (_i2sManager.isSpeakerInitialized())
-    {
-        Serial.println(
-            "[SOUND] Speaker I2S already initialized"
+        Serial0.printf(
+            "[SOUND] writeSpeaker() failed, requested=%u written=%u\n",
+            static_cast<unsigned int>(outputBytes),
+            static_cast<unsigned int>(bytesWritten)
         );
 
-        Serial.println(
-            "[SOUND] Reconfiguring speaker"
-        );
-
-        _i2sManager.endSpeaker();
-    }
-
-    // --------------------------------------------------------
-    // Start with WAV sample rate.
-    // --------------------------------------------------------
-
-    if (
-        !_i2sManager.beginSpeaker(
-            _wav.sampleRate
-        )
-    )
-    {
-        Serial.printf(
-            "[SOUND] ERROR: beginSpeaker(%lu) failed\n",
-            static_cast<unsigned long>(
-                _wav.sampleRate
-            )
-        );
+        finishPlayback();
 
         return false;
     }
 
-    Serial.printf(
-        "[SOUND] Speaker I2S configured: %lu Hz\n",
-        static_cast<unsigned long>(
-            _wav.sampleRate
-        )
-    );
+    // ВАЖНО:
+    // Позиция WAV должна учитывать именно
+    // количество байт исходного файла.
+    _positionBytes += sourceBytesRead;
 
     return true;
 }
 
 // ============================================================
-// SUPPORTED SAMPLE RATE
-// ============================================================
-
-bool SoundManager::isSupportedSampleRate(
-    uint32_t sampleRate
-) const
-{
-    switch (sampleRate)
-    {
-        case 8000:
-        case 11025:
-        case 16000:
-        case 22050:
-        case 32000:
-        case 44100:
-        case 48000:
-        case 96000:
-            return true;
-
-        default:
-            return false;
-    }
-}
-
-// ============================================================
-// APPLY VOLUME
+// VOLUME
 // ============================================================
 
 void SoundManager::applyVolume(
@@ -1396,271 +908,127 @@ void SoundManager::applyVolume(
     uint8_t volume
 )
 {
-    if (!samples)
+    if (samples == nullptr)
         return;
 
     if (volume >= 100)
         return;
 
+    if (volume == 0)
+    {
+        memset(
+            samples,
+            0,
+            sampleCount * sizeof(int16_t)
+        );
+
+        return;
+    }
+
+    float multiplier =
+        static_cast<float>(volume) / 100.0f;
+
     for (size_t i = 0; i < sampleCount; ++i)
     {
         int32_t value =
-            samples[i];
+            static_cast<int32_t>(
+                static_cast<float>(
+                    samples[i]
+                ) * multiplier
+            );
 
         value =
-            (
-                value *
-                static_cast<int32_t>(volume)
-            ) / 100;
-
-        if (value > 32767)
-            value = 32767;
-
-        if (value < -32768)
-            value = -32768;
+            constrain(
+                value,
+                -32768,
+                32767
+            );
 
         samples[i] =
-            static_cast<int16_t>(
-                value
-            );
+            static_cast<int16_t>(value);
     }
 }
 
 // ============================================================
-// DOWNMIX STEREO
+// EFFECTIVE VOLUME
 // ============================================================
 
-void SoundManager::downmixStereoToMono(
-    int16_t* samples,
-    size_t sampleCount
-)
+uint8_t SoundManager::calculateEffectiveVolume() const
 {
-    if (!samples)
-        return;
+    uint8_t global =
+        constrain(
+            _settings.volume,
+            0,
+            100
+        );
 
-    size_t frames =
-        sampleCount / 2;
-
-    for (size_t i = 0; i < frames; ++i)
-    {
-        int32_t left =
-            samples[i * 2];
-
-        int32_t right =
-            samples[i * 2 + 1];
-
-        int32_t mono =
-            (left + right) / 2;
-
-        if (mono > 32767)
-            mono = 32767;
-
-        if (mono < -32768)
-            mono = -32768;
-
-        samples[i] =
-            static_cast<int16_t>(
-                mono
-            );
-    }
-}
-
-// ============================================================
-// VOLUME
-// ============================================================
-
-uint8_t SoundManager::getEffectiveVolume() const
-{
-    uint16_t global =
-        _settings.volume;
-
-    uint16_t local =
-        _localVolume;
+    uint8_t local =
+        constrain(
+            _localVolume,
+            0,
+            100
+        );
 
     return static_cast<uint8_t>(
         (
-            global *
-            local
+            static_cast<uint16_t>(global) *
+            static_cast<uint16_t>(local)
         ) / 100
     );
 }
 
-// ============================================================
-// CURRENT VOLUME
-// ============================================================
-
-uint8_t SoundManager::calculateCurrentVolume() const
+uint8_t SoundManager::getEffectiveVolume() const
 {
-    uint8_t target =
-        getEffectiveVolume();
+    uint8_t volume =
+        calculateEffectiveVolume();
 
-    if (!_fadeEnabled)
-        return target;
+    float fade =
+        calculateFadeMultiplier();
 
-    uint32_t elapsed =
-        millis() -
-        _fadeStartMs;
+    float result =
+        static_cast<float>(volume) *
+        fade;
 
-    if (
-        elapsed >=
-        _fadeDurationMs
-    )
-    {
-        return _fadeTargetVolume;
-    }
-
-    float progress =
-        static_cast<float>(elapsed) /
-        static_cast<float>(_fadeDurationMs);
-
-    float factor =
-        calculateFade(progress);
-
-    float value =
-        static_cast<float>(
-            _fadeStartVolume
-        ) +
-        (
-            static_cast<float>(
-                _fadeTargetVolume -
-                _fadeStartVolume
-            ) *
-            factor
+    result =
+        constrain(
+            result,
+            0.0f,
+            100.0f
         );
-
-    if (value < 0.0f)
-        value = 0.0f;
-
-    if (value > 100.0f)
-        value = 100.0f;
 
     return static_cast<uint8_t>(
-        value
+        result
     );
 }
 
 // ============================================================
-// FADE CURVE
+// GLOBAL VOLUME
 // ============================================================
 
-float SoundManager::calculateFade(
-    float progress
-) const
+void SoundManager::setGlobalVolume(uint8_t volume)
 {
-    if (progress <= 0.0f)
-        return 0.0f;
+    _settings.volume =
+        constrain(volume, 0, 100);
+}
 
-    if (progress >= 1.0f)
-        return 1.0f;
-
-    switch (_fadeCurve)
-    {
-        case FadeCurve::Linear:
-            return progress;
-
-        case FadeCurve::Exponential:
-            return
-                progress *
-                progress;
-
-        case FadeCurve::Logarithmic:
-            return
-                1.0f -
-                (
-                    (1.0f - progress) *
-                    (1.0f - progress)
-                );
-    }
-
-    return progress;
+uint8_t SoundManager::getGlobalVolume() const
+{
+    return _settings.volume;
 }
 
 // ============================================================
-// UPDATE FADE
+// LOCAL VOLUME
 // ============================================================
 
-void SoundManager::updateFade()
+void SoundManager::setLocalVolume(uint8_t volume)
 {
-    if (!_fadeEnabled)
-        return;
-
-    uint32_t elapsed =
-        millis() -
-        _fadeStartMs;
-
-    if (
-        elapsed <
-        _fadeDurationMs
-    )
-    {
-        return;
-    }
-
-    _fadeEnabled = false;
-
-    if (
-        _state ==
-        State::FADING_IN
-    )
-    {
-        _state = State::PLAYING;
-
-        Serial.println(
-            "[SOUND] Fade-in completed"
-        );
-    }
-
-    else if (
-        _state ==
-        State::FADING_OUT
-    )
-    {
-        Serial.println(
-            "[SOUND] Fade-out completed"
-        );
-
-        finishPlayback();
-    }
+    _localVolume =
+        constrain(volume, 0, 100);
 }
 
-// ============================================================
-// STOP
-// ============================================================
-
-void SoundManager::stop()
+uint8_t SoundManager::getLocalVolume() const
 {
-    if (
-        _state ==
-        State::STOPPED
-    )
-    {
-        return;
-    }
-
-    Serial.println(
-        "[SOUND] stop()"
-    );
-
-    if (_i2sManager.isSpeakerInitialized())
-    {
-        i2s_port_t port =
-            _i2sManager.speakerPort();
-
-        i2s_stop(port);
-
-        i2s_zero_dma_buffer(port);
-    }
-
-    closeFile();
-
-    _state =
-        State::STOPPED;
-
-    _fadeEnabled = false;
-
-    _positionBytes = 0;
-
-    _currentPath[0] = '\0';
+    return _localVolume;
 }
 
 // ============================================================
@@ -1670,42 +1038,14 @@ void SoundManager::stop()
 bool SoundManager::pause()
 {
     if (_state != State::PLAYING)
-    {
-        Serial.println(
-            "[SOUND] pause(): not playing"
-        );
-
         return false;
-    }
 
-    if (
-        !_i2sManager.isSpeakerInitialized()
-    )
-    {
+    if (!_i2sManager.stopSpeaker())
         return false;
-    }
 
-    esp_err_t err =
-        i2s_stop(
-            _i2sManager.speakerPort()
-        );
+    _state = State::PAUSED;
 
-    if (err != ESP_OK)
-    {
-        Serial.printf(
-            "[SOUND] pause: i2s_stop failed: %s\n",
-            esp_err_to_name(err)
-        );
-
-        return false;
-    }
-
-    _state =
-        State::PAUSED;
-
-    Serial.println(
-        "[SOUND] PAUSED"
-    );
+    Serial0.println("[SOUND] PAUSED");
 
     return true;
 }
@@ -1717,133 +1057,218 @@ bool SoundManager::pause()
 bool SoundManager::resume()
 {
     if (_state != State::PAUSED)
-    {
-        Serial.println(
-            "[SOUND] resume(): not paused"
-        );
-
         return false;
-    }
 
-    if (
-        !_i2sManager.isSpeakerInitialized()
-    )
-    {
+    if (!_i2sManager.startSpeaker())
         return false;
-    }
 
-    esp_err_t err =
-        i2s_start(
-            _i2sManager.speakerPort()
-        );
+    _state = State::PLAYING;
 
-    if (err != ESP_OK)
-    {
-        Serial.printf(
-            "[SOUND] resume: i2s_start failed: %s\n",
-            esp_err_to_name(err)
-        );
-
-        return false;
-    }
-
-    _state =
-        State::PLAYING;
-
-    Serial.println(
-        "[SOUND] RESUMED"
-    );
+    Serial0.println("[SOUND] RESUMED");
 
     return true;
 }
 
 // ============================================================
-// FINISH PLAYBACK
+// STOP
+// ============================================================
+
+void SoundManager::stop()
+{
+    if (_state == State::STOPPED)
+    {
+        if (_file)
+            _file.close();
+
+        return;
+    }
+
+    Serial0.println("[SOUND] STOP");
+
+    _i2sManager.stopSpeaker();
+    _i2sManager.clearSpeaker();
+
+    if (_file)
+        _file.close();
+
+    _state = State::STOPPED;
+
+    _positionBytes = 0;
+}
+
+// ============================================================
+// FINISH
 // ============================================================
 
 void SoundManager::finishPlayback()
 {
-    Serial.println(
-        "[SOUND] finishPlayback()"
-    );
+    Serial0.println("[SOUND] finishPlayback()");
 
-    if (
-        _i2sManager.isSpeakerInitialized()
-    )
-    {
-        i2s_stop(
-            _i2sManager.speakerPort()
-        );
+    _i2sManager.stopSpeaker();
+    _i2sManager.clearSpeaker();
 
-        i2s_zero_dma_buffer(
-            _i2sManager.speakerPort()
-        );
-    }
-
-    closeFile();
-
-    _state =
-        State::STOPPED;
-
-    _fadeEnabled = false;
-}
-
-// ============================================================
-// CLOSE FILE
-// ============================================================
-
-void SoundManager::closeFile()
-{
     if (_file)
-    {
         _file.close();
-    }
+
+    _state = State::STOPPED;
+
+    _positionBytes = _wav.dataSize;
 }
 
 // ============================================================
-// LOCAL VOLUME
+// ALARM
 // ============================================================
 
-void SoundManager::setLocalVolume(
-    uint8_t volume
+bool SoundManager::playAlarm(
+    const char* path,
+    uint8_t localVolume,
+    uint32_t fadeInMs,
+    uint32_t fadeOutMs,
+    FadeCurve curve
 )
 {
-    if (volume > 100)
-        volume = 100;
+    _fadeInEnabled =
+        fadeInMs > 0;
 
+    _fadeOutEnabled =
+        fadeOutMs > 0;
+
+    _fadeInMs =
+        fadeInMs;
+
+    _fadeOutMs =
+        fadeOutMs;
+
+    _fadeCurve =
+        curve;
+
+    _fadeStartMs =
+        millis();
+
+    _fadeStopMs =
+        0;
+
+    // Для alarm localVolume является
+    // непосредственной громкостью.
+    //
+    // Поэтому здесь глобальная громкость
+    // НЕ должна ограничивать alarm.
     _localVolume =
-        volume;
+        constrain(localVolume, 0, 100);
+
+    return playWavLocal(
+        path,
+        100
+    );
 }
 
 // ============================================================
-// GET LOCAL VOLUME
+// FADE MULTIPLIER
 // ============================================================
 
-uint8_t SoundManager::getLocalVolume() const
+float SoundManager::calculateFadeMultiplier() const
 {
-    return _localVolume;
+    if (_state != State::PLAYING)
+        return 1.0f;
+
+    uint32_t now =
+        millis();
+
+    // ========================================================
+    // FADE IN
+    // ========================================================
+
+    if (_fadeInEnabled &&
+        _fadeInMs > 0)
+    {
+        uint32_t elapsed =
+            now - _fadeStartMs;
+
+        if (elapsed < _fadeInMs)
+        {
+            float value =
+                static_cast<float>(elapsed) /
+                static_cast<float>(_fadeInMs);
+
+            return applyFadeCurve(value);
+        }
+    }
+
+    // ========================================================
+    // FADE OUT
+    // ========================================================
+
+    if (_fadeOutEnabled &&
+        _fadeOutMs > 0 &&
+        _durationMs > 0)
+    {
+        uint32_t position =
+            getPositionMs();
+
+        if (position >=
+            _durationMs - min(
+                _durationMs,
+                _fadeOutMs
+            ))
+        {
+            uint32_t start =
+                _durationMs -
+                min(
+                    _durationMs,
+                    _fadeOutMs
+                );
+
+            uint32_t elapsed =
+                position - start;
+
+            float value =
+                1.0f -
+                (
+                    static_cast<float>(elapsed) /
+                    static_cast<float>(_fadeOutMs)
+                );
+
+            value =
+                constrain(
+                    value,
+                    0.0f,
+                    1.0f
+                );
+
+            return applyFadeCurve(value);
+        }
+    }
+
+    return 1.0f;
 }
 
 // ============================================================
-// STATE
+// FADE CURVE
 // ============================================================
 
-bool SoundManager::isPlaying() const
+float SoundManager::applyFadeCurve(float value) const
 {
-    return
-        _state == State::PLAYING ||
-        _state == State::FADING_IN ||
-        _state == State::FADING_OUT;
-}
+    value =
+        constrain(
+            value,
+            0.0f,
+            1.0f
+        );
 
-bool SoundManager::isPaused() const
-{
-    return _state == State::PAUSED;
-}
+    switch (_fadeCurve)
+    {
+        case FadeCurve::Linear:
+            return value;
 
-SoundManager::State SoundManager::getState() const
-{
-    return _state;
+        case FadeCurve::Exponential:
+            return value * value;
+
+        case FadeCurve::Logarithmic:
+            return sqrtf(value);
+
+        default:
+            return value;
+    }
 }
 
 // ============================================================
@@ -1852,198 +1277,102 @@ SoundManager::State SoundManager::getState() const
 
 uint32_t SoundManager::getPositionMs() const
 {
-    if (
-        _wav.byteRate == 0
-    )
-    {
+    if (_wav.byteRate == 0)
         return 0;
-    }
 
-    return
+    return static_cast<uint32_t>(
         (
-            _positionBytes *
-            1000UL
+            static_cast<uint64_t>(_positionBytes) *
+            1000ULL
         ) /
-        _wav.byteRate;
+        _wav.byteRate
+    );
 }
-
-// ============================================================
-// DURATION
-// ============================================================
 
 uint32_t SoundManager::getDurationMs() const
 {
-    if (
-        _wav.byteRate == 0
-    )
-    {
-        return 0;
-    }
-
-    return
-        (
-            _wav.dataSize *
-            1000UL
-        ) /
-        _wav.byteRate;
+    return _durationMs;
 }
-
-// ============================================================
-// POSITION BYTES
-// ============================================================
 
 uint32_t SoundManager::getPositionBytes() const
 {
     return _positionBytes;
 }
 
-// ============================================================
-// DATA BYTES
-// ============================================================
-
-uint32_t SoundManager::getDataBytes() const
+uint32_t SoundManager::getDataSize() const
 {
     return _wav.dataSize;
-}
-
-// ============================================================
-// WAV INFO
-// ============================================================
-
-uint32_t SoundManager::getSampleRate() const
-{
-    return _wav.sampleRate;
-}
-
-uint16_t SoundManager::getChannels() const
-{
-    return _wav.channels;
-}
-
-uint16_t SoundManager::getBitsPerSample() const
-{
-    return _wav.bitsPerSample;
-}
-
-uint16_t SoundManager::getAudioFormat() const
-{
-    return _wav.audioFormat;
-}
-
-// ============================================================
-// PRINT WAV INFO
-// ============================================================
-
-void SoundManager::printWavInfo() const
-{
-    Serial.println();
-    Serial.println(
-        "[SOUND] ========== WAV INFO =========="
-    );
-
-    Serial.printf(
-        "[SOUND] Format:       %u\n",
-        _wav.audioFormat
-    );
-
-    Serial.printf(
-        "[SOUND] Channels:     %u\n",
-        _wav.channels
-    );
-
-    Serial.printf(
-        "[SOUND] Sample rate:  %lu Hz\n",
-        static_cast<unsigned long>(
-            _wav.sampleRate
-        )
-    );
-
-    Serial.printf(
-        "[SOUND] Byte rate:    %lu\n",
-        static_cast<unsigned long>(
-            _wav.byteRate
-        )
-    );
-
-    Serial.printf(
-        "[SOUND] Block align:  %u\n",
-        _wav.blockAlign
-    );
-
-    Serial.printf(
-        "[SOUND] Bits/sample:  %u\n",
-        _wav.bitsPerSample
-    );
-
-    Serial.printf(
-        "[SOUND] Data offset:  %lu\n",
-        static_cast<unsigned long>(
-            _wav.dataOffset
-        )
-    );
-
-    Serial.printf(
-        "[SOUND] Data size:    %lu\n",
-        static_cast<unsigned long>(
-            _wav.dataSize
-        )
-    );
-
-    Serial.printf(
-        "[SOUND] Duration:     %lu ms\n",
-        static_cast<unsigned long>(
-            getDurationMs()
-        )
-    );
-
-    Serial.println(
-        "[SOUND] ================================="
-    );
-    Serial.println();
 }
 
 // ============================================================
 // STATUS
 // ============================================================
 
-void SoundManager::printStatus() const
+bool SoundManager::isInitialized() const
 {
-    Serial.println();
-    Serial.println(
-        "[SOUND] ---------- STATUS ----------"
-    );
+    return _initialized;
+}
 
-    Serial.printf(
+bool SoundManager::isPlaying() const
+{
+    return _state == State::PLAYING;
+}
+
+bool SoundManager::isPaused() const
+{
+    return _state == State::PAUSED;
+}
+
+bool SoundManager::isActive() const
+{
+    return _state != State::STOPPED;
+}
+
+SoundManager::State SoundManager::getState() const
+{
+    return _state;
+}
+
+// ============================================================
+// DEBUG
+// ============================================================
+
+void SoundManager::printStatus()
+{
+    Serial0.println();
+    Serial0.println("[SOUND] ---------- STATUS ----------");
+
+    Serial0.printf(
         "[SOUND] Initialized: %s\n",
         _initialized ? "YES" : "NO"
     );
 
-    Serial.printf(
+    Serial0.printf(
         "[SOUND] Playing: %s\n",
         isPlaying() ? "YES" : "NO"
     );
 
-    Serial.printf(
+    Serial0.printf(
         "[SOUND] Paused: %s\n",
         isPaused() ? "YES" : "NO"
     );
 
-    Serial.printf(
+    Serial0.printf(
         "[SOUND] Local volume: %u\n",
         _localVolume
     );
 
-    Serial.printf(
+    Serial0.printf(
         "[SOUND] Global volume: %u\n",
         _settings.volume
     );
 
-    Serial.printf(
+    Serial0.printf(
         "[SOUND] Effective volume: %u\n",
         getEffectiveVolume()
     );
 
-    Serial.printf(
+    Serial0.printf(
         "[SOUND] Position: %lu / %lu ms\n",
         static_cast<unsigned long>(
             getPositionMs()
@@ -2053,21 +1382,7 @@ void SoundManager::printStatus() const
         )
     );
 
-    Serial.println(
+    Serial0.println(
         "[SOUND] --------------------------------"
-    );
-}
-
-// ============================================================
-// ERROR
-// ============================================================
-
-void SoundManager::printError(
-    const char* message
-) const
-{
-    Serial.printf(
-        "[SOUND] ERROR: %s\n",
-        message
     );
 }
