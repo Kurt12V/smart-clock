@@ -1,113 +1,82 @@
-
 #include <Arduino.h>
 
-#define COB1 18
-#define COB2 46
-#define COB3 40
-#define COB4 41
+// 4 канала: GPIO4..7 -> входы EN четырёх драйверов LD1500SB
+#define COB1 4
+#define COB2 5
+#define COB3 6
+#define COB4 7
+
+const uint8_t pins[4] = { COB1, COB2, COB3, COB4 };
+
+// КРИТИЧНО для LD1500SB: частота ШИМ < 2 кГц
+#define PWM_FREQ 1000    // 1 кГц
+#define PWM_RES  8       // 0..255
+
+// Гамма-таблица для плавности, воспринимаемой глазом
+uint8_t gammaTable[256];
+
+void buildGamma()
+{
+    for (int i = 0; i < 256; i++)
+    {
+        float x = i / 255.0f;
+        gammaTable[i] = (uint8_t)(powf(x, 2.2f) * 255.0f + 0.5f);
+    }
+}
+
+// Плавное изменение яркости канала: from -> to за durationMs (0..255)
+void fade(uint8_t ch, int from, int to, uint16_t durationMs)
+{
+    const int steps = 100;
+    uint16_t stepDelay = durationMs / steps;
+
+    for (int i = 0; i <= steps; i++)
+    {
+        int b = from + (to - from) * i / steps;
+        ledcWrite(ch, gammaTable[b]);
+        delay(stepDelay);
+    }
+    ledcWrite(ch, gammaTable[to]);
+}
 
 void setup()
 {
-    Serial.begin(115200);
+    Serial0.begin(115200);
+    delay(1500);
 
-    delay(1000);
+    buildGamma();
 
-    pinMode(COB1, OUTPUT);
-    pinMode(COB2, OUTPUT);
-    pinMode(COB3, OUTPUT);
-    pinMode(COB4, OUTPUT);
+    for (uint8_t i = 0; i < 4; i++)
+    {
+        if (ledcSetup(i, PWM_FREQ, PWM_RES) == 0) {
+            Serial0.printf("ledcSetup FAILED on channel %d\n", i);
+            while (1) delay(1000);
+        }
+        ledcAttachPin(pins[i], i);
+        ledcWrite(i, 0);   // старт с выключенного
+    }
 
-    // Сначала LOW
-    digitalWrite(COB1, LOW);
-    digitalWrite(COB2, LOW);
-    digitalWrite(COB3, LOW);
-    digitalWrite(COB4, LOW);
-
-    Serial.println("================================");
-    Serial.println("LD1500SB GPIO TEST");
-    Serial.println("================================");
+    Serial0.println("LD1500SB 4-channel PWM ready (1 kHz)");
 }
 
 void loop()
 {
-    // ========================================================
-    // ВСЕ ВЫКЛ
-    // ========================================================
+    // Каждый канал: плавно разжечь -> пауза -> плавно погасить -> пауза
+    for (uint8_t i = 0; i < 4; i++)
+    {
+        Serial0.printf("CH%d: Fade IN\n", i + 1);
+        fade(i, 0, 255, 2000);
+        delay(1000);
 
-    Serial.println("ALL LOW");
+        Serial0.printf("CH%d: Fade OUT\n", i + 1);
+        fade(i, 255, 0, 2000);
+        delay(1000);
+    }
 
-    digitalWrite(COB1, LOW);
-    digitalWrite(COB2, LOW);
-    digitalWrite(COB3, LOW);
-    digitalWrite(COB4, LOW);
-
-    delay(3000);
-
-
-    // ========================================================
-    // COB1
-    // ========================================================
-
-    Serial.println("COB1 HIGH");
-
-    digitalWrite(COB1, HIGH);
+    // Гасим всё перед новым циклом
+    Serial0.println("ALL -> 0%");
+    for (uint8_t i = 0; i < 4; i++)
+        fade(i, 255, 0, 1500);
 
     delay(2000);
-
-    Serial.println("COB1 LOW");
-
-    digitalWrite(COB1, LOW);
-
-    delay(1000);
-
-
-    // ========================================================
-    // COB2
-    // ========================================================
-
-    Serial.println("COB2 HIGH");
-
-    digitalWrite(COB2, HIGH);
-
-    delay(2000);
-
-    Serial.println("COB2 LOW");
-
-    digitalWrite(COB2, LOW);
-
-    delay(1000);
-
-
-    // ========================================================
-    // COB3
-    // ========================================================
-
-    Serial.println("COB3 HIGH");
-
-    digitalWrite(COB3, HIGH);
-
-    delay(2000);
-
-    Serial.println("COB3 LOW");
-
-    digitalWrite(COB3, LOW);
-
-    delay(1000);
-
-
-    // ========================================================
-    // COB4
-    // ========================================================
-
-    Serial.println("COB4 HIGH");
-
-    digitalWrite(COB4, HIGH);
-
-    delay(2000);
-
-    Serial.println("COB4 LOW");
-
-    digitalWrite(COB4, LOW);
-
-    delay(1000);
 }
