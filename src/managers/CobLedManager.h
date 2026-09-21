@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+
 #include "./hardware/light/CobLed.h"
 
 class CobLedManager
@@ -8,36 +9,73 @@ class CobLedManager
 public:
     CobLedManager(
         CobLed& cob1,
-        CobLed& cob2
+        CobLed& cob2,
+        CobLed& cob3,
+        CobLed& cob4
     );
 
     void begin();
     void update();
 
-    // Общее управление двумя COB
+
+    // ========================================================
+    // ОБЩЕЕ УПРАВЛЕНИЕ
+    // ========================================================
+
     void on();
     void off();
     void toggle();
 
-    // Общая яркость
+
+    // ========================================================
+    // ОБЩАЯ ЯРКОСТЬ
+    // ========================================================
+
     void setBrightness(uint8_t brightness);
+
     void increaseBrightness(uint8_t step = 5);
     void decreaseBrightness(uint8_t step = 5);
 
-    // Управление отдельно
-    void setBrightness(uint8_t cob, uint8_t brightness);
+
+    // ========================================================
+    // ОТДЕЛЬНЫЙ COB
+    // ========================================================
+
+    void setBrightness(
+        uint8_t cob,
+        uint8_t brightness
+    );
+
+    void increaseBrightness(
+        uint8_t cob,
+        uint8_t step = 5
+    );
+
+    void decreaseBrightness(
+        uint8_t cob,
+        uint8_t step = 5
+    );
 
     void on(uint8_t cob);
     void off(uint8_t cob);
     void toggle(uint8_t cob);
 
-    // Состояние
+
+    // ========================================================
+    // СОСТОЯНИЕ
+    // ========================================================
+
     bool isOn(uint8_t cob) const;
+
     uint8_t brightness(uint8_t cob) const;
+
 
 private:
     CobLed& _cob1;
     CobLed& _cob2;
+    CobLed& _cob3;
+    CobLed& _cob4;
+
 
     CobLed& getCob(uint8_t cob);
     const CobLed& getCob(uint8_t cob) const;

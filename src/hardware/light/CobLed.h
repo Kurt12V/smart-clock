@@ -29,6 +29,7 @@ public:
 private:
     uint8_t _pin;
     uint8_t _channel;
+
     uint32_t _frequency;
     uint8_t _resolution;
 
