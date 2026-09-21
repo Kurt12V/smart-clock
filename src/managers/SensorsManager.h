@@ -8,7 +8,6 @@
 #include "./hardware/sensors/SHT45.h"
 #include "./hardware/sensors/VEML7700.h"
 #include "./hardware/sensors/VL53L8CX.h"
-#include "./hardware/audio/Microphone.h"
 
 class SensorManager {
 public:
@@ -32,41 +31,6 @@ String getHumidity() const;
 
 String getLight() const;
 
-    // =====================================================
-    // MICROPHONE
-    // =====================================================
-
-    bool isMicrophoneInitialized() const;
-
-    bool isMicrophoneEnabled() const;
-
-    void setMicrophoneEnabled(
-        bool enabled
-    );
-
-
-    bool startListening();
-
-    void stopListening();
-
-    bool isListening() const;
-
-
-    bool updateAudio();
-
-
-    float getMicrophoneRMS() const;
-
-    float getMicrophoneLevel() const;
-
-    int16_t getMicrophonePeak() const;
-
-
-    /*
-     * Доступ к Microphone для AudioRecorder.
-     */
-
-    Microphone& getMicrophone();
 
 bool isVL53L8CXInitialized() const;
 
@@ -91,7 +55,6 @@ static constexpr int SENSOR_COUNT = 2;
 SHT45Sensor sht45;
 VEML7700Sensor veml7700;
 VL53L8CXSensor vl53l8cx;
-Microphone microphone;
 
 Sensor* sensors[SENSOR_COUNT];
 

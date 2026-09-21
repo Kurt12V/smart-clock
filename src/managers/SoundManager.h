@@ -1,9 +1,9 @@
 #pragma once
 
 #include <Arduino.h>
-#include <driver/i2s.h>
 #include <FS.h>
 
+#include "./managers/I2SManager.h"
 #include "./managers/SDManager.h"
 #include "Settings.h"
 
@@ -11,58 +11,9 @@ class SoundManager
 {
 public:
 
-    // ============================================================
-    // I2S
-    // ============================================================
-
-    static constexpr i2s_port_t I2S_PORT = I2S_NUM_0;
-
-    static constexpr uint32_t DEFAULT_SAMPLE_RATE = 44100;
-
-    static constexpr uint16_t BITS_PER_SAMPLE = 16;
-
-    static constexpr uint32_t MIN_SAMPLE_RATE = 8000;
-    static constexpr uint32_t MAX_SAMPLE_RATE = 48000;
-
-    // ============================================================
-    // Buffers
-    // ============================================================
-
-    static constexpr size_t INPUT_BUFFER_SIZE  = 4096;
-    static constexpr size_t OUTPUT_BUFFER_SIZE = 8192;
-
-    // ============================================================
-    // Volume
-    // ============================================================
-
-    static constexpr uint8_t MIN_VOLUME = 0;
-    static constexpr uint8_t MAX_VOLUME = 100;
-
-    // ============================================================
-    // Sound type
-    // ============================================================
-
-    enum class SoundType : uint8_t
-    {
-        NONE,
-        WAV,
-        TONE,
-        SIREN
-    };
-
-    // ============================================================
-    // Volume source
-    // ============================================================
-
-    enum class VolumeMode : uint8_t
-    {
-        GLOBAL,
-        LOCAL
-    };
-
-    // ============================================================
+    // ========================================================
     // Fade curve
-    // ============================================================
+    // ========================================================
 
     enum class FadeCurve : uint8_t
     {
@@ -71,143 +22,52 @@ public:
         Logarithmic
     };
 
-    // ============================================================
+    // ========================================================
     // Constructor
-    // ============================================================
+    // ========================================================
 
     SoundManager(
-        SDManager& sd,
-        const Settings::Audio& settings
+        SDManager& sdManager,
+        Settings::Audio& settings,
+        I2SManager& i2sManager
     );
 
-    // ============================================================
+    // ========================================================
     // Lifecycle
-    // ============================================================
+    // ========================================================
 
     bool begin();
 
-    void update();
-
     void end();
 
-    // ============================================================
-    // State
-    // ============================================================
+    void update();
 
-    bool isReady() const;
-
+    bool isInitialized() const;
     bool isPlaying() const;
-
     bool isPaused() const;
 
-    SoundType getSoundType() const;
-
-    VolumeMode getVolumeMode() const;
-
-    // ============================================================
+    // ========================================================
     // Volume
-    // ============================================================
+    // ========================================================
 
-    uint8_t getGlobalVolume() const;
+    void setVolume(uint8_t volume);
+    uint8_t getVolume() const;
 
-    void setLocalVolume(uint8_t volume);
+    // ========================================================
+    // Normal WAV
+    // ========================================================
 
-    uint8_t getLocalVolume() const;
-
-    void clearLocalVolume();
-
-    uint8_t getCurrentTargetVolume() const;
-
-    // ============================================================
-    // Normal sounds
-    // ============================================================
-
-    // Uses Settings::Audio.volume
-    bool playWav(
-        const char* path,
-        uint32_t fadeInMs = 0,
-        uint32_t fadeOutMs = 0,
-        FadeCurve curve = FadeCurve::Linear
-    );
-
-    bool playWav(
-        const String& path,
-        uint32_t fadeInMs = 0,
-        uint32_t fadeOutMs = 0,
-        FadeCurve curve = FadeCurve::Linear
-    );
-
-    // Uses Settings::Audio.volume
-    bool playTone(
-        uint16_t frequency,
-        uint32_t durationMs,
-        uint32_t fadeInMs = 0,
-        uint32_t fadeOutMs = 0,
-        FadeCurve curve = FadeCurve::Linear
-    );
-
-    // Uses Settings::Audio.volume
-    bool playBeep(
-        uint32_t fadeInMs = 0,
-        uint32_t fadeOutMs = 0,
-        FadeCurve curve = FadeCurve::Linear
-    );
-
-    // Uses Settings::Audio.volume
-    bool playSiren(
-        uint32_t durationMs = 3000,
-        uint32_t fadeInMs = 0,
-        uint32_t fadeOutMs = 0,
-        FadeCurve curve = FadeCurve::Linear
-    );
-
-    // ============================================================
-    // Local sounds
-    // ============================================================
-
-    // Does NOT use Settings::Audio.volume
-    bool playWavLocal(
-        const char* path,
-        uint8_t localVolume,
-        uint32_t fadeInMs = 0,
-        uint32_t fadeOutMs = 0,
-        FadeCurve curve = FadeCurve::Linear
-    );
+    bool playWav(const char* path);
 
     bool playWavLocal(
-        const String& path,
-        uint8_t localVolume,
-        uint32_t fadeInMs = 0,
-        uint32_t fadeOutMs = 0,
-        FadeCurve curve = FadeCurve::Linear
+        const char* path,
+        uint8_t localVolume
     );
 
-    // Does NOT use Settings::Audio.volume
-    bool playToneLocal(
-        uint16_t frequency,
-        uint32_t durationMs,
-        uint8_t localVolume,
-        uint32_t fadeInMs = 0,
-        uint32_t fadeOutMs = 0,
-        FadeCurve curve = FadeCurve::Linear
-    );
-
-    // ============================================================
+    // ========================================================
     // Alarm
-    // ============================================================
+    // ========================================================
 
-    // Alarm ALWAYS uses local volume.
-    //
-    // Example:
-    //
-    // playAlarm(
-    //     "/system/sounds/alarm.wav",
-    //     100,
-    //     30000
-    // );
-    //
-    // 30 seconds exponential fade-in to 100%.
-    //
     bool playAlarm(
         const char* path,
         uint8_t localVolume = 100,
@@ -216,264 +76,192 @@ public:
         FadeCurve curve = FadeCurve::Exponential
     );
 
-    bool playAlarm(
-        const String& path,
-        uint8_t localVolume = 100,
-        uint32_t fadeInMs = 30000,
-        uint32_t fadeOutMs = 0,
-        FadeCurve curve = FadeCurve::Exponential
-    );
-
-    // ============================================================
+    // ========================================================
     // Control
-    // ============================================================
+    // ========================================================
 
     void stop();
 
-    // Immediately stops audible output,
-    // but keeps current playback position.
     void pause();
 
-    // Continues from current position.
     void resume();
 
-    // Smoothly fades current sound to zero and stops.
-    void fadeOut(
+    // ========================================================
+    // Fade
+    // ========================================================
+
+    void setFadeIn(
         uint32_t durationMs,
-        FadeCurve curve = FadeCurve::Exponential
+        FadeCurve curve = FadeCurve::Linear
     );
 
-    // ============================================================
-    // Fade configuration
-    // ============================================================
+    void setFadeOut(
+        uint32_t durationMs,
+        FadeCurve curve = FadeCurve::Linear
+    );
 
-    void setFadeIn(uint32_t durationMs);
+    // ========================================================
+    // Status
+    // ========================================================
 
-    void setFadeOut(uint32_t durationMs);
-
-    void setFadeCurve(FadeCurve curve);
-
-    uint32_t getFadeIn() const;
-
-    uint32_t getFadeOut() const;
-
-    FadeCurve getFadeCurve() const;
-
-    // ============================================================
-    // WAV information
-    // ============================================================
-
-    uint32_t getSampleRate() const;
-
-    uint16_t getChannels() const;
-
-    uint16_t getBitsPerSample() const;
-
-    uint32_t getDataSize() const;
-
-    uint32_t getDataPosition() const;
+    uint32_t getPositionMs() const;
 
     uint32_t getDurationMs() const;
 
+    uint8_t getCurrentVolume() const;
+
+    const char* getCurrentPath() const;
+
 private:
 
-    // ============================================================
-    // WAV
-    // ============================================================
+    // ========================================================
+    // WAV information
+    // ========================================================
 
-    bool parseWav();
+    struct WavInfo
+    {
+        uint16_t audioFormat;
+        uint16_t channels;
 
-    bool findFmtChunk();
+        uint32_t sampleRate;
+        uint32_t byteRate;
 
-    bool findDataChunk();
+        uint16_t blockAlign;
+        uint16_t bitsPerSample;
 
-    bool readChunkHeader(
-        uint32_t& id,
-        uint32_t& size
-    );
+        uint32_t dataOffset;
+        uint32_t dataSize;
+    };
 
-    bool skipBytes(uint32_t bytes);
-
-    // ============================================================
-    // I2S
-    // ============================================================
-
-    bool initI2S();
-
-    bool configureI2S(
-        uint32_t sampleRate,
-        uint16_t channels
-    );
-
-    void clearI2S();
-
-    // ============================================================
-    // Processing
-    // ============================================================
-
-    void processAudio();
-
-    bool processWav();
-
-    bool processTone();
-
-    bool processSiren();
-
-    bool writeOutput();
-
-    // ============================================================
-    // WAV conversion
-    // ============================================================
-
-    size_t processWavMono(
-        const int16_t* input,
-        size_t samples
-    );
-
-    size_t processWavStereo(
-        const int16_t* input,
-        size_t samples
-    );
-
-    // ============================================================
-    // Generators
-    // ============================================================
-
-    size_t generateTone(
-        int16_t* output,
-        size_t frames
-    );
-
-    size_t generateSiren(
-        int16_t* output,
-        size_t frames
-    );
-
-    // ============================================================
-    // Volume / Fade
-    // ============================================================
-
-    uint8_t getTargetVolume() const;
-
-    uint8_t getFadeVolume() const;
-
-    float getFadeFactor() const;
-
-    float applyFadeCurve(float progress) const;
-
-    int16_t applyVolume(int16_t sample) const;
-
-    // ============================================================
-    // State reset
-    // ============================================================
-
-    void resetPlaybackState();
-
-    // ============================================================
+    // ========================================================
     // Dependencies
-    // ============================================================
+    // ========================================================
 
-    SDManager& _sd;
+    SDManager& sdManager;
+    Settings::Audio& settings;
+    I2SManager& i2sManager;
 
-    const Settings::Audio& _settings;
+    // ========================================================
+    // State
+    // ========================================================
 
-    // ============================================================
-    // General state
-    // ============================================================
+    bool initialized;
+    bool playing;
+    bool paused;
 
-    bool _ready;
-    bool _playing;
-    bool _paused;
+    bool alarmMode;
 
-    SoundType _soundType;
+    // ========================================================
+    // File
+    // ========================================================
 
-    VolumeMode _volumeMode;
+    File file;
 
-    // ============================================================
+    WavInfo wav;
+
+    char currentPath[128];
+
+    // ========================================================
+    // Playback
+    // ========================================================
+
+    uint32_t dataRead;
+    uint32_t positionSamples;
+
+    uint32_t playbackStartMs;
+    uint32_t pausedAtMs;
+
+    // ========================================================
     // Volume
-    // ============================================================
+    // ========================================================
 
-    uint8_t _localVolume;
+    uint8_t localVolume;
 
-    // ============================================================
+    // ========================================================
     // Fade
-    // ============================================================
+    // ========================================================
 
-    uint32_t _fadeInMs;
+    uint32_t fadeInDuration;
+    uint32_t fadeOutDuration;
 
-    uint32_t _fadeOutMs;
+    uint32_t fadeInStart;
+    uint32_t fadeOutStart;
 
-    FadeCurve _fadeCurve;
+    FadeCurve fadeInCurve;
+    FadeCurve fadeOutCurve;
 
-    bool _manualFadeOut;
+    bool fadingOut;
 
-    uint32_t _manualFadeOutStartMs;
+    // ========================================================
+    // Buffer
+    // ========================================================
 
-    uint32_t _manualFadeOutDurationMs;
+    static constexpr size_t BUFFER_SAMPLES = 512;
 
-    FadeCurve _manualFadeOutCurve;
+    int16_t sampleBuffer[BUFFER_SAMPLES];
 
-    // ============================================================
+    // ========================================================
     // WAV
-    // ============================================================
+    // ========================================================
 
-    File _file;
+    bool readWavHeader(
+        File& wavFile,
+        WavInfo& info
+    );
 
-    uint16_t _audioFormat;
+    bool findWavDataChunk(
+        File& wavFile,
+        WavInfo& info
+    );
 
-    uint16_t _channels;
+    // ========================================================
+    // Playback
+    // ========================================================
 
-    uint32_t _sampleRate;
+    bool openWav(
+        const char* path
+    );
 
-    uint32_t _byteRate;
+    bool startPlayback();
 
-    uint16_t _blockAlign;
+    void processPlayback();
 
-    uint16_t _bitsPerSample;
+    bool writeAudio(
+        const int16_t* samples,
+        size_t count
+    );
 
-    uint32_t _dataSize;
+    // ========================================================
+    // Volume
+    // ========================================================
 
-    uint32_t _dataPosition;
+    uint8_t calculatePlaybackVolume();
 
-    uint32_t _soundDurationMs;
+    float calculateFade(
+        uint32_t elapsed,
+        uint32_t duration,
+        FadeCurve curve
+    ) const;
 
-    // ============================================================
-    // Buffers
-    // ============================================================
+    void applyVolume(
+        int16_t* samples,
+        size_t count,
+        uint8_t volume
+    );
 
-    uint8_t _inputBuffer[INPUT_BUFFER_SIZE];
+    // ========================================================
+    // I2S
+    // ========================================================
 
-    uint8_t _outputBuffer[OUTPUT_BUFFER_SIZE];
+    bool ensureSpeaker();
 
-    size_t _inputSize;
+    void clearSpeaker();
 
-    size_t _outputSize;
+    // ========================================================
+    // Utility
+    // ========================================================
 
-    size_t _outputPosition;
+    uint16_t readLE16(File& file);
 
-    // ============================================================
-    // Tone
-    // ============================================================
-
-    uint16_t _toneFrequency;
-
-    uint32_t _toneDurationMs;
-
-    uint32_t _toneElapsedMs;
-
-    // ============================================================
-    // Siren
-    // ============================================================
-
-    uint32_t _sirenDurationMs;
-
-    uint32_t _sirenElapsedMs;
-
-    // ============================================================
-    // Oscillator
-    // ============================================================
-
-    float _phase;
-
-    float _sirenPhase;
+    uint32_t readLE32(File& file);
 };

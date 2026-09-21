@@ -1,4 +1,3 @@
-
 #include "MicrophoneManager.h"
 
 #include <Arduino.h>
@@ -29,36 +28,77 @@ MicrophoneManager::MicrophoneManager(
 
 bool MicrophoneManager::begin()
 {
-    Serial.println();
-    Serial.println("[MicrophoneManager] BEGIN");
+    Serial.println(
+        "[MicrophoneManager] BEGIN"
+    );
+
 
     if (!microphone.begin())
     {
         Serial.println(
-            "[MicrophoneManager] ERROR: microphone.begin() failed"
+            "[MicrophoneManager] ERROR: "
+            "microphone.begin() failed"
         );
 
         return false;
     }
+
 
     if (!recorder.begin())
     {
         Serial.println(
-            "[MicrophoneManager] ERROR: recorder.begin() failed"
+            "[MicrophoneManager] ERROR: "
+            "recorder.begin() failed"
         );
 
         return false;
     }
 
+
     initialized = true;
 
-    microphone.setEnabled(enabled);
+
+    microphone.setEnabled(
+        enabled
+    );
+
 
     Serial.println(
         "[MicrophoneManager] READY"
     );
 
+
     return true;
+}
+
+
+// ============================================================
+// END
+// ============================================================
+
+void MicrophoneManager::end()
+{
+    if (!initialized)
+        return;
+
+
+    if (recorder.isRecording())
+    {
+        recorder.stopRecording();
+    }
+
+
+    microphone.stopListening();
+
+    microphone.end();
+
+
+    initialized = false;
+
+
+    Serial.println(
+        "[MicrophoneManager] STOPPED"
+    );
 }
 
 
@@ -71,8 +111,10 @@ void MicrophoneManager::update()
     if (!initialized)
         return;
 
+
     if (!enabled)
         return;
+
 
     updateMicrophone();
 
@@ -89,6 +131,7 @@ void MicrophoneManager::updateMicrophone()
     if (!microphone.isListening())
         return;
 
+
     microphone.updateAudio();
 }
 
@@ -101,6 +144,7 @@ void MicrophoneManager::updateRecorder()
 {
     if (!recorder.isRecording())
         return;
+
 
     recorder.update();
 }
@@ -115,8 +159,10 @@ bool MicrophoneManager::startListening()
     if (!initialized)
         return false;
 
+
     if (!enabled)
         return false;
+
 
     return microphone.startListening();
 }
@@ -144,7 +190,11 @@ void MicrophoneManager::setEnabled(
 {
     this->enabled = enabled;
 
-    microphone.setEnabled(enabled);
+
+    microphone.setEnabled(
+        enabled
+    );
+
 
     if (!enabled)
     {
@@ -231,52 +281,35 @@ bool MicrophoneManager::startRecording(
 )
 {
     if (!initialized)
-    {
-        Serial.println(
-            "[MicrophoneManager] ERROR: not initialized"
-        );
-
         return false;
-    }
+
 
     if (!enabled)
-    {
-        Serial.println(
-            "[MicrophoneManager] ERROR: microphone disabled"
-        );
-
         return false;
-    }
 
-    // Автоматически запускаем listening
+
     if (!microphone.isListening())
     {
         if (!microphone.startListening())
         {
-            Serial.println(
-                "[MicrophoneManager] ERROR: "
-                "failed to start listening"
-            );
-
             return false;
         }
     }
 
+
     if (!recorder.startRecording(path))
     {
-        Serial.println(
-            "[MicrophoneManager] ERROR: "
-            "failed to start recording"
-        );
-
         return false;
     }
 
+
     Serial.print(
-        "[MicrophoneManager] RECORDING: "
+        "[MicrophoneManager] "
+        "RECORDING: "
     );
 
     Serial.println(path);
+
 
     return true;
 }
@@ -286,6 +319,7 @@ void MicrophoneManager::stopRecording()
 {
     if (!recorder.isRecording())
         return;
+
 
     recorder.stopRecording();
 }
@@ -327,4 +361,3 @@ const char* MicrophoneManager::getName() const
 {
     return microphone.getName();
 }
-

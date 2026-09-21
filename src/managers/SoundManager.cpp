@@ -1,1999 +1,1359 @@
+
 #include "SoundManager.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstring>
-#include "Pins.h"
-
-
-// ============================================================
-// WAV constants
-// ============================================================
-
-static constexpr uint32_t RIFF_ID = 0x46464952; // "RIFF"
-static constexpr uint32_t WAVE_ID = 0x45564157; // "WAVE"
-static constexpr uint32_t FMT_ID  = 0x20746D66; // "fmt "
-static constexpr uint32_t DATA_ID = 0x61746164; // "data"
-
-// PCM
-static constexpr uint16_t WAV_PCM = 1;
-
-// ============================================================
-// Math
-// ============================================================
-
-// static constexpr float TWO_PI = 6.28318530717958647692f;
 
 // ============================================================
 // Constructor
 // ============================================================
 
 SoundManager::SoundManager(
-    SDManager& sd,
-    const Settings::Audio& settings
+    SDManager& sdManager,
+    Settings::Audio& settings,
+    I2SManager& i2sManager
 )
-    : _sd(sd),
-      _settings(settings),
+    : sdManager(sdManager),
+      settings(settings),
+      i2sManager(i2sManager),
 
-      _ready(false),
-      _playing(false),
-      _paused(false),
+      initialized(false),
+      playing(false),
+      paused(false),
+      alarmMode(false),
 
-      _soundType(SoundType::NONE),
-      _volumeMode(VolumeMode::GLOBAL),
+      file(),
+      wav{},
 
-      _localVolume(100),
+      currentPath{},
 
-      _fadeInMs(0),
-      _fadeOutMs(0),
-      _fadeCurve(FadeCurve::Linear),
+      dataRead(0),
+      positionSamples(0),
 
-      _manualFadeOut(false),
-      _manualFadeOutStartMs(0),
-      _manualFadeOutDurationMs(0),
-      _manualFadeOutCurve(FadeCurve::Exponential),
+      playbackStartMs(0),
+      pausedAtMs(0),
 
-      _audioFormat(0),
-      _channels(0),
-      _sampleRate(0),
-      _byteRate(0),
-      _blockAlign(0),
-      _bitsPerSample(0),
+      localVolume(100),
 
-      _dataSize(0),
-      _dataPosition(0),
-      _soundDurationMs(0),
+      fadeInDuration(0),
+      fadeOutDuration(0),
 
-      _inputSize(0),
-      _outputSize(0),
-      _outputPosition(0),
+      fadeInStart(0),
+      fadeOutStart(0),
 
-      _toneFrequency(0),
-      _toneDurationMs(0),
-      _toneElapsedMs(0),
+      fadeInCurve(FadeCurve::Linear),
+      fadeOutCurve(FadeCurve::Linear),
 
-      _sirenDurationMs(0),
-      _sirenElapsedMs(0),
+      fadingOut(false),
 
-      _phase(0.0f),
-      _sirenPhase(0.0f)
+      sampleBuffer{}
 {
 }
 
 // ============================================================
-// BEGIN
+// Begin
 // ============================================================
 
 bool SoundManager::begin()
 {
-    if (_ready)
+    if (initialized)
+    {
         return true;
+    }
 
-    if (!_sd.isReady())
+    if (!settings.enabled)
     {
+        Serial.println(
+            "[SoundManager] Disabled by settings"
+        );
 
         return false;
     }
 
-    if (!_settings.enabled)
+    // --------------------------------------------------------
+    // Initialize speaker I2S through I2SManager.
+    //
+    // IMPORTANT:
+    // This is I2S_NUM_1.
+    // --------------------------------------------------------
+
+    if (!i2sManager.beginSpeaker(44100))
     {
+        Serial.println(
+            "[SoundManager] ERROR: speaker I2S init failed"
+        );
 
         return false;
     }
 
-    if (!initI2S())
-    {
+    initialized = true;
 
-        return false;
-    }
-
-    _ready = true;
-
-
+    Serial.println("[SoundManager] READY");
+    Serial.println("[SoundManager] Speaker: I2S_NUM_1");
 
     return true;
 }
 
 // ============================================================
-// END
+// End
 // ============================================================
 
 void SoundManager::end()
 {
     stop();
 
-    if (_ready)
+    if (i2sManager.isSpeakerInitialized())
     {
-        i2s_driver_uninstall(I2S_PORT);
+        i2sManager.endSpeaker();
     }
 
-    _ready = false;
+    initialized = false;
+
+    Serial.println("[SoundManager] STOPPED");
 }
 
 // ============================================================
-// STATE
-// ============================================================
-
-bool SoundManager::isReady() const
-{
-    return _ready;
-}
-
-bool SoundManager::isPlaying() const
-{
-    return _playing;
-}
-
-bool SoundManager::isPaused() const
-{
-    return _paused;
-}
-
-SoundManager::SoundType SoundManager::getSoundType() const
-{
-    return _soundType;
-}
-
-SoundManager::VolumeMode SoundManager::getVolumeMode() const
-{
-    return _volumeMode;
-}
-
-// ============================================================
-// GLOBAL VOLUME
-// ============================================================
-
-uint8_t SoundManager::getGlobalVolume() const
-{
-    return std::min<uint8_t>(
-        _settings.volume,
-        MAX_VOLUME
-    );
-}
-
-// ============================================================
-// LOCAL VOLUME
-// ============================================================
-
-void SoundManager::setLocalVolume(uint8_t volume)
-{
-    _localVolume = std::min<uint8_t>(
-        volume,
-        MAX_VOLUME
-    );
-}
-
-uint8_t SoundManager::getLocalVolume() const
-{
-    return _localVolume;
-}
-
-void SoundManager::clearLocalVolume()
-{
-    _localVolume = 100;
-}
-
-// ============================================================
-// TARGET VOLUME
-// ============================================================
-
-uint8_t SoundManager::getTargetVolume() const
-{
-    if (_volumeMode == VolumeMode::LOCAL)
-    {
-        return _localVolume;
-    }
-
-    return getGlobalVolume();
-}
-
-uint8_t SoundManager::getCurrentTargetVolume() const
-{
-    return getTargetVolume();
-}
-
-// ============================================================
-// WAV - GLOBAL
-// ============================================================
-
-bool SoundManager::playWav(
-    const char* path,
-    uint32_t fadeInMs,
-    uint32_t fadeOutMs,
-    FadeCurve curve
-)
-{
-    if (path == nullptr)
-        return false;
-
-    if (!_ready || !_sd.isReady() || !_settings.enabled)
-        return false;
-
-    stop();
-
-    _volumeMode = VolumeMode::GLOBAL;
-
-    _fadeInMs = fadeInMs;
-    _fadeOutMs = fadeOutMs;
-    _fadeCurve = curve;
-
-    _file = _sd.card().fs().open(
-        path,
-        FILE_READ
-    );
-
-    if (!_file)
-    {
-
-
-        return false;
-    }
-
-    if (!parseWav())
-    {
-
-
-        _file.close();
-
-        return false;
-    }
-
-    if (!configureI2S(
-        _sampleRate,
-        _channels
-    ))
-    {
-        _file.close();
-        return false;
-    }
-
-    if (_blockAlign == 0 || _sampleRate == 0)
-    {
-        _file.close();
-        return false;
-    }
-
-    uint32_t frames =
-        _dataSize / _blockAlign;
-
-    _soundDurationMs =
-        static_cast<uint32_t>(
-            (static_cast<uint64_t>(frames) * 1000ULL)
-            / _sampleRate
-        );
-
-    _dataPosition = 0;
-
-    _inputSize = 0;
-    _outputSize = 0;
-    _outputPosition = 0;
-
-    _soundType = SoundType::WAV;
-
-    _playing = true;
-    _paused = false;
-
-    _manualFadeOut = false;
-
-    i2s_start(I2S_PORT);
-
-    return true;
-}
-
-// ============================================================
-// WAV - STRING GLOBAL
-// ============================================================
-
-bool SoundManager::playWav(
-    const String& path,
-    uint32_t fadeInMs,
-    uint32_t fadeOutMs,
-    FadeCurve curve
-)
-{
-    return playWav(
-        path.c_str(),
-        fadeInMs,
-        fadeOutMs,
-        curve
-    );
-}
-
-// ============================================================
-// WAV - LOCAL
-// ============================================================
-
-bool SoundManager::playWavLocal(
-    const char* path,
-    uint8_t localVolume,
-    uint32_t fadeInMs,
-    uint32_t fadeOutMs,
-    FadeCurve curve
-)
-{
-    if (path == nullptr)
-        return false;
-
-    if (!_ready || !_sd.isReady() || !_settings.enabled)
-        return false;
-
-    stop();
-
-    _volumeMode = VolumeMode::LOCAL;
-
-    _localVolume = std::min<uint8_t>(
-        localVolume,
-        MAX_VOLUME
-    );
-
-    _fadeInMs = fadeInMs;
-    _fadeOutMs = fadeOutMs;
-    _fadeCurve = curve;
-
-    _file = _sd.card().fs().open(
-        path,
-        FILE_READ
-    );
-
-    if (!_file)
-    {
-
-
-        return false;
-    }
-
-    if (!parseWav())
-    {
-        _file.close();
-        return false;
-    }
-
-    if (!configureI2S(
-        _sampleRate,
-        _channels
-    ))
-    {
-        _file.close();
-        return false;
-    }
-
-    uint32_t frames =
-        _dataSize / _blockAlign;
-
-    _soundDurationMs =
-        static_cast<uint32_t>(
-            (static_cast<uint64_t>(frames) * 1000ULL)
-            / _sampleRate
-        );
-
-    _dataPosition = 0;
-
-    _inputSize = 0;
-    _outputSize = 0;
-    _outputPosition = 0;
-
-    _soundType = SoundType::WAV;
-
-    _playing = true;
-    _paused = false;
-
-    _manualFadeOut = false;
-
-    i2s_start(I2S_PORT);
-
-    return true;
-}
-
-// ============================================================
-// WAV - STRING LOCAL
-// ============================================================
-
-bool SoundManager::playWavLocal(
-    const String& path,
-    uint8_t localVolume,
-    uint32_t fadeInMs,
-    uint32_t fadeOutMs,
-    FadeCurve curve
-)
-{
-    return playWavLocal(
-        path.c_str(),
-        localVolume,
-        fadeInMs,
-        fadeOutMs,
-        curve
-    );
-}
-
-// ============================================================
-// ALARM
-// ============================================================
-
-bool SoundManager::playAlarm(
-    const char* path,
-    uint8_t localVolume,
-    uint32_t fadeInMs,
-    uint32_t fadeOutMs,
-    FadeCurve curve
-)
-{
-    return playWavLocal(
-        path,
-        localVolume,
-        fadeInMs,
-        fadeOutMs,
-        curve
-    );
-}
-
-// ============================================================
-// ALARM - STRING
-// ============================================================
-
-bool SoundManager::playAlarm(
-    const String& path,
-    uint8_t localVolume,
-    uint32_t fadeInMs,
-    uint32_t fadeOutMs,
-    FadeCurve curve
-)
-{
-    return playAlarm(
-        path.c_str(),
-        localVolume,
-        fadeInMs,
-        fadeOutMs,
-        curve
-    );
-}
-
-// ============================================================
-// TONE - GLOBAL
-// ============================================================
-
-bool SoundManager::playTone(
-    uint16_t frequency,
-    uint32_t durationMs,
-    uint32_t fadeInMs,
-    uint32_t fadeOutMs,
-    FadeCurve curve
-)
-{
-    if (!_ready || !_settings.enabled)
-        return false;
-
-    stop();
-
-    _volumeMode = VolumeMode::GLOBAL;
-
-    _toneFrequency = frequency;
-
-    _toneDurationMs = durationMs;
-
-    _toneElapsedMs = 0;
-
-    _fadeInMs = fadeInMs;
-
-    _fadeOutMs = fadeOutMs;
-
-    _fadeCurve = curve;
-
-    _phase = 0.0f;
-
-    _soundDurationMs = durationMs;
-
-    if (!configureI2S(
-        DEFAULT_SAMPLE_RATE,
-        2
-    ))
-    {
-        return false;
-    }
-
-    _soundType = SoundType::TONE;
-
-    _playing = true;
-    _paused = false;
-
-    _manualFadeOut = false;
-
-    i2s_start(I2S_PORT);
-
-    return true;
-}
-
-// ============================================================
-// TONE - LOCAL
-// ============================================================
-
-bool SoundManager::playToneLocal(
-    uint16_t frequency,
-    uint32_t durationMs,
-    uint8_t localVolume,
-    uint32_t fadeInMs,
-    uint32_t fadeOutMs,
-    FadeCurve curve
-)
-{
-    if (!_ready || !_settings.enabled)
-        return false;
-
-    stop();
-
-    _volumeMode = VolumeMode::LOCAL;
-
-    _localVolume = std::min<uint8_t>(
-        localVolume,
-        MAX_VOLUME
-    );
-
-    _toneFrequency = frequency;
-
-    _toneDurationMs = durationMs;
-
-    _toneElapsedMs = 0;
-
-    _fadeInMs = fadeInMs;
-
-    _fadeOutMs = fadeOutMs;
-
-    _fadeCurve = curve;
-
-    _phase = 0.0f;
-
-    _soundDurationMs = durationMs;
-
-    if (!configureI2S(
-        DEFAULT_SAMPLE_RATE,
-        2
-    ))
-    {
-        return false;
-    }
-
-    _soundType = SoundType::TONE;
-
-    _playing = true;
-    _paused = false;
-
-    _manualFadeOut = false;
-
-    i2s_start(I2S_PORT);
-
-    return true;
-}
-
-// ============================================================
-// BEEP
-// ============================================================
-
-bool SoundManager::playBeep(
-    uint32_t fadeInMs,
-    uint32_t fadeOutMs,
-    FadeCurve curve
-)
-{
-    return playTone(
-        1000,
-        150,
-        fadeInMs,
-        fadeOutMs,
-        curve
-    );
-}
-
-// ============================================================
-// SIREN
-// ============================================================
-
-bool SoundManager::playSiren(
-    uint32_t durationMs,
-    uint32_t fadeInMs,
-    uint32_t fadeOutMs,
-    FadeCurve curve
-)
-{
-    if (!_ready || !_settings.enabled)
-        return false;
-
-    stop();
-
-    _volumeMode = VolumeMode::GLOBAL;
-
-    _sirenDurationMs = durationMs;
-
-    _sirenElapsedMs = 0;
-
-    _fadeInMs = fadeInMs;
-
-    _fadeOutMs = fadeOutMs;
-
-    _fadeCurve = curve;
-
-    _sirenPhase = 0.0f;
-
-    _soundDurationMs = durationMs;
-
-    if (!configureI2S(
-        DEFAULT_SAMPLE_RATE,
-        2
-    ))
-    {
-        return false;
-    }
-
-    _soundType = SoundType::SIREN;
-
-    _playing = true;
-    _paused = false;
-
-    _manualFadeOut = false;
-
-    i2s_start(I2S_PORT);
-
-    return true;
-}
-
-// ============================================================
-// UPDATE
+// Update
 // ============================================================
 
 void SoundManager::update()
 {
-    if (!_ready)
+    if (!initialized)
+    {
         return;
+    }
 
-    if (!_playing)
+    if (!playing)
+    {
         return;
+    }
 
-    if (_paused)
+    if (paused)
+    {
         return;
+    }
 
-    processAudio();
+    processPlayback();
 }
 
 // ============================================================
-// PROCESS AUDIO
+// Is initialized
 // ============================================================
 
-void SoundManager::processAudio()
+bool SoundManager::isInitialized() const
 {
-    switch (_soundType)
-    {
-        case SoundType::WAV:
-            processWav();
-            break;
-
-        case SoundType::TONE:
-            processTone();
-            break;
-
-        case SoundType::SIREN:
-            processSiren();
-            break;
-
-        case SoundType::NONE:
-        default:
-            break;
-    }
+    return initialized;
 }
 
 // ============================================================
-// WAV PROCESS
+// Is playing
 // ============================================================
 
-bool SoundManager::processWav()
+bool SoundManager::isPlaying() const
 {
-    // --------------------------------------------------------
-    // First write data already waiting in output buffer.
-    // --------------------------------------------------------
+    return playing;
+}
 
-    if (_outputPosition < _outputSize)
+// ============================================================
+// Is paused
+// ============================================================
+
+bool SoundManager::isPaused() const
+{
+    return paused;
+}
+
+// ============================================================
+// Volume
+// ============================================================
+
+void SoundManager::setVolume(uint8_t volume)
+{
+    volume = constrain(volume, 0, 100);
+
+    settings.volume = volume;
+}
+
+uint8_t SoundManager::getVolume() const
+{
+    return settings.volume;
+}
+
+// ============================================================
+// Play WAV
+// ============================================================
+
+bool SoundManager::playWav(const char* path)
+{
+    if (!initialized)
     {
-        if (!writeOutput())
-            return true;
-
-        if (_outputPosition < _outputSize)
-            return true;
-
-        _outputSize = 0;
-        _outputPosition = 0;
+        if (!begin())
+        {
+            return false;
+        }
     }
 
-    // --------------------------------------------------------
-    // End of file
-    // --------------------------------------------------------
-
-    if (_dataPosition >= _dataSize)
+    if (!settings.enabled)
     {
-        stop();
+        return false;
+    }
+
+    // Normal sounds use global volume.
+    alarmMode = false;
+
+    localVolume = settings.volume;
+
+    fadeInDuration = 0;
+    fadeOutDuration = 0;
+
+    fadingOut = false;
+
+    return openWav(path);
+}
+
+// ============================================================
+// Play WAV local volume
+// ============================================================
+
+bool SoundManager::playWavLocal(
+    const char* path,
+    uint8_t volume
+)
+{
+    if (!initialized)
+    {
+        if (!begin())
+        {
+            return false;
+        }
+    }
+
+    if (!settings.enabled)
+    {
+        return false;
+    }
+
+    alarmMode = false;
+
+    localVolume = constrain(
+        volume,
+        0,
+        100
+    );
+
+    fadeInDuration = 0;
+    fadeOutDuration = 0;
+
+    fadingOut = false;
+
+    return openWav(path);
+}
+
+// ============================================================
+// Play alarm
+// ============================================================
+
+bool SoundManager::playAlarm(
+    const char* path,
+    uint8_t volume,
+    uint32_t fadeInMs,
+    uint32_t fadeOutMs,
+    FadeCurve curve
+)
+{
+    if (!initialized)
+    {
+        if (!begin())
+        {
+            return false;
+        }
+    }
+
+    if (!settings.enabled)
+    {
+        return false;
+    }
+
+    if (!settings.alarms)
+    {
+        Serial.println(
+            "[SoundManager] Alarms disabled"
+        );
+
         return false;
     }
 
     // --------------------------------------------------------
-    // Read a chunk
+    // Alarm DOES NOT use global settings.volume.
     // --------------------------------------------------------
 
-    uint32_t remaining =
-        _dataSize - _dataPosition;
+    alarmMode = true;
 
-    size_t bytesToRead =
-        std::min<size_t>(
-            INPUT_BUFFER_SIZE,
-            remaining
+    localVolume = constrain(
+        volume,
+        0,
+        100
+    );
+
+    fadeInDuration = fadeInMs;
+    fadeOutDuration = fadeOutMs;
+
+    fadeInCurve = curve;
+    fadeOutCurve = curve;
+
+    fadingOut = false;
+
+    return openWav(path);
+}
+
+// ============================================================
+// Open WAV
+// ============================================================
+
+bool SoundManager::openWav(
+    const char* path
+)
+{
+    if (path == nullptr)
+    {
+        Serial.println(
+            "[SoundManager] ERROR: path is null"
         );
 
-    size_t readBytes =
-        _file.read(
-            _inputBuffer,
+        return false;
+    }
+
+    // Stop current playback.
+    stop();
+
+    // --------------------------------------------------------
+    // Open SD file.
+    // --------------------------------------------------------
+
+    file = sdManager.card().fs().open(
+        path,
+        FILE_READ
+    );
+
+    if (!file)
+    {
+        Serial.print(
+            "[SoundManager] ERROR: cannot open: "
+        );
+
+        Serial.println(path);
+
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // Parse WAV.
+    // --------------------------------------------------------
+
+    if (!readWavHeader(file, wav))
+    {
+        Serial.println(
+            "[SoundManager] ERROR: invalid WAV"
+        );
+
+        file.close();
+
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // Supported format.
+    // --------------------------------------------------------
+
+    if (wav.audioFormat != 1)
+    {
+        Serial.println(
+            "[SoundManager] ERROR: WAV is not PCM"
+        );
+
+        file.close();
+
+        return false;
+    }
+
+    if (wav.bitsPerSample != 16)
+    {
+        Serial.println(
+            "[SoundManager] ERROR: only 16-bit WAV supported"
+        );
+
+        file.close();
+
+        return false;
+    }
+
+    if (wav.channels != 1 && wav.channels != 2)
+    {
+        Serial.println(
+            "[SoundManager] ERROR: only mono/stereo supported"
+        );
+
+        file.close();
+
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // Current speaker configuration.
+    //
+    // For now the I2SManager speaker is initialized at 44.1 kHz.
+    //
+    // If the WAV has another rate, reject it rather than
+    // playing it at the wrong speed.
+    // --------------------------------------------------------
+
+    if (wav.sampleRate != 44100)
+    {
+        Serial.print(
+            "[SoundManager] ERROR: unsupported sample rate: "
+        );
+
+        Serial.println(wav.sampleRate);
+
+        file.close();
+
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // Store path.
+    // --------------------------------------------------------
+
+    strncpy(
+        currentPath,
+        path,
+        sizeof(currentPath) - 1
+    );
+
+    currentPath[
+        sizeof(currentPath) - 1
+    ] = '\0';
+
+    // --------------------------------------------------------
+    // Reset playback.
+    // --------------------------------------------------------
+
+    dataRead = 0;
+    positionSamples = 0;
+
+    playbackStartMs = millis();
+    pausedAtMs = 0;
+
+    fadingOut = false;
+
+    // --------------------------------------------------------
+    // Seek to data.
+    // --------------------------------------------------------
+
+    if (!file.seek(wav.dataOffset))
+    {
+        Serial.println(
+            "[SoundManager] ERROR: seek failed"
+        );
+
+        file.close();
+
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // Start.
+    // --------------------------------------------------------
+
+    playing = true;
+    paused = false;
+
+    fadeInStart = millis();
+
+    if (fadeOutDuration > 0)
+    {
+        fadeOutStart = 0;
+    }
+
+    Serial.print(
+        "[SoundManager] PLAY: "
+    );
+
+    Serial.println(currentPath);
+
+    Serial.print(
+        "[SoundManager] Rate: "
+    );
+
+    Serial.println(wav.sampleRate);
+
+    Serial.print(
+        "[SoundManager] Channels: "
+    );
+
+    Serial.println(wav.channels);
+
+    Serial.print(
+        "[SoundManager] Bits: "
+    );
+
+    Serial.println(wav.bitsPerSample);
+
+    Serial.print(
+        "[SoundManager] Data: "
+    );
+
+    Serial.println(wav.dataSize);
+
+    return true;
+}
+
+// ============================================================
+// Read WAV header
+// ============================================================
+
+bool SoundManager::readWavHeader(
+    File& wavFile,
+    WavInfo& info
+)
+{
+    if (!wavFile)
+    {
+        return false;
+    }
+
+    if (wavFile.size() < 12)
+    {
+        return false;
+    }
+
+    wavFile.seek(0);
+
+    char riff[4];
+
+    if (wavFile.read(
+            reinterpret_cast<uint8_t*>(riff),
+            4
+        ) != 4)
+    {
+        return false;
+    }
+
+    if (memcmp(riff, "RIFF", 4) != 0)
+    {
+        return false;
+    }
+
+    readLE32(wavFile);
+
+    char wave[4];
+
+    if (wavFile.read(
+            reinterpret_cast<uint8_t*>(wave),
+            4
+        ) != 4)
+    {
+        return false;
+    }
+
+    if (memcmp(wave, "WAVE", 4) != 0)
+    {
+        return false;
+    }
+
+    memset(
+        &info,
+        0,
+        sizeof(info)
+    );
+
+    bool fmtFound = false;
+
+    bool dataFound = false;
+
+    const uint32_t fileSize =
+        wavFile.size();
+
+    while (
+        wavFile.position() + 8 <= fileSize
+    )
+    {
+        char chunkId[4];
+
+        if (wavFile.read(
+                reinterpret_cast<uint8_t*>(chunkId),
+                4
+            ) != 4)
+        {
+            break;
+        }
+
+        const uint32_t chunkSize =
+            readLE32(wavFile);
+
+        const uint32_t chunkDataPos =
+            wavFile.position();
+
+        // ----------------------------------------------------
+        // fmt
+        // ----------------------------------------------------
+
+        if (memcmp(chunkId, "fmt ", 4) == 0)
+        {
+            if (chunkSize < 16)
+            {
+                return false;
+            }
+
+            info.audioFormat =
+                readLE16(wavFile);
+
+            info.channels =
+                readLE16(wavFile);
+
+            info.sampleRate =
+                readLE32(wavFile);
+
+            info.byteRate =
+                readLE32(wavFile);
+
+            info.blockAlign =
+                readLE16(wavFile);
+
+            info.bitsPerSample =
+                readLE16(wavFile);
+
+            fmtFound = true;
+        }
+
+        // ----------------------------------------------------
+        // data
+        // ----------------------------------------------------
+
+        else if (memcmp(chunkId, "data", 4) == 0)
+        {
+            info.dataOffset =
+                chunkDataPos;
+
+            info.dataSize =
+                chunkSize;
+
+            dataFound = true;
+
+            if (fmtFound)
+            {
+                break;
+            }
+        }
+
+        // ----------------------------------------------------
+        // Skip unknown chunk.
+        // ----------------------------------------------------
+
+        const uint32_t nextPos =
+            chunkDataPos + chunkSize;
+
+        if (nextPos > fileSize)
+        {
+            return false;
+        }
+
+        wavFile.seek(nextPos);
+
+        // WAV chunks are word aligned.
+        if (chunkSize & 1)
+        {
+            wavFile.seek(
+                wavFile.position() + 1
+            );
+        }
+    }
+
+    return fmtFound && dataFound;
+}
+
+// ============================================================
+// Read LE16
+// ============================================================
+
+uint16_t SoundManager::readLE16(File& file)
+{
+    uint8_t b[2];
+
+    if (file.read(b, 2) != 2)
+    {
+        return 0;
+    }
+
+    return
+        static_cast<uint16_t>(
+            b[0] |
+            (static_cast<uint16_t>(b[1]) << 8)
+        );
+}
+
+// ============================================================
+// Read LE32
+// ============================================================
+
+uint32_t SoundManager::readLE32(File& file)
+{
+    uint8_t b[4];
+
+    if (file.read(b, 4) != 4)
+    {
+        return 0;
+    }
+
+    return
+        static_cast<uint32_t>(b[0]) |
+        (static_cast<uint32_t>(b[1]) << 8) |
+        (static_cast<uint32_t>(b[2]) << 16) |
+        (static_cast<uint32_t>(b[3]) << 24);
+}
+
+// ============================================================
+// Process playback
+// ============================================================
+
+void SoundManager::processPlayback()
+{
+    if (!file)
+    {
+        stop();
+        return;
+    }
+
+    const uint32_t remaining =
+        wav.dataSize - dataRead;
+
+    if (remaining == 0)
+    {
+        stop();
+        return;
+    }
+
+    // --------------------------------------------------------
+    // Read one buffer.
+    // --------------------------------------------------------
+
+    size_t bytesToRead =
+        BUFFER_SAMPLES *
+        sizeof(int16_t);
+
+    if (bytesToRead > remaining)
+    {
+        bytesToRead = remaining;
+    }
+
+    // Make sure we don't read a half sample.
+    bytesToRead &= ~static_cast<size_t>(1);
+
+    if (bytesToRead == 0)
+    {
+        stop();
+        return;
+    }
+
+    const size_t samplesRead =
+        file.read(
+            reinterpret_cast<uint8_t*>(sampleBuffer),
             bytesToRead
         );
 
-    if (readBytes == 0)
+    if (samplesRead == 0)
     {
         stop();
-        return false;
+        return;
     }
 
-    _dataPosition += readBytes;
+    const size_t sampleCount =
+        samplesRead / sizeof(int16_t);
 
     // --------------------------------------------------------
-    // Only complete samples
+    // Stereo -> mono.
+    //
+    // MAX98357A only needs one channel here.
     // --------------------------------------------------------
 
-    if (_channels == 1)
+    if (wav.channels == 2)
     {
-        size_t samples =
-            readBytes / sizeof(int16_t);
+        const size_t stereoSamples =
+            sampleCount / 2;
 
-        processWavMono(
-            reinterpret_cast<const int16_t*>(
-                _inputBuffer
-            ),
-            samples
-        );
-    }
-    else if (_channels == 2)
-    {
-        size_t samples =
-            readBytes / sizeof(int16_t);
+        for (
+            size_t i = 0;
+            i < stereoSamples;
+            ++i
+        )
+        {
+            const int32_t left =
+                sampleBuffer[i * 2];
 
-        processWavStereo(
-            reinterpret_cast<const int16_t*>(
-                _inputBuffer
-            ),
-            samples
+            const int32_t right =
+                sampleBuffer[i * 2 + 1];
+
+            const int32_t mono =
+                (left + right) / 2;
+
+            sampleBuffer[i] =
+                static_cast<int16_t>(
+                    constrain(
+                        mono,
+                        -32768,
+                        32767
+                    )
+                );
+        }
+
+        const size_t monoCount =
+            stereoSamples;
+
+        const uint8_t volume =
+            calculatePlaybackVolume();
+
+        applyVolume(
+            sampleBuffer,
+            monoCount,
+            volume
         );
+
+        if (!writeAudio(
+                sampleBuffer,
+                monoCount
+            ))
+        {
+            stop();
+            return;
+        }
+
+        dataRead += samplesRead;
+        positionSamples += monoCount;
     }
     else
     {
-        stop();
-        return false;
+        const uint8_t volume =
+            calculatePlaybackVolume();
+
+        applyVolume(
+            sampleBuffer,
+            sampleCount,
+            volume
+        );
+
+        if (!writeAudio(
+                sampleBuffer,
+                sampleCount
+            ))
+        {
+            stop();
+            return;
+        }
+
+        dataRead += samplesRead;
+        positionSamples += sampleCount;
     }
 
-    return true;
+    // --------------------------------------------------------
+    // Automatic fade-out.
+    //
+    // Fade-out is started when remaining playback time is
+    // less than fadeOutDuration.
+    // --------------------------------------------------------
+
+    if (
+        fadeOutDuration > 0 &&
+        !fadingOut
+    )
+    {
+        const uint32_t duration =
+            getDurationMs();
+
+        const uint32_t position =
+            getPositionMs();
+
+        if (
+            duration > position &&
+            duration - position <= fadeOutDuration
+        )
+        {
+            fadingOut = true;
+
+            fadeOutStart =
+                millis();
+        }
+    }
 }
 
 // ============================================================
-// WAV MONO
+// Write audio
 // ============================================================
 
-size_t SoundManager::processWavMono(
-    const int16_t* input,
-    size_t samples
+bool SoundManager::writeAudio(
+    const int16_t* samples,
+    size_t count
 )
 {
-    size_t frames = samples;
-
-    size_t maxFrames =
-        OUTPUT_BUFFER_SIZE / (sizeof(int16_t) * 2);
-
-    frames = std::min(
-        frames,
-        maxFrames
-    );
-
-    int16_t* output =
-        reinterpret_cast<int16_t*>(
-            _outputBuffer
-        );
-
-    for (size_t i = 0; i < frames; ++i)
+    if (!samples || count == 0)
     {
-        int16_t sample =
-            applyVolume(input[i]);
-
-        output[i * 2]     = sample;
-        output[i * 2 + 1] = sample;
-    }
-
-    _outputSize =
-        frames * sizeof(int16_t) * 2;
-
-    _outputPosition = 0;
-
-    return frames;
-}
-
-// ============================================================
-// WAV STEREO
-// ============================================================
-
-size_t SoundManager::processWavStereo(
-    const int16_t* input,
-    size_t samples
-)
-{
-    size_t frames = samples / 2;
-
-    size_t maxFrames =
-        OUTPUT_BUFFER_SIZE / (sizeof(int16_t) * 2);
-
-    frames = std::min(
-        frames,
-        maxFrames
-    );
-
-    int16_t* output =
-        reinterpret_cast<int16_t*>(
-            _outputBuffer
-        );
-
-    for (size_t i = 0; i < frames; ++i)
-    {
-        output[i * 2] =
-            applyVolume(input[i * 2]);
-
-        output[i * 2 + 1] =
-            applyVolume(input[i * 2 + 1]);
-    }
-
-    _outputSize =
-        frames * sizeof(int16_t) * 2;
-
-    _outputPosition = 0;
-
-    return frames;
-}
-
-// ============================================================
-// TONE PROCESS
-// ============================================================
-
-bool SoundManager::processTone()
-{
-    if (_outputPosition < _outputSize)
-    {
-        if (!writeOutput())
-            return true;
-
-        if (_outputPosition < _outputSize)
-            return true;
-
-        _outputSize = 0;
-        _outputPosition = 0;
-    }
-
-    if (_toneElapsedMs >= _toneDurationMs)
-    {
-        stop();
         return false;
     }
 
-    constexpr size_t FRAMES = 512;
+    const size_t bytes =
+        count * sizeof(int16_t);
 
-    int16_t* output =
-        reinterpret_cast<int16_t*>(
-            _outputBuffer
-        );
+    size_t written = 0;
 
-    size_t remainingFrames =
-        static_cast<size_t>(
-            (
-                static_cast<uint64_t>(
-                    _toneDurationMs -
-                    _toneElapsedMs
-                )
-                * DEFAULT_SAMPLE_RATE
-            ) / 1000ULL
-        );
-
-    size_t frames =
-        std::min(
-            FRAMES,
-            remainingFrames
-        );
-
-    if (frames == 0)
-    {
-        stop();
-        return false;
-    }
-
-    for (size_t i = 0; i < frames; ++i)
-    {
-        float sample =
-            sinf(_phase) * 0.8f;
-
-        int16_t pcm =
-            static_cast<int16_t>(
-                sample * 32767.0f
-            );
-
-        pcm = applyVolume(pcm);
-
-        output[i * 2]     = pcm;
-        output[i * 2 + 1] = pcm;
-
-        _phase +=
-            TWO_PI *
-            static_cast<float>(_toneFrequency) /
-            static_cast<float>(DEFAULT_SAMPLE_RATE);
-
-        if (_phase >= TWO_PI)
-            _phase -= TWO_PI;
-    }
-
-    uint32_t elapsedIncrement =
-        static_cast<uint32_t>(
-            (
-                static_cast<uint64_t>(frames) *
-                1000ULL
-            ) /
-            DEFAULT_SAMPLE_RATE
-        );
-
-    _toneElapsedMs += elapsedIncrement;
-
-    _outputSize =
-        frames *
-        sizeof(int16_t) *
-        2;
-
-    _outputPosition = 0;
-
-    return true;
-}
-
-// ============================================================
-// SIREN PROCESS
-// ============================================================
-
-bool SoundManager::processSiren()
-{
-    if (_outputPosition < _outputSize)
-    {
-        if (!writeOutput())
-            return true;
-
-        if (_outputPosition < _outputSize)
-            return true;
-
-        _outputSize = 0;
-        _outputPosition = 0;
-    }
-
-    if (_sirenElapsedMs >= _sirenDurationMs)
-    {
-        stop();
-        return false;
-    }
-
-    constexpr size_t FRAMES = 512;
-
-    int16_t* output =
-        reinterpret_cast<int16_t*>(
-            _outputBuffer
-        );
-
-    uint32_t remainingMs =
-        _sirenDurationMs -
-        _sirenElapsedMs;
-
-    size_t remainingFrames =
-        static_cast<size_t>(
-            (
-                static_cast<uint64_t>(remainingMs) *
-                DEFAULT_SAMPLE_RATE
-            ) / 1000ULL
-        );
-
-    size_t frames =
-        std::min(
-            FRAMES,
-            remainingFrames
-        );
-
-    if (frames == 0)
-    {
-        stop();
-        return false;
-    }
-
-    for (size_t i = 0; i < frames; ++i)
-    {
-        float progress =
-            static_cast<float>(_sirenElapsedMs) /
-            static_cast<float>(
-                std::max<uint32_t>(
-                    _sirenDurationMs,
-                    1
-                )
-            );
-
-        // 600 Hz -> 1400 Hz
-        float frequency =
-            600.0f +
-            800.0f *
-            (0.5f + 0.5f * sinf(
-                progress * TWO_PI * 2.0f
-            ));
-
-        float sample =
-            sinf(_sirenPhase) * 0.8f;
-
-        int16_t pcm =
-            static_cast<int16_t>(
-                sample * 32767.0f
-            );
-
-        pcm = applyVolume(pcm);
-
-        output[i * 2]     = pcm;
-        output[i * 2 + 1] = pcm;
-
-        _sirenPhase +=
-            TWO_PI *
-            frequency /
-            static_cast<float>(
-                DEFAULT_SAMPLE_RATE
-            );
-
-        if (_sirenPhase >= TWO_PI)
-            _sirenPhase -= TWO_PI;
-
-        uint32_t frameElapsed =
-            static_cast<uint32_t>(
-                (
-                    static_cast<uint64_t>(i + 1) *
-                    1000ULL
-                ) /
-                DEFAULT_SAMPLE_RATE
-            );
-
-        if (frameElapsed == 0)
-            frameElapsed = 1;
-
-        (void)frameElapsed;
-    }
-
-    _sirenElapsedMs +=
-        static_cast<uint32_t>(
-            (
-                static_cast<uint64_t>(frames) *
-                1000ULL
-            ) /
-            DEFAULT_SAMPLE_RATE
-        );
-
-    _outputSize =
-        frames *
-        sizeof(int16_t) *
-        2;
-
-    _outputPosition = 0;
-
-    return true;
-}
-
-// ============================================================
-// WRITE OUTPUT
-// ============================================================
-
-bool SoundManager::writeOutput()
-{
-    if (_outputPosition >= _outputSize)
-        return true;
-
-    size_t bytesWritten = 0;
-
-    esp_err_t result =
+    const esp_err_t result =
         i2s_write(
-            I2S_PORT,
-            _outputBuffer + _outputPosition,
-            _outputSize - _outputPosition,
-            &bytesWritten,
-            0
+            i2sManager.speakerPort(),
+            samples,
+            bytes,
+            &written,
+            portMAX_DELAY
         );
 
     if (result != ESP_OK)
-        return false;
-
-    if (bytesWritten == 0)
-        return false;
-
-    _outputPosition += bytesWritten;
-
-    return true;
-}
-
-// ============================================================
-// VOLUME
-// ============================================================
-
-int16_t SoundManager::applyVolume(
-    int16_t sample
-) const
-{
-    uint8_t targetVolume =
-        getTargetVolume();
-
-    if (targetVolume == 0)
-        return 0;
-
-    float fade =
-        getFadeVolume() / 100.0f;
-
-    float volume =
-        static_cast<float>(targetVolume) /
-        100.0f;
-
-    float result =
-        static_cast<float>(sample) *
-        volume *
-        fade;
-
-    // --------------------------------------------------------
-    // Saturation
-    // --------------------------------------------------------
-
-    if (result > 32767.0f)
-        result = 32767.0f;
-
-    if (result < -32768.0f)
-        result = -32768.0f;
-
-    return static_cast<int16_t>(result);
-}
-
-// ============================================================
-// FADE VOLUME
-// ============================================================
-
-uint8_t SoundManager::getFadeVolume() const
-{
-    return static_cast<uint8_t>(
-        std::round(
-            getFadeFactor() * 100.0f
-        )
-    );
-}
-
-// ============================================================
-// FADE FACTOR
-// ============================================================
-
-float SoundManager::getFadeFactor() const
-{
-    uint32_t elapsedMs = 0;
-
-    // --------------------------------------------------------
-    // Current playback position
-    // --------------------------------------------------------
-
-    if (_soundType == SoundType::WAV)
     {
-        if (_blockAlign != 0 &&
-            _sampleRate != 0)
-        {
-            uint32_t frames =
-                _dataPosition /
-                _blockAlign;
-
-            elapsedMs =
-                static_cast<uint32_t>(
-                    (
-                        static_cast<uint64_t>(frames) *
-                        1000ULL
-                    ) /
-                    _sampleRate
-                );
-        }
-    }
-    else if (_soundType == SoundType::TONE)
-    {
-        elapsedMs = _toneElapsedMs;
-    }
-    else if (_soundType == SoundType::SIREN)
-    {
-        elapsedMs = _sirenElapsedMs;
-    }
-
-    // --------------------------------------------------------
-    // Manual fade-out
-    // --------------------------------------------------------
-
-    if (_manualFadeOut)
-    {
-        if (elapsedMs <= _manualFadeOutStartMs)
-            return 1.0f;
-
-        uint32_t passed =
-            elapsedMs -
-            _manualFadeOutStartMs;
-
-        if (passed >= _manualFadeOutDurationMs)
-            return 0.0f;
-
-        float progress =
-            static_cast<float>(passed) /
-            static_cast<float>(
-                _manualFadeOutDurationMs
-            );
-
-        float curved =
-            applyFadeCurve(
-                progress
-            );
-
-        return 1.0f - curved;
-    }
-
-    // --------------------------------------------------------
-    // Fade in
-    // --------------------------------------------------------
-
-    float factor = 1.0f;
-
-    if (_fadeInMs > 0)
-    {
-        if (elapsedMs < _fadeInMs)
-        {
-            float progress =
-                static_cast<float>(elapsedMs) /
-                static_cast<float>(_fadeInMs);
-
-            factor =
-                applyFadeCurve(progress);
-        }
-    }
-
-    // --------------------------------------------------------
-    // Fade out
-    // --------------------------------------------------------
-
-    if (_fadeOutMs > 0 &&
-        _soundDurationMs > 0)
-    {
-        uint32_t fadeStart =
-            _soundDurationMs >
-            _fadeOutMs
-                ? _soundDurationMs - _fadeOutMs
-                : 0;
-
-        if (elapsedMs >= fadeStart)
-        {
-            float progress;
-
-            if (_fadeOutMs == 0)
-            {
-                progress = 1.0f;
-            }
-            else
-            {
-                progress =
-                    static_cast<float>(
-                        elapsedMs - fadeStart
-                    ) /
-                    static_cast<float>(
-                        _fadeOutMs
-                    );
-            }
-
-            progress =
-                std::min(
-                    std::max(progress, 0.0f),
-                    1.0f
-                );
-
-            float fadeOut =
-                applyFadeCurve(progress);
-
-            factor =
-                std::min(
-                    factor,
-                    1.0f - fadeOut
-                );
-        }
-    }
-
-    return std::min(
-        std::max(factor, 0.0f),
-        1.0f
-    );
-}
-
-// ============================================================
-// FADE CURVE
-// ============================================================
-
-float SoundManager::applyFadeCurve(
-    float progress
-) const
-{
-    progress =
-        std::min(
-            std::max(progress, 0.0f),
-            1.0f
+        Serial.print(
+            "[SoundManager] I2S write error: "
         );
 
-    FadeCurve curve =
-        _manualFadeOut
-            ? _manualFadeOutCurve
-            : _fadeCurve;
+        Serial.println(
+            esp_err_to_name(result)
+        );
+
+        return false;
+    }
+
+    return written > 0;
+}
+
+// ============================================================
+// Calculate volume
+// ============================================================
+
+uint8_t SoundManager::calculatePlaybackVolume()
+{
+    float volume =
+        static_cast<float>(localVolume)
+        / 100.0f;
+
+    // --------------------------------------------------------
+    // Fade-in.
+    // --------------------------------------------------------
+
+    if (fadeInDuration > 0)
+    {
+        const uint32_t elapsed =
+            millis() - fadeInStart;
+
+        const float fade =
+            calculateFade(
+                elapsed,
+                fadeInDuration,
+                fadeInCurve
+            );
+
+        volume *= fade;
+    }
+
+    // --------------------------------------------------------
+    // Fade-out.
+    // --------------------------------------------------------
+
+    if (
+        fadingOut &&
+        fadeOutDuration > 0
+    )
+    {
+        const uint32_t elapsed =
+            millis() - fadeOutStart;
+
+        const float fade =
+            calculateFade(
+                elapsed,
+                fadeOutDuration,
+                fadeOutCurve
+            );
+
+        volume *= 1.0f - fade;
+
+        if (elapsed >= fadeOutDuration)
+        {
+            volume = 0.0f;
+        }
+    }
+
+    volume = constrain(
+        volume,
+        0.0f,
+        1.0f
+    );
+
+    return static_cast<uint8_t>(
+        volume * 100.0f
+    );
+}
+
+// ============================================================
+// Calculate fade
+// ============================================================
+
+float SoundManager::calculateFade(
+    uint32_t elapsed,
+    uint32_t duration,
+    FadeCurve curve
+) const
+{
+    if (duration == 0)
+    {
+        return 1.0f;
+    }
+
+    if (elapsed >= duration)
+    {
+        return 1.0f;
+    }
+
+    float x =
+        static_cast<float>(elapsed)
+        / static_cast<float>(duration);
+
+    x = constrain(
+        x,
+        0.0f,
+        1.0f
+    );
 
     switch (curve)
     {
         case FadeCurve::Linear:
-            return progress;
+            return x;
 
         case FadeCurve::Exponential:
         {
-            // Slow beginning,
-            // stronger increase near the end.
+            // Smooth slow start and fast finish.
             //
-            // 0%
-            // 1%
-            // 6%
-            // 16%
-            // 32%
-            // 56%
-            // 100%
+            // y = (e^(kx)-1)/(e^k-1)
             //
-            return powf(progress, 2.2f);
+            // k = 5
+            constexpr float k = 5.0f;
+
+            const float numerator =
+                expf(k * x) - 1.0f;
+
+            const float denominator =
+                expf(k) - 1.0f;
+
+            return numerator / denominator;
         }
 
         case FadeCurve::Logarithmic:
         {
-            // Fast beginning,
-            // slower near the end.
-            return log10f(
-                1.0f +
-                9.0f * progress
-            );
+            // Fast start, slower finish.
+            //
+            // log2(1+x)
+            return log2f(1.0f + x);
         }
+    }
 
-        default:
-            return progress;
+    return x;
+}
+
+// ============================================================
+// Apply volume
+// ============================================================
+
+void SoundManager::applyVolume(
+    int16_t* samples,
+    size_t count,
+    uint8_t volume
+)
+{
+    if (!samples || count == 0)
+    {
+        return;
+    }
+
+    if (volume >= 100)
+    {
+        return;
+    }
+
+    if (volume == 0)
+    {
+        memset(
+            samples,
+            0,
+            count * sizeof(int16_t)
+        );
+
+        return;
+    }
+
+    const int32_t gain =
+        volume;
+
+    for (size_t i = 0; i < count; ++i)
+    {
+        const int32_t value =
+            static_cast<int32_t>(
+                samples[i]
+            );
+
+        samples[i] =
+            static_cast<int16_t>(
+                (value * gain) / 100
+            );
     }
 }
 
 // ============================================================
-// STOP
+// Stop
 // ============================================================
 
 void SoundManager::stop()
 {
-    if (!_ready)
-        return;
-
-    i2s_stop(I2S_PORT);
-
-    i2s_zero_dma_buffer(I2S_PORT);
-
-    if (_file)
-        _file.close();
-
-    resetPlaybackState();
-}
-
-// ============================================================
-// PAUSE
-// ============================================================
-
-void SoundManager::pause()
-{
-    if (!_ready)
-        return;
-
-    if (!_playing)
-        return;
-
-    if (_paused)
-        return;
-
-    // --------------------------------------------------------
-    // Immediately stop I2S DMA.
-    // --------------------------------------------------------
-
-    i2s_stop(I2S_PORT);
-
-    i2s_zero_dma_buffer(I2S_PORT);
-
-    // --------------------------------------------------------
-    // Do NOT close file.
-    // Do NOT reset buffers.
-    // Do NOT reset position.
-    // --------------------------------------------------------
-
-    _paused = true;
-}
-
-// ============================================================
-// RESUME
-// ============================================================
-
-void SoundManager::resume()
-{
-    if (!_ready)
-        return;
-
-    if (!_playing)
-        return;
-
-    if (!_paused)
-        return;
-
-    i2s_start(I2S_PORT);
-
-    _paused = false;
-}
-
-// ============================================================
-// MANUAL FADE OUT
-// ============================================================
-
-void SoundManager::fadeOut(
-    uint32_t durationMs,
-    FadeCurve curve
-)
-{
-    if (!_playing)
-        return;
-
-    if (durationMs == 0)
+    if (!playing && !file)
     {
-        stop();
         return;
     }
 
-    uint32_t elapsedMs = 0;
+    playing = false;
+    paused = false;
 
-    if (_soundType == SoundType::WAV)
-    {
-        if (_blockAlign != 0 &&
-            _sampleRate != 0)
-        {
-            uint32_t frames =
-                _dataPosition /
-                _blockAlign;
+    fadingOut = false;
 
-            elapsedMs =
-                static_cast<uint32_t>(
-                    (
-                        static_cast<uint64_t>(frames) *
-                        1000ULL
-                    ) /
-                    _sampleRate
-                );
-        }
-    }
-    else if (_soundType == SoundType::TONE)
+    if (file)
     {
-        elapsedMs = _toneElapsedMs;
-    }
-    else if (_soundType == SoundType::SIREN)
-    {
-        elapsedMs = _sirenElapsedMs;
+        file.close();
     }
 
-    _manualFadeOut = true;
+    clearSpeaker();
 
-    _manualFadeOutStartMs =
-        elapsedMs;
+    dataRead = 0;
+    positionSamples = 0;
 
-    _manualFadeOutDurationMs =
-        durationMs;
-
-    _manualFadeOutCurve =
-        curve;
-}
-
-// ============================================================
-// FADE SETTINGS
-// ============================================================
-
-void SoundManager::setFadeIn(
-    uint32_t durationMs
-)
-{
-    _fadeInMs = durationMs;
-}
-
-void SoundManager::setFadeOut(
-    uint32_t durationMs
-)
-{
-    _fadeOutMs = durationMs;
-}
-
-void SoundManager::setFadeCurve(
-    FadeCurve curve
-)
-{
-    _fadeCurve = curve;
-}
-
-uint32_t SoundManager::getFadeIn() const
-{
-    return _fadeInMs;
-}
-
-uint32_t SoundManager::getFadeOut() const
-{
-    return _fadeOutMs;
-}
-
-SoundManager::FadeCurve SoundManager::getFadeCurve() const
-{
-    return _fadeCurve;
-}
-
-// ============================================================
-// WAV PARSER
-// ============================================================
-
-bool SoundManager::parseWav()
-{
-    if (!_file)
-        return false;
-
-    uint32_t riff;
-    uint32_t riffSize;
-    uint32_t wave;
-
-    if (_file.read(
-        reinterpret_cast<uint8_t*>(&riff),
-        4
-    ) != 4)
-    {
-        return false;
-    }
-
-    if (riff != RIFF_ID)
-        return false;
-
-    if (_file.read(
-        reinterpret_cast<uint8_t*>(&riffSize),
-        4
-    ) != 4)
-    {
-        return false;
-    }
-
-    (void)riffSize;
-
-    if (_file.read(
-        reinterpret_cast<uint8_t*>(&wave),
-        4
-    ) != 4)
-    {
-        return false;
-    }
-
-    if (wave != WAVE_ID)
-        return false;
-
-    if (!findFmtChunk())
-        return false;
-
-    if (!findDataChunk())
-        return false;
-
-    // --------------------------------------------------------
-    // Supported format:
-    // PCM / 16 bit / mono or stereo
-    // --------------------------------------------------------
-
-    if (_audioFormat != WAV_PCM)
-        return false;
-
-    if (_bitsPerSample != 16)
-        return false;
-
-    if (_channels != 1 &&
-        _channels != 2)
-    {
-        return false;
-    }
-
-    if (_sampleRate < MIN_SAMPLE_RATE ||
-        _sampleRate > MAX_SAMPLE_RATE)
-    {
-        return false;
-    }
-
-    if (_blockAlign == 0)
-        return false;
-
-    return true;
-}
-
-// ============================================================
-// FIND FMT
-// ============================================================
-
-bool SoundManager::findFmtChunk()
-{
-    while (_file.available())
-    {
-        uint32_t id;
-        uint32_t size;
-
-        if (!readChunkHeader(id, size))
-            return false;
-
-        if (id == FMT_ID)
-        {
-            if (size < 16)
-                return false;
-
-            if (_file.read(
-                reinterpret_cast<uint8_t*>(
-                    &_audioFormat
-                ),
-                2
-            ) != 2)
-            {
-                return false;
-            }
-
-            if (_file.read(
-                reinterpret_cast<uint8_t*>(
-                    &_channels
-                ),
-                2
-            ) != 2)
-            {
-                return false;
-            }
-
-            if (_file.read(
-                reinterpret_cast<uint8_t*>(
-                    &_sampleRate
-                ),
-                4
-            ) != 4)
-            {
-                return false;
-            }
-
-            if (_file.read(
-                reinterpret_cast<uint8_t*>(
-                    &_byteRate
-                ),
-                4
-            ) != 4)
-            {
-                return false;
-            }
-
-            if (_file.read(
-                reinterpret_cast<uint8_t*>(
-                    &_blockAlign
-                ),
-                2
-            ) != 2)
-            {
-                return false;
-            }
-
-            if (_file.read(
-                reinterpret_cast<uint8_t*>(
-                    &_bitsPerSample
-                ),
-                2
-            ) != 2)
-            {
-                return false;
-            }
-
-            if (size > 16)
-            {
-                if (!skipBytes(size - 16))
-                    return false;
-            }
-
-            return true;
-        }
-
-        if (!skipBytes(size))
-            return false;
-    }
-
-    return false;
-}
-
-// ============================================================
-// FIND DATA
-// ============================================================
-
-bool SoundManager::findDataChunk()
-{
-    while (_file.available())
-    {
-        uint32_t id;
-        uint32_t size;
-
-        if (!readChunkHeader(id, size))
-            return false;
-
-        if (id == DATA_ID)
-        {
-            _dataSize = size;
-
-            _dataPosition =
-                static_cast<uint32_t>(
-                    _file.position()
-                );
-
-            return true;
-        }
-
-        if (!skipBytes(size))
-            return false;
-    }
-
-    return false;
-}
-
-// ============================================================
-// READ CHUNK HEADER
-// ============================================================
-
-bool SoundManager::readChunkHeader(
-    uint32_t& id,
-    uint32_t& size
-)
-{
-    if (_file.read(
-        reinterpret_cast<uint8_t*>(&id),
-        4
-    ) != 4)
-    {
-        return false;
-    }
-
-    if (_file.read(
-        reinterpret_cast<uint8_t*>(&size),
-        4
-    ) != 4)
-    {
-        return false;
-    }
-
-    return true;
-}
-
-// ============================================================
-// SKIP BYTES
-// ============================================================
-
-bool SoundManager::skipBytes(
-    uint32_t bytes
-)
-{
-    return _file.seek(
-        _file.position() + bytes
+    Serial.println(
+        "[SoundManager] STOP"
     );
 }
 
 // ============================================================
-// I2S INIT
+// Pause
 // ============================================================
 
-bool SoundManager::initI2S()
+void SoundManager::pause()
 {
-    i2s_config_t config = {};
-
-    config.mode =
-        static_cast<i2s_mode_t>(
-            I2S_MODE_MASTER |
-            I2S_MODE_TX
-        );
-
-    config.sample_rate =
-        DEFAULT_SAMPLE_RATE;
-
-    config.bits_per_sample =
-        I2S_BITS_PER_SAMPLE_16BIT;
-
-    config.channel_format =
-        I2S_CHANNEL_FMT_RIGHT_LEFT;
-
-    config.communication_format =
-        I2S_COMM_FORMAT_STAND_I2S;
-
-    config.intr_alloc_flags =
-        ESP_INTR_FLAG_LEVEL1;
-
-    config.dma_buf_count = 8;
-
-    config.dma_buf_len = 256;
-
-    config.use_apll = false;
-
-    config.tx_desc_auto_clear = true;
-
-    config.fixed_mclk = 0;
-
-    esp_err_t result =
-        i2s_driver_install(
-            I2S_PORT,
-            &config,
-            0,
-            nullptr
-        );
-
-    if (result != ESP_OK)
-        return false;
-
-    i2s_pin_config_t pins = {};
-
-    pins.bck_io_num =
-        PIN_I2S_BCLK ;
-
-    pins.ws_io_num =
-        PIN_I2S_LRCLK;
-
-    pins.data_out_num =
-        PIN_I2S_DIN;
-
-    pins.data_in_num =
-        I2S_PIN_NO_CHANGE;
-
-    result =
-        i2s_set_pin(
-            I2S_PORT,
-            &pins
-        );
-
-    if (result != ESP_OK)
+    if (!playing || paused)
     {
-        i2s_driver_uninstall(I2S_PORT);
-        return false;
+        return;
     }
 
-    i2s_zero_dma_buffer(I2S_PORT);
+    paused = true;
 
-    return true;
+    pausedAtMs = millis();
+
+    i2s_stop(
+        i2sManager.speakerPort()
+    );
+
+    Serial.println(
+        "[SoundManager] PAUSE"
+    );
 }
 
 // ============================================================
-// CONFIGURE I2S
+// Resume
 // ============================================================
 
-bool SoundManager::configureI2S(
-    uint32_t sampleRate,
-    uint16_t channels
+void SoundManager::resume()
+{
+    if (!playing || !paused)
+    {
+        return;
+    }
+
+    paused = false;
+
+    const uint32_t now =
+        millis();
+
+    const uint32_t pauseDuration =
+        now - pausedAtMs;
+
+    // Shift timers so fade calculations don't include pause.
+    playbackStartMs += pauseDuration;
+    fadeInStart += pauseDuration;
+
+    if (fadeOutStart != 0)
+    {
+        fadeOutStart += pauseDuration;
+    }
+
+    if (!i2sManager.isSpeakerInitialized())
+    {
+        if (!i2sManager.beginSpeaker(
+                wav.sampleRate
+            ))
+        {
+            Serial.println(
+                "[SoundManager] ERROR: cannot resume speaker"
+            );
+
+            playing = false;
+
+            if (file)
+            {
+                file.close();
+            }
+
+            return;
+        }
+    }
+    else
+    {
+        i2s_start(
+            i2sManager.speakerPort()
+        );
+    }
+
+    Serial.println(
+        "[SoundManager] RESUME"
+    );
+}
+
+// ============================================================
+// Fade in
+// ============================================================
+
+void SoundManager::setFadeIn(
+    uint32_t durationMs,
+    FadeCurve curve
 )
 {
-    if (channels != 1 &&
-        channels != 2)
+    fadeInDuration = durationMs;
+
+    fadeInCurve = curve;
+
+    fadeInStart = millis();
+}
+
+// ============================================================
+// Fade out
+// ============================================================
+
+void SoundManager::setFadeOut(
+    uint32_t durationMs,
+    FadeCurve curve
+)
+{
+    fadeOutDuration = durationMs;
+
+    fadeOutCurve = curve;
+
+    fadingOut = false;
+}
+
+// ============================================================
+// Position
+// ============================================================
+
+uint32_t SoundManager::getPositionMs() const
+{
+    if (wav.sampleRate == 0)
     {
-        return false;
+        return 0;
     }
 
-    esp_err_t result =
-        i2s_set_clk(
-            I2S_PORT,
-            sampleRate,
-            I2S_BITS_PER_SAMPLE_16BIT,
-            I2S_CHANNEL_STEREO
-        );
-
-    if (result != ESP_OK)
-        return false;
-
-    i2s_zero_dma_buffer(I2S_PORT);
-
-    return true;
+    return static_cast<uint32_t>(
+        (
+            static_cast<uint64_t>(
+                positionSamples
+            ) * 1000ULL
+        ) /
+        wav.sampleRate
+    );
 }
 
 // ============================================================
-// CLEAR I2S
+// Duration
 // ============================================================
-
-void SoundManager::clearI2S()
-{
-    i2s_stop(I2S_PORT);
-
-    i2s_zero_dma_buffer(I2S_PORT);
-}
-
-// ============================================================
-// RESET PLAYBACK
-// ============================================================
-
-void SoundManager::resetPlaybackState()
-{
-    _playing = false;
-
-    _paused = false;
-
-    _soundType = SoundType::NONE;
-
-    _inputSize = 0;
-
-    _outputSize = 0;
-
-    _outputPosition = 0;
-
-    _dataPosition = 0;
-
-    _soundDurationMs = 0;
-
-    _toneElapsedMs = 0;
-
-    _sirenElapsedMs = 0;
-
-    _manualFadeOut = false;
-
-    _phase = 0.0f;
-
-    _sirenPhase = 0.0f;
-}
-
-// ============================================================
-// INFORMATION
-// ============================================================
-
-uint32_t SoundManager::getSampleRate() const
-{
-    return _sampleRate;
-}
-
-uint16_t SoundManager::getChannels() const
-{
-    return _channels;
-}
-
-uint16_t SoundManager::getBitsPerSample() const
-{
-    return _bitsPerSample;
-}
-
-uint32_t SoundManager::getDataSize() const
-{
-    return _dataSize;
-}
-
-uint32_t SoundManager::getDataPosition() const
-{
-    return _dataPosition;
-}
 
 uint32_t SoundManager::getDurationMs() const
 {
-    return _soundDurationMs;
+    if (
+        wav.sampleRate == 0 ||
+        wav.channels == 0 ||
+        wav.bitsPerSample == 0
+    )
+    {
+        return 0;
+    }
+
+    const uint32_t bytesPerSample =
+        (
+            static_cast<uint32_t>(
+                wav.channels
+            ) *
+            wav.bitsPerSample
+        ) / 8;
+
+    if (bytesPerSample == 0)
+    {
+        return 0;
+    }
+
+    const uint32_t samples =
+        wav.dataSize / bytesPerSample;
+
+    return static_cast<uint32_t>(
+        (
+            static_cast<uint64_t>(
+                samples
+            ) * 1000ULL
+        ) /
+        wav.sampleRate
+    );
+}
+
+// ============================================================
+// Current volume
+// ============================================================
+
+uint8_t SoundManager::getCurrentVolume() const
+{
+    if (!playing)
+    {
+        return 0;
+    }
+
+    return const_cast<SoundManager*>(this)
+        ->calculatePlaybackVolume();
+}
+
+// ============================================================
+// Current path
+// ============================================================
+
+const char* SoundManager::getCurrentPath() const
+{
+    return currentPath;
+}
+
+// ============================================================
+// Clear speaker
+// ============================================================
+
+void SoundManager::clearSpeaker()
+{
+    if (!i2sManager.isSpeakerInitialized())
+    {
+        return;
+    }
+
+    i2s_zero_dma_buffer(
+        i2sManager.speakerPort()
+    );
 }

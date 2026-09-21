@@ -1,15 +1,29 @@
 #pragma once
 
 #include <Arduino.h>
-#include <driver/i2s.h>
+
+class I2SManager;
+
 
 class Microphone
 {
 public:
 
-    Microphone();
+    explicit Microphone(
+        I2SManager& i2sManager
+    );
+
+
+    // =====================================================
+    // LIFECYCLE
+    // =====================================================
 
     bool begin();
+
+    void end();
+
+    bool isInitialized() const;
+
 
     // =====================================================
     // LISTENING
@@ -30,49 +44,25 @@ public:
 
     bool isEnabled() const;
 
-    bool isInitialized() const;
-
 
     // =====================================================
     // AUDIO
     // =====================================================
 
-    /*
-     * Получает ОДИН chunk из I2S.
-     *
-     * Вызывать постоянно из loop().
-     */
     bool updateAudio();
 
 
-    /*
-     * Проверяет, появился ли новый PCM chunk.
-     */
     bool hasNewAudio() const;
 
 
-    /*
-     * Получить последний PCM chunk.
-     *
-     * Возвращает количество samples.
-     */
     size_t getAudioChunk(
         const int16_t*& data
     ) const;
 
 
-    /*
-     * Размер последнего chunk.
-     */
     size_t getAudioChunkSize() const;
 
 
-    /*
-     * Счётчик chunk.
-     *
-     * Можно использовать для определения,
-     * появился ли новый chunk.
-     */
     uint32_t getAudioChunkId() const;
 
 
@@ -87,21 +77,16 @@ public:
     int16_t getPeak() const;
 
 
+    // =====================================================
+    // INFO
+    // =====================================================
+
     const char* getName() const;
 
 
 private:
 
-    static constexpr i2s_port_t I2S_PORT =
-        I2S_NUM_0;
-
-
-    static constexpr uint32_t SAMPLE_RATE =
-        16000;
-
-
-    static constexpr size_t BUFFER_SAMPLES =
-        512;
+    I2SManager& i2sManager;
 
 
     bool initialized;
@@ -112,8 +97,12 @@ private:
 
 
     // =====================================================
-    // LAST AUDIO CHUNK
+    // AUDIO BUFFER
     // =====================================================
+
+    static constexpr size_t BUFFER_SAMPLES =
+        512;
+
 
     int16_t audioBuffer[
         BUFFER_SAMPLES
@@ -137,6 +126,10 @@ private:
 
     int16_t peak;
 
+
+    // =====================================================
+    // INTERNAL
+    // =====================================================
 
     void analyzeAudio(
         const int16_t* samples,

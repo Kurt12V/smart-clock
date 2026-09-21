@@ -10,10 +10,6 @@ class MicrophoneManager
 {
 public:
 
-    // =====================================================
-    // CONSTRUCTOR
-    // =====================================================
-
     MicrophoneManager(
         Microphone& microphone,
         AudioRecorder& recorder
@@ -26,11 +22,13 @@ public:
 
     bool begin();
 
+    void end();
+
     void update();
 
 
     // =====================================================
-    // MICROPHONE
+    // LISTENING
     // =====================================================
 
     bool startListening();
@@ -44,22 +42,15 @@ public:
     // ENABLE
     // =====================================================
 
-    void setEnabled(
-        bool enabled
-    );
+    void setEnabled(bool enabled);
 
     bool isEnabled() const;
-
-
-    // =====================================================
-    // STATUS
-    // =====================================================
 
     bool isInitialized() const;
 
 
     // =====================================================
-    // AUDIO ANALYSIS
+    // ANALYSIS
     // =====================================================
 
     float getRMS() const;
@@ -70,7 +61,7 @@ public:
 
 
     // =====================================================
-    // PCM CHUNK
+    // AUDIO CHUNK
     // =====================================================
 
     bool hasNewAudio() const;
@@ -96,6 +87,7 @@ public:
 
     bool isRecording() const;
 
+
     uint32_t getRecordedBytes() const;
 
     uint32_t getRecordedSamples() const;
@@ -104,7 +96,7 @@ public:
 
 
     // =====================================================
-    // DEVICE
+    // INFO
     // =====================================================
 
     const char* getName() const;
@@ -116,15 +108,10 @@ private:
 
     AudioRecorder& recorder;
 
-
     bool initialized;
 
     bool enabled;
 
-
-    // =====================================================
-    // UPDATE
-    // =====================================================
 
     void updateMicrophone();
 
