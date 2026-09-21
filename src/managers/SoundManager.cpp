@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include "Pins.h"
 
 
 // ============================================================
@@ -1860,13 +1861,13 @@ bool SoundManager::initI2S()
     i2s_pin_config_t pins = {};
 
     pins.bck_io_num =
-        I2S_BCLK;
+        PIN_I2S_BCLK ;
 
     pins.ws_io_num =
-        I2S_LRC;
+        PIN_I2S_LRCLK;
 
     pins.data_out_num =
-        I2S_DOUT;
+        PIN_I2S_DIN;
 
     pins.data_in_num =
         I2S_PIN_NO_CHANGE;
