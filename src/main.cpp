@@ -1,42 +1,31 @@
 #include <Arduino.h>
 
-// ============================================================
-// CORE
-// ============================================================
-
-#include "Config.h"
-#include "Pins.h"
-#include "Constants.h"
-#include "Version.h"
-
-// ============================================================
-// SYSTEMS
-// ============================================================
-
 #include "Settings.h"
 
-#include "./core/ClockSystem.h"
-#include "./managers/SensorsManager.h"
-#include "./core/DisplaySystem.h"
-#include "./managers/InputManager.h"
+#include "./managers/SPIManager.h"
+#include "./managers/SDManager.h"
+#include "./managers/SoundManager.h"
 
-InputManager inputManager;
+// ============================================================
+// SETTINGS
+// ============================================================
 
+Settings::Data settings;
 
-Settings::Clock clockSettings;
+// ============================================================
+// HARDWARE
+// ============================================================
 
-ClockSystem clockSystem(
-    clockSettings
-);
+SPIManager spiManager;
+SDManager sdManager;
 
-// ------------------------------------------------------------
-// Sensors
-// ------------------------------------------------------------
+// ============================================================
+// SOUND
+// ============================================================
 
-SensorManager sensorManager;
-DisplaySystem displaySystem(
-    clockSystem,
-    sensorManager
+SoundManager soundManager(
+    sdManager,
+    settings.audio
 );
 
 // ============================================================
@@ -45,122 +34,249 @@ DisplaySystem displaySystem(
 
 void setup()
 {
-    // ========================================================
-    // SERIAL
-    // ========================================================
-
     Serial0.begin(115200);
 
     delay(1000);
 
     Serial0.println();
-    Serial0.println(
-        "========================================"
-    );
-    Serial0.println(
-        "        ESP32-S3 SMART CLOCK"
-    );
-    Serial0.println(
-        "========================================"
-    );
+    Serial0.println("================================");
+    Serial0.println(" SmartClock - Audio Test");
+    Serial0.println("================================");
 
     // ========================================================
-    // CLOCK
+    // AUDIO SETTINGS
     // ========================================================
 
+    Serial0.println();
+    Serial0.println("Audio settings:");
+
+    Serial0.print("Enabled: ");
     Serial0.println(
-        "[MAIN] Initializing ClockSystem..."
+        settings.audio.enabled
+            ? "YES"
+            : "NO"
     );
 
-    if (!clockSystem.begin())
+    Serial0.print("Global volume: ");
+    Serial0.print(
+        settings.audio.volume
+    );
+    Serial0.println("%");
+
+    Serial0.print("Sample rate: ");
+    Serial0.print(
+        settings.audio.sampleRate
+    );
+    Serial0.println(" kHz");
+
+    // ========================================================
+    // SPI
+    // ========================================================
+
+    Serial0.println();
+    Serial0.println("[1] Starting SPI...");
+
+    if (!spiManager.begin())
     {
         Serial0.println(
-            "[MAIN] ClockSystem ERROR"
-        );
-    }
-    else
-    {
-        Serial0.println(
-            "[MAIN] ClockSystem OK"
-        );
-    }
-
-    // ========================================================
-    // SENSORS
-    // ========================================================
-
-    Serial0.println(
-        "[MAIN] Initializing SensorManager..."
-    );
-
-    if (!sensorManager.begin())
-    {
-        Serial0.println(
-            "[MAIN] SensorManager ERROR"
-        );
-    }
-    else
-    {
-        Serial0.println(
-            "[MAIN] SensorManager OK"
-        );
-    }
-
-    // ========================================================
-    // DISPLAY
-    // ========================================================
-
-    Serial0.println(
-        "[MAIN] Initializing DisplaySystem..."
-    );
-
- 
-
-    if (!displaySystem.begin())
-    {
-        Serial0.println(
-            "[MAIN] DisplaySystem ERROR"
+            "[ERROR] SPI initialization failed!"
         );
 
-
-
-        while (true)
-        {
-            delay(1000);
-
-            Serial0.println(
-                "[MAIN] DisplaySystem is not available"
-            );
-        }
+        return;
     }
 
     Serial0.println(
-        "[MAIN] DisplaySystem OK"
+        "[OK] SPI initialized"
     );
-Serial0.println("[MAIN] Initializing InputManager...");
 
-if (!inputManager.begin())
-{
-    Serial0.println("[MAIN] InputManager ERROR");
-}
-else
-{
-    Serial0.println("[MAIN] InputManager OK");
-}
     // ========================================================
-    // SYSTEM READY
+    // SD
+    // ========================================================
+
+    Serial0.println();
+    Serial0.println("[2] Starting SD...");
+
+    // SD CS = GPIO35
+    if (!sdManager.begin(35))
+    {
+        Serial0.println(
+            "[ERROR] SD initialization failed!"
+        );
+
+        return;
+    }
+
+    Serial0.println(
+        "[OK] SD initialized"
+    );
+
+    // ========================================================
+    // ALARM FILE
+    // ========================================================
+
+    const char* alarmPath =
+        "/audio/alarms/alarm_1.wav";
+
+    Serial0.println();
+    Serial0.print(
+        "[3] Checking alarm file: "
+    );
+
+    Serial0.println(alarmPath);
+
+    if (!sdManager.card().exists(alarmPath))
+    {
+        Serial0.println(
+            "[ERROR] Alarm file not found!"
+        );
+
+        Serial0.println();
+        Serial0.println(
+            "Expected path on SD:"
+        );
+
+        Serial0.println(
+            "/audio/alarms/alarm_1.wav"
+        );
+
+        return;
+    }
+
+    Serial0.println(
+        "[OK] Alarm file found"
+    );
+
+    // ========================================================
+    // SOUND MANAGER
     // ========================================================
 
     Serial0.println();
     Serial0.println(
-        "========================================"
+        "[4] Starting SoundManager..."
     );
+
+    if (!soundManager.begin())
+    {
+        Serial0.println(
+            "[ERROR] SoundManager initialization failed!"
+        );
+
+        return;
+    }
+
     Serial0.println(
-        "          SYSTEM READY"
+        "[OK] SoundManager initialized"
     );
+
+    // ========================================================
+    // SHOW VOLUME
+    // ========================================================
+
+    Serial0.println();
     Serial0.println(
-        "========================================"
+        "================================"
     );
+
+    Serial0.print(
+        "Global volume: "
+    );
+
+    Serial0.print(
+        soundManager.getGlobalVolume()
+    );
+
+    Serial0.println("%");
+
+    Serial0.println(
+        "Alarm volume: 100% LOCAL"
+    );
+
+    Serial0.println(
+        "Global volume does NOT affect alarm."
+    );
+
+    Serial0.println(
+        "================================"
+    );
+
+    // ========================================================
+    // PLAY ALARM
+    // ========================================================
+    //
+    // Local volume = 100%
+    //
+    // Fade-in = 30 seconds
+    //
+    // Fade-out = 0
+    //
+    // Curve = Exponential
+    //
+    // Settings.audio.volume = 20%
+    // DOES NOT affect this alarm.
+    //
+    // ========================================================
+
+    Serial0.println();
+    Serial0.println(
+        "Starting alarm..."
+    );
+
+    bool result =
+        soundManager.playAlarm(
+            alarmPath,
+
+            100,    // local volume
+
+            30000,  // fade-in 30 sec
+
+            0,      // no fade-out
+
+            SoundManager::FadeCurve::Exponential
+        );
+
+    if (!result)
+    {
+        Serial0.println(
+            "[ERROR] Failed to start alarm!"
+        );
+
+        return;
+    }
+
+    Serial0.println(
+        "[OK] Alarm started"
+    );
+
+    Serial0.println();
+    Serial0.println(
+        "Commands:"
+    );
+
+    Serial0.println(
+        "  p - pause"
+    );
+
+    Serial0.println(
+        "  r - resume"
+    );
+
+    Serial0.println(
+        "  s - stop"
+    );
+
+    Serial0.println(
+        "  f - fade-out 3 sec"
+    );
+
+    Serial0.println(
+        "  + - local volume +10%"
+    );
+
+    Serial0.println(
+        "  - - local volume -10%"
+    );
+
+    Serial0.println();
 }
 
 // ============================================================
@@ -169,65 +285,152 @@ else
 
 void loop()
 {
-    // ========================================================
-    // CLOCK
-    // ========================================================
-
-    clockSystem.update();
+    soundManager.update();
 
     // ========================================================
-    // SENSORS
+    // SERIAL COMMANDS
     // ========================================================
 
-    sensorManager.update();
-
-
-    displaySystem.update();
-
-    // ========================================================
-    // MINIMAL DELAY
-    // ========================================================
-inputManager.update();
-
-Constants::Event event;
-
-while (
-    (event = inputManager.getEvent())
-    != Constants::Event::NONE
-)
-{
-    switch (event)
+    if (Serial0.available())
     {
-        case Constants::Event::ROTATE_CW:
-            Serial0.println("[INPUT] ROTATE CW");
-            break;
+        char command =
+            Serial0.read();
 
-        case Constants::Event::ROTATE_CCW:
-            Serial0.println("[INPUT] ROTATE CCW");
-            break;
+        switch (command)
+        {
+            // ------------------------------------------------
+            // PAUSE
+            // ------------------------------------------------
 
-        case Constants::Event::PRESS:
-            Serial0.println("[INPUT] PRESS");
-            break;
+            case 'p':
+            case 'P':
+            {
+                Serial0.println(
+                    "[CMD] Pause"
+                );
 
-        case Constants::Event::RELEASE:
-            Serial0.println("[INPUT] RELEASE");
-            break;
+                soundManager.pause();
 
-        case Constants::Event::LONG_PRESS:
-            Serial0.println("[INPUT] LONG PRESS");
-            break;
+                break;
+            }
 
-        case Constants::Event::DOUBLE_PRESS:
-            Serial0.println("[INPUT] DOUBLE PRESS");
-            break;
+            // ------------------------------------------------
+            // RESUME
+            // ------------------------------------------------
 
-        case Constants::Event::NONE:
-        default:
-            break;
+            case 'r':
+            case 'R':
+            {
+                Serial0.println(
+                    "[CMD] Resume"
+                );
+
+                soundManager.resume();
+
+                break;
+            }
+
+            // ------------------------------------------------
+            // STOP
+            // ------------------------------------------------
+
+            case 's':
+            case 'S':
+            {
+                Serial0.println(
+                    "[CMD] Stop"
+                );
+
+                soundManager.stop();
+
+                break;
+            }
+
+            // ------------------------------------------------
+            // FADE OUT
+            // ------------------------------------------------
+
+            case 'f':
+            case 'F':
+            {
+                Serial0.println(
+                    "[CMD] Fade-out 3 sec"
+                );
+
+                soundManager.fadeOut(
+                    3000,
+                    SoundManager::FadeCurve::Exponential
+                );
+
+                break;
+            }
+
+            // ------------------------------------------------
+            // VOLUME +
+            // ------------------------------------------------
+
+            case '+':
+            {
+                uint8_t volume =
+                    soundManager.getLocalVolume();
+
+                if (volume <= 90)
+                    volume += 10;
+                else
+                    volume = 100;
+
+                soundManager.setLocalVolume(
+                    volume
+                );
+
+                Serial0.print(
+                    "[CMD] Local volume: "
+                );
+
+                Serial0.print(
+                    volume
+                );
+
+                Serial0.println("%");
+
+                break;
+            }
+
+            // ------------------------------------------------
+            // VOLUME -
+            // ------------------------------------------------
+
+            case '-':
+            {
+                uint8_t volume =
+                    soundManager.getLocalVolume();
+
+                if (volume >= 10)
+                    volume -= 10;
+                else
+                    volume = 0;
+
+                soundManager.setLocalVolume(
+                    volume
+                );
+
+                Serial0.print(
+                    "[CMD] Local volume: "
+                );
+
+                Serial0.print(
+                    volume
+                );
+
+                Serial0.println("%");
+
+                break;
+            }
+
+            default:
+                break;
+        }
     }
-}
-
 
     delay(1);
 }

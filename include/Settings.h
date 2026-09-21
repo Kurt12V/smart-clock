@@ -56,20 +56,18 @@ namespace Settings
 // AUDIO
 // ============================================================
 
-// struct Audio
-// {
-//     bool enabled = true;
+struct Audio
+{
+    bool enabled = true;
 
-//     uint8_t volume = 70;
+    uint8_t volume = 70;
 
-//     bool stereo = true;
+    uint8_t sampleRate = 44;
 
-//     uint8_t sampleRate = 44;
-
-//     bool notifications = true;
-//     bool alarms = true;
-//     bool timers = true;
-// };
+    bool notifications = true;
+    bool alarms = true;
+    bool timers = true;
+};
 
 // ============================================================
 // MICROPHONE
@@ -296,7 +294,7 @@ struct Data
 
 //     CobLed cobLed;
 
-//     Audio audio;
+     Audio audio;
 
 //     Microphone microphone;
 
