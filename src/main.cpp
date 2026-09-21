@@ -22,72 +22,32 @@ CobLedManager cobManager(
 );
 
 // ============================================================
-// НАСТРОЙКИ ВОЛНЫ
+// НАСТРОЙКИ
 // ============================================================
 
-// Время перехода от одного COB к следующему
-constexpr uint32_t WAVE_TIME = 1500;
+constexpr uint32_t STEP_TIME = 10;
 
-// Шаг обновления
-constexpr uint32_t UPDATE_TIME = 10;
+// Текущий COB
+uint8_t currentCob = 1;
 
-// Максимальная яркость
-constexpr uint8_t MAX_BRIGHTNESS = 255;
+// Текущая яркость
+int brightness = 0;
+
+// Направление
+bool increasing = true;
 
 // ============================================================
-// Вспомогательная функция
+// Установка яркости всех COB
 // ============================================================
 
-uint8_t calculateBrightness(
-    float position,
-    float cobPosition
-)
+void setAllOff()
 {
-    float distance = fabs(position - cobPosition);
+    cobManager.setBrightness(1, 0);
+    cobManager.setBrightness(2, 0);
+    cobManager.setBrightness(3, 0);
+    cobManager.setBrightness(4, 0);
 
-    // COB светится только в пределах своей зоны
-    if (distance >= 1.0f)
-        return 0;
-
-    // Плавная форма волны:
-    //
-    // distance = 0     -> 255
-    // distance = 0.5   -> ~128
-    // distance = 1     -> 0
-    //
-    float brightness = 1.0f - distance;
-
-    // Небольшое сглаживание
-    brightness = brightness * brightness * (3.0f - 2.0f * brightness);
-
-    return (uint8_t)(brightness * MAX_BRIGHTNESS);
-}
-
-// ============================================================
-// Волна
-// ============================================================
-
-void updateWave(float position)
-{
-    cobManager.setBrightness(
-        1,
-        calculateBrightness(position, 0.0f)
-    );
-
-    cobManager.setBrightness(
-        2,
-        calculateBrightness(position, 1.0f)
-    );
-
-    cobManager.setBrightness(
-        3,
-        calculateBrightness(position, 2.0f)
-    );
-
-    cobManager.setBrightness(
-        4,
-        calculateBrightness(position, 3.0f)
-    );
+    cobManager.off();
 }
 
 // ============================================================
@@ -101,17 +61,27 @@ void setup()
     delay(500);
 
     Serial.println();
-    Serial.println("================================");
-    Serial.println(" COB RUNNING WAVE TEST");
-    Serial.println("================================");
+    Serial.println("==============================");
+    Serial.println("4 COB FADE TEST");
+    Serial.println("==============================");
 
     cobManager.begin();
 
+    // Сначала всё выключено
     cobManager.off();
+
+    cobManager.setBrightness(1, 0);
+    cobManager.setBrightness(2, 0);
+    cobManager.setBrightness(3, 0);
+    cobManager.setBrightness(4, 0);
 
     delay(500);
 
-    Serial.println("Wave started");
+    // Включаем состояние ON,
+    // но яркость пока 0
+    cobManager.on();
+
+    Serial.println("START");
 }
 
 // ============================================================
@@ -122,72 +92,71 @@ void loop()
 {
     static uint32_t lastUpdate = 0;
 
-    static float position = 0.0f;
-
     uint32_t now = millis();
 
-    if (now - lastUpdate < UPDATE_TIME)
+    if (now - lastUpdate < STEP_TIME)
         return;
 
     lastUpdate = now;
 
-    // Скорость движения волны
-    const float speed =
-        3.0f / (float)WAVE_TIME;
+    // ========================================================
+    // ПЛАВНОЕ УВЕЛИЧЕНИЕ
+    // ========================================================
 
-    position += speed * UPDATE_TIME;
-
-    // --------------------------------------------------------
-    // Когда дошли до COB4
-    // --------------------------------------------------------
-
-    if (position >= 3.0f)
+    if (increasing)
     {
-        position = 3.0f;
+        brightness++;
 
-        updateWave(position);
-
-        delay(50);
-
-        // Теперь идём обратно
-        static bool forward = false;
-
-        while (position > 0.0f)
+        if (brightness >= 255)
         {
-            uint32_t start = millis();
+            brightness = 255;
+            increasing = false;
 
-            while (millis() - start < UPDATE_TIME)
-            {
-                uint32_t current = millis();
-
-                float delta =
-                    (float)(current - start) /
-                    (float)UPDATE_TIME;
-
-                float currentPosition =
-                    position -
-                    speed * delta;
-
-                if (currentPosition < 0.0f)
-                    currentPosition = 0.0f;
-
-                updateWave(currentPosition);
-
-                delay(1);
-            }
-
-            position -= speed * UPDATE_TIME;
-
-            if (position < 0.0f)
-                position = 0.0f;
+            Serial.print("COB ");
+            Serial.print(currentCob);
+            Serial.println(" FULL");
         }
-
-        updateWave(0.0f);
-
-        delay(50);
-
-        return;
     }
 
-    updateWave(position);
+    // ========================================================
+    // ПЛАВНОЕ УМЕНЬШЕНИЕ
+    // ========================================================
+
+    else
+    {
+        brightness--;
+
+        if (brightness <= 0)
+        {
+            brightness = 0;
+            increasing = true;
+
+            Serial.print("COB ");
+            Serial.print(currentCob);
+            Serial.println(" OFF");
+
+            // Следующий COB
+            currentCob++;
+
+            if (currentCob > 4)
+                currentCob = 1;
+        }
+    }
+
+    // ========================================================
+    // Устанавливаем яркость ТОЛЬКО текущего COB
+    // ========================================================
+
+    cobManager.setBrightness(
+        currentCob,
+        brightness
+    );
+
+    // Остальные обязательно выключены
+    for (uint8_t i = 1; i <= 4; i++)
+    {
+        if (i != currentCob)
+            cobManager.setBrightness(i, 0);
+    }
 }
+
