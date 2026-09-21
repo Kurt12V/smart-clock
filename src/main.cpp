@@ -56,14 +56,14 @@ void setAllOff()
 
 void setup()
 {
-    Serial.begin(115200);
+    Serial0.begin(115200);
 
     delay(500);
 
-    Serial.println();
-    Serial.println("==============================");
-    Serial.println("4 COB FADE TEST");
-    Serial.println("==============================");
+    Serial0.println();
+    Serial0.println("==============================");
+    Serial0.println("4 COB FADE TEST");
+    Serial0.println("==============================");
 
     cobManager.begin();
 
@@ -81,7 +81,7 @@ void setup()
     // но яркость пока 0
     cobManager.on();
 
-    Serial.println("START");
+    Serial0.println("START");
 }
 
 // ============================================================
@@ -112,9 +112,9 @@ void loop()
             brightness = 255;
             increasing = false;
 
-            Serial.print("COB ");
-            Serial.print(currentCob);
-            Serial.println(" FULL");
+            Serial0.print("COB ");
+            Serial0.print(currentCob);
+            Serial0.println(" FULL");
         }
     }
 
@@ -131,9 +131,9 @@ void loop()
             brightness = 0;
             increasing = true;
 
-            Serial.print("COB ");
-            Serial.print(currentCob);
-            Serial.println(" OFF");
+            Serial0.print("COB ");
+            Serial0.print(currentCob);
+            Serial0.println(" OFF");
 
             // Следующий COB
             currentCob++;
