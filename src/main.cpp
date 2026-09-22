@@ -1,246 +1,103 @@
-#include <Arduino.h>
+#include <Adafruit_NeoPixel.h>
 
-#include "Pins.h"
+#define LED_PIN     14
+#define MATRIX_W    16
+#define MATRIX_H    16
+#define NUM_LEDS    (MATRIX_W * MATRIX_H)
+#define BRIGHTNESS  20
 
-#include "./hardware/light/CobLed.h"
-#include "./managers/CobLedManager.h"
+#define COOLING     55
+#define SPARKING    120
+#define FPS         60
 
+// Направление огня:
+//   0 = снизу вверх   (по умолчанию)
+//   1 = слева направо (поворот на 90° по часовой)
+//   2 = справа налево (поворот на 90° против часовой)
+//   3 = сверху вниз   (переворот на 180°)
+#define FIRE_DIR    2
 
-// ============================================================
-// COB
-// ============================================================
+Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
-CobLed cob1(PIN_PWM_LD1, 0);
-CobLed cob2(PIN_PWM_LD2, 1);
-CobLed cob3(PIN_PWM_LD3, 2);
-CobLed cob4(PIN_PWM_LD4, 3);
-
-
-CobLedManager cobManager(
-    cob1,
-    cob2,
-    cob3,
-    cob4
-);
-
-
-// ============================================================
-// WAVE
-// ============================================================
-
-const uint32_t WAVE_PERIOD = 4000;
-
-const uint32_t WAVE_UPDATE = 10;
-
-const uint8_t WAVE_MAX = 255;
-
-uint32_t lastWaveUpdate = 0;
-
-
-// ============================================================
-// Wave brightness
-// ============================================================
-
-uint8_t waveBrightness(
-    float position
-)
-{
-    while (position >= 1.0f)
-        position -= 1.0f;
-
-    while (position < 0.0f)
-        position += 1.0f;
-
-
-    float value =
-        sinf(
-            position *
-            2.0f *
-            PI
-        );
-
-
-    // -1..1 -> 0..1
-
-    value =
-        (value + 1.0f) * 0.5f;
-
-
-    // Делаем мягкую волну
-
-    value =
-        value * value;
-
-
-    return (uint8_t)(
-        value *
-        WAVE_MAX
-    );
+uint16_t XY(uint8_t x, uint8_t y) {
+  if (y & 1) return y * MATRIX_W + (MATRIX_W - 1 - x);
+  return y * MATRIX_W + x;
 }
 
+uint8_t scale8_video(uint8_t i, uint8_t scale) {
+  uint8_t j = ((uint16_t)i * (uint16_t)scale) >> 8;
+  return j + (i && scale && !j);
+}
 
-// ============================================================
-// Update wave
-// ============================================================
+uint32_t fireColor(uint8_t temperature) {
+  uint8_t t192 = scale8_video(temperature, 191);
+  uint8_t heatramp = t192 & 0x3F;
+  heatramp <<= 2;
+  uint8_t r, g, b;
+  if (t192 & 0x80)      { r = 255; g = 255; b = heatramp; }
+  else if (t192 & 0x40) { r = 255; g = heatramp; b = 0; }
+  else                  { r = heatramp; g = 0; b = 0; }
+  return strip.Color(r, g, b);
+}
 
-void updateWave()
-{
-    uint32_t now =
-        millis();
+// heat[a][b]: b=0 — источник огня, b растёт в сторону распространения
+static uint8_t heat[MATRIX_W][MATRIX_H];
 
+void setup() {
+  strip.begin();
+  strip.setBrightness(BRIGHTNESS);
+  strip.clear();
+  strip.show();
+  memset(heat, 0, sizeof(heat));
+}
 
-    if (
-        now - lastWaveUpdate <
-        WAVE_UPDATE
-    )
-    {
-        return;
+void loop() {
+  // 1) Остывание
+  for (uint8_t a = 0; a < MATRIX_W; a++) {
+    for (uint8_t b = 0; b < MATRIX_H; b++) {
+      uint8_t cool = random(0, ((COOLING * 10) / MATRIX_H) + 2);
+      heat[a][b] = (heat[a][b] > cool) ? heat[a][b] - cool : 0;
     }
+  }
 
+  // 2) Подъём тепла от b к b+1 с боковым дрожанием по a
+  for (uint8_t a = 0; a < MATRIX_W; a++) {
+    for (int8_t b = MATRIX_H - 1; b >= 2; b--) {
+      int8_t da = (int8_t)random(-1, 2);
+      int8_t na = (int8_t)a + da;
+      if (na < 0) na = 0;
+      if (na >= MATRIX_W) na = MATRIX_W - 1;
 
-    lastWaveUpdate =
-        now;
+      uint8_t below  = heat[a][b - 1];
+      uint8_t below2 = heat[a][b - 2];
+      heat[na][b] = (below + below2) / 2;
+    }
+    heat[a][1] = heat[a][0];
+  }
 
+  // 3) Вспышки в источнике (b=0)
+  for (uint8_t a = 0; a < MATRIX_W; a++) {
+    if (random(0, 255) < SPARKING) {
+      uint8_t spark = random(160, 255);
+      heat[a][0] = spark;
+      heat[a][1] = spark;
+    }
+  }
 
-    float position =
-        (float)(
-            now % WAVE_PERIOD
-        )
-        /
-        (float)WAVE_PERIOD;
-
-
-    const float phase =
-        0.25f;
-
-
-    // ========================================================
-    // COB 1
-    // ========================================================
-
-    cobManager.set(
-        1,
-        waveBrightness(
-            position
-        )
-    );
-
-
-    // ========================================================
-    // COB 2
-    // ========================================================
-
-    cobManager.set(
-        2,
-        waveBrightness(
-            position + phase
-        )
-    );
-
-
-    // ========================================================
-    // COB 3
-    // ========================================================
-
-    cobManager.set(
-        3,
-        waveBrightness(
-            position + phase * 2.0f
-        )
-    );
-
-
-    // ========================================================
-    // COB 4
-    // ========================================================
-
-    cobManager.set(
-        4,
-        waveBrightness(
-            position + phase * 3.0f
-        )
-    );
-}
-
-
-// ============================================================
-// SETUP
-// ============================================================
-
-void setup()
-{
-    Serial.begin(115200);
-
-    delay(1000);
-
-    Serial.println();
-    Serial.println(
-        "=============================="
-    );
-
-    Serial.println(
-        "LD1500SB COB WAVE TEST"
-    );
-
-    Serial.println(
-        "=============================="
-    );
-
-
-    Serial.printf(
-        "COB1 GPIO: %d\n",
-        PIN_PWM_LD1
-    );
-
-    Serial.printf(
-        "COB2 GPIO: %d\n",
-        PIN_PWM_LD2
-    );
-
-    Serial.printf(
-        "COB3 GPIO: %d\n",
-        PIN_PWM_LD3
-    );
-
-    Serial.printf(
-        "COB4 GPIO: %d\n",
-        PIN_PWM_LD4
-    );
-
-
-    // ========================================================
-    // Инициализация
-    // ========================================================
-
-    cobManager.begin();
-
-
-    // ========================================================
-    // Начальное состояние
-    // ========================================================
-
-    cobManager.setAll(0);
-
-
-    Serial.println(
-        "PWM initialized"
-    );
-
-    Serial.println(
-        "Wave started"
-    );
-}
-
-
-// ============================================================
-// LOOP
-// ============================================================
-
-void loop()
-{
-    updateWave();
-
-    cobManager.update();
-
-    delay(1);
+  // 4) Вывод с учётом направления
+  for (uint8_t a = 0; a < MATRIX_W; a++) {
+    for (uint8_t b = 0; b < MATRIX_H; b++) {
+      uint8_t x, y;
+      switch (FIRE_DIR) {
+        case 0:  x = a;                  y = MATRIX_H - 1 - b; break; // снизу вверх
+        case 1:  x = b;                  y = a;               break; // слева направо (90° CW)
+        case 2:  x = MATRIX_W - 1 - b;   y = MATRIX_H - 1 - a; break; // справа налево (90° CCW)
+        case 3:  x = MATRIX_W - 1 - a;   y = b;               break; // сверху вниз (180°)
+        default: x = a;                  y = MATRIX_H - 1 - b; break;
+      }
+      strip.setPixelColor(XY(x, y), fireColor(heat[a][b]));
+    }
+  }
+  strip.show();
+  delay(1000 / FPS);
 }
