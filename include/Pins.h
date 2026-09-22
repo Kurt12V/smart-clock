@@ -63,10 +63,10 @@
 // PWM
 // ============================================================
 
-#define PIN_PWM_LD1 18 
-#define PIN_PWM_LD2 46 
-#define PIN_PWM_LD3 40 
-#define PIN_PWM_LD4 41
+#define PIN_PWM_LD1 40
+#define PIN_PWM_LD2 41 
+#define PIN_PWM_LD3 20 
+#define PIN_PWM_LD4 21
 
 
 // ============================================================
@@ -80,6 +80,6 @@
 // ENCODER
 // ============================================================
 
-#define PIN_ENCODER_CLK  20
-#define PIN_ENCODER_DT   21
-#define PIN_ENCODER_SW   47
+#define PIN_ENCODER_CLK  -1
+#define PIN_ENCODER_DT   -1
+#define PIN_ENCODER_SW   -1

@@ -1,82 +1,246 @@
 #include <Arduino.h>
 
-// 4 канала: GPIO4..7 -> входы EN четырёх драйверов LD1500SB
-#define COB1 40
-#define COB2 41
-#define COB3 20
-#define COB4 21
+#include "Pins.h"
 
-const uint8_t pins[4] = { COB1, COB2, COB3, COB4 };
+#include "./hardware/light/CobLed.h"
+#include "./managers/CobLedManager.h"
 
-// КРИТИЧНО для LD1500SB: частота ШИМ < 2 кГц
-#define PWM_FREQ 1000    // 1 кГц
-#define PWM_RES  8       // 0..255
 
-// Гамма-таблица для плавности, воспринимаемой глазом
-uint8_t gammaTable[256];
+// ============================================================
+// COB
+// ============================================================
 
-void buildGamma()
+CobLed cob1(PIN_PWM_LD1, 0);
+CobLed cob2(PIN_PWM_LD2, 1);
+CobLed cob3(PIN_PWM_LD3, 2);
+CobLed cob4(PIN_PWM_LD4, 3);
+
+
+CobLedManager cobManager(
+    cob1,
+    cob2,
+    cob3,
+    cob4
+);
+
+
+// ============================================================
+// WAVE
+// ============================================================
+
+const uint32_t WAVE_PERIOD = 4000;
+
+const uint32_t WAVE_UPDATE = 10;
+
+const uint8_t WAVE_MAX = 255;
+
+uint32_t lastWaveUpdate = 0;
+
+
+// ============================================================
+// Wave brightness
+// ============================================================
+
+uint8_t waveBrightness(
+    float position
+)
 {
-    for (int i = 0; i < 256; i++)
-    {
-        float x = i / 255.0f;
-        gammaTable[i] = (uint8_t)(powf(x, 2.2f) * 255.0f + 0.5f);
-    }
+    while (position >= 1.0f)
+        position -= 1.0f;
+
+    while (position < 0.0f)
+        position += 1.0f;
+
+
+    float value =
+        sinf(
+            position *
+            2.0f *
+            PI
+        );
+
+
+    // -1..1 -> 0..1
+
+    value =
+        (value + 1.0f) * 0.5f;
+
+
+    // Делаем мягкую волну
+
+    value =
+        value * value;
+
+
+    return (uint8_t)(
+        value *
+        WAVE_MAX
+    );
 }
 
-// Плавное изменение яркости канала: from -> to за durationMs (0..255)
-void fade(uint8_t ch, int from, int to, uint16_t durationMs)
-{
-    const int steps = 100;
-    uint16_t stepDelay = durationMs / steps;
 
-    for (int i = 0; i <= steps; i++)
+// ============================================================
+// Update wave
+// ============================================================
+
+void updateWave()
+{
+    uint32_t now =
+        millis();
+
+
+    if (
+        now - lastWaveUpdate <
+        WAVE_UPDATE
+    )
     {
-        int b = from + (to - from) * i / steps;
-        ledcWrite(ch, gammaTable[b]);
-        delay(stepDelay);
+        return;
     }
-    ledcWrite(ch, gammaTable[to]);
+
+
+    lastWaveUpdate =
+        now;
+
+
+    float position =
+        (float)(
+            now % WAVE_PERIOD
+        )
+        /
+        (float)WAVE_PERIOD;
+
+
+    const float phase =
+        0.25f;
+
+
+    // ========================================================
+    // COB 1
+    // ========================================================
+
+    cobManager.set(
+        1,
+        waveBrightness(
+            position
+        )
+    );
+
+
+    // ========================================================
+    // COB 2
+    // ========================================================
+
+    cobManager.set(
+        2,
+        waveBrightness(
+            position + phase
+        )
+    );
+
+
+    // ========================================================
+    // COB 3
+    // ========================================================
+
+    cobManager.set(
+        3,
+        waveBrightness(
+            position + phase * 2.0f
+        )
+    );
+
+
+    // ========================================================
+    // COB 4
+    // ========================================================
+
+    cobManager.set(
+        4,
+        waveBrightness(
+            position + phase * 3.0f
+        )
+    );
 }
+
+
+// ============================================================
+// SETUP
+// ============================================================
 
 void setup()
 {
-    Serial0.begin(115200);
-    delay(1500);
+    Serial.begin(115200);
 
-    buildGamma();
+    delay(1000);
 
-    for (uint8_t i = 0; i < 4; i++)
-    {
-        if (ledcSetup(i, PWM_FREQ, PWM_RES) == 0) {
-            Serial0.printf("ledcSetup FAILED on channel %d\n", i);
-            while (1) delay(1000);
-        }
-        ledcAttachPin(pins[i], i);
-        ledcWrite(i, 0);   // старт с выключенного
-    }
+    Serial.println();
+    Serial.println(
+        "=============================="
+    );
 
-    Serial0.println("LD1500SB 4-channel PWM ready (1 kHz)");
+    Serial.println(
+        "LD1500SB COB WAVE TEST"
+    );
+
+    Serial.println(
+        "=============================="
+    );
+
+
+    Serial.printf(
+        "COB1 GPIO: %d\n",
+        PIN_PWM_LD1
+    );
+
+    Serial.printf(
+        "COB2 GPIO: %d\n",
+        PIN_PWM_LD2
+    );
+
+    Serial.printf(
+        "COB3 GPIO: %d\n",
+        PIN_PWM_LD3
+    );
+
+    Serial.printf(
+        "COB4 GPIO: %d\n",
+        PIN_PWM_LD4
+    );
+
+
+    // ========================================================
+    // Инициализация
+    // ========================================================
+
+    cobManager.begin();
+
+
+    // ========================================================
+    // Начальное состояние
+    // ========================================================
+
+    cobManager.setAll(0);
+
+
+    Serial.println(
+        "PWM initialized"
+    );
+
+    Serial.println(
+        "Wave started"
+    );
 }
+
+
+// ============================================================
+// LOOP
+// ============================================================
 
 void loop()
 {
-    // Каждый канал: плавно разжечь -> пауза -> плавно погасить -> пауза
-    for (uint8_t i = 0; i < 4; i++)
-    {
-        Serial0.printf("CH%d: Fade IN\n", i + 1);
-        fade(i, 0, 255, 2000);
-        delay(1000);
+    updateWave();
 
-        Serial0.printf("CH%d: Fade OUT\n", i + 1);
-        fade(i, 255, 0, 2000);
-        delay(1000);
-    }
+    cobManager.update();
 
-    // Гасим всё перед новым циклом
-    Serial0.println("ALL -> 0%");
-    for (uint8_t i = 0; i < 4; i++)
-        fade(i, 255, 0, 1500);
-
-    delay(2000);
+    delay(1);
 }

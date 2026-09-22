@@ -2,7 +2,7 @@
 
 
 // ============================================================
-// CONSTRUCTOR
+// Constructor
 // ============================================================
 
 CobLedManager::CobLedManager(
@@ -20,7 +20,7 @@ CobLedManager::CobLedManager(
 
 
 // ============================================================
-// BEGIN
+// Begin
 // ============================================================
 
 void CobLedManager::begin()
@@ -29,33 +29,31 @@ void CobLedManager::begin()
     _cob2.begin();
     _cob3.begin();
     _cob4.begin();
+
+    offAll();
 }
 
 
 // ============================================================
-// UPDATE
+// Update
 // ============================================================
 
 void CobLedManager::update()
 {
-    // Будущее:
-    //
-    // - плавное изменение яркости
-    // - автояркость
-    // - ночной режим
-    // - расписание
-    // - сцены
-    // - fade in / fade out
-    // - управление от будильника
-    // - аварийное мигание
+    _cob1.update();
+    _cob2.update();
+    _cob3.update();
+    _cob4.update();
 }
 
 
 // ============================================================
-// GET COB
+// Get COB
 // ============================================================
 
-CobLed& CobLedManager::getCob(uint8_t cob)
+CobLed& CobLedManager::getCob(
+    uint8_t cob
+)
 {
     switch (cob)
     {
@@ -72,16 +70,14 @@ CobLed& CobLedManager::getCob(uint8_t cob)
             return _cob4;
 
         default:
-            // Для защиты от неправильного номера.
-            //
-            // В дальнейшем можно сделать отдельную
-            // проверку/enum.
             return _cob1;
     }
 }
 
 
-const CobLed& CobLedManager::getCob(uint8_t cob) const
+const CobLed& CobLedManager::getCob(
+    uint8_t cob
+) const
 {
     switch (cob)
     {
@@ -104,49 +100,126 @@ const CobLed& CobLedManager::getCob(uint8_t cob) const
 
 
 // ============================================================
-// ВСЕ COB — ON
+// Set
 // ============================================================
 
-void CobLedManager::on()
+void CobLedManager::set(
+    uint8_t cob,
+    uint8_t brightness
+)
 {
-    _cob1.on();
-    _cob2.on();
-    _cob3.on();
-    _cob4.on();
+    getCob(cob)
+        .setBrightness(
+            brightness
+        );
 }
 
 
 // ============================================================
-// ВСЕ COB — OFF
+// Get
 // ============================================================
 
-void CobLedManager::off()
+uint8_t CobLedManager::get(
+    uint8_t cob
+) const
 {
-    _cob1.off();
-    _cob2.off();
-    _cob3.off();
-    _cob4.off();
+    return getCob(cob)
+        .getBrightness();
 }
 
 
 // ============================================================
-// ВСЕ COB — TOGGLE
+// Increase
 // ============================================================
 
-void CobLedManager::toggle()
+void CobLedManager::increase(
+    uint8_t cob,
+    uint8_t value
+)
 {
-    _cob1.toggle();
-    _cob2.toggle();
-    _cob3.toggle();
-    _cob4.toggle();
+    getCob(cob)
+        .increase(value);
 }
 
 
 // ============================================================
-// ОБЩАЯ ЯРКОСТЬ
+// Decrease
 // ============================================================
 
-void CobLedManager::setBrightness(uint8_t brightness)
+void CobLedManager::decrease(
+    uint8_t cob,
+    uint8_t value
+)
+{
+    getCob(cob)
+        .decrease(value);
+}
+
+
+// ============================================================
+// Fade
+// ============================================================
+
+void CobLedManager::fade(
+    uint8_t cob,
+    uint8_t target,
+    uint32_t durationMs
+)
+{
+    getCob(cob)
+        .fadeTo(
+            target,
+            durationMs
+        );
+}
+
+
+// ============================================================
+// ON
+// ============================================================
+
+void CobLedManager::on(
+    uint8_t cob
+)
+{
+    getCob(cob)
+        .on();
+}
+
+
+// ============================================================
+// OFF
+// ============================================================
+
+void CobLedManager::off(
+    uint8_t cob
+)
+{
+    getCob(cob)
+        .off();
+}
+
+
+// ============================================================
+// Toggle
+// ============================================================
+
+void CobLedManager::toggle(
+    uint8_t cob
+)
+{
+    getCob(cob)
+        .toggle();
+}
+
+
+// ============================================================
+// Set all
+// ============================================================
+
+void CobLedManager::setAll(
+    uint8_t brightness
+)
 {
     _cob1.setBrightness(brightness);
     _cob2.setBrightness(brightness);
@@ -156,115 +229,39 @@ void CobLedManager::setBrightness(uint8_t brightness)
 
 
 // ============================================================
-// УВЕЛИЧИТЬ ЯРКОСТЬ ВСЕХ
+// ON all
 // ============================================================
 
-void CobLedManager::increaseBrightness(uint8_t step)
+void CobLedManager::onAll()
 {
-    _cob1.increase(step);
-    _cob2.increase(step);
-    _cob3.increase(step);
-    _cob4.increase(step);
+    _cob1.on();
+    _cob2.on();
+    _cob3.on();
+    _cob4.on();
 }
 
 
 // ============================================================
-// УМЕНЬШИТЬ ЯРКОСТЬ ВСЕХ
+// OFF all
 // ============================================================
 
-void CobLedManager::decreaseBrightness(uint8_t step)
+void CobLedManager::offAll()
 {
-    _cob1.decrease(step);
-    _cob2.decrease(step);
-    _cob3.decrease(step);
-    _cob4.decrease(step);
+    _cob1.off();
+    _cob2.off();
+    _cob3.off();
+    _cob4.off();
 }
 
 
 // ============================================================
-// ОТДЕЛЬНЫЙ COB — BRIGHTNESS
+// Is ON
 // ============================================================
 
-void CobLedManager::setBrightness(
-    uint8_t cob,
-    uint8_t brightness
-)
+bool CobLedManager::isOn(
+    uint8_t cob
+) const
 {
-    getCob(cob).setBrightness(brightness);
-}
-
-
-// ============================================================
-// ОТДЕЛЬНЫЙ COB — INCREASE
-// ============================================================
-
-void CobLedManager::increaseBrightness(
-    uint8_t cob,
-    uint8_t step
-)
-{
-    getCob(cob).increase(step);
-}
-
-
-// ============================================================
-// ОТДЕЛЬНЫЙ COB — DECREASE
-// ============================================================
-
-void CobLedManager::decreaseBrightness(
-    uint8_t cob,
-    uint8_t step
-)
-{
-    getCob(cob).decrease(step);
-}
-
-
-// ============================================================
-// ОТДЕЛЬНЫЙ COB — ON
-// ============================================================
-
-void CobLedManager::on(uint8_t cob)
-{
-    getCob(cob).on();
-}
-
-
-// ============================================================
-// ОТДЕЛЬНЫЙ COB — OFF
-// ============================================================
-
-void CobLedManager::off(uint8_t cob)
-{
-    getCob(cob).off();
-}
-
-
-// ============================================================
-// ОТДЕЛЬНЫЙ COB — TOGGLE
-// ============================================================
-
-void CobLedManager::toggle(uint8_t cob)
-{
-    getCob(cob).toggle();
-}
-
-
-// ============================================================
-// СОСТОЯНИЕ
-// ============================================================
-
-bool CobLedManager::isOn(uint8_t cob) const
-{
-    return getCob(cob).isOn();
-}
-
-
-// ============================================================
-// ЯРКОСТЬ
-// ============================================================
-
-uint8_t CobLedManager::brightness(uint8_t cob) const
-{
-    return getCob(cob).getBrightness();
+    return getCob(cob)
+        .isOn();
 }

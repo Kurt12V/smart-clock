@@ -4,9 +4,11 @@
 
 #include "./hardware/light/CobLed.h"
 
+
 class CobLedManager
 {
 public:
+
     CobLedManager(
         CobLed& cob1,
         CobLed& cob2,
@@ -15,68 +17,82 @@ public:
     );
 
     void begin();
+
     void update();
 
-
     // ========================================================
-    // ОБЩЕЕ УПРАВЛЕНИЕ
-    // ========================================================
-
-    void on();
-    void off();
-    void toggle();
-
-
-    // ========================================================
-    // ОБЩАЯ ЯРКОСТЬ
+    // Управление отдельным COB
     // ========================================================
 
-    void setBrightness(uint8_t brightness);
-
-    void increaseBrightness(uint8_t step = 5);
-    void decreaseBrightness(uint8_t step = 5);
-
-
-    // ========================================================
-    // ОТДЕЛЬНЫЙ COB
-    // ========================================================
-
-    void setBrightness(
+    void set(
         uint8_t cob,
         uint8_t brightness
     );
 
-    void increaseBrightness(
+    uint8_t get(
+        uint8_t cob
+    ) const;
+
+    void increase(
         uint8_t cob,
-        uint8_t step = 5
+        uint8_t value
     );
 
-    void decreaseBrightness(
+    void decrease(
         uint8_t cob,
-        uint8_t step = 5
+        uint8_t value
     );
 
-    void on(uint8_t cob);
-    void off(uint8_t cob);
-    void toggle(uint8_t cob);
+    void fade(
+        uint8_t cob,
+        uint8_t target,
+        uint32_t durationMs
+    );
 
+    void on(
+        uint8_t cob
+    );
+
+    void off(
+        uint8_t cob
+    );
+
+    void toggle(
+        uint8_t cob
+    );
 
     // ========================================================
-    // СОСТОЯНИЕ
+    // Все COB
     // ========================================================
 
-    bool isOn(uint8_t cob) const;
+    void setAll(
+        uint8_t brightness
+    );
 
-    uint8_t brightness(uint8_t cob) const;
+    void onAll();
 
+    void offAll();
+
+    // ========================================================
+    // Состояние
+    // ========================================================
+
+    bool isOn(
+        uint8_t cob
+    ) const;
 
 private:
+
     CobLed& _cob1;
     CobLed& _cob2;
     CobLed& _cob3;
     CobLed& _cob4;
 
+    CobLed& getCob(
+        uint8_t cob
+    );
 
-    CobLed& getCob(uint8_t cob);
-    const CobLed& getCob(uint8_t cob) const;
+    const CobLed& getCob(
+        uint8_t cob
+    ) const;
 };
