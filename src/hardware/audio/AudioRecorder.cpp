@@ -1,11 +1,13 @@
+
 #include "AudioRecorder.h"
+
+#include <cstring>
 
 #include "Microphone.h"
 
-
-// =====================================================
-// CONSTRUCTOR
-// =====================================================
+// ============================================================
+// Constructor
+// ============================================================
 
 AudioRecorder::AudioRecorder(
     Microphone& microphone,
@@ -13,6 +15,7 @@ AudioRecorder::AudioRecorder(
 )
     : microphone(microphone),
       filesystem(filesystem),
+      file(),
       recording(false),
       recordedBytes(0),
       recordedSamples(0),
@@ -21,503 +24,404 @@ AudioRecorder::AudioRecorder(
 {
 }
 
-
-// =====================================================
-// BEGIN
-// =====================================================
+// ============================================================
+// Begin
+// ============================================================
 
 bool AudioRecorder::begin()
 {
-    Serial.println(
-        "[AudioRecorder] READY"
-    );
+    Serial.println("[AudioRecorder] READY");
 
     return true;
 }
 
+// ============================================================
+// Start recording
+// ============================================================
 
-// =====================================================
-// START RECORDING
-// =====================================================
-
-bool AudioRecorder::startRecording(
-    const char* path
-)
+bool AudioRecorder::startRecording(const char* path)
 {
-    if (recording)
+    if (path == nullptr)
     {
         Serial.println(
-            "[AudioRecorder] Already recording"
+            "[AudioRecorder] ERROR: path is null"
         );
 
         return false;
     }
 
+    if (recording)
+    {
+        Serial.println(
+            "[AudioRecorder] ERROR: already recording"
+        );
+
+        return false;
+    }
 
     if (!microphone.isInitialized())
     {
         Serial.println(
-            "[AudioRecorder] Microphone not initialized"
+            "[AudioRecorder] ERROR: microphone is not initialized"
         );
 
         return false;
     }
-
 
     if (!microphone.isEnabled())
     {
         Serial.println(
-            "[AudioRecorder] Microphone disabled"
+            "[AudioRecorder] ERROR: microphone is disabled"
         );
 
         return false;
     }
-
 
     if (!microphone.isListening())
     {
         Serial.println(
-            "[AudioRecorder] Microphone not listening"
+            "[AudioRecorder] ERROR: microphone is not listening"
         );
 
         return false;
     }
 
+    // ========================================================
+    // Open file
+    // ========================================================
 
-    if (path == nullptr)
-    {
-        return false;
-    }
-
-
-    // =================================================
-    // OPEN FILE
-    // =================================================
-
-    file =
-        filesystem.open(
-            path,
-            FILE_WRITE
-        );
-
+    file = filesystem.open(
+        path,
+        FILE_WRITE
+    );
 
     if (!file)
     {
-        Serial.printf(
-            "[AudioRecorder] Failed to open: %s\n",
-            path
+        Serial.print(
+            "[AudioRecorder] ERROR: cannot open file: "
         );
+
+        Serial.println(path);
 
         return false;
     }
 
+    // ========================================================
+    // Reset
+    // ========================================================
 
     recordedBytes = 0;
-
     recordedSamples = 0;
 
-    recordingStartTime =
-        millis();
-
-
-    /*
-     * Запоминаем текущий chunk.
-     *
-     * Мы НЕ хотим повторно записывать
-     * уже существующий chunk.
-     */
+    recordingStartTime = millis();
 
     lastChunkId =
         microphone.getAudioChunkId();
 
+    recording = true;
 
-    // =================================================
-    // WAV HEADER
-    // =================================================
+    // ========================================================
+    // WAV header
+    // ========================================================
 
     writeWavHeader();
 
-
-    recording = true;
-
-
-    Serial.printf(
-        "[AudioRecorder] RECORDING STARTED: %s\n",
-        path
+    Serial.print(
+        "[AudioRecorder] RECORDING: "
     );
 
+    Serial.println(path);
 
     return true;
 }
 
-
-// =====================================================
-// STOP RECORDING
-// =====================================================
+// ============================================================
+// Stop recording
+// ============================================================
 
 void AudioRecorder::stopRecording()
 {
     if (!recording)
+    {
         return;
-
+    }
 
     updateWavHeader();
 
-
     file.flush();
-
     file.close();
-
 
     recording = false;
 
-
     Serial.println(
-        "[AudioRecorder] RECORDING STOPPED"
+        "[AudioRecorder] STOPPED"
     );
 
+    Serial.print(
+        "[AudioRecorder] Bytes: "
+    );
 
-    Serial.printf(
-        "[AudioRecorder] Bytes: %lu\n",
+    Serial.println(
         recordedBytes
     );
 
+    Serial.print(
+        "[AudioRecorder] Samples: "
+    );
 
-    Serial.printf(
-        "[AudioRecorder] Samples: %lu\n",
+    Serial.println(
         recordedSamples
     );
 
+    Serial.print(
+        "[AudioRecorder] Duration: "
+    );
 
-    Serial.printf(
-        "[AudioRecorder] Duration: %lu ms\n",
+    Serial.print(
         getRecordingDurationMs()
+    );
+
+    Serial.println(
+        " ms"
     );
 }
 
+// ============================================================
+// Is recording
+// ============================================================
 
-// =====================================================
-// UPDATE
-// =====================================================
+bool AudioRecorder::isRecording() const
+{
+    return recording;
+}
+
+// ============================================================
+// Update
+// ============================================================
 
 void AudioRecorder::update()
 {
     if (!recording)
+    {
         return;
+    }
 
+    if (!file)
+    {
+        recording = false;
+        return;
+    }
 
-    /*
-     * Получаем ID текущего chunk.
-     */
+    if (!microphone.hasNewAudio())
+    {
+        return;
+    }
 
-    uint32_t chunkId =
+    // ========================================================
+    // Check chunk ID
+    // ========================================================
+
+    const uint32_t chunkId =
         microphone.getAudioChunkId();
-
-
-    /*
-     * Если Microphone ещё не получил
-     * новый chunk — ничего не делаем.
-     */
 
     if (chunkId == lastChunkId)
     {
         return;
     }
 
+    lastChunkId = chunkId;
 
-    const int16_t* samples =
-        nullptr;
+    // ========================================================
+    // Get chunk
+    // ========================================================
 
+    const int16_t* samples = nullptr;
 
-    size_t count =
-        microphone.getAudioChunk(
-            samples
-        );
+    const size_t count =
+        microphone.getAudioChunk(samples);
 
-
-    if (samples == nullptr)
+    if (
+        samples == nullptr ||
+        count == 0
+    )
     {
         return;
     }
 
-
-    if (count == 0)
-    {
-        return;
-    }
-
-
-    // =================================================
-    // WRITE
-    // =================================================
+    // ========================================================
+    // Write
+    // ========================================================
 
     writeSamples(
         samples,
         count
     );
-
-
-    /*
-     * Запоминаем chunk.
-     *
-     * Поэтому он больше не будет
-     * записан повторно.
-     */
-
-    lastChunkId =
-        chunkId;
 }
 
-
-// =====================================================
-// WRITE SAMPLES
-// =====================================================
+// ============================================================
+// Write samples
+// ============================================================
 
 void AudioRecorder::writeSamples(
     const int16_t* samples,
     size_t count
 )
 {
-    if (!file)
+    if (
+        !file ||
+        samples == nullptr ||
+        count == 0
+    )
+    {
         return;
+    }
 
+    const size_t bytes =
+        count * sizeof(int16_t);
 
-    if (samples == nullptr)
-        return;
-
-
-    if (count == 0)
-        return;
-
-
-    size_t bytes =
-        count *
-        sizeof(int16_t);
-
-
-    size_t written =
+    const size_t written =
         file.write(
-            reinterpret_cast<
-                const uint8_t*
-            >(samples),
+            reinterpret_cast<const uint8_t*>(
+                samples
+            ),
             bytes
         );
-
 
     if (written != bytes)
     {
         Serial.println(
-            "[AudioRecorder] SD WRITE ERROR"
+            "[AudioRecorder] ERROR: incomplete write"
         );
 
         return;
     }
 
-
-    recordedBytes +=
-        written;
-
+    recordedBytes += written;
 
     recordedSamples +=
-        count;
+        static_cast<uint32_t>(count);
 }
 
-
-// =====================================================
-// WAV HEADER
-// =====================================================
+// ============================================================
+// WAV header
+// ============================================================
 
 void AudioRecorder::writeWavHeader()
 {
-    /*
-     * RIFF
-     */
+    if (!file)
+    {
+        return;
+    }
 
+    // RIFF
     file.write(
-        (const uint8_t*)"RIFF",
+        reinterpret_cast<const uint8_t*>(
+            "RIFF"
+        ),
         4
     );
 
+    // Temporary RIFF size.
+    writeLE32(36);
 
-    /*
-     * ChunkSize
-     *
-     * Будет исправлен после записи.
-     */
-
-    writeLE32(0);
-
-
-    /*
-     * WAVE
-     */
-
+    // WAVE
     file.write(
-        (const uint8_t*)"WAVE",
+        reinterpret_cast<const uint8_t*>(
+            "WAVE"
+        ),
         4
     );
 
-
-    /*
-     * fmt
-     */
-
+    // fmt
     file.write(
-        (const uint8_t*)"fmt ",
+        reinterpret_cast<const uint8_t*>(
+            "fmt "
+        ),
         4
     );
 
-
-    /*
-     * Subchunk1Size
-     */
-
+    // PCM fmt chunk size.
     writeLE32(16);
 
-
-    /*
-     * AudioFormat
-     *
-     * 1 = PCM
-     */
-
+    // Audio format = PCM.
     writeLE16(1);
 
+    // Channels.
+    writeLE16(CHANNELS);
 
-    /*
-     * Channels
-     */
+    // Sample rate.
+    writeLE32(SAMPLE_RATE);
 
-    writeLE16(
-        CHANNELS
-    );
-
-
-    /*
-     * Sample rate
-     */
-
-    writeLE32(
-        SAMPLE_RATE
-    );
-
-
-    /*
-     * Byte rate
-     */
-
-    uint32_t byteRate =
+    // Byte rate.
+    const uint32_t byteRate =
         SAMPLE_RATE *
         CHANNELS *
         (BITS_PER_SAMPLE / 8);
 
+    writeLE32(byteRate);
 
-    writeLE32(
-        byteRate
-    );
-
-
-    /*
-     * Block align
-     */
-
-    uint16_t blockAlign =
+    // Block align.
+    const uint16_t blockAlign =
         CHANNELS *
         (BITS_PER_SAMPLE / 8);
 
+    writeLE16(blockAlign);
 
-    writeLE16(
-        blockAlign
-    );
+    // Bits per sample.
+    writeLE16(BITS_PER_SAMPLE);
 
-
-    /*
-     * Bits per sample
-     */
-
-    writeLE16(
-        BITS_PER_SAMPLE
-    );
-
-
-    /*
-     * data
-     */
-
+    // data
     file.write(
-        (const uint8_t*)"data",
+        reinterpret_cast<const uint8_t*>(
+            "data"
+        ),
         4
     );
 
-
-    /*
-     * Data size.
-     *
-     * Исправляется после записи.
-     */
-
+    // Temporary data size.
     writeLE32(0);
 }
 
-
-// =====================================================
-// UPDATE WAV HEADER
-// =====================================================
+// ============================================================
+// Update WAV header
+// ============================================================
 
 void AudioRecorder::updateWavHeader()
 {
     if (!file)
+    {
         return;
+    }
 
-
-    /*
-     * RIFF ChunkSize:
-     *
-     * 36 + audio data
-     */
-
-    uint32_t riffSize =
-        36 +
+    const uint32_t dataSize =
         recordedBytes;
 
+    const uint32_t riffSize =
+        36 + dataSize;
 
-    /*
-     * ChunkSize находится
-     * на offset 4.
-     */
-
+    // RIFF chunk size.
     file.seek(4);
 
     writeLE32(
         riffSize
     );
 
-
-    /*
-     * data size находится
-     * на offset 40.
-     */
-
+    // data chunk size.
     file.seek(40);
 
     writeLE32(
-        recordedBytes
+        dataSize
     );
 
-
-    /*
-     * Возвращаемся в конец.
-     */
-
+    // Return to end.
     file.seek(
-        file.size()
+        44 + dataSize
     );
 }
 
-
-// =====================================================
-// WRITE LE16
-// =====================================================
+// ============================================================
+// Write LE16
+// ============================================================
 
 void AudioRecorder::writeLE16(
     uint16_t value
@@ -525,14 +429,15 @@ void AudioRecorder::writeLE16(
 {
     uint8_t data[2];
 
-
     data[0] =
-        value & 0xFF;
-
+        static_cast<uint8_t>(
+            value & 0xFF
+        );
 
     data[1] =
-        (value >> 8) & 0xFF;
-
+        static_cast<uint8_t>(
+            (value >> 8) & 0xFF
+        );
 
     file.write(
         data,
@@ -540,10 +445,9 @@ void AudioRecorder::writeLE16(
     );
 }
 
-
-// =====================================================
-// WRITE LE32
-// =====================================================
+// ============================================================
+// Write LE32
+// ============================================================
 
 void AudioRecorder::writeLE32(
     uint32_t value
@@ -551,22 +455,25 @@ void AudioRecorder::writeLE32(
 {
     uint8_t data[4];
 
-
     data[0] =
-        value & 0xFF;
-
+        static_cast<uint8_t>(
+            value & 0xFF
+        );
 
     data[1] =
-        (value >> 8) & 0xFF;
-
+        static_cast<uint8_t>(
+            (value >> 8) & 0xFF
+        );
 
     data[2] =
-        (value >> 16) & 0xFF;
-
+        static_cast<uint8_t>(
+            (value >> 16) & 0xFF
+        );
 
     data[3] =
-        (value >> 24) & 0xFF;
-
+        static_cast<uint8_t>(
+            (value >> 24) & 0xFF
+        );
 
     file.write(
         data,
@@ -574,40 +481,27 @@ void AudioRecorder::writeLE32(
     );
 }
 
-
-// =====================================================
-// STATUS
-// =====================================================
-
-bool AudioRecorder::isRecording() const
-{
-    return recording;
-}
-
-
-// =====================================================
-// RECORDED BYTES
-// =====================================================
+// ============================================================
+// Get recorded bytes
+// ============================================================
 
 uint32_t AudioRecorder::getRecordedBytes() const
 {
     return recordedBytes;
 }
 
-
-// =====================================================
-// RECORDED SAMPLES
-// =====================================================
+// ============================================================
+// Get recorded samples
+// ============================================================
 
 uint32_t AudioRecorder::getRecordedSamples() const
 {
     return recordedSamples;
 }
 
-
-// =====================================================
-// DURATION
-// =====================================================
+// ============================================================
+// Get duration
+// ============================================================
 
 uint32_t AudioRecorder::getRecordingDurationMs() const
 {
@@ -616,8 +510,12 @@ uint32_t AudioRecorder::getRecordingDurationMs() const
         return 0;
     }
 
-
-    return
-        (recordedSamples * 1000UL) /
-        SAMPLE_RATE;
+    return static_cast<uint32_t>(
+        (
+            static_cast<uint64_t>(
+                recordedSamples
+            ) * 1000ULL
+        ) /
+        SAMPLE_RATE
+    );
 }

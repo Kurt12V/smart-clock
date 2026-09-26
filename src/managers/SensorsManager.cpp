@@ -183,78 +183,7 @@ return String(data.lightLux, 2)
 
 }
 
-// =====================================================
-// MICROPHONE
-// =====================================================
 
-bool SensorManager::isMicrophoneInitialized() const
-{
-    return microphone.isInitialized();
-}
-
-
-bool SensorManager::isMicrophoneEnabled() const
-{
-    return microphone.isEnabled();
-}
-
-
-void SensorManager::setMicrophoneEnabled(
-    bool enabled
-)
-{
-    microphone.setEnabled(
-        enabled
-    );
-}
-
-
-bool SensorManager::startListening()
-{
-    return microphone.startListening();
-}
-
-
-void SensorManager::stopListening()
-{
-    microphone.stopListening();
-}
-
-
-bool SensorManager::isListening() const
-{
-    return microphone.isListening();
-}
-
-
-bool SensorManager::updateAudio()
-{
-    return microphone.updateAudio();
-}
-
-
-float SensorManager::getMicrophoneRMS() const
-{
-    return microphone.getRMS();
-}
-
-
-float SensorManager::getMicrophoneLevel() const
-{
-    return microphone.getLevel();
-}
-
-
-int16_t SensorManager::getMicrophonePeak() const
-{
-    return microphone.getPeak();
-}
-
-
-Microphone& SensorManager::getMicrophone()
-{
-    return microphone;
-}
 // =====================================================
 // VL53L8CX
 // =====================================================
@@ -326,49 +255,6 @@ Serial.print("Light:         ");
 Serial.println(getLight());
 
 Serial.println("================================");
-    // ========================================
-    // MICROPHONE
-    // ========================================
 
-    Serial.println();
-
-    Serial.print("Microphone:    ");
-
-    if (!isMicrophoneInitialized())
-    {
-        Serial.println("NOT INITIALIZED");
-    }
-    else if (!isMicrophoneEnabled())
-    {
-        Serial.println("DISABLED");
-    }
-    else
-    {
-        Serial.println("READY");
-    }
-
-    Serial.print("Mic level:     ");
-    Serial.println(
-        getMicrophoneLevel(),
-        4
-    );
-
-
-    Serial.print("Mic RMS:       ");
-    Serial.println(
-        getMicrophoneRMS(),
-        2
-    );
-
-
-    Serial.print("Mic peak:      ");
-    Serial.println(
-        getMicrophonePeak()
-    );
-
-
-    Serial.println(
-        "================================"
-    );
 
 }

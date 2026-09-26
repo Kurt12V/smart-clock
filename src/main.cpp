@@ -1,233 +1,103 @@
-#include <Arduino.h>
+#include <Adafruit_NeoPixel.h>
 
-// ============================================================
-// CORE
-// ============================================================
+#define LED_PIN     14
+#define MATRIX_W    16
+#define MATRIX_H    16
+#define NUM_LEDS    (MATRIX_W * MATRIX_H)
+#define BRIGHTNESS  20
 
-#include "Config.h"
-#include "Pins.h"
-#include "Constants.h"
-#include "Version.h"
+#define COOLING     55
+#define SPARKING    120
+#define FPS         60
 
-// ============================================================
-// SYSTEMS
-// ============================================================
+// Направление огня:
+//   0 = снизу вверх   (по умолчанию)
+//   1 = слева направо (поворот на 90° по часовой)
+//   2 = справа налево (поворот на 90° против часовой)
+//   3 = сверху вниз   (переворот на 180°)
+#define FIRE_DIR    2
 
-#include "Settings.h"
+Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
-#include "./core/ClockSystem.h"
-#include "./managers/SensorsManager.h"
-#include "./core/DisplaySystem.h"
-#include "./managers/InputManager.h"
-
-InputManager inputManager;
-
-
-Settings::Clock clockSettings;
-
-ClockSystem clockSystem(
-    clockSettings
-);
-
-// ------------------------------------------------------------
-// Sensors
-// ------------------------------------------------------------
-
-SensorManager sensorManager;
-DisplaySystem displaySystem(
-    clockSystem,
-    sensorManager
-);
-
-// ============================================================
-// SETUP
-// ============================================================
-
-void setup()
-{
-    // ========================================================
-    // SERIAL
-    // ========================================================
-
-    Serial0.begin(115200);
-
-    delay(1000);
-
-    Serial0.println();
-    Serial0.println(
-        "========================================"
-    );
-    Serial0.println(
-        "        ESP32-S3 SMART CLOCK"
-    );
-    Serial0.println(
-        "========================================"
-    );
-
-    // ========================================================
-    // CLOCK
-    // ========================================================
-
-    Serial0.println(
-        "[MAIN] Initializing ClockSystem..."
-    );
-
-    if (!clockSystem.begin())
-    {
-        Serial0.println(
-            "[MAIN] ClockSystem ERROR"
-        );
-    }
-    else
-    {
-        Serial0.println(
-            "[MAIN] ClockSystem OK"
-        );
-    }
-
-    // ========================================================
-    // SENSORS
-    // ========================================================
-
-    Serial0.println(
-        "[MAIN] Initializing SensorManager..."
-    );
-
-    if (!sensorManager.begin())
-    {
-        Serial0.println(
-            "[MAIN] SensorManager ERROR"
-        );
-    }
-    else
-    {
-        Serial0.println(
-            "[MAIN] SensorManager OK"
-        );
-    }
-
-    // ========================================================
-    // DISPLAY
-    // ========================================================
-
-    Serial0.println(
-        "[MAIN] Initializing DisplaySystem..."
-    );
-
- 
-
-    if (!displaySystem.begin())
-    {
-        Serial0.println(
-            "[MAIN] DisplaySystem ERROR"
-        );
-
-
-
-        while (true)
-        {
-            delay(1000);
-
-            Serial0.println(
-                "[MAIN] DisplaySystem is not available"
-            );
-        }
-    }
-
-    Serial0.println(
-        "[MAIN] DisplaySystem OK"
-    );
-Serial0.println("[MAIN] Initializing InputManager...");
-
-if (!inputManager.begin())
-{
-    Serial0.println("[MAIN] InputManager ERROR");
-}
-else
-{
-    Serial0.println("[MAIN] InputManager OK");
-}
-    // ========================================================
-    // SYSTEM READY
-    // ========================================================
-
-    Serial0.println();
-    Serial0.println(
-        "========================================"
-    );
-    Serial0.println(
-        "          SYSTEM READY"
-    );
-    Serial0.println(
-        "========================================"
-    );
+uint16_t XY(uint8_t x, uint8_t y) {
+  if (y & 1) return y * MATRIX_W + (MATRIX_W - 1 - x);
+  return y * MATRIX_W + x;
 }
 
-// ============================================================
-// LOOP
-// ============================================================
-
-void loop()
-{
-    // ========================================================
-    // CLOCK
-    // ========================================================
-
-    clockSystem.update();
-
-    // ========================================================
-    // SENSORS
-    // ========================================================
-
-    sensorManager.update();
-
-
-    displaySystem.update();
-
-    // ========================================================
-    // MINIMAL DELAY
-    // ========================================================
-inputManager.update();
-
-Constants::Event event;
-
-while (
-    (event = inputManager.getEvent())
-    != Constants::Event::NONE
-)
-{
-    switch (event)
-    {
-        case Constants::Event::ROTATE_CW:
-            Serial0.println("[INPUT] ROTATE CW");
-            break;
-
-        case Constants::Event::ROTATE_CCW:
-            Serial0.println("[INPUT] ROTATE CCW");
-            break;
-
-        case Constants::Event::PRESS:
-            Serial0.println("[INPUT] PRESS");
-            break;
-
-        case Constants::Event::RELEASE:
-            Serial0.println("[INPUT] RELEASE");
-            break;
-
-        case Constants::Event::LONG_PRESS:
-            Serial0.println("[INPUT] LONG PRESS");
-            break;
-
-        case Constants::Event::DOUBLE_PRESS:
-            Serial0.println("[INPUT] DOUBLE PRESS");
-            break;
-
-        case Constants::Event::NONE:
-        default:
-            break;
-    }
+uint8_t scale8_video(uint8_t i, uint8_t scale) {
+  uint8_t j = ((uint16_t)i * (uint16_t)scale) >> 8;
+  return j + (i && scale && !j);
 }
 
+uint32_t fireColor(uint8_t temperature) {
+  uint8_t t192 = scale8_video(temperature, 191);
+  uint8_t heatramp = t192 & 0x3F;
+  heatramp <<= 2;
+  uint8_t r, g, b;
+  if (t192 & 0x80)      { r = 255; g = 255; b = heatramp; }
+  else if (t192 & 0x40) { r = 255; g = heatramp; b = 0; }
+  else                  { r = heatramp; g = 0; b = 0; }
+  return strip.Color(r, g, b);
+}
 
-    delay(1);
+// heat[a][b]: b=0 — источник огня, b растёт в сторону распространения
+static uint8_t heat[MATRIX_W][MATRIX_H];
+
+void setup() {
+  strip.begin();
+  strip.setBrightness(BRIGHTNESS);
+  strip.clear();
+  strip.show();
+  memset(heat, 0, sizeof(heat));
+}
+
+void loop() {
+  // 1) Остывание
+  for (uint8_t a = 0; a < MATRIX_W; a++) {
+    for (uint8_t b = 0; b < MATRIX_H; b++) {
+      uint8_t cool = random(0, ((COOLING * 10) / MATRIX_H) + 2);
+      heat[a][b] = (heat[a][b] > cool) ? heat[a][b] - cool : 0;
+    }
+  }
+
+  // 2) Подъём тепла от b к b+1 с боковым дрожанием по a
+  for (uint8_t a = 0; a < MATRIX_W; a++) {
+    for (int8_t b = MATRIX_H - 1; b >= 2; b--) {
+      int8_t da = (int8_t)random(-1, 2);
+      int8_t na = (int8_t)a + da;
+      if (na < 0) na = 0;
+      if (na >= MATRIX_W) na = MATRIX_W - 1;
+
+      uint8_t below  = heat[a][b - 1];
+      uint8_t below2 = heat[a][b - 2];
+      heat[na][b] = (below + below2) / 2;
+    }
+    heat[a][1] = heat[a][0];
+  }
+
+  // 3) Вспышки в источнике (b=0)
+  for (uint8_t a = 0; a < MATRIX_W; a++) {
+    if (random(0, 255) < SPARKING) {
+      uint8_t spark = random(160, 255);
+      heat[a][0] = spark;
+      heat[a][1] = spark;
+    }
+  }
+
+  // 4) Вывод с учётом направления
+  for (uint8_t a = 0; a < MATRIX_W; a++) {
+    for (uint8_t b = 0; b < MATRIX_H; b++) {
+      uint8_t x, y;
+      switch (FIRE_DIR) {
+        case 0:  x = a;                  y = MATRIX_H - 1 - b; break; // снизу вверх
+        case 1:  x = b;                  y = a;               break; // слева направо (90° CW)
+        case 2:  x = MATRIX_W - 1 - b;   y = MATRIX_H - 1 - a; break; // справа налево (90° CCW)
+        case 3:  x = MATRIX_W - 1 - a;   y = b;               break; // сверху вниз (180°)
+        default: x = a;                  y = MATRIX_H - 1 - b; break;
+      }
+      strip.setPixelColor(XY(x, y), fireColor(heat[a][b]));
+    }
+  }
+  strip.show();
+  delay(1000 / FPS);
 }
