@@ -1,14 +1,40 @@
 #include "LVGLManager.h"
 
 #include "Pins.h"
-#include "./utils/Logger.h"
 
-LVGLManager::LVGLManager(SPIManager& spi)
+// ============================================================
+// CONSTRUCTOR
+// ============================================================
+
+LVGLManager::LVGLManager(
+    SPIManager& spi
+)
     : _spi(spi),
-      _tft1(PIN_TFT_CS1, PIN_TFT_DC, PIN_TFT_RST1),
-      _tft2(PIN_TFT_CS2, PIN_TFT_DC, PIN_TFT_RST2),
-      _tft3(PIN_TFT_CS3, PIN_TFT_DC, PIN_TFT_RST3),
-      _tft4(PIN_TFT_CS4, PIN_TFT_DC, PIN_TFT_RST4),
+
+      _tft1(
+          PIN_TFT_CS1,
+          PIN_TFT_DC,
+          PIN_TFT_RST1
+      ),
+
+      _tft2(
+          PIN_TFT_CS2,
+          PIN_TFT_DC,
+          PIN_TFT_RST2
+      ),
+
+      _tft3(
+          PIN_TFT_CS3,
+          PIN_TFT_DC,
+          PIN_TFT_RST3
+      ),
+
+      _tft4(
+          PIN_TFT_CS4,
+          PIN_TFT_DC,
+          PIN_TFT_RST4
+      ),
+
       _initialized(false),
       _lastUpdate(0)
 {
@@ -45,39 +71,57 @@ LVGLManager::LVGLManager(SPIManager& spi)
     };
 }
 
+// ============================================================
+// BEGIN
+// ============================================================
+
 bool LVGLManager::begin()
 {
     if (_initialized)
         return true;
 
-    Logger::info(
-        "LVGL",
-        "Initializing LVGL display system..."
+    Serial0.println(
+        "[LVGL] Initializing display system..."
     );
+
+    // ========================================================
+    // SPI
+    // ========================================================
 
     if (!_spi.isReady())
     {
+        Serial0.println(
+            "[LVGL] SPI is not ready"
+        );
+
         if (!_spi.begin())
         {
-            Logger::info(
-                "LVGL",
-                "SPI initialization failed"
+            Serial0.println(
+                "[LVGL] SPI initialization failed"
             );
 
             return false;
         }
     }
 
-    // ---------------------------------------------------------
-    // Backlight
-    // ---------------------------------------------------------
+    // ========================================================
+    // BACKLIGHT
+    // ========================================================
 
-    pinMode(PIN_TFT_BL, OUTPUT);
-    digitalWrite(PIN_TFT_BL, HIGH);
+    pinMode(
+        PIN_TFT_BL,
+        OUTPUT
+    );
 
-    // ---------------------------------------------------------
+    // Keep displays dark while initializing.
+    digitalWrite(
+        PIN_TFT_BL,
+        LOW
+    );
+
+    // ========================================================
     // LVGL
-    // ---------------------------------------------------------
+    // ========================================================
 
     lv_init();
 
@@ -88,35 +132,70 @@ bool LVGLManager::begin()
         }
     );
 
-    // ---------------------------------------------------------
-    // TFT displays
-    // ---------------------------------------------------------
+    // ========================================================
+    // TFT DISPLAYS
+    // ========================================================
 
-    for (uint8_t i = 0; i < DISPLAY_COUNT; i++)
+    for (
+        uint8_t i = 0;
+        i < DISPLAY_COUNT;
+        i++
+    )
     {
+        Serial0.print(
+            "[LVGL] Initializing TFT "
+        );
+
+        Serial0.println(i);
+
         if (!initDisplay(i))
         {
-            Logger::info(
-                "LVGL",
-                "TFT initialization failed"
+            Serial0.println(
+                "[LVGL] TFT initialization failed"
             );
 
             return false;
         }
     }
 
+    // ========================================================
+    // IMPORTANT
+    // Clear physical displays once more
+    // ========================================================
+
+    clearDisplays();
+
+    // ========================================================
+    // Backlight ON
+    // ========================================================
+
+    digitalWrite(
+        PIN_TFT_BL,
+        HIGH
+    );
+
+    // ========================================================
+    // READY
+    // ========================================================
+
     _initialized = true;
+
     _lastUpdate = millis();
 
-    Logger::info(
-        "LVGL",
-        "LVGL display system initialized"
+    Serial0.println(
+        "[LVGL] Display system initialized"
     );
 
     return true;
 }
 
-bool LVGLManager::initDisplay(uint8_t index)
+// ============================================================
+// INIT DISPLAY
+// ============================================================
+
+bool LVGLManager::initDisplay(
+    uint8_t index
+)
 {
     if (index >= DISPLAY_COUNT)
         return false;
@@ -130,14 +209,9 @@ bool LVGLManager::initDisplay(uint8_t index)
     Adafruit_ST7789& tft =
         *context.tft;
 
-    Logger::info(
-        "LVGL",
-        "Initializing TFT..."
-    );
-
-    // ---------------------------------------------------------
-    // TFT initialization
-    // ---------------------------------------------------------
+    // ========================================================
+    // TFT
+    // ========================================================
 
     tft.init(
         TFT_WIDTH,
@@ -146,15 +220,22 @@ bool LVGLManager::initDisplay(uint8_t index)
 
     tft.setRotation(0);
 
-    tft.setSPISpeed(40000000);
+    tft.setSPISpeed(
+        40000000
+    );
+
+    // ========================================================
+    // IMPORTANT
+    // Clear TFT GRAM immediately
+    // ========================================================
 
     tft.fillScreen(
         ST77XX_BLACK
     );
 
-    // ---------------------------------------------------------
-    // LVGL display
-    // ---------------------------------------------------------
+    // ========================================================
+    // LVGL DISPLAY
+    // ========================================================
 
     lv_display_t* display =
         lv_display_create(
@@ -164,19 +245,19 @@ bool LVGLManager::initDisplay(uint8_t index)
 
     if (display == nullptr)
     {
-        Logger::info(
-            "LVGL",
-            "lv_display_create failed"
+        Serial0.println(
+            "[LVGL] lv_display_create failed"
         );
 
         return false;
     }
 
-    context.lvDisplay = display;
+    context.lvDisplay =
+        display;
 
-    // ---------------------------------------------------------
-    // Drawing buffer
-    // ---------------------------------------------------------
+    // ========================================================
+    // BUFFER
+    // ========================================================
 
     lv_display_set_buffers(
         display,
@@ -186,18 +267,18 @@ bool LVGLManager::initDisplay(uint8_t index)
         LV_DISPLAY_RENDER_MODE_PARTIAL
     );
 
-    // ---------------------------------------------------------
-    // Flush callback
-    // ---------------------------------------------------------
+    // ========================================================
+    // FLUSH CALLBACK
+    // ========================================================
 
     lv_display_set_flush_cb(
         display,
         LVGLManager::flushCallback
     );
 
-    // ---------------------------------------------------------
-    // User data
-    // ---------------------------------------------------------
+    // ========================================================
+    // USER DATA
+    // ========================================================
 
     lv_display_set_user_data(
         display,
@@ -206,13 +287,73 @@ bool LVGLManager::initDisplay(uint8_t index)
 
     context.initialized = true;
 
-    Logger::info(
-        "LVGL",
-        "TFT initialized"
-    );
-
     return true;
 }
+
+// ============================================================
+// CLEAR DISPLAYS
+// ============================================================
+
+void LVGLManager::clearDisplays()
+{
+    if (!_spi.isReady())
+        return;
+
+    for (
+        uint8_t i = 0;
+        i < DISPLAY_COUNT;
+        i++
+    )
+    {
+        DisplayContext& context =
+            _contexts[i];
+
+        if (!context.initialized)
+            continue;
+
+        if (context.tft == nullptr)
+            continue;
+
+        context.tft->fillScreen(
+            ST77XX_BLACK
+        );
+    }
+}
+
+// ============================================================
+// FORCE REFRESH
+// ============================================================
+
+void LVGLManager::refresh()
+{
+    if (!_initialized)
+        return;
+
+    for (
+        uint8_t i = 0;
+        i < DISPLAY_COUNT;
+        i++
+    )
+    {
+        lv_display_t* display =
+            _contexts[i].lvDisplay;
+
+        if (display == nullptr)
+            continue;
+
+        lv_obj_invalidate(
+            lv_display_get_screen_active(
+                display
+            )
+        );
+    }
+
+    lv_timer_handler();
+}
+
+// ============================================================
+// FLUSH CALLBACK
+// ============================================================
 
 void LVGLManager::flushCallback(
     lv_display_t* display,
@@ -231,7 +372,9 @@ void LVGLManager::flushCallback(
 
     DisplayContext* context =
         static_cast<DisplayContext*>(
-            lv_display_get_user_data(display)
+            lv_display_get_user_data(
+                display
+            )
         );
 
     if (context == nullptr)
@@ -243,9 +386,9 @@ void LVGLManager::flushCallback(
     Adafruit_ST7789& tft =
         *context->tft;
 
-    // ---------------------------------------------------------
-    // LVGL coordinates
-    // ---------------------------------------------------------
+    // ========================================================
+    // LVGL AREA
+    // ========================================================
 
     int16_t x =
         area->x1;
@@ -254,24 +397,30 @@ void LVGLManager::flushCallback(
         area->y1;
 
     int16_t width =
-        area->x2 - area->x1 + 1;
+        area->x2 -
+        area->x1 +
+        1;
 
     int16_t height =
-        area->y2 - area->y1 + 1;
+        area->y2 -
+        area->y1 +
+        1;
 
-    if (width <= 0 || height <= 0)
+    if (
+        width <= 0 ||
+        height <= 0
+    )
     {
-        lv_display_flush_ready(display);
+        lv_display_flush_ready(
+            display
+        );
+
         return;
     }
 
-    // ---------------------------------------------------------
-    // Convert logical 172x320 coordinates
-    // to physical 240x320 coordinates.
-    //
-    // 240 - 172 = 68
-    // 68 / 2 = 34
-    // ---------------------------------------------------------
+    // ========================================================
+    // PHYSICAL COORDINATES
+    // ========================================================
 
     int16_t physicalX =
         x + X_OFFSET;
@@ -279,9 +428,9 @@ void LVGLManager::flushCallback(
     int16_t physicalY =
         y + Y_OFFSET;
 
-    // ---------------------------------------------------------
-    // SPI transaction
-    // ---------------------------------------------------------
+    // ========================================================
+    // SPI
+    // ========================================================
 
     tft.startWrite();
 
@@ -293,11 +442,17 @@ void LVGLManager::flushCallback(
     );
 
     uint16_t* pixels =
-        reinterpret_cast<uint16_t*>(pxMap);
+        reinterpret_cast<uint16_t*>(
+            pxMap
+        );
 
     uint32_t pixelCount =
-        static_cast<uint32_t>(width) *
-        static_cast<uint32_t>(height);
+        static_cast<uint32_t>(
+            width
+        ) *
+        static_cast<uint32_t>(
+            height
+        );
 
     tft.writePixels(
         pixels,
@@ -306,14 +461,18 @@ void LVGLManager::flushCallback(
 
     tft.endWrite();
 
-    // ---------------------------------------------------------
-    // Tell LVGL that flush is finished
-    // ---------------------------------------------------------
+    // ========================================================
+    // FLUSH READY
+    // ========================================================
 
     lv_display_flush_ready(
         display
     );
 }
+
+// ============================================================
+// UPDATE
+// ============================================================
 
 void LVGLManager::update()
 {
@@ -322,33 +481,60 @@ void LVGLManager::update()
 
     lv_timer_handler();
 
-    _lastUpdate = millis();
+    _lastUpdate =
+        millis();
 }
 
-lv_display_t* LVGLManager::display(
+// ============================================================
+// DISPLAY
+// ============================================================
+
+lv_display_t*
+LVGLManager::display(
     uint8_t index
 )
 {
-    if (index >= DISPLAY_COUNT)
+    if (
+        index >= DISPLAY_COUNT
+    )
+    {
         return nullptr;
+    }
 
     return _contexts[index].lvDisplay;
 }
+
+// ============================================================
+// READY
+// ============================================================
 
 bool LVGLManager::isReady() const
 {
     return _initialized;
 }
 
+// ============================================================
+// TEST DISPLAYS
+// ============================================================
+
 bool LVGLManager::testDisplays()
 {
     if (!_initialized)
         return false;
 
-    for (uint8_t i = 0; i < DISPLAY_COUNT; i++)
+    for (
+        uint8_t i = 0;
+        i < DISPLAY_COUNT;
+        i++
+    )
     {
-        if (_contexts[i].tft == nullptr)
+        if (
+            _contexts[i].tft ==
+            nullptr
+        )
+        {
             return false;
+        }
 
         _contexts[i].tft->fillScreen(
             ST77XX_RED

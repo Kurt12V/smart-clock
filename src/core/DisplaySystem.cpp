@@ -1,7 +1,4 @@
-
 #include "DisplaySystem.h"
-
-#include "./utils/Logger.h"
 
 // ============================================================
 // CONSTRUCTOR
@@ -37,60 +34,84 @@ bool DisplaySystem::begin()
     if (_initialized)
         return true;
 
-    Logger::info(
-        "DISPLAY",
-        "Starting DisplaySystem..."
-    );
+    Serial0.println();
+    Serial0.println("============================================");
+    Serial0.println("[DISPLAY] Starting DisplaySystem");
+    Serial0.println("============================================");
 
     // ========================================================
     // SPI
     // ========================================================
 
+    Serial0.println("[DISPLAY] Initializing SPI...");
+
     if (!_spi.begin())
     {
-        Logger::info(
-            "DISPLAY",
-            "SPI initialization failed"
-        );
-
+        Serial0.println("[DISPLAY] SPI initialization FAILED");
         return false;
     }
+
+    Serial0.println("[DISPLAY] SPI OK");
 
     // ========================================================
     // LVGL + TFT
     // ========================================================
 
+    Serial0.println("[DISPLAY] Initializing LVGL + TFT...");
+
     if (!_lvgl.begin())
     {
-        Logger::info(
-            "DISPLAY",
-            "LVGL initialization failed"
-        );
-
+        Serial0.println("[DISPLAY] LVGL initialization FAILED");
         return false;
     }
-    // _lvgl.testDisplays();
+
+    Serial0.println("[DISPLAY] LVGL OK");
+
+    // ========================================================
+    // CLEAR DISPLAYS
+    // ========================================================
+
+    Serial0.println("[DISPLAY] Clearing physical displays...");
+
+    _lvgl.clearDisplays();
+
+    Serial0.println("[DISPLAY] Displays cleared");
 
     // ========================================================
     // SCREENS
     // ========================================================
 
+    Serial0.println("[DISPLAY] Initializing ScreenManager...");
+
     if (!_screens.begin())
     {
-        Logger::info(
-            "DISPLAY",
-            "ScreenManager initialization failed"
-        );
-
+        Serial0.println("[DISPLAY] ScreenManager initialization FAILED");
         return false;
     }
 
+    Serial0.println("[DISPLAY] ScreenManager OK");
+
+    // ========================================================
+    // FIRST FRAME
+    // ========================================================
+
+    Serial0.println("[DISPLAY] Rendering first frame...");
+
+    _lvgl.refresh();
+
+    Serial0.println("[DISPLAY] First frame rendered");
+
+    // ========================================================
+    // READY
+    // ========================================================
+
     _initialized = true;
 
-    Logger::info(
-        "DISPLAY",
-        "DisplaySystem ready"
-    );
+    Serial0.println();
+    Serial0.println("============================================");
+    Serial0.println("[DISPLAY] DisplaySystem READY");
+    Serial0.println("============================================");
+    Serial0.println();
 
     return true;
 }
@@ -105,13 +126,13 @@ void DisplaySystem::update()
         return;
 
     // --------------------------------------------------------
-    // Обновление данных экранов
+    // Update screen data
     // --------------------------------------------------------
 
     _screens.update();
 
     // --------------------------------------------------------
-    // Обработка LVGL
+    // LVGL
     // --------------------------------------------------------
 
     _lvgl.update();
@@ -155,4 +176,3 @@ DisplaySystem::screens()
 {
     return _screens;
 }
-

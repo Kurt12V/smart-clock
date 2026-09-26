@@ -20,21 +20,21 @@ public:
     static constexpr uint8_t DISPLAY_COUNT = 4;
 
     // --------------------------------------------------------
-    // Логический размер дисплея
+    // Logical display size
     // --------------------------------------------------------
 
     static constexpr uint16_t WIDTH  = 172;
     static constexpr uint16_t HEIGHT = 320;
 
     // --------------------------------------------------------
-    // Физический размер ST7789
+    // Physical ST7789 size
     // --------------------------------------------------------
 
     static constexpr uint16_t TFT_WIDTH  = 240;
     static constexpr uint16_t TFT_HEIGHT = 320;
 
     // --------------------------------------------------------
-    // Смещение панели 172x320 относительно RAM 240x320
+    // Panel offset
     // --------------------------------------------------------
 
     static constexpr int16_t X_OFFSET = 34;
@@ -64,14 +64,28 @@ public:
     void update();
 
     bool isReady() const;
-public:
+
+    // ========================================================
+    // DISPLAY CONTROL
+    // ========================================================
+
+    void clearDisplays();
+
+    void refresh();
+
+    // ========================================================
+    // TEST
+    // ========================================================
 
     bool testDisplays();
+
     // ========================================================
     // DISPLAY
     // ========================================================
 
-    lv_display_t* display(uint8_t index);
+    lv_display_t* display(
+        uint8_t index
+    );
 
 private:
 
@@ -96,7 +110,9 @@ private:
     // INTERNAL
     // ========================================================
 
-    bool initDisplay(uint8_t index);
+    bool initDisplay(
+        uint8_t index
+    );
 
     static void flushCallback(
         lv_display_t* display,
@@ -134,7 +150,11 @@ private:
     // LVGL BUFFERS
     // ========================================================
 
-    lv_color_t _buffers[DISPLAY_COUNT][BUFFER_SIZE];
+    lv_color_t _buffers[
+        DISPLAY_COUNT
+    ][
+        BUFFER_SIZE
+    ];
 
     // ========================================================
     // STATE
