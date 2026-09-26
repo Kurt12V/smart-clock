@@ -35,6 +35,7 @@ public:
     void update();
 
     bool isReady() const;
+    bool _startupSoundPlaying = false;
 
 private:
     // ========================================================

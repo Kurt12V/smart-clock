@@ -188,6 +188,9 @@ bool App::begin()
         if (_soundManager.playWav(STARTUP_SOUND))
         {
             Serial0.println("[APP] Startup sound started");
+
+            // Пока этот флаг true, update() будет обслуживать только звук.
+            _startupSoundPlaying = true;
         }
         else
         {
@@ -206,6 +209,26 @@ bool App::begin()
 
 void App::update()
 {
+    // ========================================================
+    // STARTUP SOUND PRIORITY
+    // ========================================================
+    // Пока играет стартовый WAV, не трогаем SPI/I2C/дисплей/сенсоры,
+    // чтобы не было микро-пауз из-за нехватки данных в I2S DMA.
+
+    if (_startupSoundPlaying)
+    {
+        _soundManager.update();
+
+        if (!_soundManager.isPlaying())
+        {
+            _startupSoundPlaying = false;
+            Serial0.println("[APP] Startup sound finished");
+        }
+
+        yield();
+        return;
+    }
+
     // ========================================================
     // SOUND
     // ========================================================
