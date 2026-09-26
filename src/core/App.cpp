@@ -11,27 +11,15 @@
 
 App::App()
 
-    // --------------------------------------------------------
-    // SoundManager
-    // --------------------------------------------------------
-
     : _soundManager(
           _sdManager,
           _audioSettings,
           _i2sManager
       )
 
-    // --------------------------------------------------------
-    // ClockSystem
-    // --------------------------------------------------------
-
     , _clockSystem(
           _clockSettings
       )
-
-    // --------------------------------------------------------
-    // DisplaySystem
-    // --------------------------------------------------------
 
     , _displaySystem(
           _clockSystem,
@@ -47,231 +35,167 @@ App::App()
 bool App::begin()
 {
     Serial0.println();
-    Serial0.println("############################################");
-    Serial0.println("#");
-    Serial0.println("#        ESP32-S3 SMART CLOCK");
-    Serial0.println("#");
-    Serial0.println("#        APPLICATION STARTUP");
-    Serial0.println("#");
-    Serial0.println("############################################");
-    Serial0.println();
+    Serial0.println("============================================");
+    Serial0.println("        ESP32-S3 SMART CLOCK");
+    Serial0.println("        APPLICATION START");
+    Serial0.println("============================================");
 
     // ========================================================
-    // HARDWARE
+    // SPI
     // ========================================================
 
-    if (!initSPI())
-        Serial0.println("[APP] SPI initialization failed");
-
-    if (!initI2S())
-        Serial0.println("[APP] I2S initialization failed");
-
-    if (!initSD())
-        Serial0.println("[APP] SD initialization failed");
-
-    // ========================================================
-    // AUDIO
-    // ========================================================
-
-    if (!initSound())
-        Serial0.println("[APP] Sound initialization failed");
-
-    // ========================================================
-    // SYSTEMS
-    // ========================================================
-
-    if (!initClock())
-        Serial0.println("[APP] Clock initialization failed");
-
-    if (!initSensors())
-        Serial0.println("[APP] Sensors initialization failed");
-
-    if (!initDisplay())
-    {
-        Serial0.println("[APP] Display initialization failed");
-
-        _ready = false;
-        return false;
-    }
-
-    if (!initInput())
-        Serial0.println("[APP] Input initialization failed");
-
-    // ========================================================
-    // READY
-    // ========================================================
-
-    _ready = true;
-
-    printReady();
-
-    return true;
-}
-
-// ============================================================
-// SPI
-// ============================================================
-
-bool App::initSPI()
-{
-    Serial0.println("[APP] Initializing SPI...");
+    Serial0.println("[APP] SPI...");
 
     if (!_spiManager.begin())
     {
         Serial0.println("[APP] SPI ERROR");
-        return false;
+    }
+    else
+    {
+        Serial0.println("[APP] SPI OK");
     }
 
-    Serial0.println("[APP] SPI OK");
+    // ========================================================
+    // I2S
+    // ========================================================
 
-    return true;
-}
-
-// ============================================================
-// I2S
-// ============================================================
-
-bool App::initI2S()
-{
-    Serial0.println("[APP] Initializing I2S...");
+    Serial0.println("[APP] I2S...");
 
     if (!_i2sManager.begin())
     {
         Serial0.println("[APP] I2S ERROR");
-        return false;
+    }
+    else
+    {
+        Serial0.println("[APP] I2S OK");
     }
 
-    Serial0.println("[APP] I2S OK");
+    // ========================================================
+    // SD
+    // ========================================================
 
-    return true;
-}
-
-// ============================================================
-// SD
-// ============================================================
-
-bool App::initSD()
-{
-    Serial0.println("[APP] Initializing SD...");
+    Serial0.println("[APP] SD...");
 
     if (!_sdManager.begin(PIN_SD_CS))
     {
         Serial0.println("[APP] SD ERROR");
-        return false;
+    }
+    else
+    {
+        Serial0.println("[APP] SD OK");
     }
 
-    Serial0.println("[APP] SD OK");
+    // ========================================================
+    // SOUND MANAGER
+    // ========================================================
 
-    return true;
-}
-
-// ============================================================
-// SOUND
-// ============================================================
-
-bool App::initSound()
-{
-    Serial0.println("[APP] Initializing SoundManager...");
+    Serial0.println("[APP] SoundManager...");
 
     if (!_soundManager.begin())
     {
         Serial0.println("[APP] SoundManager ERROR");
-        return false;
     }
-
-    Serial0.println("[APP] SoundManager OK");
-
-    // --------------------------------------------------------
-    // Startup sound
-    // --------------------------------------------------------
-
-    Serial0.print("[APP] Playing startup sound: ");
-    Serial0.println(STARTUP_SOUND);
-
-    if (!_soundManager.playWav(STARTUP_SOUND))
+    else
     {
-        Serial0.println("[APP] Startup sound FAILED");
-
-        return false;
+        Serial0.println("[APP] SoundManager OK");
     }
 
-    Serial0.println("[APP] Startup sound PLAYING");
+    // ========================================================
+    // CLOCK
+    // ========================================================
 
-    return true;
-}
-
-// ============================================================
-// CLOCK
-// ============================================================
-
-bool App::initClock()
-{
-    Serial0.println("[APP] Initializing ClockSystem...");
+    Serial0.println("[APP] ClockSystem...");
 
     if (!_clockSystem.begin())
     {
         Serial0.println("[APP] ClockSystem ERROR");
-        return false;
+    }
+    else
+    {
+        Serial0.println("[APP] ClockSystem OK");
     }
 
-    Serial0.println("[APP] ClockSystem OK");
+    // ========================================================
+    // SENSORS
+    // ========================================================
 
-    return true;
-}
-
-// ============================================================
-// SENSORS
-// ============================================================
-
-bool App::initSensors()
-{
-    Serial0.println("[APP] Initializing SensorManager...");
+    Serial0.println("[APP] SensorManager...");
 
     if (!_sensorManager.begin())
     {
         Serial0.println("[APP] SensorManager ERROR");
-        return false;
+    }
+    else
+    {
+        Serial0.println("[APP] SensorManager OK");
     }
 
-    Serial0.println("[APP] SensorManager OK");
+    // ========================================================
+    // DISPLAY
+    // ========================================================
 
-    return true;
-}
-
-// ============================================================
-// DISPLAY
-// ============================================================
-
-bool App::initDisplay()
-{
-    Serial0.println("[APP] Initializing DisplaySystem...");
+    Serial0.println("[APP] DisplaySystem...");
 
     if (!_displaySystem.begin())
     {
         Serial0.println("[APP] DisplaySystem ERROR");
+
+        _ready = false;
+
         return false;
     }
 
     Serial0.println("[APP] DisplaySystem OK");
 
-    return true;
-}
+    // ========================================================
+    // INPUT
+    // ========================================================
 
-// ============================================================
-// INPUT
-// ============================================================
-
-bool App::initInput()
-{
-    Serial0.println("[APP] Initializing InputManager...");
+    Serial0.println("[APP] InputManager...");
 
     if (!_inputManager.begin())
     {
         Serial0.println("[APP] InputManager ERROR");
-        return false;
+    }
+    else
+    {
+        Serial0.println("[APP] InputManager OK");
     }
 
-    Serial0.println("[APP] InputManager OK");
+    // ========================================================
+    // APPLICATION READY
+    // ========================================================
+
+    _ready = true;
+
+    Serial0.println();
+    Serial0.println("============================================");
+    Serial0.println("             SYSTEM READY");
+    Serial0.println("============================================");
+
+    // ========================================================
+    // STARTUP SOUND
+    // ========================================================
+
+    Serial0.println("[APP] Starting startup sound...");
+
+    if (!_soundManager.isInitialized())
+    {
+        Serial0.println("[APP] SoundManager is not initialized");
+    }
+    else
+    {
+        if (_soundManager.playWav(STARTUP_SOUND))
+        {
+            Serial0.println("[APP] Startup sound started");
+        }
+        else
+        {
+            Serial0.println("[APP] Startup sound FAILED");
+        }
+    }
+
+    Serial0.println("[APP] begin() finished");
 
     return true;
 }
@@ -282,45 +206,45 @@ bool App::initInput()
 
 void App::update()
 {
-    // --------------------------------------------------------
-    // Audio must be updated continuously.
-    // --------------------------------------------------------
+    // ========================================================
+    // SOUND
+    // ========================================================
 
     _soundManager.update();
 
-    // --------------------------------------------------------
-    // Clock
-    // --------------------------------------------------------
+    // ========================================================
+    // CLOCK
+    // ========================================================
 
     _clockSystem.update();
 
-    // --------------------------------------------------------
-    // Sensors
-    // --------------------------------------------------------
+    // ========================================================
+    // SENSORS
+    // ========================================================
 
     _sensorManager.update();
 
-    // --------------------------------------------------------
-    // Display
-    // --------------------------------------------------------
+    // ========================================================
+    // DISPLAY
+    // ========================================================
 
     _displaySystem.update();
 
-    // --------------------------------------------------------
-    // Input
-    // --------------------------------------------------------
+    // ========================================================
+    // INPUT
+    // ========================================================
 
     _inputManager.update();
 
-    // --------------------------------------------------------
-    // Small yield
-    // --------------------------------------------------------
+    // ========================================================
+    // CPU YIELD
+    // ========================================================
 
-    delay(1);
+    yield();
 }
 
 // ============================================================
-// READY
+// STATE
 // ============================================================
 
 bool App::isReady() const
@@ -329,37 +253,13 @@ bool App::isReady() const
 }
 
 // ============================================================
-// HEADER
-// ============================================================
-
-void App::printHeader()
-{
-    Serial0.println();
-    Serial0.println("############################################");
-    Serial0.println("# ESP32-S3 SMART CLOCK");
-    Serial0.println("############################################");
-    Serial0.println();
-}
-
-// ============================================================
-// READY MESSAGE
+// READY
 // ============================================================
 
 void App::printReady()
 {
     Serial0.println();
     Serial0.println("============================================");
-    Serial0.println("             SYSTEM READY");
+    Serial0.println("SYSTEM READY");
     Serial0.println("============================================");
-
-    if (_soundManager.isPlaying())
-    {
-        Serial0.println("[APP] Startup sound is playing");
-    }
-    else
-    {
-        Serial0.println("[APP] Startup sound finished");
-    }
-
-    Serial0.println();
 }
