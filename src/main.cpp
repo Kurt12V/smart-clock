@@ -42,9 +42,9 @@ namespace
     // Файлы, которые пробуем проиграть при старте (по порядку).
     constexpr const char* STARTUP_SOUND_FILES[] =
     {
-        "/startup.wav",
-        "/test.wav",
-        "/recordings/test.wav"
+        "/audio/system/START_SYSTEM.wav",
+        // "/test.wav",
+        // "/recordings/test.wav"
     };
 }
 
