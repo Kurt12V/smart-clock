@@ -261,12 +261,6 @@ bool parseWav(File& file, WavInfo& info)
         return false;
     }
 
-    if (info.channels != 1)
-    {
-        Serial0.println("[WAV] ERROR: test expects MONO WAV");
-        return false;
-    }
-
     return true;
 }
 
