@@ -2,18 +2,10 @@
 
 #include <Arduino.h>
 
-// ============================================================
-// CORE
-// ============================================================
-
 #include "Settings.h"
 
 #include "./core/ClockSystem.h"
 #include "./core/DisplaySystem.h"
-
-// ============================================================
-// MANAGERS
-// ============================================================
 
 #include "./managers/SensorsManager.h"
 #include "./managers/InputManager.h"
@@ -22,6 +14,10 @@
 #include "./managers/SDManager.h"
 #include "./managers/SoundManager.h"
 
+#include "./managers/BluetoothManager.h"
+#include "./managers/BluetoothSubscriptionManager.h"
+#include "./hardware/bluetooth/BluetoothPublisher.h"
+
 // ============================================================
 // APP
 // ============================================================
@@ -29,15 +25,16 @@
 class App
 {
 public:
+
     App();
 
     bool begin();
     void update();
 
     bool isReady() const;
-    bool _startupSoundPlaying = false;
 
 private:
+
     // ========================================================
     // INITIALIZATION
     // ========================================================
@@ -46,20 +43,20 @@ private:
     bool initI2S();
     bool initSD();
     bool initSound();
+
     bool initClock();
     bool initSensors();
+
     bool initDisplay();
     bool initInput();
 
-    void printHeader();
-    void printReady();
+    bool initBluetooth();
 
-private:
     // ========================================================
     // STATE
     // ========================================================
 
-    bool _ready = false;
+    bool _ready;
 
     // ========================================================
     // SETTINGS
@@ -82,10 +79,21 @@ private:
     SensorManager _sensorManager;
 
     // ========================================================
+    // BLUETOOTH
+    // ========================================================
+
+    BluetoothManager _bluetoothManager;
+
+    BluetoothSubscriptionManager _bluetoothSubscriptions;
+
+    BluetoothPublisher _bluetoothPublisher;
+
+    // ========================================================
     // CORE SYSTEMS
     // ========================================================
 
     ClockSystem _clockSystem;
+
     DisplaySystem _displaySystem;
 
     // ========================================================
