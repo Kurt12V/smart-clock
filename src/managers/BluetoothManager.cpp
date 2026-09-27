@@ -1,7 +1,7 @@
 #include "BluetoothManager.h"
 
 // ============================================================
-// NIMBLE SERVER CALLBACKS
+// INTERNAL CALLBACKS
 // ============================================================
 
 class BluetoothManager::ServerCallbacks
@@ -24,10 +24,32 @@ public:
         (void)server;
         (void)connInfo;
 
-        if (_manager != nullptr)
-        {
-            _manager->onConnect();
-        }
+        if (_manager == nullptr)
+            return;
+
+        _manager->_deviceConnected = true;
+
+        _manager->_state =
+            BluetoothConnectionState::Connected;
+
+        Serial0.println();
+        Serial0.println(
+            "================================"
+        );
+        Serial0.println(
+            "[BLE] DEVICE CONNECTED"
+        );
+        Serial0.println(
+            "================================"
+        );
+
+        Serial0.println(
+            "[BLE] Connection state = CONNECTED"
+        );
+
+        Serial0.println(
+            "[BLE] Waiting for Android commands..."
+        );
     }
 
     void onDisconnect(
@@ -38,12 +60,51 @@ public:
     {
         (void)server;
         (void)connInfo;
-        (void)reason;
 
-        if (_manager != nullptr)
+        if (_manager == nullptr)
+            return;
+
+        _manager->_deviceConnected = false;
+
+        _manager->_state =
+            BluetoothConnectionState::Disconnected;
+
+        portENTER_CRITICAL(
+            &_manager->_commandMux
+        );
+
+        _manager->_commandBuffer[0] = '\0';
+        _manager->_commandAvailable = false;
+
+        portEXIT_CRITICAL(
+            &_manager->_commandMux
+        );
+
+        if (_manager->_subscriptionManager != nullptr)
         {
-            _manager->onDisconnect();
+            _manager->_subscriptionManager->clear();
         }
+
+        Serial0.println();
+        Serial0.println(
+            "================================"
+        );
+        Serial0.println(
+            "[BLE] DEVICE DISCONNECTED"
+        );
+        Serial0.print(
+            "[BLE] Disconnect reason: "
+        );
+        Serial0.println(reason);
+        Serial0.println(
+            "================================"
+        );
+
+        // ВАЖНО:
+        // Здесь НЕ запускаем advertising.
+        //
+        // Advertising будет восстановлен
+        // из BluetoothManager::update().
     }
 
 private:
@@ -53,7 +114,7 @@ private:
 
 
 // ============================================================
-// NIMBLE RX CALLBACKS
+// RX CALLBACKS
 // ============================================================
 
 class BluetoothManager::RxCallbacks
@@ -143,7 +204,7 @@ bool BluetoothManager::begin()
     );
 
     // --------------------------------------------------------
-    // NIMBLE INIT
+    // INIT
     // --------------------------------------------------------
 
     NimBLEDevice::init(
@@ -155,7 +216,7 @@ bool BluetoothManager::begin()
     );
 
     // --------------------------------------------------------
-    // CREATE SERVER
+    // SERVER
     // --------------------------------------------------------
 
     _server =
@@ -164,7 +225,7 @@ bool BluetoothManager::begin()
     if (_server == nullptr)
     {
         Serial0.println(
-            "[BLE] ERROR: Failed to create server"
+            "[BLE] ERROR: createServer failed"
         );
 
         return false;
@@ -175,7 +236,7 @@ bool BluetoothManager::begin()
     );
 
     // --------------------------------------------------------
-    // CREATE SERVICE
+    // SERVICE
     // --------------------------------------------------------
 
     NimBLEService* service =
@@ -186,7 +247,7 @@ bool BluetoothManager::begin()
     if (service == nullptr)
     {
         Serial0.println(
-            "[BLE] ERROR: Failed to create service"
+            "[BLE] ERROR: createService failed"
         );
 
         return false;
@@ -194,7 +255,6 @@ bool BluetoothManager::begin()
 
     // --------------------------------------------------------
     // RX
-    // Android -> ESP32
     // --------------------------------------------------------
 
     _rx =
@@ -207,7 +267,7 @@ bool BluetoothManager::begin()
     if (_rx == nullptr)
     {
         Serial0.println(
-            "[BLE] ERROR: Failed to create RX characteristic"
+            "[BLE] ERROR: RX characteristic failed"
         );
 
         return false;
@@ -219,7 +279,6 @@ bool BluetoothManager::begin()
 
     // --------------------------------------------------------
     // TX
-    // ESP32 -> Android
     // --------------------------------------------------------
 
     _tx =
@@ -232,24 +291,11 @@ bool BluetoothManager::begin()
     if (_tx == nullptr)
     {
         Serial0.println(
-            "[BLE] ERROR: Failed to create TX characteristic"
+            "[BLE] ERROR: TX characteristic failed"
         );
 
         return false;
     }
-
-    // --------------------------------------------------------
-    // SERVICE
-    // --------------------------------------------------------
-    //
-    // NimBLE-Arduino автоматически запускает сервисы
-    // при запуске сервера.
-    //
-    // НЕ вызываем:
-    //
-    // service->start();
-    //
-    // --------------------------------------------------------
 
     Serial0.println(
         "[BLE] Service created"
@@ -275,7 +321,7 @@ bool BluetoothManager::begin()
     if (_advertising == nullptr)
     {
         Serial0.println(
-            "[BLE] ERROR: Advertising unavailable"
+            "[BLE] ERROR: advertising unavailable"
         );
 
         return false;
@@ -299,11 +345,6 @@ bool BluetoothManager::begin()
 
     _advertising->start();
 
-    _state =
-        BluetoothConnectionState::Disconnected;
-
-    _deviceConnected = false;
-
     Serial0.println(
         "[BLE] Advertising started"
     );
@@ -313,7 +354,7 @@ bool BluetoothManager::begin()
     );
 
     Serial0.println(
-        "[BLE] Waiting for Android..."
+        "[BLE] Ready"
     );
 
     Serial0.println(
@@ -330,23 +371,58 @@ bool BluetoothManager::begin()
 
 void BluetoothManager::update()
 {
-    if (!_deviceConnected)
+    static bool advertisingStarted =
+        true;
+
+    // --------------------------------------------------------
+    // CONNECTED
+    // --------------------------------------------------------
+
+    if (_deviceConnected)
     {
+        advertisingStarted = false;
+
         if (_state !=
-            BluetoothConnectionState::Disconnected)
+            BluetoothConnectionState::Connected)
         {
             _state =
-                BluetoothConnectionState::Disconnected;
+                BluetoothConnectionState::Connected;
         }
 
         return;
     }
 
+    // --------------------------------------------------------
+    // DISCONNECTED
+    // --------------------------------------------------------
+
     if (_state !=
-        BluetoothConnectionState::Connected)
+        BluetoothConnectionState::Disconnected)
     {
         _state =
-            BluetoothConnectionState::Connected;
+            BluetoothConnectionState::Disconnected;
+    }
+
+    // --------------------------------------------------------
+    // RESTART ADVERTISING
+    // --------------------------------------------------------
+
+    if (!advertisingStarted)
+    {
+        if (_advertising != nullptr)
+        {
+            Serial0.println(
+                "[BLE] Restarting advertising..."
+            );
+
+            _advertising->start();
+
+            advertisingStarted = true;
+
+            Serial0.println(
+                "[BLE] Advertising restarted"
+            );
+        }
     }
 }
 
@@ -409,7 +485,7 @@ void BluetoothManager::attachSubscriptionManager(
 
 bool BluetoothManager::hasCommand() const
 {
-    bool available;
+    bool result;
 
     portENTER_CRITICAL(
         const_cast<portMUX_TYPE*>(
@@ -417,7 +493,7 @@ bool BluetoothManager::hasCommand() const
         )
     );
 
-    available =
+    result =
         _commandAvailable;
 
     portEXIT_CRITICAL(
@@ -426,7 +502,7 @@ bool BluetoothManager::hasCommand() const
         )
     );
 
-    return available;
+    return result;
 }
 
 
@@ -436,11 +512,11 @@ bool BluetoothManager::hasCommand() const
 
 String BluetoothManager::getCommand()
 {
-    char localBuffer[
+    char buffer[
         BLUETOOTH_COMMAND_SIZE
     ];
 
-    localBuffer[0] = '\0';
+    buffer[0] = '\0';
 
     portENTER_CRITICAL(
         &_commandMux
@@ -455,13 +531,13 @@ String BluetoothManager::getCommand()
         return String();
     }
 
-    strncpy(
-        localBuffer,
+    memcpy(
+        buffer,
         _commandBuffer,
-        BLUETOOTH_COMMAND_SIZE - 1
+        BLUETOOTH_COMMAND_SIZE
     );
 
-    localBuffer[
+    buffer[
         BLUETOOTH_COMMAND_SIZE - 1
     ] = '\0';
 
@@ -473,9 +549,7 @@ String BluetoothManager::getCommand()
         &_commandMux
     );
 
-    return String(
-        localBuffer
-    );
+    return String(buffer);
 }
 
 
@@ -513,7 +587,7 @@ bool BluetoothManager::sendRaw(
     if (!_deviceConnected)
     {
         Serial0.println(
-            "[BLE TX] ERROR: device not connected"
+            "[BLE TX] ERROR: not connected"
         );
 
         return false;
@@ -522,7 +596,7 @@ bool BluetoothManager::sendRaw(
     if (_tx == nullptr)
     {
         Serial0.println(
-            "[BLE TX] ERROR: TX characteristic unavailable"
+            "[BLE TX] ERROR: TX unavailable"
         );
 
         return false;
@@ -533,10 +607,6 @@ bool BluetoothManager::sendRaw(
 
     if (length == 0)
     {
-        Serial0.println(
-            "[BLE TX] ERROR: empty message"
-        );
-
         return false;
     }
 
@@ -558,20 +628,12 @@ bool BluetoothManager::sendRaw(
         message
     );
 
-    // --------------------------------------------------------
-    // SET VALUE
-    // --------------------------------------------------------
-
     _tx->setValue(
         reinterpret_cast<
             const uint8_t*
         >(message),
         length
     );
-
-    // --------------------------------------------------------
-    // NOTIFY
-    // --------------------------------------------------------
 
     bool result =
         _tx->notify();
@@ -615,121 +677,6 @@ bool BluetoothManager::sendJson(
 
 
 // ============================================================
-// ON CONNECT
-// ============================================================
-
-void BluetoothManager::onConnect()
-{
-    _deviceConnected = true;
-
-    _state =
-        BluetoothConnectionState::Connected;
-
-    // --------------------------------------------------------
-    // CLEAR OLD COMMAND
-    // --------------------------------------------------------
-
-    portENTER_CRITICAL(
-        &_commandMux
-    );
-
-    _commandBuffer[0] = '\0';
-
-    _commandAvailable = false;
-
-    portEXIT_CRITICAL(
-        &_commandMux
-    );
-
-    // --------------------------------------------------------
-    // LOG
-    // --------------------------------------------------------
-
-    Serial0.println();
-    Serial0.println(
-        "================================"
-    );
-    Serial0.println(
-        "[BLE] DEVICE CONNECTED"
-    );
-    Serial0.println(
-        "================================"
-    );
-
-    Serial0.println(
-        "[BLE] Connection state = CONNECTED"
-    );
-
-    Serial0.println(
-        "[BLE] Waiting for Android commands..."
-    );
-}
-
-
-// ============================================================
-// ON DISCONNECT
-// ============================================================
-
-void BluetoothManager::onDisconnect()
-{
-    _deviceConnected = false;
-
-    _state =
-        BluetoothConnectionState::Disconnected;
-
-    // --------------------------------------------------------
-    // CLEAR COMMAND
-    // --------------------------------------------------------
-
-    portENTER_CRITICAL(
-        &_commandMux
-    );
-
-    _commandBuffer[0] = '\0';
-
-    _commandAvailable = false;
-
-    portEXIT_CRITICAL(
-        &_commandMux
-    );
-
-    // --------------------------------------------------------
-    // CLEAR SUBSCRIPTIONS
-    // --------------------------------------------------------
-
-    if (_subscriptionManager != nullptr)
-    {
-        _subscriptionManager->clear();
-
-        Serial0.println(
-            "[BLE] Subscriptions cleared"
-        );
-    }
-
-    // --------------------------------------------------------
-    // LOG
-    // --------------------------------------------------------
-
-    Serial0.println();
-    Serial0.println(
-        "================================"
-    );
-    Serial0.println(
-        "[BLE] DEVICE DISCONNECTED"
-    );
-    Serial0.println(
-        "================================"
-    );
-
-    // --------------------------------------------------------
-    // RESTART ADVERTISING
-    // --------------------------------------------------------
-
-    restartAdvertising();
-}
-
-
-// ============================================================
 // ON RECEIVE
 // ============================================================
 
@@ -750,7 +697,7 @@ void BluetoothManager::onReceive(
         BLUETOOTH_COMMAND_SIZE)
     {
         Serial0.println(
-            "[BLE RX] ERROR: message too large"
+            "[BLE RX] Message too large"
         );
 
         return;
@@ -765,7 +712,7 @@ void BluetoothManager::onReceive(
     );
 
     // --------------------------------------------------------
-    // COMMAND QUEUE
+    // QUEUE
     // --------------------------------------------------------
 
     portENTER_CRITICAL(
@@ -779,7 +726,7 @@ void BluetoothManager::onReceive(
         );
 
         Serial0.println(
-            "[BLE RX] ERROR: command queue busy"
+            "[BLE RX] Queue busy"
         );
 
         return;
@@ -809,24 +756,5 @@ void BluetoothManager::onReceive(
 
     Serial0.println(
         message
-    );
-}
-
-
-// ============================================================
-// RESTART ADVERTISING
-// ============================================================
-
-void BluetoothManager::restartAdvertising()
-{
-    if (_advertising == nullptr)
-        return;
-
-    delay(100);
-
-    _advertising->start();
-
-    Serial0.println(
-        "[BLE] Advertising restarted"
     );
 }

@@ -4,8 +4,17 @@
 
 #include "Settings.h"
 
+// ============================================================
+// CORE SYSTEMS
+// ============================================================
+
 #include "./core/ClockSystem.h"
 #include "./core/DisplaySystem.h"
+#include "./core/BluetoothSystem.h"
+
+// ============================================================
+// MANAGERS
+// ============================================================
 
 #include "./managers/SensorsManager.h"
 #include "./managers/InputManager.h"
@@ -13,10 +22,6 @@
 #include "./managers/I2SManager.h"
 #include "./managers/SDManager.h"
 #include "./managers/SoundManager.h"
-
-#include "./managers/BluetoothManager.h"
-#include "./managers/BluetoothSubscriptionManager.h"
-#include "./hardware/bluetooth/BluetoothPublisher.h"
 
 // ============================================================
 // APP
@@ -79,22 +84,18 @@ private:
     SensorManager _sensorManager;
 
     // ========================================================
-    // BLUETOOTH
-    // ========================================================
-
-    BluetoothManager _bluetoothManager;
-
-    BluetoothSubscriptionManager _bluetoothSubscriptions;
-
-    BluetoothPublisher _bluetoothPublisher;
-
-    // ========================================================
     // CORE SYSTEMS
     // ========================================================
 
     ClockSystem _clockSystem;
 
     DisplaySystem _displaySystem;
+
+    // ========================================================
+    // BLUETOOTH SYSTEM
+    // ========================================================
+
+    BluetoothSystem _bluetoothSystem;
 
     // ========================================================
     // STARTUP SOUND
