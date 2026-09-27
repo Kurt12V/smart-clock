@@ -1,0 +1,2653 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>SmartClock</title>
+
+
+    <style>
+
+        /* =========================================================
+           RESET
+           ========================================================= */
+
+        * {
+            box-sizing: border-box;
+        }
+
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+
+            min-height: 100%;
+
+            background: #080808;
+            color: #eeeeee;
+
+            font-family:
+                Arial,
+                Helvetica,
+                sans-serif;
+        }
+
+
+        body {
+            min-height: 100vh;
+        }
+
+
+        /* =========================================================
+           PAGE
+           ========================================================= */
+
+        .page {
+
+            width: 100%;
+            max-width: 900px;
+
+            margin: 0 auto;
+
+            padding:
+                20px
+                20px
+                50px;
+        }
+
+
+        /* =========================================================
+           HEADER
+           ========================================================= */
+
+        .header {
+
+            height: 50px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: space-between;
+
+            border-bottom:
+                1px solid #242424;
+        }
+
+
+        .logo {
+
+            font-size: 17px;
+
+            font-weight: 600;
+
+            letter-spacing:
+                0.12em;
+        }
+
+
+        .connection {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 8px;
+
+            color: #666;
+
+            font-size: 12px;
+        }
+
+
+        .connection-dot {
+
+            width: 7px;
+            height: 7px;
+
+            border-radius: 50%;
+
+            background: #444;
+
+            transition:
+                background 0.2s;
+        }
+
+
+        .connection-dot.online {
+            background: #54d88a;
+        }
+
+
+        /* =========================================================
+           SECTION
+           ========================================================= */
+
+        .section {
+
+            padding:
+                24px
+                0;
+
+            border-bottom:
+                1px solid #242424;
+        }
+
+
+        .section-title {
+
+            margin-bottom: 18px;
+
+            color: #666;
+
+            font-size: 10px;
+
+            font-weight: 600;
+
+            letter-spacing:
+                0.15em;
+
+            text-transform:
+                uppercase;
+        }
+
+
+        /* =========================================================
+           SENSORS
+           ========================================================= */
+
+        .sensors {
+
+            display: grid;
+
+            grid-template-columns:
+                repeat(4, 1fr);
+
+            gap: 20px;
+        }
+
+
+        .sensor-value {
+
+            font-size: 28px;
+
+            line-height: 1;
+
+            font-weight: 400;
+
+            letter-spacing:
+                -0.04em;
+        }
+
+
+        .sensor-label {
+
+            margin-top: 8px;
+
+            color: #555;
+
+            font-size: 10px;
+
+            letter-spacing:
+                0.08em;
+
+            text-transform:
+                uppercase;
+        }
+
+
+        /* =========================================================
+           TIME
+           ========================================================= */
+
+        .time-container {
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content:
+                space-between;
+
+            gap: 30px;
+        }
+
+
+        .time {
+
+            font-size: 46px;
+
+            line-height: 1;
+
+            font-weight: 300;
+
+            letter-spacing:
+                -0.06em;
+        }
+
+
+        .date {
+
+            margin-top: 8px;
+
+            color: #555;
+
+            font-size: 12px;
+        }
+
+
+        .timezone {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 10px;
+        }
+
+
+        .timezone-value {
+
+            width: 75px;
+
+            text-align: center;
+
+            font-size: 16px;
+
+            color: #bbb;
+        }
+
+
+        /* =========================================================
+           BUTTONS
+           ========================================================= */
+
+        button {
+
+            height: 36px;
+
+            padding:
+                0
+                14px;
+
+            border:
+                1px solid #303030;
+
+            border-radius: 5px;
+
+            background: #111;
+
+            color: #ddd;
+
+            font-size: 12px;
+
+            cursor: pointer;
+
+            transition:
+                background 0.15s,
+                border-color 0.15s;
+        }
+
+
+        button:hover {
+
+            background: #181818;
+
+            border-color:
+                #444;
+        }
+
+
+        button:active {
+
+            background: #222;
+        }
+
+
+        button.primary {
+
+            background: #eeeeee;
+
+            border-color:
+                #eeeeee;
+
+            color: #080808;
+        }
+
+
+        button.primary:hover {
+
+            background: #d4d4d4;
+        }
+
+
+        button.danger {
+
+            color: #ff7070;
+        }
+
+
+        /* =========================================================
+           RANGE
+           ========================================================= */
+
+        .range-row {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 15px;
+
+            margin-bottom: 20px;
+        }
+
+
+        .range-label {
+
+            width: 90px;
+
+            flex-shrink: 0;
+
+            color: #aaa;
+
+            font-size: 12px;
+        }
+
+
+        .range-value {
+
+            width: 45px;
+
+            text-align: right;
+
+            color: #666;
+
+            font-size: 12px;
+        }
+
+
+        input[type="range"] {
+
+            flex: 1;
+
+            width: 100%;
+
+            height: 3px;
+
+            margin: 0;
+
+            padding: 0;
+
+            appearance: none;
+
+            -webkit-appearance: none;
+
+            background: #303030;
+
+            border-radius: 2px;
+
+            outline: none;
+        }
+
+
+        input[type="range"]::-webkit-slider-thumb {
+
+            appearance: none;
+
+            -webkit-appearance: none;
+
+            width: 14px;
+
+            height: 14px;
+
+            border: none;
+
+            border-radius: 50%;
+
+            background: #eeeeee;
+
+            cursor: pointer;
+        }
+
+
+        input[type="range"]::-moz-range-thumb {
+
+            width: 14px;
+
+            height: 14px;
+
+            border: none;
+
+            border-radius: 50%;
+
+            background: #eeeeee;
+
+            cursor: pointer;
+        }
+
+
+        /* =========================================================
+           DISPLAY GRID
+           ========================================================= */
+
+        .display-grid {
+
+            display: grid;
+
+            grid-template-columns:
+                repeat(4, 1fr);
+
+            gap: 10px;
+        }
+
+
+        .display {
+
+            padding: 14px;
+
+            border:
+                1px solid #222;
+
+            border-radius: 5px;
+        }
+
+
+        .display-name {
+
+            margin-bottom: 14px;
+
+            color: #666;
+
+            font-size: 10px;
+
+            letter-spacing:
+                0.1em;
+
+            text-transform:
+                uppercase;
+        }
+
+
+        /* =========================================================
+           SD
+           ========================================================= */
+
+        .sd-search {
+
+            display: flex;
+
+            gap: 8px;
+
+            margin-bottom: 15px;
+        }
+
+
+        input[type="text"] {
+
+            flex: 1;
+
+            height: 36px;
+
+            padding:
+                0
+                12px;
+
+            border:
+                1px solid #303030;
+
+            border-radius: 5px;
+
+            outline: none;
+
+            background: #111;
+
+            color: #eee;
+
+            font-size: 12px;
+        }
+
+
+        input[type="text"]:focus {
+
+            border-color:
+                #555;
+        }
+
+
+        .file-list {
+
+            max-height: 320px;
+
+            overflow-y: auto;
+        }
+
+
+        .file {
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content:
+                space-between;
+
+            min-height: 38px;
+
+            border-bottom:
+                1px solid #181818;
+        }
+
+
+        .file:last-child {
+            border-bottom: none;
+        }
+
+
+        .file-path {
+
+            overflow: hidden;
+
+            text-overflow:
+                ellipsis;
+
+            white-space: nowrap;
+
+            color: #aaa;
+
+            font-size: 12px;
+        }
+
+
+        .file-size {
+
+            flex-shrink: 0;
+
+            margin-left: 10px;
+
+            color: #444;
+
+            font-size: 10px;
+        }
+
+
+        /* =========================================================
+           SOUND
+           ========================================================= */
+
+        .sound-buttons {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 8px;
+
+            margin-bottom: 25px;
+        }
+
+
+        .record-status {
+
+            display: flex;
+
+            align-items: center;
+
+            margin-left: auto;
+
+            color: #555;
+
+            font-size: 11px;
+        }
+
+
+        .record-dot {
+
+            width: 7px;
+
+            height: 7px;
+
+            margin-right: 7px;
+
+            border-radius: 50%;
+
+            background: #444;
+        }
+
+
+        .record-status.recording {
+
+            color: #ff6b6b;
+        }
+
+
+        .record-status.recording
+        .record-dot {
+
+            background: #ff4d4d;
+        }
+
+
+        .audio-list {
+
+            display: flex;
+
+            flex-direction: column;
+        }
+
+
+        .audio-row {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 10px;
+
+            min-height: 45px;
+
+            border-bottom:
+                1px solid #181818;
+        }
+
+
+        .audio-name {
+
+            flex: 1;
+
+            overflow: hidden;
+
+            text-overflow:
+                ellipsis;
+
+            white-space: nowrap;
+
+            color: #aaa;
+
+            font-size: 12px;
+        }
+
+
+        .audio-play {
+
+            width: 38px;
+
+            padding: 0;
+        }
+
+
+        /* =========================================================
+           EMPTY
+           ========================================================= */
+
+        .empty {
+
+            padding:
+                15px
+                0;
+
+            color: #444;
+
+            font-size: 12px;
+        }
+
+
+        /* =========================================================
+           MESSAGE
+           ========================================================= */
+
+        .message {
+
+            position: fixed;
+
+            left: 50%;
+
+            bottom: 20px;
+
+            z-index: 100;
+
+            transform:
+                translate(-50%, 20px);
+
+            padding:
+                9px
+                14px;
+
+            border:
+                1px solid #303030;
+
+            border-radius: 5px;
+
+            background: #111;
+
+            color: #ccc;
+
+            font-size: 12px;
+
+            opacity: 0;
+
+            pointer-events: none;
+
+            transition:
+                opacity 0.2s,
+                transform 0.2s;
+        }
+
+
+        .message.show {
+
+            opacity: 1;
+
+            transform:
+                translate(-50%, 0);
+        }
+
+
+        /* =========================================================
+           MOBILE
+           ========================================================= */
+
+        @media (max-width: 650px) {
+
+            .page {
+
+                padding:
+                    15px
+                    15px
+                    40px;
+            }
+
+
+            .sensors {
+
+                grid-template-columns:
+                    repeat(2, 1fr);
+
+                gap: 22px;
+            }
+
+
+            .display-grid {
+
+                grid-template-columns:
+                    repeat(2, 1fr);
+            }
+
+
+            .time-container {
+
+                align-items:
+                    flex-start;
+
+                flex-direction:
+                    column;
+
+                gap: 20px;
+            }
+
+
+            .timezone {
+
+                width: 100%;
+            }
+
+
+            .timezone-value {
+
+                flex: 1;
+            }
+
+
+            .time {
+
+                font-size: 40px;
+            }
+        }
+
+
+        @media (max-width: 400px) {
+
+            .display-grid {
+
+                grid-template-columns:
+                    1fr;
+            }
+
+
+            .sensor-value {
+
+                font-size: 25px;
+            }
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<div class="page">
+
+
+    <!-- =========================================================
+         HEADER
+         ========================================================= -->
+
+    <header class="header">
+
+        <div class="logo">
+            SMARTCLOCK
+        </div>
+
+
+        <div class="connection">
+
+            <span
+                id="connectionDot"
+                class="connection-dot"
+            ></span>
+
+            <span
+                id="connectionText"
+            >
+                Connecting
+            </span>
+
+        </div>
+
+    </header>
+
+
+    <!-- =========================================================
+         SENSORS
+         ========================================================= -->
+
+    <section class="section">
+
+        <div class="section-title">
+            Sensors
+        </div>
+
+
+        <div class="sensors">
+
+
+            <div>
+
+                <div
+                    id="temperature"
+                    class="sensor-value"
+                >
+                    --
+                </div>
+
+                <div class="sensor-label">
+                    Temperature
+                </div>
+
+            </div>
+
+
+            <div>
+
+                <div
+                    id="humidity"
+                    class="sensor-value"
+                >
+                    --
+                </div>
+
+                <div class="sensor-label">
+                    Humidity
+                </div>
+
+            </div>
+
+
+            <div>
+
+                <div
+                    id="light"
+                    class="sensor-value"
+                >
+                    --
+                </div>
+
+                <div class="sensor-label">
+                    Light
+                </div>
+
+            </div>
+
+
+            <div>
+
+                <div
+                    id="distance"
+                    class="sensor-value"
+                >
+                    --
+                </div>
+
+                <div class="sensor-label">
+                    Distance
+                </div>
+
+            </div>
+
+
+        </div>
+
+    </section>
+
+
+    <!-- =========================================================
+         TIME
+         ========================================================= -->
+
+    <section class="section">
+
+        <div class="section-title">
+            Time
+        </div>
+
+
+        <div class="time-container">
+
+
+            <div>
+
+                <div
+                    id="time"
+                    class="time"
+                >
+                    --:--
+                </div>
+
+
+                <div
+                    id="date"
+                    class="date"
+                >
+                    ---
+                </div>
+
+            </div>
+
+
+            <div class="timezone">
+
+                <button
+                    onclick="changeTimezone(-1)"
+                >
+                    −
+                </button>
+
+
+                <div
+                    id="timezone"
+                    class="timezone-value"
+                >
+                    UTC +3
+                </div>
+
+
+                <button
+                    onclick="changeTimezone(1)"
+                >
+                    +
+                </button>
+
+            </div>
+
+
+        </div>
+
+    </section>
+
+
+    <!-- =========================================================
+         DISPLAYS
+         ========================================================= -->
+
+    <section class="section">
+
+        <div class="section-title">
+            Displays
+        </div>
+
+
+        <!-- GLOBAL -->
+
+        <div class="range-row">
+
+            <div class="range-label">
+                All
+            </div>
+
+
+            <input
+                id="globalBrightness"
+                type="range"
+                min="0"
+                max="100"
+                value="80"
+                oninput="changeGlobalBrightness(this.value)"
+            >
+
+
+            <div
+                id="globalBrightnessValue"
+                class="range-value"
+            >
+                80%
+            </div>
+
+        </div>
+
+
+        <!-- INDIVIDUAL -->
+
+        <div class="display-grid">
+
+
+            <div class="display">
+
+                <div class="display-name">
+                    Display 1
+                </div>
+
+
+                <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value="80"
+                    oninput="
+                        changeDisplayBrightness(
+                            1,
+                            this.value
+                        )
+                    "
+                >
+
+            </div>
+
+
+            <div class="display">
+
+                <div class="display-name">
+                    Display 2
+                </div>
+
+
+                <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value="80"
+                    oninput="
+                        changeDisplayBrightness(
+                            2,
+                            this.value
+                        )
+                    "
+                >
+
+            </div>
+
+
+            <div class="display">
+
+                <div class="display-name">
+                    Display 3
+                </div>
+
+
+                <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value="80"
+                    oninput="
+                        changeDisplayBrightness(
+                            3,
+                            this.value
+                        )
+                    "
+                >
+
+            </div>
+
+
+            <div class="display">
+
+                <div class="display-name">
+                    Display 4
+                </div>
+
+
+                <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value="80"
+                    oninput="
+                        changeDisplayBrightness(
+                            4,
+                            this.value
+                        )
+                    "
+                >
+
+            </div>
+
+
+        </div>
+
+    </section>
+
+
+    <!-- =========================================================
+         SD CARD
+         ========================================================= -->
+
+    <section class="section">
+
+        <div class="section-title">
+            SD Card
+        </div>
+
+
+        <div class="sd-search">
+
+            <input
+                id="searchInput"
+                type="text"
+                placeholder="Search files..."
+                oninput="filterFiles()"
+            >
+
+
+            <button
+                onclick="loadSD()"
+            >
+                Refresh
+            </button>
+
+        </div>
+
+
+        <div
+            id="fileList"
+            class="file-list"
+        >
+
+            <div class="empty">
+                Loading...
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- =========================================================
+         SOUND
+         ========================================================= -->
+
+    <section class="section">
+
+        <div class="section-title">
+            Sound
+        </div>
+
+
+        <!-- VOLUME -->
+
+        <div class="range-row">
+
+            <div class="range-label">
+                Volume
+            </div>
+
+
+            <input
+                id="volume"
+                type="range"
+                min="0"
+                max="100"
+                value="70"
+                oninput="changeVolume(this.value)"
+            >
+
+
+            <div
+                id="volumeValue"
+                class="range-value"
+            >
+                70%
+            </div>
+
+        </div>
+
+
+        <!-- PLAYBACK -->
+
+        <div class="sound-buttons">
+
+            <button
+                class="primary"
+                onclick="playSelectedSound()"
+            >
+                ▶ Test
+            </button>
+
+
+            <button
+                onclick="stopSound()"
+            >
+                ■ Stop
+            </button>
+
+        </div>
+
+
+        <!-- MICROPHONE -->
+
+        <div class="section-title">
+            Microphone
+        </div>
+
+
+        <div class="sound-buttons">
+
+            <button
+                class="primary"
+                onclick="startRecording()"
+            >
+                ● Record
+            </button>
+
+
+            <button
+                class="danger"
+                onclick="stopRecording()"
+            >
+                ■ Stop
+            </button>
+
+
+            <div
+                id="recordStatus"
+                class="record-status"
+            >
+
+                <span
+                    class="record-dot"
+                ></span>
+
+
+                <span
+                    id="recordText"
+                >
+                    Ready
+                </span>
+
+            </div>
+
+        </div>
+
+
+        <!-- AUDIO -->
+
+        <div
+            id="audioList"
+            class="audio-list"
+        >
+
+            <div class="empty">
+                No sounds
+            </div>
+
+        </div>
+
+    </section>
+
+
+</div>
+
+
+<!-- =========================================================
+     MESSAGE
+     ========================================================= -->
+
+<div
+    id="message"
+    class="message"
+>
+    OK
+</div>
+
+
+<script>
+
+
+/* =============================================================
+   GLOBAL VARIABLES
+   ============================================================= */
+
+
+let files = [];
+
+let timezoneOffset = 3;
+
+let selectedSound = null;
+
+let messageTimer = null;
+
+
+/* =============================================================
+   MESSAGE
+   ============================================================= */
+
+
+function showMessage(text)
+{
+
+    const element =
+        document.getElementById(
+            "message"
+        );
+
+
+    element.textContent =
+        text;
+
+
+    element.classList.add(
+        "show"
+    );
+
+
+    clearTimeout(
+        messageTimer
+    );
+
+
+    messageTimer =
+        setTimeout(
+            function()
+            {
+
+                element.classList.remove(
+                    "show"
+                );
+
+            },
+            1800
+        );
+
+}
+
+
+/* =============================================================
+   CONNECTION
+   ============================================================= */
+
+
+function setConnection(
+    online
+)
+{
+
+    const dot =
+        document.getElementById(
+            "connectionDot"
+        );
+
+
+    const text =
+        document.getElementById(
+            "connectionText"
+        );
+
+
+    if (online)
+    {
+
+        dot.classList.add(
+            "online"
+        );
+
+
+        text.textContent =
+            "Online";
+
+    }
+    else
+    {
+
+        dot.classList.remove(
+            "online"
+        );
+
+
+        text.textContent =
+            "Offline";
+
+    }
+
+}
+
+
+/* =============================================================
+   SENSORS
+   ============================================================= */
+
+
+async function loadSensors()
+{
+
+    try
+    {
+
+        const response =
+            await fetch(
+                "/api/sensors",
+                {
+                    cache: "no-store"
+                }
+            );
+
+
+        if (!response.ok)
+        {
+            throw new Error();
+        }
+
+
+        const data =
+            await response.json();
+
+
+        document.getElementById(
+            "temperature"
+        ).textContent =
+            Number(
+                data.temperature
+            ).toFixed(1)
+            + "°";
+
+
+        document.getElementById(
+            "humidity"
+        ).textContent =
+            Number(
+                data.humidity
+            ).toFixed(0)
+            + "%";
+
+
+        document.getElementById(
+            "light"
+        ).textContent =
+            Number(
+                data.light
+            ).toFixed(0);
+
+
+        document.getElementById(
+            "distance"
+        ).textContent =
+            Number(
+                data.distance
+            ).toFixed(0)
+            + " cm";
+
+
+        setConnection(
+            true
+        );
+
+    }
+    catch(error)
+    {
+
+        setConnection(
+            false
+        );
+
+    }
+
+}
+
+
+/* =============================================================
+   TIME
+   ============================================================= */
+
+
+function updateTime()
+{
+
+    const now =
+        new Date();
+
+
+    const hours =
+        String(
+            now.getHours()
+        ).padStart(
+            2,
+            "0"
+        );
+
+
+    const minutes =
+        String(
+            now.getMinutes()
+        ).padStart(
+            2,
+            "0"
+        );
+
+
+    document.getElementById(
+        "time"
+    ).textContent =
+        hours
+        + ":"
+        + minutes;
+
+
+    const days = [
+        "Sunday",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday"
+    ];
+
+
+    const months = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December"
+    ];
+
+
+    document.getElementById(
+        "date"
+    ).textContent =
+        days[
+            now.getDay()
+        ]
+        + ", "
+        + now.getDate()
+        + " "
+        + months[
+            now.getMonth()
+        ]
+        + " "
+        + now.getFullYear();
+
+}
+
+
+/* =============================================================
+   TIMEZONE
+   ============================================================= */
+
+
+function renderTimezone()
+{
+
+    const sign =
+        timezoneOffset >= 0
+            ? "+"
+            : "";
+
+
+    document.getElementById(
+        "timezone"
+    ).textContent =
+        "UTC "
+        + sign
+        + timezoneOffset;
+
+}
+
+
+async function changeTimezone(
+    delta
+)
+{
+
+    let value =
+        timezoneOffset
+        + delta;
+
+
+    if (value < -12)
+    {
+        value = -12;
+    }
+
+
+    if (value > 14)
+    {
+        value = 14;
+    }
+
+
+    timezoneOffset =
+        value;
+
+
+    renderTimezone();
+
+
+    try
+    {
+
+        const response =
+            await fetch(
+                "/api/timezone",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:
+                        JSON.stringify(
+                            {
+                                offset:
+                                    timezoneOffset
+                            }
+                        )
+                }
+            );
+
+
+        if (!response.ok)
+        {
+            throw new Error();
+        }
+
+
+        showMessage(
+            "Timezone changed"
+        );
+
+    }
+    catch(error)
+    {
+
+        showMessage(
+            "Timezone error"
+        );
+
+    }
+
+}
+
+
+/* =============================================================
+   DISPLAY BRIGHTNESS
+   ============================================================= */
+
+
+async function changeGlobalBrightness(
+    value
+)
+{
+
+    document.getElementById(
+        "globalBrightnessValue"
+    ).textContent =
+        value
+        + "%";
+
+
+    try
+    {
+
+        const response =
+            await fetch(
+                "/api/display/brightness",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:
+                        JSON.stringify(
+                            {
+                                display: 0,
+
+                                brightness:
+                                    Number(
+                                        value
+                                    )
+                            }
+                        )
+                }
+            );
+
+
+        if (!response.ok)
+        {
+            throw new Error();
+        }
+
+    }
+    catch(error)
+    {
+
+        showMessage(
+            "Brightness error"
+        );
+
+    }
+
+}
+
+
+async function changeDisplayBrightness(
+    display,
+    value
+)
+{
+
+    try
+    {
+
+        const response =
+            await fetch(
+                "/api/display/brightness",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:
+                        JSON.stringify(
+                            {
+                                display:
+                                    display,
+
+                                brightness:
+                                    Number(
+                                        value
+                                    )
+                            }
+                        )
+                }
+            );
+
+
+        if (!response.ok)
+        {
+            throw new Error();
+        }
+
+    }
+    catch(error)
+    {
+
+        showMessage(
+            "Brightness error"
+        );
+
+    }
+
+}
+
+
+/* =============================================================
+   SD CARD
+   ============================================================= */
+
+
+async function loadSD()
+{
+
+    const list =
+        document.getElementById(
+            "fileList"
+        );
+
+
+    list.innerHTML =
+        '<div class="empty">Loading...</div>';
+
+
+    try
+    {
+
+        const response =
+            await fetch(
+                "/api/sd",
+                {
+                    cache: "no-store"
+                }
+            );
+
+
+        if (!response.ok)
+        {
+            throw new Error();
+        }
+
+
+        const data =
+            await response.json();
+
+
+        files =
+            Array.isArray(
+                data.files
+            )
+                ? data.files
+                : [];
+
+
+        renderFiles();
+
+        renderAudioFiles();
+
+        setConnection(
+            true
+        );
+
+    }
+    catch(error)
+    {
+
+        list.innerHTML =
+            '<div class="empty">SD unavailable</div>';
+
+    }
+
+}
+
+
+/* =============================================================
+   FILTER FILES
+   ============================================================= */
+
+
+function filterFiles()
+{
+
+    renderFiles();
+
+}
+
+
+/* =============================================================
+   RENDER FILES
+   ============================================================= */
+
+
+function renderFiles()
+{
+
+    const list =
+        document.getElementById(
+            "fileList"
+        );
+
+
+    const input =
+        document.getElementById(
+            "searchInput"
+        );
+
+
+    const query =
+        input.value
+            .toLowerCase()
+            .trim();
+
+
+    const filtered =
+        files.filter(
+            function(file)
+            {
+
+                return String(
+                    file.path
+                )
+                .toLowerCase()
+                .includes(
+                    query
+                );
+
+            }
+        );
+
+
+    if (
+        filtered.length === 0
+    )
+    {
+
+        list.innerHTML =
+            '<div class="empty">No files</div>';
+
+        return;
+
+    }
+
+
+    list.innerHTML = "";
+
+
+    filtered.forEach(
+        function(file)
+        {
+
+            const row =
+                document.createElement(
+                    "div"
+                );
+
+
+            row.className =
+                "file";
+
+
+            const path =
+                document.createElement(
+                    "div"
+                );
+
+
+            path.className =
+                "file-path";
+
+
+            path.textContent =
+                file.path;
+
+
+            const size =
+                document.createElement(
+                    "div"
+                );
+
+
+            size.className =
+                "file-size";
+
+
+            if (
+                file.type === "dir"
+            )
+            {
+
+                size.textContent =
+                    "DIR";
+
+            }
+            else
+            {
+
+                size.textContent =
+                    formatSize(
+                        Number(
+                            file.size || 0
+                        )
+                    );
+
+            }
+
+
+            row.appendChild(
+                path
+            );
+
+
+            row.appendChild(
+                size
+            );
+
+
+            list.appendChild(
+                row
+            );
+
+        }
+    );
+
+}
+
+
+/* =============================================================
+   FILE SIZE
+   ============================================================= */
+
+
+function formatSize(
+    bytes
+)
+{
+
+    if (
+        bytes < 1024
+    )
+    {
+
+        return (
+            bytes
+            + " B"
+        );
+
+    }
+
+
+    if (
+        bytes <
+        1024 * 1024
+    )
+    {
+
+        return (
+            (
+                bytes / 1024
+            ).toFixed(1)
+            + " KB"
+        );
+
+    }
+
+
+    return (
+        (
+            bytes /
+            1024 /
+            1024
+        ).toFixed(1)
+        + " MB"
+    );
+
+}
+
+
+/* =============================================================
+   AUDIO FILES
+   ============================================================= */
+
+
+function renderAudioFiles()
+{
+
+    const list =
+        document.getElementById(
+            "audioList"
+        );
+
+
+    const audioFiles =
+        files.filter(
+            function(file)
+            {
+
+                if (
+                    file.type === "dir"
+                )
+                {
+                    return false;
+                }
+
+
+                const path =
+                    String(
+                        file.path
+                    ).toLowerCase();
+
+
+                return (
+                    path.endsWith(
+                        ".wav"
+                    )
+                    ||
+                    path.endsWith(
+                        ".mp3"
+                    )
+                );
+
+            }
+        );
+
+
+    if (
+        audioFiles.length === 0
+    )
+    {
+
+        list.innerHTML =
+            '<div class="empty">No sounds</div>';
+
+        return;
+
+    }
+
+
+    list.innerHTML = "";
+
+
+    audioFiles.forEach(
+        function(file)
+        {
+
+            const row =
+                document.createElement(
+                    "div"
+                );
+
+
+            row.className =
+                "audio-row";
+
+
+            const name =
+                document.createElement(
+                    "div"
+                );
+
+
+            name.className =
+                "audio-name";
+
+
+            name.textContent =
+                file.path;
+
+
+            const button =
+                document.createElement(
+                    "button"
+                );
+
+
+            button.className =
+                "audio-play";
+
+
+            button.textContent =
+                "▶";
+
+
+            button.onclick =
+                function()
+                {
+
+                    playSound(
+                        file.path
+                    );
+
+                };
+
+
+            row.appendChild(
+                name
+            );
+
+
+            row.appendChild(
+                button
+            );
+
+
+            list.appendChild(
+                row
+            );
+
+        }
+    );
+
+}
+
+
+/* =============================================================
+   PLAY SOUND
+   ============================================================= */
+
+
+async function playSound(
+    path
+)
+{
+
+    selectedSound =
+        path;
+
+
+    try
+    {
+
+        const response =
+            await fetch(
+                "/api/audio/play",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:
+                        JSON.stringify(
+                            {
+                                path:
+                                    path
+                            }
+                        )
+                }
+            );
+
+
+        if (!response.ok)
+        {
+            throw new Error();
+        }
+
+
+        showMessage(
+            "Playing"
+        );
+
+    }
+    catch(error)
+    {
+
+        showMessage(
+            "Playback error"
+        );
+
+    }
+
+}
+
+
+/* =============================================================
+   PLAY SELECTED
+   ============================================================= */
+
+
+async function playSelectedSound()
+{
+
+    if (
+        selectedSound
+    )
+    {
+
+        await playSound(
+            selectedSound
+        );
+
+        return;
+
+    }
+
+
+    const wav =
+        files.find(
+            function(file)
+            {
+
+                if (
+                    file.type === "dir"
+                )
+                {
+                    return false;
+                }
+
+
+                return String(
+                    file.path
+                )
+                .toLowerCase()
+                .endsWith(
+                    ".wav"
+                );
+
+            }
+        );
+
+
+    if (!wav)
+    {
+
+        showMessage(
+            "No WAV files"
+        );
+
+        return;
+
+    }
+
+
+    await playSound(
+        wav.path
+    );
+
+}
+
+
+/* =============================================================
+   STOP PLAYBACK
+   ============================================================= */
+
+
+async function stopSound()
+{
+
+    try
+    {
+
+        const response =
+            await fetch(
+                "/api/audio/stop",
+                {
+                    method: "POST"
+                }
+            );
+
+
+        if (!response.ok)
+        {
+            throw new Error();
+        }
+
+
+        showMessage(
+            "Playback stopped"
+        );
+
+    }
+    catch(error)
+    {
+
+        showMessage(
+            "Stop error"
+        );
+
+    }
+
+}
+
+
+/* =============================================================
+   VOLUME
+   ============================================================= */
+
+
+async function changeVolume(
+    value
+)
+{
+
+    document.getElementById(
+        "volumeValue"
+    ).textContent =
+        value
+        + "%";
+
+
+    try
+    {
+
+        const response =
+            await fetch(
+                "/api/audio/volume",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:
+                        JSON.stringify(
+                            {
+                                volume:
+                                    Number(
+                                        value
+                                    )
+                            }
+                        )
+                }
+            );
+
+
+        if (!response.ok)
+        {
+            throw new Error();
+        }
+
+    }
+    catch(error)
+    {
+
+        showMessage(
+            "Volume error"
+        );
+
+    }
+
+}
+
+
+/* =============================================================
+   RECORD START
+   ============================================================= */
+
+
+async function startRecording()
+{
+
+    try
+    {
+
+        const response =
+            await fetch(
+                "/api/audio/record/start",
+                {
+                    method: "POST"
+                }
+            );
+
+
+        if (!response.ok)
+        {
+            throw new Error();
+        }
+
+
+        const status =
+            document.getElementById(
+                "recordStatus"
+            );
+
+
+        const text =
+            document.getElementById(
+                "recordText"
+            );
+
+
+        status.classList.add(
+            "recording"
+        );
+
+
+        text.textContent =
+            "Recording";
+
+
+        showMessage(
+            "Recording started"
+        );
+
+    }
+    catch(error)
+    {
+
+        showMessage(
+            "Microphone error"
+        );
+
+    }
+
+}
+
+
+/* =============================================================
+   RECORD STOP
+   ============================================================= */
+
+
+async function stopRecording()
+{
+
+    try
+    {
+
+        const response =
+            await fetch(
+                "/api/audio/record/stop",
+                {
+                    method: "POST"
+                }
+            );
+
+
+        if (!response.ok)
+        {
+            throw new Error();
+        }
+
+
+        const status =
+            document.getElementById(
+                "recordStatus"
+            );
+
+
+        const text =
+            document.getElementById(
+                "recordText"
+            );
+
+
+        status.classList.remove(
+            "recording"
+        );
+
+
+        text.textContent =
+            "Ready";
+
+
+        showMessage(
+            "Recording saved"
+        );
+
+
+        setTimeout(
+            function()
+            {
+
+                loadSD();
+
+            },
+            500
+        );
+
+    }
+    catch(error)
+    {
+
+        showMessage(
+            "Recording error"
+        );
+
+    }
+
+}
+
+
+/* =============================================================
+   INITIALIZATION
+   ============================================================= */
+
+
+renderTimezone();
+
+updateTime();
+
+loadSensors();
+
+loadSD();
+
+
+/* =============================================================
+   TIMERS
+   ============================================================= */
+
+
+setInterval(
+    updateTime,
+    1000
+);
+
+
+setInterval(
+    loadSensors,
+    2000
+);
+
+
+</script>
+
+
+</body>
+
+</html>
