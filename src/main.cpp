@@ -6,36 +6,21 @@
 #include "Constants.h"
 #include "Version.h"
 
-#include "./managers/SettingsManager.h"
+#include "Settings.h"
 #include "./managers/WebServerManager.h"
 
+// ============================================================
+// GLOBAL SETTINGS
+// ============================================================
+
+Settings::Data settings;
+
 
 // ============================================================
-// GLOBAL OBJECTS
+// WEB SERVER
 // ============================================================
 
-SettingsManager settings;
 WebServerManager webServer;
-
-
-// ============================================================
-// WIFI SETTINGS
-// ============================================================
-
-// УКАЖИ СВОЮ Wi-Fi СЕТЬ
-static const char* WIFI_SSID =
-    "tpl47";
-
-static const char* WIFI_PASSWORD =
-    "12713714";
-
-
-// ============================================================
-// WIFI CHECK INTERVAL
-// ============================================================
-
-static constexpr uint32_t WIFI_CHECK_INTERVAL =
-    5000;
 
 
 // ============================================================
@@ -44,258 +29,75 @@ static constexpr uint32_t WIFI_CHECK_INTERVAL =
 
 void setup()
 {
-    // --------------------------------------------------------
-    // SERIAL
-    // --------------------------------------------------------
-
     Serial.begin(115200);
 
     delay(1000);
 
     Serial.println();
-    Serial.println();
-    Serial.println(
-        "========================================"
-    );
-    Serial.println(
-        "          ESP32 SMART CLOCK"
-    );
-    Serial.println(
-        "             WEB CONTROL"
-    );
-    Serial.println(
-        "========================================"
-    );
-
-    Serial.println();
+    Serial.println("========================================");
+    Serial.println("          SMART CLOCK");
+    Serial.println("        WEB CONTROL TEST");
+    Serial.println("========================================");
 
 
-    // --------------------------------------------------------
+    // ========================================================
     // SETTINGS
-    // --------------------------------------------------------
+    // ========================================================
 
+    Serial.println("[MAIN] Settings initialized");
+
+
+    Serial.print("[MAIN] WiFi SSID: ");
+    Serial.println(settings.wifi.ssid);
+
+    Serial.print("[MAIN] Volume: ");
+    Serial.println(settings.audio.volume);
+
+    Serial.print("[MAIN] Audio: ");
     Serial.println(
-        "[MAIN] Initializing SettingsManager..."
-    );
-
-    if (!settings.begin())
-    {
-        Serial.println(
-            "[MAIN] ERROR: SettingsManager failed"
-        );
-    }
-    else
-    {
-        Serial.println(
-            "[MAIN] SettingsManager OK"
-        );
-    }
-
-
-    // --------------------------------------------------------
-    // PRINT SETTINGS
-    // --------------------------------------------------------
-
-    Serial.println();
-    Serial.println(
-        "[MAIN] Current settings"
-    );
-
-    Serial.println(
-        "----------------------------------------"
-    );
-
-    Serial.print(
-        "Volume: "
-    );
-
-    Serial.println(
-        settings.volume()
-    );
-
-
-    Serial.print(
-        "Max volume: "
-    );
-
-    Serial.println(
-        settings.maxVolume()
-    );
-
-
-    Serial.print(
-        "Audio: "
-    );
-
-    Serial.println(
-        settings.audioEnabled()
+        settings.audio.enabled
             ? "ON"
             : "OFF"
     );
 
-
-    Serial.print(
-        "Microphone: "
-    );
-
+    Serial.print("[MAIN] UTC offset: ");
     Serial.println(
-        settings.microphoneEnabled()
-            ? "ON"
-            : "OFF"
-    );
-
-
-    Serial.print(
-        "Mic auto gain: "
-    );
-
-    Serial.println(
-        settings.microphoneAutoGain()
-            ? "ON"
-            : "OFF"
-    );
-
-
-    Serial.print(
-        "Mic gain: "
-    );
-
-    Serial.println(
-        settings.microphoneGain()
-    );
-
-
-    Serial.print(
-        "Mic sensitivity: "
-    );
-
-    Serial.println(
-        settings.microphoneSensitivity()
-    );
-
-
-    Serial.print(
-        "Noise reduction: "
-    );
-
-    Serial.println(
-        settings.noiseReduction()
-            ? "ON"
-            : "OFF"
-    );
-
-
-    Serial.print(
-        "Voice detection: "
-    );
-
-    Serial.println(
-        settings.voiceDetection()
-            ? "ON"
-            : "OFF"
-    );
-
-
-    Serial.print(
-        "Wake word: "
-    );
-
-    Serial.println(
-        settings.wakeWordEnabled()
-            ? "ON"
-            : "OFF"
-    );
-
-
-    Serial.print(
-        "Display brightness: "
-    );
-
-    Serial.println(
-        settings.displayBrightness()
-    );
-
-
-    Serial.print(
-        "Timezone: "
-    );
-
-    Serial.println(
-        settings.timezone()
-    );
-
-    Serial.println(
-        "----------------------------------------"
-    );
-
-
-    // --------------------------------------------------------
-    // WEB SERVER
-    // --------------------------------------------------------
-
-    Serial.println();
-
-    Serial.println(
-        "[MAIN] Starting WebServer..."
-    );
-
-
-    if (
-        webServer.begin(
-            WIFI_SSID,
-            WIFI_PASSWORD
+        static_cast<int>(
+            settings.clock.utcOffset
         )
-    )
+    );
+
+
+    // ========================================================
+    // WIFI / WEB SERVER
+    // ========================================================
+
+    Serial.println();
+    Serial.println("[MAIN] Starting web server...");
+
+    bool webStarted =
+        webServer.begin(
+            settings.wifi.ssid.c_str(),
+            settings.wifi.password.c_str()
+        );
+
+
+    if (webStarted)
     {
         Serial.println();
-
-        Serial.println(
-            "========================================"
-        );
-
-        Serial.println(
-            "       WEB CONTROL STARTED"
-        );
-
-        Serial.println(
-            "========================================"
-        );
-
-        Serial.print(
-            "IP address: http://"
-        );
-
-        Serial.print(
-            webServer.getIP()
-        );
-
-        Serial.println(
-            "/"
-        );
-
-        Serial.println(
-            "========================================"
-        );
-
-        Serial.println();
+        Serial.println("========================================");
+        Serial.println("[MAIN] WEB SERVER READY");
+        Serial.print("[MAIN] IP: http://");
+        Serial.print(webServer.getIP());
+        Serial.println("/");
+        Serial.println("========================================");
     }
     else
     {
         Serial.println();
-
-        Serial.println(
-            "========================================"
-        );
-
-        Serial.println(
-            "       WEB SERVER ERROR"
-        );
-
-        Serial.println(
-            "========================================"
-        );
-
-        Serial.println();
+        Serial.println("========================================");
+        Serial.println("[MAIN] WEB SERVER FAILED");
+        Serial.println("========================================");
     }
 }
 
@@ -306,34 +108,25 @@ void setup()
 
 void loop()
 {
-    // --------------------------------------------------------
+    // ========================================================
     // WEB SERVER
-    // --------------------------------------------------------
+    // ========================================================
 
     webServer.update();
 
 
-    // --------------------------------------------------------
-    // WIFI MONITOR
-    // --------------------------------------------------------
+    // ========================================================
+    // WIFI STATUS
+    // ========================================================
 
     static uint32_t lastWiFiCheck = 0;
 
-    if (
-        millis() - lastWiFiCheck >=
-        WIFI_CHECK_INTERVAL
-    )
+    if (millis() - lastWiFiCheck >= 5000)
     {
         lastWiFiCheck = millis();
 
 
-        // ----------------------------------------------------
-        // CONNECTED
-        // ----------------------------------------------------
-
-        if (
-            WiFi.status() == WL_CONNECTED
-        )
+        if (WiFi.status() == WL_CONNECTED)
         {
             static bool wasConnected = false;
 
@@ -341,72 +134,27 @@ void loop()
             {
                 wasConnected = true;
 
-                Serial.println();
-
                 Serial.println(
-                    "[WIFI] Connected"
+                    "[MAIN] WiFi connected"
                 );
 
                 Serial.print(
-                    "[WIFI] SSID: "
-                );
-
-                Serial.println(
-                    WiFi.SSID()
-                );
-
-                Serial.print(
-                    "[WIFI] IP: "
+                    "[MAIN] IP: "
                 );
 
                 Serial.println(
                     WiFi.localIP()
                 );
-
-                Serial.print(
-                    "[WIFI] RSSI: "
-                );
-
-                Serial.print(
-                    WiFi.RSSI()
-                );
-
-                Serial.println(
-                    " dBm"
-                );
-
-                Serial.println();
             }
         }
-
-
-        // ----------------------------------------------------
-        // DISCONNECTED
-        // ----------------------------------------------------
-
         else
         {
-            static bool wasConnected = true;
-
-            if (wasConnected)
-            {
-                wasConnected = false;
-
-                Serial.println();
-
-                Serial.println(
-                    "[WIFI] Disconnected"
-                );
-
-                Serial.println();
-            }
+            Serial.println(
+                "[MAIN] WiFi disconnected"
+            );
         }
     }
 
-
-    // --------------------------------------------------------
-    // SMALL DELAY
-    // --------------------------------------------------------
 
     delay(2);
 }

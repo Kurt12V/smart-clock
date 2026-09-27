@@ -189,8 +189,8 @@ struct Clock
 
 struct WiFi
 {
-    String ssid = "";
-    String password = "";
+    String ssid = "tpl47";
+    String password = "12713714";
 };
 
 // ============================================================
