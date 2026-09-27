@@ -1,27 +1,27 @@
 #include <Arduino.h>
-#include <WiFi.h>
+
+// ============================================================
+// PROJECT
+// ============================================================
 
 #include "Config.h"
 #include "Pins.h"
 #include "Constants.h"
 #include "Version.h"
 
-#include "Settings.h"
+// ============================================================
+// MANAGERS
+// ============================================================
+
+#include "./managers/SettingsManager.h"
 #include "./managers/WebServerManager.h"
 
 // ============================================================
-// GLOBAL SETTINGS
+// GLOBAL OBJECTS
 // ============================================================
 
-Settings::Data settings;
-
-
-// ============================================================
-// WEB SERVER
-// ============================================================
-
+SettingsManager settings;
 WebServerManager webServer;
-
 
 // ============================================================
 // SETUP
@@ -29,78 +29,215 @@ WebServerManager webServer;
 
 void setup()
 {
-    Serial0.begin(115200);
+    // --------------------------------------------------------
+    // SERIAL
+    // --------------------------------------------------------
 
-    delay(1000);
+    Serial.begin(115200);
 
-    Serial0.println();
-    Serial0.println("========================================");
-    Serial0.println("          SMART CLOCK");
-    Serial0.println("        WEB CONTROL TEST");
-    Serial0.println("========================================");
+    delay(1500);
 
+    Serial.println();
+    Serial.println("========================================");
+    Serial.println("          SMART CLOCK");
+    Serial.println("        WEB CONTROL TEST");
+    Serial.println("========================================");
 
-    // ========================================================
+    // --------------------------------------------------------
     // SETTINGS
-    // ========================================================
+    // --------------------------------------------------------
 
-    Serial0.println("[MAIN] Settings initialized");
+    Serial.println();
+    Serial.println("[MAIN] Initializing settings...");
 
+    if (!settings.begin())
+    {
+        Serial.println(
+            "[MAIN] Settings initialization FAILED"
+        );
+    }
+    else
+    {
+        Serial.println(
+            "[MAIN] Settings initialized"
+        );
+    }
 
-    Serial0.print("[MAIN] WiFi SSID: ");
-    Serial0.println(settings.wifi.ssid);
+    // --------------------------------------------------------
+    // DISPLAY
+    // --------------------------------------------------------
 
-    Serial0.print("[MAIN] Volume: ");
-    Serial0.println(settings.audio.volume);
+    Serial.println();
 
-    Serial0.print("[MAIN] Audio: ");
-    Serial0.println(
-        settings.audio.enabled
+    Serial.print(
+        "[MAIN] Display brightness: "
+    );
+
+    Serial.println(
+        settings.displayBrightness()
+    );
+
+    // --------------------------------------------------------
+    // MATRIX
+    // --------------------------------------------------------
+
+    Serial.print(
+        "[MAIN] Matrix: "
+    );
+
+    Serial.println(
+        settings.matrixEnabled()
             ? "ON"
             : "OFF"
     );
 
-    Serial0.print("[MAIN] UTC offset: ");
-    Serial0.println(
+    Serial.print(
+        "[MAIN] Matrix brightness: "
+    );
+
+    Serial.println(
+        settings.matrixBrightness()
+    );
+
+    // --------------------------------------------------------
+    // COB
+    // --------------------------------------------------------
+
+    Serial.print(
+        "[MAIN] COB: "
+    );
+
+    Serial.println(
+        settings.cobEnabled()
+            ? "ON"
+            : "OFF"
+    );
+
+    Serial.print(
+        "[MAIN] COB brightness 1: "
+    );
+
+    Serial.println(
+        settings.cobBrightness1()
+    );
+
+    Serial.print(
+        "[MAIN] COB brightness 2: "
+    );
+
+    Serial.println(
+        settings.cobBrightness2()
+    );
+
+    Serial.print(
+        "[MAIN] COB brightness 3: "
+    );
+
+    Serial.println(
+        settings.cobBrightness3()
+    );
+
+    Serial.print(
+        "[MAIN] COB brightness 4: "
+    );
+
+    Serial.println(
+        settings.cobBrightness4()
+    );
+
+    // --------------------------------------------------------
+    // AUDIO
+    // --------------------------------------------------------
+
+    Serial.print(
+        "[MAIN] Volume: "
+    );
+
+    Serial.println(
+        settings.volume()
+    );
+
+    // --------------------------------------------------------
+    // MICROPHONE
+    // --------------------------------------------------------
+
+    Serial.print(
+        "[MAIN] Microphone: "
+    );
+
+    Serial.println(
+        settings.microphoneEnabled()
+            ? "ON"
+            : "OFF"
+    );
+
+    // --------------------------------------------------------
+    // CLOCK
+    // --------------------------------------------------------
+
+    Serial.print(
+        "[MAIN] UTC offset: "
+    );
+
+    Serial.println(
         static_cast<int>(
-            settings.clock.utcOffset
+            settings.utcOffset()
         )
     );
 
+    // --------------------------------------------------------
+    // WIFI
+    // --------------------------------------------------------
 
-    // ========================================================
-    // WIFI / WEB SERVER
-    // ========================================================
+    Serial.println();
 
-    Serial0.println();
-    Serial0.println("[MAIN] Starting web server...");
+    Serial.print(
+        "[MAIN] WiFi SSID: "
+    );
 
-    bool webStarted =
-        webServer.begin(
-            settings.wifi.ssid.c_str(),
-            settings.wifi.password.c_str()
-        );
+    Serial.println(
+        settings.wifiSSID()
+    );
 
+    // --------------------------------------------------------
+    // WEB SERVER
+    // --------------------------------------------------------
+
+    Serial.println();
+    Serial.println(
+        "[MAIN] Starting web server..."
+    );
+
+    bool webStarted = webServer.begin(
+        settings.wifiSSID(),
+        settings.wifiPassword()
+    );
 
     if (webStarted)
     {
-        Serial0.println();
-        Serial0.println("========================================");
-        Serial0.println("[MAIN] WEB SERVER READY");
-        Serial0.print("[MAIN] IP: http://");
-        Serial0.print(webServer.getIP());
-        Serial0.println("/");
-        Serial0.println("========================================");
+        Serial.println();
+        Serial.println("========================================");
+        Serial.println("        WEB SERVER SUCCESS");
+        Serial.println("========================================");
+
+        Serial.print(
+            "[MAIN] Open in browser: http://"
+        );
+
+        Serial.println(
+            webServer.getIP()
+        );
     }
     else
     {
-        Serial0.println();
-        Serial0.println("========================================");
-        Serial0.println("[MAIN] WEB SERVER FAILED");
-        Serial0.println("========================================");
+        Serial.println();
+        Serial.println("========================================");
+        Serial.println("        WEB SERVER FAILED");
+        Serial.println("========================================");
     }
-}
 
+    Serial.println();
+}
 
 // ============================================================
 // LOOP
@@ -108,53 +245,53 @@ void setup()
 
 void loop()
 {
-    // ========================================================
+    // --------------------------------------------------------
     // WEB SERVER
-    // ========================================================
+    // --------------------------------------------------------
 
     webServer.update();
 
-
-    // ========================================================
+    // --------------------------------------------------------
     // WIFI STATUS
-    // ========================================================
+    // --------------------------------------------------------
 
     static uint32_t lastWiFiCheck = 0;
 
-    if (millis() - lastWiFiCheck >= 5000)
+    if (
+        millis() - lastWiFiCheck >= 5000
+    )
     {
         lastWiFiCheck = millis();
 
-
         if (WiFi.status() == WL_CONNECTED)
         {
-            static bool wasConnected = false;
+            Serial.print(
+                "[MAIN] WiFi connected | IP: "
+            );
 
-            if (!wasConnected)
-            {
-                wasConnected = true;
+            Serial.print(
+                WiFi.localIP()
+            );
 
-                Serial0.println(
-                    "[MAIN] WiFi connected"
-                );
+            Serial.print(
+                " | RSSI: "
+            );
 
-                Serial0.print(
-                    "[MAIN] IP: "
-                );
-
-                Serial0.println(
-                    WiFi.localIP()
-                );
-            }
+            Serial.println(
+                WiFi.RSSI()
+            );
         }
         else
         {
-            Serial0.println(
-                "[MAIN] WiFi disconnected"
+            Serial.print(
+                "[MAIN] WiFi disconnected | status: "
+            );
+
+            Serial.println(
+                WiFi.status()
             );
         }
     }
 
-
-    delay(2);
+    delay(10);
 }

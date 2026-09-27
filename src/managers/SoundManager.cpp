@@ -53,20 +53,12 @@ bool SoundManager::begin()
 
     Serial0.println("[SOUND] SD ready");
 
-    Serial0.printf(
-        "[SOUND] Enabled: %s\n",
-        _settings.enabled ? "YES" : "NO"
-    );
 
     Serial0.printf(
         "[SOUND] Global volume: %u\n",
         _settings.volume
     );
 
-    Serial0.printf(
-        "[SOUND] Sample rate setting: %u kHz\n",
-        _settings.sampleRate
-    );
 
     Serial0.println("[SOUND] Checking I2SManager...");
 
@@ -177,15 +169,6 @@ bool SoundManager::playWavLocal(
     {
         Serial0.println(
             "[SOUND] ERROR: SoundManager not initialized"
-        );
-
-        return false;
-    }
-
-    if (!_settings.enabled)
-    {
-        Serial0.println(
-            "[SOUND] ERROR: audio disabled in settings"
         );
 
         return false;

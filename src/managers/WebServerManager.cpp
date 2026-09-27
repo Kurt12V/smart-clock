@@ -1,12 +1,10 @@
 #include "WebServerManager.h"
 
-
 WebServerManager::WebServerManager()
     : _server(80),
       _initialized(false)
 {
 }
-
 
 // ============================================================
 // BEGIN
@@ -17,86 +15,145 @@ bool WebServerManager::begin(
     const char* password
 )
 {
-    Serial.println();
-    Serial.println("[WEB] Starting Wi-Fi...");
+    Serial0.println();
+    Serial0.println("========================================");
+    Serial0.println("          WEB SERVER START");
+    Serial0.println("========================================");
+
+    // --------------------------------------------------------
+    // WIFI
+    // --------------------------------------------------------
+
+    Serial0.println("[WEB] Setting WiFi mode: STA");
 
     WiFi.mode(WIFI_STA);
+
+    // Полностью очищаем старое состояние подключения
+    WiFi.disconnect(true, true);
+    delay(500);
+
+    Serial0.print("[WEB] SSID: ");
+    Serial0.println(ssid);
+
+    Serial0.println("[WEB] Starting WiFi connection...");
 
     WiFi.begin(
         ssid,
         password
     );
 
-    Serial.print("[WEB] Connecting");
-
     uint32_t startTime = millis();
 
     while (
         WiFi.status() != WL_CONNECTED &&
-        millis() - startTime < 15000
+        millis() - startTime < 20000
     )
     {
-        delay(300);
+        delay(500);
 
-        Serial.print(".");
+        Serial0.print("[WEB] WiFi status: ");
+        Serial0.println(WiFi.status());
     }
 
-    Serial.println();
+    // --------------------------------------------------------
+    // CHECK WIFI
+    // --------------------------------------------------------
 
     if (WiFi.status() != WL_CONNECTED)
     {
-        Serial.println(
-            "[WEB] Wi-Fi connection failed"
-        );
+        Serial0.println();
+        Serial0.println("[WEB] ====================================");
+        Serial0.println("[WEB] WIFI CONNECTION FAILED");
+        Serial0.println("[WEB] ====================================");
+
+        Serial0.print("[WEB] Status code: ");
+        Serial0.println(WiFi.status());
+
+        Serial0.print("[WEB] SSID: ");
+        Serial0.println(WiFi.SSID());
+
+        Serial0.print("[WEB] RSSI: ");
+        Serial0.println(WiFi.RSSI());
 
         return false;
     }
 
-    Serial.println(
-        "[WEB] Wi-Fi connected"
-    );
+    Serial0.println();
+    Serial0.println("[WEB] WiFi connected!");
 
-    Serial.print(
-        "[WEB] IP: "
-    );
+    Serial0.print("[WEB] IP address: ");
+    Serial0.println(WiFi.localIP());
 
-    Serial.println(
-        WiFi.localIP()
-    );
+    Serial0.print("[WEB] Gateway: ");
+    Serial0.println(WiFi.gatewayIP());
 
+    Serial0.print("[WEB] Subnet: ");
+    Serial0.println(WiFi.subnetMask());
 
-    // ========================================================
+    Serial0.print("[WEB] RSSI: ");
+    Serial0.println(WiFi.RSSI());
+
+    // --------------------------------------------------------
     // LITTLEFS
-    // ========================================================
+    // --------------------------------------------------------
+
+    Serial0.println();
+    Serial0.println("[WEB] Mounting LittleFS...");
 
     if (!LittleFS.begin(true))
     {
-        Serial.println(
-            "[WEB] LittleFS mount failed"
+        Serial0.println(
+            "[WEB] LittleFS mount FAILED"
         );
 
         return false;
     }
 
-    Serial.println(
+    Serial0.println(
         "[WEB] LittleFS mounted"
     );
 
+    // Проверяем index.html
+    if (LittleFS.exists("/index.html"))
+    {
+        Serial0.println(
+            "[WEB] /index.html found"
+        );
+    }
+    else
+    {
+        Serial0.println(
+            "[WEB] WARNING: /index.html NOT FOUND"
+        );
+    }
+
+    // --------------------------------------------------------
+    // ROUTES
+    // --------------------------------------------------------
 
     setupRoutes();
 
+    // --------------------------------------------------------
+    // HTTP SERVER
+    // --------------------------------------------------------
 
     _server.begin();
 
-    Serial.println(
-        "[WEB] HTTP server started"
-    );
+    Serial0.println();
+    Serial0.println("[WEB] HTTP server started");
+
+    Serial0.print("[WEB] Open in browser: http://");
+    Serial0.println(WiFi.localIP());
 
     _initialized = true;
 
+    Serial0.println();
+    Serial0.println("========================================");
+    Serial0.println("          WEB SERVER READY");
+    Serial0.println("========================================");
+
     return true;
 }
-
 
 // ============================================================
 // ROUTES
@@ -104,6 +161,10 @@ bool WebServerManager::begin(
 
 void WebServerManager::setupRoutes()
 {
+    // --------------------------------------------------------
+    // ROOT
+    // --------------------------------------------------------
+
     _server.on(
         "/",
         HTTP_GET,
@@ -113,6 +174,9 @@ void WebServerManager::setupRoutes()
         }
     );
 
+    // --------------------------------------------------------
+    // NOT FOUND
+    // --------------------------------------------------------
 
     _server.onNotFound(
         [this]()
@@ -121,7 +185,6 @@ void WebServerManager::setupRoutes()
         }
     );
 }
-
 
 // ============================================================
 // ROOT
@@ -140,13 +203,10 @@ void WebServerManager::handleRoot()
         return;
     }
 
-
-    File file =
-        LittleFS.open(
-            "/index.html",
-            "r"
-        );
-
+    File file = LittleFS.open(
+        "/index.html",
+        "r"
+    );
 
     if (!file)
     {
@@ -159,16 +219,13 @@ void WebServerManager::handleRoot()
         return;
     }
 
-
     _server.streamFile(
         file,
         "text/html"
     );
 
-
     file.close();
 }
-
 
 // ============================================================
 // NOT FOUND
@@ -176,13 +233,15 @@ void WebServerManager::handleRoot()
 
 void WebServerManager::handleNotFound()
 {
+    Serial0.print("[WEB] 404: ");
+    Serial0.println(_server.uri());
+
     _server.send(
         404,
         "text/plain",
         "404 - Not Found"
     );
 }
-
 
 // ============================================================
 // UPDATE
@@ -196,9 +255,8 @@ void WebServerManager::update()
     _server.handleClient();
 }
 
-
 // ============================================================
-// STATUS
+// CONNECTION
 // ============================================================
 
 bool WebServerManager::isConnected() const
@@ -206,12 +264,14 @@ bool WebServerManager::isConnected() const
     return WiFi.status() == WL_CONNECTED;
 }
 
-
 // ============================================================
 // IP
 // ============================================================
 
 String WebServerManager::getIP() const
 {
+    if (WiFi.status() != WL_CONNECTED)
+        return String("0.0.0.0");
+
     return WiFi.localIP().toString();
 }
