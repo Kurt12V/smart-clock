@@ -1,106 +1,106 @@
-#pragma once
+// #pragma once
 
-#include <Arduino.h>
+// #include <Arduino.h>
 
-#include "Settings.h"
+// #include "Settings.h"
 
-// ============================================================
-// CORE SYSTEMS
-// ============================================================
+// // ============================================================
+// // CORE SYSTEMS
+// // ============================================================
 
-#include "./core/ClockSystem.h"
-#include "./core/DisplaySystem.h"
-#include "./core/BluetoothSystem.h"
+// #include "./core/ClockSystem.h"
+// #include "./core/DisplaySystem.h"
+// #include "./core/BluetoothSystem.h"
 
-// ============================================================
-// MANAGERS
-// ============================================================
+// // ============================================================
+// // MANAGERS
+// // ============================================================
 
-#include "./managers/SensorsManager.h"
-#include "./managers/InputManager.h"
-#include "./managers/SPIManager.h"
-#include "./managers/I2SManager.h"
-#include "./managers/SDManager.h"
-#include "./managers/SoundManager.h"
+// #include "./managers/SensorsManager.h"
+// #include "./managers/InputManager.h"
+// #include "./managers/SPIManager.h"
+// #include "./managers/I2SManager.h"
+// #include "./managers/SDManager.h"
+// #include "./managers/SoundManager.h"
 
-// ============================================================
-// APP
-// ============================================================
+// // ============================================================
+// // APP
+// // ============================================================
 
-class App
-{
-public:
+// class App
+// {
+// public:
 
-    App();
+//     App();
 
-    bool begin();
-    void update();
+//     bool begin();
+//     void update();
 
-    bool isReady() const;
+//     bool isReady() const;
 
-private:
+// private:
 
-    // ========================================================
-    // INITIALIZATION
-    // ========================================================
+//     // ========================================================
+//     // INITIALIZATION
+//     // ========================================================
 
-    bool initSPI();
-    bool initI2S();
-    bool initSD();
-    bool initSound();
+//     bool initSPI();
+//     bool initI2S();
+//     bool initSD();
+//     bool initSound();
 
-    bool initClock();
-    bool initSensors();
+//     bool initClock();
+//     bool initSensors();
 
-    bool initDisplay();
-    bool initInput();
+//     bool initDisplay();
+//     bool initInput();
 
-    bool initBluetooth();
+//     bool initBluetooth();
 
-    // ========================================================
-    // STATE
-    // ========================================================
+//     // ========================================================
+//     // STATE
+//     // ========================================================
 
-    bool _ready;
+//     bool _ready;
 
-    // ========================================================
-    // SETTINGS
-    // ========================================================
+//     // ========================================================
+//     // SETTINGS
+//     // ========================================================
 
-    Settings::Clock _clockSettings;
-    Settings::Audio _audioSettings;
+//     Settings::Clock _clockSettings;
+//     Settings::Audio _audioSettings;
 
-    // ========================================================
-    // MANAGERS
-    // ========================================================
+//     // ========================================================
+//     // MANAGERS
+//     // ========================================================
 
-    SPIManager _spiManager;
-    I2SManager _i2sManager;
-    SDManager _sdManager;
+//     SPIManager _spiManager;
+//     I2SManager _i2sManager;
+//     SDManager _sdManager;
 
-    SoundManager _soundManager;
+//     SoundManager _soundManager;
 
-    InputManager _inputManager;
-    SensorManager _sensorManager;
+//     InputManager _inputManager;
+//     SensorManager _sensorManager;
 
-    // ========================================================
-    // CORE SYSTEMS
-    // ========================================================
+//     // ========================================================
+//     // CORE SYSTEMS
+//     // ========================================================
 
-    ClockSystem _clockSystem;
+//     ClockSystem _clockSystem;
 
-    DisplaySystem _displaySystem;
+//     DisplaySystem _displaySystem;
 
-    // ========================================================
-    // BLUETOOTH SYSTEM
-    // ========================================================
+//     // ========================================================
+//     // BLUETOOTH SYSTEM
+//     // ========================================================
 
-    BluetoothSystem _bluetoothSystem;
+//     BluetoothSystem _bluetoothSystem;
 
-    // ========================================================
-    // STARTUP SOUND
-    // ========================================================
+//     // ========================================================
+//     // STARTUP SOUND
+//     // ========================================================
 
-    static constexpr const char* STARTUP_SOUND =
-        "/audio/system/START_SYSTEM.wav";
-};
+//     static constexpr const char* STARTUP_SOUND =
+//         "/audio/system/START_SYSTEM.wav";
+// };

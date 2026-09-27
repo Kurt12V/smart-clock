@@ -32,10 +32,7 @@ struct Matrix
 struct CobLed
 {
     bool enabled = true;
-    uint8_t brightness1 = 100;
-    uint8_t brightness2 = 100;
-    uint8_t brightness3 = 100;
-    uint8_t brightness4 = 100;
+    uint8_t brightness = 100;
 };
 
 // ============================================================

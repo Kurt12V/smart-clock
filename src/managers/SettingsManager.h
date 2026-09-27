@@ -2,8 +2,34 @@
 
 #include <Arduino.h>
 #include <Preferences.h>
+#include "Config.h"
 
-#include "Settings.h"
+// ============================================================
+// PARAM ID
+// ============================================================
+
+enum class Param : uint8_t
+{
+    DisplayBrightness1 = 0,
+    DisplayBrightness2,
+    DisplayBrightness3,
+    DisplayBrightness4,
+
+    MatrixEnabled,
+    MatrixBrightness,
+
+    CobEnabled,
+    CobBrightness1,
+    CobBrightness2,
+    CobBrightness3,
+    CobBrightness4,
+
+    AudioVolume,
+    MicrophoneEnabled,
+    UtcOffset,
+
+    COUNT
+};
 
 // ============================================================
 // SETTINGS MANAGER
@@ -15,114 +41,33 @@ public:
 
     SettingsManager();
 
-    // ========================================================
-    // LIFECYCLE
-    // ========================================================
-
     bool begin();
-    void load();
-    void save();
-    void reset();
 
+    // ------------------------------------
+    // generic API
+    // ------------------------------------
 
-    // ========================================================
-    // DISPLAY
-    // ========================================================
+    int  get(Param p) const;
+    bool set(Param p, int value);        // clamp по Config
+    bool save(Param p);                  // RAM -> Preferences
+    bool load(Param p);                  // Preferences -> RAM
 
-    void setDisplayBrightness(uint8_t brightness);
-    uint8_t displayBrightness() const;
+    bool loadAll();
+    bool saveAll();
+    void resetAll();
 
+    // ------------------------------------
+    // names (для web API)
+    // ------------------------------------
 
-    // ========================================================
-    // MATRIX
-    // ========================================================
-
-    void setMatrixEnabled(bool enabled);
-    bool matrixEnabled() const;
-
-    void setMatrixBrightness(uint8_t brightness);
-    uint8_t matrixBrightness() const;
-
-
-    // ========================================================
-    // COB LED
-    // ========================================================
-
-    void setCobEnabled(bool enabled);
-    bool cobEnabled() const;
-
-    void setCobBrightness1(uint8_t brightness);
-    uint8_t cobBrightness1() const;
-
-    void setCobBrightness2(uint8_t brightness);
-    uint8_t cobBrightness2() const;
-
-    void setCobBrightness3(uint8_t brightness);
-    uint8_t cobBrightness3() const;
-
-    void setCobBrightness4(uint8_t brightness);
-    uint8_t cobBrightness4() const;
-
-
-    // ========================================================
-    // AUDIO
-    // ========================================================
-
-    void setVolume(uint8_t volume);
-    uint8_t volume() const;
-
-
-    // ========================================================
-    // MICROPHONE
-    // ========================================================
-
-    void setMicrophoneEnabled(bool enabled);
-    bool microphoneEnabled() const;
-
-
-    // ========================================================
-    // CLOCK
-    // ========================================================
-
-    void setUtcOffset(Constants::UtcOffset offset);
-    Constants::UtcOffset utcOffset() const;
-
-
-    // ========================================================
-    // WIFI
-    // ========================================================
-
-    void setWiFiSSID(const char* ssid);
-    const char* wifiSSID() const;
-
-    void setWiFiPassword(const char* password);
-    const char* wifiPassword() const;
-
-
-    // ========================================================
-    // DATA
-    // ========================================================
-
-    Settings::Data& data();
-    const Settings::Data& data() const;
-
+    static const char* paramName(Param p);
+    static bool        paramFromName(const char* name, Param& out);
 
 private:
 
-    // ========================================================
-    // STORAGE
-    // ========================================================
-
     Preferences _preferences;
+    int         _values[static_cast<size_t>(Param::COUNT)];
+    bool        _initialized;
 
-    bool _initialized;
-
-    Settings::Data _settings;
-
-
-    // ========================================================
-    // HELPERS
-    // ========================================================
-
-    void loadDefaults();
+    void applyDefaults();
 };

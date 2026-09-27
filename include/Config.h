@@ -4,6 +4,33 @@
 #include "Pins.h"   // GPIO определения
 
 // ============================================================
+// DEFAULTS / LIMITS (используются в ParamDesc)
+// ============================================================
+
+namespace Config
+{
+    // Matrix
+    constexpr bool    MATRIX_ENABLED_DEFAULT    = true;
+    constexpr uint8_t MATRIX_BRIGHTNESS_MIN     = 0;
+    constexpr uint8_t MATRIX_BRIGHTNESS_MAX     = 100;
+    constexpr uint8_t MATRIX_BRIGHTNESS_DEFAULT = 50;
+
+    // COB
+    constexpr bool    COB_ENABLED_DEFAULT    = true;
+    constexpr uint8_t COB_BRIGHTNESS_MIN     = 0;
+    constexpr uint8_t COB_BRIGHTNESS_MAX     = 100;
+    constexpr uint8_t COB_BRIGHTNESS_DEFAULT = 100;
+
+    // Microphone
+    constexpr bool MIC_ENABLED_DEFAULT = true;
+
+    // Clock
+    constexpr int8_t UTC_OFFSET_MIN     = -12;
+    constexpr int8_t UTC_OFFSET_MAX     = 14;
+    constexpr int8_t UTC_OFFSET_DEFAULT = 3;
+}
+
+// ============================================================
 // SYSTEM
 // ============================================================
 
