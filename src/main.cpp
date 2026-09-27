@@ -29,39 +29,39 @@ WebServerManager webServer;
 
 void setup()
 {
-    Serial.begin(115200);
+    Serial0.begin(115200);
 
     delay(1000);
 
-    Serial.println();
-    Serial.println("========================================");
-    Serial.println("          SMART CLOCK");
-    Serial.println("        WEB CONTROL TEST");
-    Serial.println("========================================");
+    Serial0.println();
+    Serial0.println("========================================");
+    Serial0.println("          SMART CLOCK");
+    Serial0.println("        WEB CONTROL TEST");
+    Serial0.println("========================================");
 
 
     // ========================================================
     // SETTINGS
     // ========================================================
 
-    Serial.println("[MAIN] Settings initialized");
+    Serial0.println("[MAIN] Settings initialized");
 
 
-    Serial.print("[MAIN] WiFi SSID: ");
-    Serial.println(settings.wifi.ssid);
+    Serial0.print("[MAIN] WiFi SSID: ");
+    Serial0.println(settings.wifi.ssid);
 
-    Serial.print("[MAIN] Volume: ");
-    Serial.println(settings.audio.volume);
+    Serial0.print("[MAIN] Volume: ");
+    Serial0.println(settings.audio.volume);
 
-    Serial.print("[MAIN] Audio: ");
-    Serial.println(
+    Serial0.print("[MAIN] Audio: ");
+    Serial0.println(
         settings.audio.enabled
             ? "ON"
             : "OFF"
     );
 
-    Serial.print("[MAIN] UTC offset: ");
-    Serial.println(
+    Serial0.print("[MAIN] UTC offset: ");
+    Serial0.println(
         static_cast<int>(
             settings.clock.utcOffset
         )
@@ -72,8 +72,8 @@ void setup()
     // WIFI / WEB SERVER
     // ========================================================
 
-    Serial.println();
-    Serial.println("[MAIN] Starting web server...");
+    Serial0.println();
+    Serial0.println("[MAIN] Starting web server...");
 
     bool webStarted =
         webServer.begin(
@@ -84,20 +84,20 @@ void setup()
 
     if (webStarted)
     {
-        Serial.println();
-        Serial.println("========================================");
-        Serial.println("[MAIN] WEB SERVER READY");
-        Serial.print("[MAIN] IP: http://");
-        Serial.print(webServer.getIP());
-        Serial.println("/");
-        Serial.println("========================================");
+        Serial0.println();
+        Serial0.println("========================================");
+        Serial0.println("[MAIN] WEB SERVER READY");
+        Serial0.print("[MAIN] IP: http://");
+        Serial0.print(webServer.getIP());
+        Serial0.println("/");
+        Serial0.println("========================================");
     }
     else
     {
-        Serial.println();
-        Serial.println("========================================");
-        Serial.println("[MAIN] WEB SERVER FAILED");
-        Serial.println("========================================");
+        Serial0.println();
+        Serial0.println("========================================");
+        Serial0.println("[MAIN] WEB SERVER FAILED");
+        Serial0.println("========================================");
     }
 }
 
@@ -134,22 +134,22 @@ void loop()
             {
                 wasConnected = true;
 
-                Serial.println(
+                Serial0.println(
                     "[MAIN] WiFi connected"
                 );
 
-                Serial.print(
+                Serial0.print(
                     "[MAIN] IP: "
                 );
 
-                Serial.println(
+                Serial0.println(
                     WiFi.localIP()
                 );
             }
         }
         else
         {
-            Serial.println(
+            Serial0.println(
                 "[MAIN] WiFi disconnected"
             );
         }
