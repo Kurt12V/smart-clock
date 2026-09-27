@@ -18,22 +18,41 @@ BluetoothSystem::BluetoothSystem(
 {
 }
 
+// ============================================================
+// BEGIN
+// ============================================================
+
 bool BluetoothSystem::begin()
 {
     if (_initialized)
         return true;
 
-    Serial.println(
+    Serial0.println();
+    Serial0.println(
+        "================================"
+    );
+    Serial0.println(
         "[BT SYSTEM] Starting..."
+    );
+    Serial0.println(
+        "================================"
     );
 
     // --------------------------------------------------------
-    // Bluetooth
+    // SUBSCRIPTION MANAGER
+    // --------------------------------------------------------
+
+    _bluetooth.setSubscriptionManager(
+        _subscriptions
+    );
+
+    // --------------------------------------------------------
+    // BLUETOOTH / NIMBLE
     // --------------------------------------------------------
 
     if (!_bluetooth.begin())
     {
-        Serial.println(
+        Serial0.println(
             "[BT SYSTEM] Bluetooth failed"
         );
 
@@ -41,20 +60,12 @@ bool BluetoothSystem::begin()
     }
 
     // --------------------------------------------------------
-    // Subscription manager
-    // --------------------------------------------------------
-
-    _bluetooth.setSubscriptionManager(
-        &_subscriptions
-    );
-
-    // --------------------------------------------------------
-    // Publisher
+    // PUBLISHER
     // --------------------------------------------------------
 
     if (!_publisher.begin())
     {
-        Serial.println(
+        Serial0.println(
             "[BT SYSTEM] Publisher failed"
         );
 
@@ -63,37 +74,64 @@ bool BluetoothSystem::begin()
 
     _initialized = true;
 
-    Serial.println(
+    Serial0.println(
         "[BT SYSTEM] Ready"
     );
 
+    Serial0.println();
+
     return true;
 }
+
+// ============================================================
+// UPDATE
+// ============================================================
 
 void BluetoothSystem::update()
 {
     if (!_initialized)
         return;
 
-    // BLE callbacks
+    // --------------------------------------------------------
+    // BLE
+    // --------------------------------------------------------
+
     _bluetooth.update();
 
-    // Android -> ESP32
+    // --------------------------------------------------------
+    // ANDROID -> ESP32
+    // --------------------------------------------------------
+
     processCommand();
 
-    // ESP32 -> Android
+    // --------------------------------------------------------
+    // ESP32 -> ANDROID
+    // --------------------------------------------------------
+
     _publisher.update();
 }
+
+// ============================================================
+// READY
+// ============================================================
 
 bool BluetoothSystem::isReady() const
 {
     return _initialized;
 }
 
+// ============================================================
+// CONNECTED
+// ============================================================
+
 bool BluetoothSystem::isConnected() const
 {
     return _bluetooth.isConnected();
 }
+
+// ============================================================
+// BLUETOOTH
+// ============================================================
 
 BluetoothManager&
 BluetoothSystem::bluetooth()
@@ -101,11 +139,19 @@ BluetoothSystem::bluetooth()
     return _bluetooth;
 }
 
+// ============================================================
+// SUBSCRIPTIONS
+// ============================================================
+
 BluetoothSubscriptionManager&
 BluetoothSystem::subscriptions()
 {
     return _subscriptions;
 }
+
+// ============================================================
+// PUBLISHER
+// ============================================================
 
 BluetoothPublisher&
 BluetoothSystem::publisher()
@@ -122,16 +168,35 @@ void BluetoothSystem::processCommand()
     if (!_bluetooth.hasCommand())
         return;
 
+    // --------------------------------------------------------
+    // GET COMMAND
+    // --------------------------------------------------------
+
     String message =
         _bluetooth.getCommand();
 
+    if (message.isEmpty())
+        return;
+
+    Serial0.print(
+        "[BT SYSTEM] Processing: "
+    );
+
+    Serial0.println(
+        message
+    );
+
     // --------------------------------------------------------
-    // JSON document
+    // JSON DOCUMENT
     // --------------------------------------------------------
 
     JsonDocument document;
 
     BluetoothProtocol::Request request;
+
+    // --------------------------------------------------------
+    // PARSE
+    // --------------------------------------------------------
 
     if (!BluetoothProtocol::parse(
         message,
@@ -139,6 +204,10 @@ void BluetoothSystem::processCommand()
         request
     ))
     {
+        Serial0.println(
+            "[BT SYSTEM] Invalid request"
+        );
+
         String error =
             BluetoothProtocol::error(
                 0,
@@ -146,30 +215,48 @@ void BluetoothSystem::processCommand()
                 "Invalid Bluetooth request"
             );
 
-        _bluetooth.send(error);
+        _bluetooth.send(
+            error
+        );
 
         return;
     }
 
     // --------------------------------------------------------
-    // Command
+    // COMMAND
     // --------------------------------------------------------
 
     String response;
 
-    BluetoothCommands_handle(
-        request,
-        _subscriptions,
-        response
-    );
+    const bool success =
+        BluetoothCommands_handle(
+            request,
+            _subscriptions,
+            response
+        );
+
+    // --------------------------------------------------------
+    // RESPONSE
+    // --------------------------------------------------------
 
     if (!response.isEmpty())
     {
-        _bluetooth.send(response);
+        _bluetooth.send(
+            response
+        );
     }
 
     // --------------------------------------------------------
-    // Immediate snapshots
+    // COMMAND FAILED
+    // --------------------------------------------------------
+
+    if (!success)
+    {
+        return;
+    }
+
+    // --------------------------------------------------------
+    // IMMEDIATE SNAPSHOTS
     // --------------------------------------------------------
 
     if (
@@ -183,8 +270,9 @@ void BluetoothSystem::processCommand()
         if (topic == nullptr)
             return;
 
-        // После subscribe сразу отправляем
-        // актуальное состояние.
+        // ----------------------------------------------------
+        // SENSORS
+        // ----------------------------------------------------
 
         if (
             strcmp(
@@ -195,6 +283,11 @@ void BluetoothSystem::processCommand()
         {
             _publisher.publishSensors();
         }
+
+        // ----------------------------------------------------
+        // CLOCK
+        // ----------------------------------------------------
+
         else if (
             strcmp(
                 topic,
@@ -204,6 +297,11 @@ void BluetoothSystem::processCommand()
         {
             _publisher.publishClock();
         }
+
+        // ----------------------------------------------------
+        // SYSTEM
+        // ----------------------------------------------------
+
         else if (
             strcmp(
                 topic,
@@ -213,6 +311,18 @@ void BluetoothSystem::processCommand()
         {
             _publisher.publishSystem();
         }
+
+        // ----------------------------------------------------
+        // OTHER TOPICS
+        // ----------------------------------------------------
+        //
+        // They can be added later:
+        //
+        // ALARMS
+        // LIGHT
+        // SOUND
+        // TIMER
+        // STOPWATCH
+        //
     }
 }
-

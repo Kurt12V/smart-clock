@@ -293,9 +293,16 @@ bool App::initSound()
         "[INIT] SoundManager OK"
     );
 
-    // --------------------------------------------------------
-    // Startup sound
-    // --------------------------------------------------------
+    // ========================================================
+    // STARTUP SOUND
+    //
+    // ВАЖНО:
+    // Startup sound запускается ТОЛЬКО здесь.
+    //
+    // App::update() его НЕ запускает.
+    // При каждом update() вызывается только
+    // _soundManager.update().
+    // ========================================================
 
     Serial0.println(
         "[INIT] Starting startup sound..."
@@ -430,6 +437,26 @@ bool App::initInput()
 bool App::initBluetooth()
 {
     // ========================================================
+    // SUBSCRIPTION MANAGER
+    //
+    // BluetoothManager должен получить ссылку именно
+    // на тот экземпляр, который используется
+    // BluetoothPublisher.
+    // ========================================================
+
+    Serial0.println(
+        "[INIT] BluetoothSubscriptionManager..."
+    );
+
+    _bluetoothManager.attachSubscriptionManager(
+        _bluetoothSubscriptions
+    );
+
+    Serial0.println(
+        "[INIT] BluetoothSubscriptionManager ATTACHED"
+    );
+
+    // ========================================================
     // BLUETOOTH MANAGER
     // ========================================================
 
@@ -482,6 +509,11 @@ void App::update()
 {
     // ========================================================
     // SOUND
+    //
+    // Здесь НЕ запускается startup sound.
+    //
+    // update() только обслуживает уже запущенное
+    // воспроизведение.
     // ========================================================
 
     _soundManager.update();

@@ -1,93 +1,47 @@
 #pragma once
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
+#include <NimBLEDevice.h>
 
-#include <BLEDevice.h>
-#include <BLEServer.h>
-#include <BLEUtils.h>
-#include <BLE2902.h>
-
-class BluetoothManager;
-class BluetoothSubscriptionManager;
+#include "BluetoothSubscriptionManager.h"
 
 // ============================================================
-// SERVER CALLBACKS
+// UUID
 // ============================================================
 
-class BluetoothServerCallbacks : public BLEServerCallbacks
+#define SMARTCLOCK_BLE_SERVICE_UUID \
+    "7A1F0001-5C3A-4D8B-9E21-123456789001"
+
+#define SMARTCLOCK_BLE_RX_UUID \
+    "7A1F0002-5C3A-4D8B-9E21-123456789001"
+
+#define SMARTCLOCK_BLE_TX_UUID \
+    "7A1F0003-5C3A-4D8B-9E21-123456789001"
+
+// ============================================================
+// CONFIG
+// ============================================================
+
+static constexpr size_t BLUETOOTH_COMMAND_SIZE = 1024;
+
+// ============================================================
+// STATE
+// ============================================================
+
+enum class BluetoothConnectionState : uint8_t
 {
-public:
-    explicit BluetoothServerCallbacks(
-        BluetoothManager& manager
-    );
-
-    void onConnect(
-        BLEServer* server
-    ) override;
-
-    void onDisconnect(
-        BLEServer* server
-    ) override;
-
-private:
-    BluetoothManager& _manager;
+    Disconnected = 0,
+    Connecting,
+    Connected
 };
 
 // ============================================================
-// RX CALLBACKS
-// ============================================================
-
-class BluetoothRxCallbacks : public BLECharacteristicCallbacks
-{
-public:
-    explicit BluetoothRxCallbacks(
-        BluetoothManager& manager
-    );
-
-    void onWrite(
-        BLECharacteristic* characteristic
-    ) override;
-
-private:
-    BluetoothManager& _manager;
-};
-
-// ============================================================
-// BLUETOOTH MANAGER
+// MANAGER
 // ============================================================
 
 class BluetoothManager
 {
-public:
-
-    static constexpr const char* DEVICE_NAME =
-        "SmartClock";
-
-    // --------------------------------------------------------
-    // SERVICE
-    // --------------------------------------------------------
-
-    static constexpr const char* SERVICE_UUID =
-        "7A1F0001-5C3A-4D8B-9E21-123456789001";
-
-    // --------------------------------------------------------
-    // RX
-    // Android -> ESP32
-    // WRITE / WRITE_NR
-    // --------------------------------------------------------
-
-    static constexpr const char* RX_CHARACTERISTIC_UUID =
-        "7A1F0002-5C3A-4D8B-9E21-123456789001";
-
-    // --------------------------------------------------------
-    // TX
-    // ESP32 -> Android
-    // NOTIFY
-    // --------------------------------------------------------
-
-    static constexpr const char* TX_CHARACTERISTIC_UUID =
-        "7A1F0003-5C3A-4D8B-9E21-123456789001";
-
 public:
 
     BluetoothManager();
@@ -96,86 +50,72 @@ public:
 
     void update();
 
-    bool isReady() const;
-
     bool isConnected() const;
 
-    // --------------------------------------------------------
-    // SUBSCRIPTIONS
-    // --------------------------------------------------------
+    BluetoothConnectionState getState() const;
 
     void setSubscriptionManager(
-        BluetoothSubscriptionManager* manager
+        BluetoothSubscriptionManager& manager
     );
 
-    BluetoothSubscriptionManager*
-    getSubscriptionManager();
-
-    // --------------------------------------------------------
-    // TX
-    // --------------------------------------------------------
-
-    bool send(
-        const String& data
+    void attachSubscriptionManager(
+        BluetoothSubscriptionManager& manager
     );
-
-    bool send(
-        const char* data
-    );
-
-    // --------------------------------------------------------
-    // RX
-    // --------------------------------------------------------
 
     bool hasCommand() const;
 
     String getCommand();
 
-    void clearCommand();
-
-    // --------------------------------------------------------
-    // CALLBACKS
-    // --------------------------------------------------------
-
-    void handleConnect();
-
-    void handleDisconnect();
-
-    void handleReceive(
-        const String& data
-    );
-
-private:
-
-    void startAdvertising();
-
-    void processCommand(
+    bool send(
         const String& message
     );
 
+    bool sendRaw(
+        const char* message
+    );
+
+    bool sendJson(
+        const JsonDocument& document
+    );
+
 private:
 
-    BLEServer* _server;
+    class ServerCallbacks;
+    class RxCallbacks;
 
-    BLEService* _service;
+    NimBLEServer* _server;
 
-    // ESP32 -> Android
-    BLECharacteristic* _txCharacteristic;
+    NimBLECharacteristic* _rx;
 
-    // Android -> ESP32
-    BLECharacteristic* _rxCharacteristic;
+    NimBLECharacteristic* _tx;
 
-    BLEServerCallbacks* _serverCallbacks;
+    NimBLEAdvertising* _advertising;
 
-    BluetoothRxCallbacks* _rxCallbacks;
+    BluetoothSubscriptionManager*
+        _subscriptionManager;
 
-    BluetoothSubscriptionManager* _subscriptions;
+    BluetoothConnectionState _state;
 
-    volatile bool _ready;
+    volatile bool _deviceConnected;
 
-    volatile bool _connected;
-
-    String _command;
+    char _commandBuffer[
+        BLUETOOTH_COMMAND_SIZE
+    ];
 
     volatile bool _commandAvailable;
+
+    portMUX_TYPE _commandMux;
+
+    void onConnect();
+
+    void onDisconnect();
+
+    void onReceive(
+        const String& message
+    );
+
+    void restartAdvertising();
+
+    friend class ServerCallbacks;
+    friend class RxCallbacks;
 };
