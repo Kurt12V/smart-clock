@@ -11,7 +11,7 @@ bool BluetoothProtocol::parse(
 )
 {
     // --------------------------------------------------------
-    // RESET REQUEST
+    // RESET
     // --------------------------------------------------------
 
     request.version = 0;
@@ -21,25 +21,35 @@ bool BluetoothProtocol::parse(
 
     document.clear();
 
-    Serial.println();
-    Serial.println("[BLE PROTOCOL] Parsing request:");
-    Serial.println(message);
-
     // --------------------------------------------------------
-    // EMPTY MESSAGE
+    // DEBUG
     // --------------------------------------------------------
 
-    if (message.isEmpty())
+    Serial0.println(
+        "[BLE PROTOCOL] Parsing..."
+    );
+
+    Serial0.print(
+        "[BLE PROTOCOL] Message: "
+    );
+
+    Serial0.println(message);
+
+    // --------------------------------------------------------
+    // EMPTY
+    // --------------------------------------------------------
+
+    if (message.length() == 0)
     {
-        Serial.println(
-            "[BLE PROTOCOL] Empty message"
+        Serial0.println(
+            "[BLE PROTOCOL] ERROR: Empty message"
         );
 
         return false;
     }
 
     // --------------------------------------------------------
-    // DESERIALIZE JSON
+    // JSON
     // --------------------------------------------------------
 
     DeserializationError error =
@@ -50,100 +60,115 @@ bool BluetoothProtocol::parse(
 
     if (error)
     {
-        Serial.print(
-            "[BLE PROTOCOL] JSON error: "
+        Serial0.print(
+            "[BLE PROTOCOL] ERROR: JSON parse failed: "
         );
 
-        Serial.println(
+        Serial0.println(
             error.c_str()
         );
 
         return false;
     }
 
+    Serial0.println(
+        "[BLE PROTOCOL] JSON parsed successfully"
+    );
+
     // --------------------------------------------------------
-    // ROOT OBJECT
+    // ROOT
     // --------------------------------------------------------
 
-    if (!document.is<JsonObject>())
+    JsonVariant root =
+        document.as<JsonVariant>();
+
+    if (root.isNull())
     {
-        Serial.println(
-            "[BLE PROTOCOL] Root is not object"
+        Serial0.println(
+            "[BLE PROTOCOL] ERROR: Root is null"
         );
 
         return false;
     }
-
-    JsonObject root =
-        document.as<JsonObject>();
-
-    // --------------------------------------------------------
-    // DEBUG JSON
-    // --------------------------------------------------------
-
-    Serial.println(
-        "[BLE PROTOCOL] JSON parsed"
-    );
-
-    serializeJson(
-        root,
-        Serial
-    );
-
-    Serial.println();
 
     // ========================================================
     // VERSION
     // ========================================================
 
-    if (!root["v"].is<uint8_t>())
+    if (!root["v"].is<int>())
     {
-        Serial.println(
-            "[BLE PROTOCOL] Missing or invalid version"
+        Serial0.println(
+            "[BLE PROTOCOL] ERROR: Missing v"
         );
 
         return false;
     }
 
-    uint8_t version =
-        root["v"].as<uint8_t>();
+    int version =
+        root["v"].as<int>();
+
+    Serial0.print(
+        "[BLE PROTOCOL] v = "
+    );
+
+    Serial0.println(version);
 
     if (version != VERSION)
     {
-        Serial.print(
-            "[BLE PROTOCOL] Unsupported version: "
+        Serial0.print(
+            "[BLE PROTOCOL] ERROR: Unsupported version: "
         );
 
-        Serial.println(
-            version
-        );
+        Serial0.println(version);
 
         return false;
     }
 
-    request.version = version;
+    request.version =
+        static_cast<uint8_t>(version);
 
     // ========================================================
     // ID
     // ========================================================
 
-    if (!root["id"].is<uint32_t>())
+    if (root["id"].isNull())
     {
-        Serial.println(
-            "[BLE PROTOCOL] Missing or invalid id"
+        Serial0.println(
+            "[BLE PROTOCOL] ERROR: Missing id"
+        );
+
+        return false;
+    }
+
+    /*
+     * Не используем:
+     *
+     * root["id"].is<uint32_t>()
+     *
+     * потому что ArduinoJson может хранить
+     * обычное JSON-число как int.
+     */
+
+    long id =
+        root["id"].as<long>();
+
+    if (id < 0)
+    {
+        Serial0.println(
+            "[BLE PROTOCOL] ERROR: Invalid id"
         );
 
         return false;
     }
 
     request.id =
-        root["id"].as<uint32_t>();
+        static_cast<uint32_t>(id);
 
-    Serial.print(
-        "[BLE PROTOCOL] ID: "
+    Serial0.print(
+        "[BLE PROTOCOL] id = "
     );
 
-    Serial.println(
+    Serial0.println(
         request.id
     );
 
@@ -151,27 +176,25 @@ bool BluetoothProtocol::parse(
     // COMMAND
     // ========================================================
 
-    /*
-     * ВАЖНО:
-     *
-     * Не используем:
-     *
-     * root["cmd"].is<const char*>()
-     *
-     * потому что в некоторых версиях ArduinoJson
-     * такая проверка может вести себя не так,
-     * как ожидается.
-     *
-     * Вместо этого просто получаем строку.
-     */
+    JsonVariant commandValue =
+        root["cmd"];
+
+    if (commandValue.isNull())
+    {
+        Serial0.println(
+            "[BLE PROTOCOL] ERROR: Missing cmd"
+        );
+
+        return false;
+    }
 
     const char* command =
-        root["cmd"] | nullptr;
+        commandValue.as<const char*>();
 
     if (command == nullptr)
     {
-        Serial.println(
-            "[BLE PROTOCOL] Missing cmd"
+        Serial0.println(
+            "[BLE PROTOCOL] ERROR: cmd is not string"
         );
 
         return false;
@@ -179,8 +202,8 @@ bool BluetoothProtocol::parse(
 
     if (command[0] == '\0')
     {
-        Serial.println(
-            "[BLE PROTOCOL] Empty cmd"
+        Serial0.println(
+            "[BLE PROTOCOL] ERROR: Empty cmd"
         );
 
         return false;
@@ -189,11 +212,11 @@ bool BluetoothProtocol::parse(
     request.command =
         String(command);
 
-    Serial.print(
-        "[BLE PROTOCOL] Command: "
+    Serial0.print(
+        "[BLE PROTOCOL] cmd = "
     );
 
-    Serial.println(
+    Serial0.println(
         request.command
     );
 
@@ -201,30 +224,30 @@ bool BluetoothProtocol::parse(
     // DATA
     // ========================================================
 
-    if (root["data"].is<JsonObject>())
+    JsonVariant dataValue =
+        root["data"];
+
+    if (dataValue.is<JsonObject>())
     {
         request.data =
-            root["data"].as<JsonObject>();
+            dataValue.as<JsonObject>();
 
-        Serial.println(
-            "[BLE PROTOCOL] Data object found"
+        Serial0.println(
+            "[BLE PROTOCOL] data = object"
         );
     }
     else
     {
         /*
-         * data необязателен.
-         *
-         * Создаём пустой объект внутри
-         * document, чтобы обработчики могли
-         * безопасно обращаться к request.data.
+         * Если data отсутствует —
+         * создаём пустой объект.
          */
 
         request.data =
             document["data"].to<JsonObject>();
 
-        Serial.println(
-            "[BLE PROTOCOL] Data object created"
+        Serial0.println(
+            "[BLE PROTOCOL] data = empty object"
         );
     }
 
@@ -232,8 +255,8 @@ bool BluetoothProtocol::parse(
     // SUCCESS
     // ========================================================
 
-    Serial.println(
-        "[BLE PROTOCOL] Request OK"
+    Serial0.println(
+        "[BLE PROTOCOL] Request parsed OK"
     );
 
     return true;
@@ -281,9 +304,7 @@ String BluetoothProtocol::response(
     JsonObject responseData =
         document["data"].to<JsonObject>();
 
-    for (
-        JsonPairConst pair : data
-    )
+    for (JsonPairConst pair : data)
     {
         responseData[pair.key()] =
             pair.value();
@@ -300,7 +321,7 @@ String BluetoothProtocol::response(
 }
 
 // ============================================================
-// ERROR RESPONSE
+// ERROR
 // ============================================================
 
 String BluetoothProtocol::error(
@@ -339,7 +360,7 @@ String BluetoothProtocol::error(
 }
 
 // ============================================================
-// PUBLISH WITHOUT DATA
+// PUBLISH
 // ============================================================
 
 String BluetoothProtocol::publish(
@@ -388,9 +409,7 @@ String BluetoothProtocol::publish(
     JsonObject publishData =
         document["data"].to<JsonObject>();
 
-    for (
-        JsonPairConst pair : data
-    )
+    for (JsonPairConst pair : data)
     {
         publishData[pair.key()] =
             pair.value();
