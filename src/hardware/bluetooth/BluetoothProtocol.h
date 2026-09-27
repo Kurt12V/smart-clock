@@ -6,27 +6,30 @@
 class BluetoothProtocol
 {
 public:
-
     static constexpr uint8_t VERSION = 1;
-
     static constexpr size_t JSON_SIZE = 1024;
 
     struct Request
     {
         uint8_t version = 0;
-
         uint32_t id = 0;
-
         String command;
-
         JsonObject data;
     };
+
+    // ============================================================
+    // REQUEST
+    // ============================================================
 
     static bool parse(
         const String& message,
         JsonDocument& document,
         Request& request
     );
+
+    // ============================================================
+    // RESPONSES
+    // ============================================================
 
     static String response(
         uint32_t id
@@ -43,6 +46,10 @@ public:
         const char* message
     );
 
+    // ============================================================
+    // PUBLISH
+    // ============================================================
+
     static String publish(
         const char* topic
     );
@@ -51,8 +58,4 @@ public:
         const char* topic,
         JsonObjectConst data
     );
-
-private:
-
-    BluetoothProtocol() = delete;
 };
