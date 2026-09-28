@@ -16,67 +16,57 @@ namespace
         int         def;
     };
 
-    const ParamDesc PARAMS[] =
-    {
-        // DISPLAY 1..4
-        { "disp1",
-          Config::DISPLAY_MIN_BRIGHTNESS,
-          Config::DISPLAY_MAX_BRIGHTNESS,
-          Config::DISPLAY_DEFAULT_BRIGHTNESS },
-        { "disp2",
-          Config::DISPLAY_MIN_BRIGHTNESS,
-          Config::DISPLAY_MAX_BRIGHTNESS,
-          Config::DISPLAY_DEFAULT_BRIGHTNESS },
-        { "disp3",
-          Config::DISPLAY_MIN_BRIGHTNESS,
-          Config::DISPLAY_MAX_BRIGHTNESS,
-          Config::DISPLAY_DEFAULT_BRIGHTNESS },
-        { "disp4",
-          Config::DISPLAY_MIN_BRIGHTNESS,
-          Config::DISPLAY_MAX_BRIGHTNESS,
-          Config::DISPLAY_DEFAULT_BRIGHTNESS },
+const ParamDesc PARAMS[] =
+{
+    // DISPLAY
+    { "brightness",
+      Config::DISPLAY_MIN_BRIGHTNESS,
+      Config::DISPLAY_MAX_BRIGHTNESS,
+      Config::DISPLAY_DEFAULT_BRIGHTNESS },
 
-        // MATRIX
-        { "mx_on", 0, 1, Config::MATRIX_ENABLED_DEFAULT ? 1 : 0 },
-        { "mx_br",
-          Config::MATRIX_BRIGHTNESS_MIN,
-          Config::MATRIX_BRIGHTNESS_MAX,
-          Config::MATRIX_BRIGHTNESS_DEFAULT },
+    // MATRIX
+    { "mx_on", 0, 1, Config::MATRIX_ENABLED_DEFAULT ? 1 : 0 },
+    { "mx_br",
+      Config::MATRIX_BRIGHTNESS_MIN,
+      Config::MATRIX_BRIGHTNESS_MAX,
+      Config::MATRIX_BRIGHTNESS_DEFAULT },
 
-        // COB
-        { "cob_on", 0, 1, Config::COB_ENABLED_DEFAULT ? 1 : 0 },
-        { "cob1",
-          Config::COB_BRIGHTNESS_MIN,
-          Config::COB_BRIGHTNESS_MAX,
-          Config::COB_BRIGHTNESS_DEFAULT },
-        { "cob2",
-          Config::COB_BRIGHTNESS_MIN,
-          Config::COB_BRIGHTNESS_MAX,
-          Config::COB_BRIGHTNESS_DEFAULT },
-        { "cob3",
-          Config::COB_BRIGHTNESS_MIN,
-          Config::COB_BRIGHTNESS_MAX,
-          Config::COB_BRIGHTNESS_DEFAULT },
-        { "cob4",
-          Config::COB_BRIGHTNESS_MIN,
-          Config::COB_BRIGHTNESS_MAX,
-          Config::COB_BRIGHTNESS_DEFAULT },
+    // COB
+    { "cob_on", 0, 1, Config::COB_ENABLED_DEFAULT ? 1 : 0 },
+    { "cob1",
+      Config::COB_BRIGHTNESS_MIN,
+      Config::COB_BRIGHTNESS_MAX,
+      Config::COB_BRIGHTNESS_DEFAULT },
+    { "cob2",
+      Config::COB_BRIGHTNESS_MIN,
+      Config::COB_BRIGHTNESS_MAX,
+      Config::COB_BRIGHTNESS_DEFAULT },
+    { "cob3",
+      Config::COB_BRIGHTNESS_MIN,
+      Config::COB_BRIGHTNESS_MAX,
+      Config::COB_BRIGHTNESS_DEFAULT },
+    { "cob4",
+      Config::COB_BRIGHTNESS_MIN,
+      Config::COB_BRIGHTNESS_MAX,
+      Config::COB_BRIGHTNESS_DEFAULT },
 
-        // AUDIO
-        { "vol",
-          Config::AUDIO_MIN_VOLUME,
-          Config::AUDIO_MAX_VOLUME,
-          Config::AUDIO_VOLUME_DEFAULT },
+    // --------------------------------------------------------
+    // VOLUMES (streams)
+    // --------------------------------------------------------
 
-        // MIC
-        { "mic_on", 0, 1, Config::MIC_ENABLED_DEFAULT ? 1 : 0 },
+    { "vol_media",  0, 100, 60 },
+    { "vol_alarm",  0, 100, 90 },
+    { "vol_system", 0, 100, 40 },
 
-        // CLOCK
-        { "utc",
-          Config::UTC_OFFSET_MIN,
-          Config::UTC_OFFSET_MAX,
-          Config::UTC_OFFSET_DEFAULT },
-    };
+    // MIC
+    { "mic_on", 0, 1, Config::MIC_ENABLED_DEFAULT ? 1 : 0 },
+
+    // CLOCK
+    { "utc",
+      Config::UTC_OFFSET_MIN,
+      Config::UTC_OFFSET_MAX,
+      Config::UTC_OFFSET_DEFAULT },
+};
 
     static_assert(
         sizeof(PARAMS) / sizeof(PARAMS[0]) ==

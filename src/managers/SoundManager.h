@@ -13,21 +13,42 @@ class SoundManager
 public:
 
     // ========================================================
-    // STATE / CURVE
+    // STATE / STREAM / CURVE
     // ========================================================
 
     enum class State : uint8_t
     {
         STOPPED,
         PLAYING,
-        PAUSED
+        PAUSED,
+        FADING_OUT,      // ещё играет, но громкость падает
+    };
+
+    enum class AudioStream : uint8_t
+    {
+        Media,           // музыка с SD
+        Alarm,           // будильник
+        System,          // стартовый звук, клики
     };
 
     enum class FadeCurve : uint8_t
     {
         Linear,
         Exponential,
-        Logarithmic
+        Logarithmic,
+    };
+
+    // ========================================================
+    // PLAY OPTIONS
+    // ========================================================
+
+    struct PlayOptions
+    {
+        AudioStream stream       = AudioStream::Media;
+        uint8_t     localPercent = 100;      // 0..100 поверх громкости стрима
+        uint32_t    fadeInMs     = 0;        // 0 = без плавного старта
+        uint32_t    fadeOutMs    = 0;        // 0 = без плавного завершения
+        FadeCurve   curve        = FadeCurve::Linear;
     };
 
     // ========================================================
@@ -48,20 +69,14 @@ public:
     // PLAYBACK
     // ========================================================
 
-    bool play(const char* path);
-    bool playLocal(const char* path, uint8_t localVolume);
+    bool play(const char* path);                              // defaults
+    bool play(const char* path, const PlayOptions& opts);     // full API
 
     bool pause();
     bool resume();
-    void stop();
 
-    bool playAlarm(
-        const char* path,
-        uint8_t localVolume,
-        uint32_t fadeInMs,
-        uint32_t fadeOutMs,
-        FadeCurve curve
-    );
+    void stop();                                 // мгновенный стоп
+    void stop(uint32_t fadeOutMs);               // плавный стоп
 
     // ========================================================
     // STATUS
@@ -74,32 +89,30 @@ public:
     State       getState() const;
     const char* getStateString() const;
 
+    const char* getCurrentPath() const;
+    AudioStream getCurrentStream() const;
+
     // ========================================================
     // POSITION / DURATION
     // ========================================================
 
     uint32_t getPositionMs() const;
     uint32_t getDurationMs() const;
-    uint32_t getPositionBytes() const;
-    uint32_t getDataSize() const;
-
-    // ========================================================
-    // CURRENT TRACK
-    // ========================================================
-
-    const char* getCurrentPath() const;
 
     // ========================================================
     // VOLUME
     // ========================================================
 
-    void    setGlobalVolume(uint8_t volume);
-    uint8_t getGlobalVolume() const;
+    uint8_t streamVolume(AudioStream s) const;
 
-    void    setLocalVolume(uint8_t volume);
-    uint8_t getLocalVolume() const;
+    void    setStreamVolume(AudioStream s, uint8_t v);
+    uint8_t getStreamVolume(AudioStream s) const
+    {
+        return streamVolume(s);
+    }
 
-    uint8_t getEffectiveVolume() const;
+    uint8_t getLocalPercent() const;
+    uint8_t getEffectiveVolume() const;   // с учётом фейда
 
     // ========================================================
     // DEBUG
@@ -142,8 +155,9 @@ private:
         uint8_t  volume
     );
 
-    uint8_t calculateEffectiveVolume() const;
-    float   calculateFadeMultiplier() const;
+    uint8_t calculateBaseVolume() const;       // stream * local
+    float   calculateFadeMultiplier() const;   // 0..1
+
     float   applyFadeCurve(float value) const;
 
     // ========================================================
@@ -157,29 +171,41 @@ private:
     bool  _initialized;
     State _state;
 
-    File  _file;
+    File    _file;
     WavInfo _wav;
 
-    String _currentPath;
+    String      _currentPath;
+    AudioStream _currentStream;
 
     uint32_t _positionBytes;
     uint32_t _durationMs;
 
-    uint8_t _localVolume;
+    uint8_t _localPercent;
+
+    // --------------------------------------------------------
+    // FADE IN / OUT (natural end of track)
+    // --------------------------------------------------------
 
     bool      _fadeInEnabled;
     bool      _fadeOutEnabled;
     uint32_t  _fadeInMs;
     uint32_t  _fadeOutMs;
     uint32_t  _fadeStartMs;
-    uint32_t  _fadeStopMs;
     FadeCurve _fadeCurve;
+
+    // --------------------------------------------------------
+    // FADE OUT on explicit stop()
+    // --------------------------------------------------------
+
+    bool     _stopFadeActive;
+    uint32_t _stopFadeStartMs;
+    uint32_t _stopFadeDurationMs;
 
     uint32_t _lastStatusMs;
 
-    // ========================================================
+    // --------------------------------------------------------
     // BUFFERS
-    // ========================================================
+    // --------------------------------------------------------
 
     static constexpr size_t BUFFER_BYTES = 1024;
 

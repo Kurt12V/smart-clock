@@ -171,7 +171,7 @@ void DisplaySystem::pollBrightness()
     uint8_t want =
         static_cast<uint8_t>(
             _settings.get(
-                Param::DisplayBrightness1
+                Param::DisplayBrightness
             )
         );
 

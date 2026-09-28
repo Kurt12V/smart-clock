@@ -25,10 +25,10 @@ bool WebServerManager::begin(
     const char*      password
 )
 {
-    Serial0.println();
-    Serial0.println("========================================");
-    Serial0.println("          WEB SERVER START");
-    Serial0.println("========================================");
+    Serial.println();
+    Serial.println("========================================");
+    Serial.println("          WEB SERVER START");
+    Serial.println("========================================");
 
     _settings = &settings;
     _sd       = &sd;
@@ -38,14 +38,14 @@ bool WebServerManager::begin(
     // WIFI
     // --------------------------------------------------------
 
-    Serial0.println("[WEB] WiFi mode: STA");
+    Serial.println("[WEB] WiFi mode: STA");
 
     WiFi.mode(WIFI_STA);
     WiFi.disconnect(true, true);
     delay(300);
 
-    Serial0.print  ("[WEB] SSID: ");
-    Serial0.println(ssid);
+    Serial.print  ("[WEB] SSID: ");
+    Serial.println(ssid);
 
     WiFi.begin(ssid, password);
 
@@ -58,8 +58,8 @@ bool WebServerManager::begin(
     {
         delay(500);
 
-        Serial0.print("[WEB] WiFi status: ");
-        Serial0.println(WiFi.status());
+        Serial.print("[WEB] WiFi status: ");
+        Serial.println(WiFi.status());
     }
 
     // --------------------------------------------------------
@@ -68,57 +68,57 @@ bool WebServerManager::begin(
 
     if (WiFi.status() != WL_CONNECTED)
     {
-        Serial0.println();
-        Serial0.println("[WEB] ================================");
-        Serial0.println("[WEB] WIFI CONNECTION FAILED");
-        Serial0.println("[WEB] ================================");
+        Serial.println();
+        Serial.println("[WEB] ================================");
+        Serial.println("[WEB] WIFI CONNECTION FAILED");
+        Serial.println("[WEB] ================================");
 
-        Serial0.print  ("[WEB] Status: ");
-        Serial0.println(WiFi.status());
+        Serial.print  ("[WEB] Status: ");
+        Serial.println(WiFi.status());
 
-        Serial0.print  ("[WEB] SSID:   ");
-        Serial0.println(WiFi.SSID());
+        Serial.print  ("[WEB] SSID:   ");
+        Serial.println(WiFi.SSID());
 
-        Serial0.print  ("[WEB] RSSI:   ");
-        Serial0.println(WiFi.RSSI());
+        Serial.print  ("[WEB] RSSI:   ");
+        Serial.println(WiFi.RSSI());
 
         return false;
     }
 
-    Serial0.println();
-    Serial0.println("[WEB] WiFi connected");
+    Serial.println();
+    Serial.println("[WEB] WiFi connected");
 
-    Serial0.print  ("[WEB] IP:      ");
-    Serial0.println(WiFi.localIP());
+    Serial.print  ("[WEB] IP:      ");
+    Serial.println(WiFi.localIP());
 
-    Serial0.print  ("[WEB] Gateway: ");
-    Serial0.println(WiFi.gatewayIP());
+    Serial.print  ("[WEB] Gateway: ");
+    Serial.println(WiFi.gatewayIP());
 
-    Serial0.print  ("[WEB] Subnet:  ");
-    Serial0.println(WiFi.subnetMask());
+    Serial.print  ("[WEB] Subnet:  ");
+    Serial.println(WiFi.subnetMask());
 
-    Serial0.print  ("[WEB] RSSI:    ");
-    Serial0.println(WiFi.RSSI());
+    Serial.print  ("[WEB] RSSI:    ");
+    Serial.println(WiFi.RSSI());
 
     // --------------------------------------------------------
     // LITTLEFS
     // --------------------------------------------------------
 
-    Serial0.println();
-    Serial0.println("[WEB] Mounting LittleFS...");
+    Serial.println();
+    Serial.println("[WEB] Mounting LittleFS...");
 
     if (!LittleFS.begin(true))
     {
-        Serial0.println("[WEB] LittleFS mount FAILED");
+        Serial.println("[WEB] LittleFS mount FAILED");
         return false;
     }
 
-    Serial0.println("[WEB] LittleFS mounted");
+    Serial.println("[WEB] LittleFS mounted");
 
     if (LittleFS.exists("/index.html"))
-        Serial0.println("[WEB] /index.html found");
+        Serial.println("[WEB] /index.html found");
     else
-        Serial0.println("[WEB] WARNING: /index.html NOT FOUND");
+        Serial.println("[WEB] WARNING: /index.html NOT FOUND");
 
     // --------------------------------------------------------
     // ROUTES + SERVER
@@ -128,17 +128,17 @@ bool WebServerManager::begin(
 
     _server.begin();
 
-    Serial0.println();
-    Serial0.println("[WEB] HTTP server started");
+    Serial.println();
+    Serial.println("[WEB] HTTP server started");
 
-    Serial0.print  ("[WEB] Open: http://");
-    Serial0.println(WiFi.localIP());
+    Serial.print  ("[WEB] Open: http://");
+    Serial.println(WiFi.localIP());
 
     _initialized = true;
 
-    Serial0.println("========================================");
-    Serial0.println("          WEB SERVER READY");
-    Serial0.println("========================================");
+    Serial.println("========================================");
+    Serial.println("          WEB SERVER READY");
+    Serial.println("========================================");
 
     return true;
 }
@@ -288,8 +288,8 @@ void WebServerManager::handleRoot()
 
 void WebServerManager::handleNotFound()
 {
-    Serial0.print("[WEB] 404: ");
-    Serial0.println(_server.uri());
+    Serial.print("[WEB] 404: ");
+    Serial.println(_server.uri());
 
     _server.send(
         404,
@@ -299,8 +299,8 @@ void WebServerManager::handleNotFound()
 }
 
 // ============================================================
-// GET /api/param?name=disp1
-//   -> {"param":"disp1","value":80}
+// GET /api/param?name=brightness
+//   -> {"param":"brightness","value":80}
 // ============================================================
 
 void WebServerManager::handleGetParam()
@@ -341,7 +341,7 @@ void WebServerManager::handleGetParam()
 
 // ============================================================
 // POST /api/param
-//   body: {"param":"disp1","value":80}
+//   body: {"param":"brightness","value":80}
 //   -> {"ok":true}
 // ============================================================
 
@@ -397,19 +397,19 @@ void WebServerManager::handleSetParam()
 
     _settings->save(p);
 
-    Serial0.print("[WEB] ");
-    Serial0.print(name);
-    Serial0.print(": ");
-    Serial0.print(oldValue);
-    Serial0.print(" -> ");
-    Serial0.println(clamped);
+    Serial.print("[WEB] ");
+    Serial.print(name);
+    Serial.print(": ");
+    Serial.print(oldValue);
+    Serial.print(" -> ");
+    Serial.println(clamped);
 
     sendOk();
 }
 
 // ============================================================
 // GET /api/params
-//   -> {"disp1":80,"disp2":80,...,"utc":3}
+//   -> {"brightness":80,"mx_on":1,...,"utc":3}
 // ============================================================
 
 void WebServerManager::handleGetAllParams()
@@ -452,7 +452,7 @@ void WebServerManager::handleReset()
 
     _settings->resetAll();
 
-    Serial0.println("[WEB] settings reset");
+    Serial.println("[WEB] settings reset");
 
     sendOk();
 }
@@ -530,7 +530,16 @@ void WebServerManager::handleSD()
 
 // ============================================================
 // POST /api/audio/play
-//   body: { "path": "/music/track.wav", "volume": 100 }
+//
+// body:
+// {
+//     "path":     "/music/song.wav",
+//     "stream":   "media" | "alarm" | "system",
+//     "volume":   0..100,          (local percent, optional)
+//     "fade_in":  0..N ms,         (optional)
+//     "fade_out": 0..N ms,         (optional)
+//     "curve":    "linear" | "exp" | "log"   (optional)
+// }
 // ============================================================
 
 void WebServerManager::handleAudioPlay()
@@ -554,32 +563,63 @@ void WebServerManager::handleAudioPlay()
         return;
     }
 
-    int volume = doc["volume"] | 100;
-    volume = constrain(volume, 0, 100);
-
     // --------------------------------------------------------
-    // Проверим, что файл существует
+    // Проверка файла
     // --------------------------------------------------------
 
-    if (!_sd || !_sd->isReady() ||
-        !_sd->card().exists(path))
+    if (!_sd || !_sd->isReady() || !_sd->card().exists(path))
     {
         sendError(404, "file not found");
         return;
     }
 
     // --------------------------------------------------------
-    // Воспроизведение
+    // Собираем PlayOptions
     // --------------------------------------------------------
 
-    if (!_sound->playLocal(path, volume))
+    SoundManager::PlayOptions opts;
+
+    // --- stream ---
+    const char* streamStr = doc["stream"] | "media";
+
+    if (strcmp(streamStr, "alarm") == 0)
+        opts.stream = SoundManager::AudioStream::Alarm;
+    else if (strcmp(streamStr, "system") == 0)
+        opts.stream = SoundManager::AudioStream::System;
+    else
+        opts.stream = SoundManager::AudioStream::Media;
+
+    // --- local percent ---
+    opts.localPercent = static_cast<uint8_t>(
+        constrain(doc["volume"] | 100, 0, 100)
+    );
+
+    // --- fades ---
+    opts.fadeInMs  = doc["fade_in"]  | 0;
+    opts.fadeOutMs = doc["fade_out"] | 0;
+
+    // --- curve ---
+    const char* curveStr = doc["curve"] | "linear";
+
+    if (strcmp(curveStr, "exp") == 0)
+        opts.curve = SoundManager::FadeCurve::Exponential;
+    else if (strcmp(curveStr, "log") == 0)
+        opts.curve = SoundManager::FadeCurve::Logarithmic;
+    else
+        opts.curve = SoundManager::FadeCurve::Linear;
+
+    // --------------------------------------------------------
+    // Play
+    // --------------------------------------------------------
+
+    if (!_sound->play(path, opts))
     {
         sendError(500, "play failed");
         return;
     }
 
-    Serial0.print("[WEB] audio play: ");
-    Serial0.println(path);
+    Serial.print("[WEB] audio play: ");
+    Serial.println(path);
 
     sendOk();
 }
@@ -608,7 +648,7 @@ void WebServerManager::handleAudioPause()
         return;
     }
 
-    Serial0.println("[WEB] audio pause");
+    Serial.println("[WEB] audio pause");
 
     sendOk();
 }
@@ -637,13 +677,18 @@ void WebServerManager::handleAudioResume()
         return;
     }
 
-    Serial0.println("[WEB] audio resume");
+    Serial.println("[WEB] audio resume");
 
     sendOk();
 }
 
 // ============================================================
 // POST /api/audio/stop
+//
+// body (optional):
+// {
+//     "fade_out": 800   // ms плавного затухания
+// }
 // ============================================================
 
 void WebServerManager::handleAudioStop()
@@ -654,18 +699,47 @@ void WebServerManager::handleAudioStop()
         return;
     }
 
-    _sound->stop();
+    uint32_t fadeOut = 0;
 
-    Serial0.println("[WEB] audio stop");
+    if (_server.hasArg("plain"))
+    {
+        JsonDocument doc;
+
+        DeserializationError err =
+            deserializeJson(doc, _server.arg("plain"));
+
+        if (!err)
+            fadeOut = doc["fade_out"] | 0;
+    }
+
+    if (fadeOut > 0)
+        _sound->stop(fadeOut);
+    else
+        _sound->stop();
+
+    Serial.print("[WEB] audio stop");
+    if (fadeOut > 0)
+    {
+        Serial.print(" (fade ");
+        Serial.print(fadeOut);
+        Serial.print(" ms)");
+    }
+    Serial.println();
 
     sendOk();
 }
 
 // ============================================================
 // GET /api/audio/status
-//   -> {
-//        state, path, position, duration, volume
-//      }
+//
+// -> {
+//      state:    "playing" | "paused" | "stopped" | "fading_out",
+//      path:     "/music/song.wav",
+//      stream:   0 | 1 | 2,
+//      position: 12000,
+//      duration: 180000,
+//      volume:   72
+//    }
 // ============================================================
 
 void WebServerManager::handleAudioStatus()
@@ -680,6 +754,9 @@ void WebServerManager::handleAudioStatus()
 
     doc["state"]    = _sound->getStateString();
     doc["path"]     = _sound->getCurrentPath();
+    doc["stream"]   = static_cast<uint8_t>(
+                          _sound->getCurrentStream()
+                      );
     doc["position"] = _sound->getPositionMs();
     doc["duration"] = _sound->getDurationMs();
     doc["volume"]   = _sound->getEffectiveVolume();
@@ -707,8 +784,8 @@ bool WebServerManager::parseJson(JsonDocument& doc)
 
     if (err)
     {
-        Serial0.print("[WEB] JSON error: ");
-        Serial0.println(err.c_str());
+        Serial.print("[WEB] JSON error: ");
+        Serial.println(err.c_str());
 
         sendError(400, "invalid JSON");
         return false;

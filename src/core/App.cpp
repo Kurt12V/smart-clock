@@ -20,7 +20,7 @@ App::App()
     : _ready(false),
 
       // ========================================================
-      // SETTINGS (первым)
+      // SETTINGS (первым — от него зависят остальные)
       // ========================================================
 
       _settings(),
@@ -39,7 +39,6 @@ App::App()
           _i2sManager
       ),
 
-      _inputManager(),
       _sensorManager(),
 
       // ========================================================
@@ -47,7 +46,7 @@ App::App()
       // ========================================================
 
       _clockSystem(
-          _settings                    // ← ОБЯЗАТЕЛЬНО
+          _settings
       ),
 
       _displaySystem(
@@ -61,16 +60,7 @@ App::App()
       // ========================================================
 
       _webServer()
-
-      // ========================================================
-      // BLUETOOTH
-      // ========================================================
-
-    //   _bluetoothSystem(
-    //       _sensorManager,
-    //       _clockSystem
-    //   )
- {
+{
 }
 
 // ============================================================
@@ -170,19 +160,9 @@ bool App::begin()
     // INPUT
     // --------------------------------------------------------
 
-    if (!initInput())
-    {
-        Serial0.println("[APP] Input initialization failed");
-        return false;
-    }
-
-    // --------------------------------------------------------
-    // BLUETOOTH
-    // --------------------------------------------------------
-
-    // if (!initBluetooth())
+    // if (!initInput())
     // {
-    //     Serial0.println("[APP] Bluetooth initialization failed");
+    //     Serial0.println("[APP] Input initialization failed");
     //     return false;
     // }
 
@@ -197,14 +177,21 @@ bool App::begin()
 
     // --------------------------------------------------------
     // STARTUP SOUND
+    //
+    // Стрим System, короткий fade in/out 200 мс.
+    // Не зависит от vol_media / vol_alarm.
     // --------------------------------------------------------
 
     Serial0.println("[APP] Playing startup sound...");
 
-    if (!_soundManager.play(Constants::STARTUP_SOUND))
-    {
-        Serial0.println("[APP] WARNING: startup sound failed");
-    }
+   SoundManager::PlayOptions opts;
+opts.stream       = SoundManager::AudioStream::System;
+opts.localPercent = 100;
+opts.fadeInMs     = 200;
+opts.fadeOutMs    = 200;
+opts.curve        = SoundManager::FadeCurve::Linear;
+
+if (!_soundManager.play(Constants::STARTUP_SOUND, opts))
 
     // --------------------------------------------------------
     // READY
@@ -229,18 +216,44 @@ void App::update()
     if (!_ready)
         return;
 
+    // --------------------------------------------------------
+    // WEB SERVER (принимает HTTP, меняет Settings)
+    // --------------------------------------------------------
+
     _webServer.update();
 
-    _inputManager.update();
+    // --------------------------------------------------------
+    // INPUT / SENSORS
+    // --------------------------------------------------------
+
+    // _inputManager.update();
     _sensorManager.update();
+
+    // --------------------------------------------------------
+    // CLOCK
+    // --------------------------------------------------------
 
     _clockSystem.update();
 
+    // --------------------------------------------------------
+    // DISPLAY
+    //
+    // Внутри:
+    //   - pollBrightness() читает Settings и дёргает LVGL
+    //   - screens.update() обновляет цифры/датчики
+    //   - lvgl.update() гоняет lv_timer_handler
+    // --------------------------------------------------------
+
     _displaySystem.update();
 
-    _soundManager.update();
+    // --------------------------------------------------------
+    // SOUND
+    //
+    // Качает PCM в I2S, следит за fade in/out,
+    // завершает трек, обрабатывает плавный стоп.
+    // --------------------------------------------------------
 
-    // _bluetoothSystem.update();
+    _soundManager.update();
 }
 
 // ============================================================
@@ -408,42 +421,18 @@ bool App::initDisplay()
 // INIT INPUT
 // ============================================================
 
-bool App::initInput()
-{
-    Serial0.println();
-    Serial0.println("[APP] Initializing input...");
-
-    if (!_inputManager.begin())
-    {
-        Serial0.println("[APP] Input failed");
-        return false;
-    }
-
-    Serial0.println("[APP] Input OK");
-    return true;
-}
-
-// ============================================================
-// INIT BLUETOOTH
-// ============================================================
-
-// bool App::initBluetooth()
+// bool App::initInput()
 // {
 //     Serial0.println();
-//     Serial0.println("========================================");
-//     Serial0.println("[APP] Initializing Bluetooth...");
-//     Serial0.println("========================================");
+//     Serial0.println("[APP] Initializing input...");
 
-//     if (!_bluetoothSystem.begin())
+//     if (!_inputManager.begin())
 //     {
-//         Serial0.println("[APP] Bluetooth failed");
+//         Serial0.println("[APP] Input failed");
 //         return false;
 //     }
 
-//     Serial0.println("[APP] Bluetooth OK");
-//     Serial0.println("[APP] BLE device name: SmartClock");
-//     Serial0.println("========================================");
-
+//     Serial0.println("[APP] Input OK");
 //     return true;
 // }
 

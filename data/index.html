@@ -229,28 +229,6 @@
             cursor: pointer;
         }
 
-        /* GRID */
-
-        .display-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-        }
-
-        .display {
-            padding: 14px;
-            border: 1px solid #222;
-            border-radius: 5px;
-        }
-
-        .display-name {
-            margin-bottom: 14px;
-            color: #666;
-            font-size: 10px;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-        }
-
         /* SWITCH ROW */
 
         .switch-row {
@@ -371,6 +349,50 @@
             padding: 0;
         }
 
+        /* PLAYER STATUS */
+
+        .player-status {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding: 10px 14px;
+            border: 1px solid #222;
+            border-radius: 5px;
+            background: #0c0c0c;
+            font-size: 12px;
+        }
+
+        .player-track {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #aaa;
+        }
+
+        .player-time {
+            flex-shrink: 0;
+            margin-left: 12px;
+            color: #666;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .player-state {
+            flex-shrink: 0;
+            margin-left: 12px;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .player-state.playing    { color: #7fe0a3; background: #16281b; }
+        .player-state.paused     { color: #ffd479; background: #2a2415; }
+        .player-state.fading_out { color: #ff9b6b; background: #2a1d15; }
+        .player-state.stopped    { color: #666;    background: #141414; }
+
         /* EMPTY */
 
         .empty {
@@ -408,7 +430,6 @@
         @media (max-width: 650px) {
             .page { padding: 15px 15px 40px; }
             .sensors { grid-template-columns: repeat(2, 1fr); gap: 22px; }
-            .display-grid { grid-template-columns: repeat(2, 1fr); }
             .time-container {
                 align-items: flex-start;
                 flex-direction: column;
@@ -420,7 +441,6 @@
         }
 
         @media (max-width: 400px) {
-            .display-grid { grid-template-columns: 1fr; }
             .sensor-value { font-size: 25px; }
         }
     </style>
@@ -478,39 +498,16 @@
         </div>
     </section>
 
-    <!-- DISPLAYS -->
+    <!-- DISPLAY -->
     <section class="section">
-        <div class="section-title">Displays</div>
+        <div class="section-title">Display</div>
 
         <div class="range-row">
-            <div class="range-label">All</div>
-            <input id="globalBrightness"
+            <div class="range-label">Brightness</div>
+            <input id="brightness"
                    type="range" min="0" max="100" value="80"
-                   oninput="changeGlobalBrightness(this.value)">
-            <div id="globalBrightnessValue" class="range-value">80%</div>
-        </div>
-
-        <div class="display-grid">
-            <div class="display">
-                <div class="display-name">Display 1</div>
-                <input id="disp1" type="range" min="0" max="100" value="80"
-                       oninput="changeDisplayBrightness(1, this.value)">
-            </div>
-            <div class="display">
-                <div class="display-name">Display 2</div>
-                <input id="disp2" type="range" min="0" max="100" value="80"
-                       oninput="changeDisplayBrightness(2, this.value)">
-            </div>
-            <div class="display">
-                <div class="display-name">Display 3</div>
-                <input id="disp3" type="range" min="0" max="100" value="80"
-                       oninput="changeDisplayBrightness(3, this.value)">
-            </div>
-            <div class="display">
-                <div class="display-name">Display 4</div>
-                <input id="disp4" type="range" min="0" max="100" value="80"
-                       oninput="changeDisplayBrightness(4, this.value)">
-            </div>
+                   oninput="changeBrightness(this.value)">
+            <div id="brightness_value" class="range-value">80%</div>
         </div>
     </section>
 
@@ -588,17 +585,47 @@
     <section class="section">
         <div class="section-title">Sound</div>
 
-        <div class="range-row">
-            <div class="range-label">Volume</div>
-            <input id="vol" type="range" min="0" max="100" value="60"
-                   oninput="changeVolume(this.value)">
-            <div id="vol_value" class="range-value">60%</div>
+        <!-- PLAYER STATUS -->
+
+        <div class="player-status">
+            <div id="playerTrack" class="player-track">—</div>
+            <div id="playerTime"  class="player-time">0:00 / 0:00</div>
+            <div id="playerState" class="player-state stopped">stopped</div>
         </div>
 
-        <div class="sound-buttons">
+        <!-- VOLUME STREAMS -->
+
+        <div class="range-row">
+            <div class="range-label">Media</div>
+            <input id="vol_media" type="range" min="0" max="100" value="60"
+                   oninput="changeVolume('vol_media', this.value)">
+            <div id="vol_media_value" class="range-value">60%</div>
+        </div>
+
+        <div class="range-row">
+            <div class="range-label">Alarm</div>
+            <input id="vol_alarm" type="range" min="0" max="100" value="90"
+                   oninput="changeVolume('vol_alarm', this.value)">
+            <div id="vol_alarm_value" class="range-value">90%</div>
+        </div>
+
+        <div class="range-row">
+            <div class="range-label">System</div>
+            <input id="vol_system" type="range" min="0" max="100" value="40"
+                   oninput="changeVolume('vol_system', this.value)">
+            <div id="vol_system_value" class="range-value">40%</div>
+        </div>
+
+        <!-- PLAY CONTROLS -->
+
+        <div class="sound-buttons" style="margin-top: 20px;">
             <button class="primary" onclick="playSelectedSound()">▶ Test</button>
+            <button onclick="pauseSound()">❚❚ Pause</button>
+            <button onclick="resumeSound()">▶ Resume</button>
             <button onclick="stopSound()">■ Stop</button>
         </div>
+
+        <!-- MICROPHONE -->
 
         <div class="section-title">Microphone</div>
 
@@ -616,6 +643,8 @@
                 <span id="recordText">Ready</span>
             </div>
         </div>
+
+        <!-- AUDIO LIST -->
 
         <div id="audioList" class="audio-list">
             <div class="empty">No sounds</div>
@@ -636,6 +665,7 @@ let files = [];
 let timezoneOffset = 3;
 let selectedSound = null;
 let messageTimer = null;
+let statusTimer = null;
 
 /* =============================================================
    MESSAGE
@@ -696,13 +726,8 @@ async function loadParams() {
 
         const p = await r.json();
 
-        // Displays
-        [1, 2, 3, 4].forEach(i => {
-            const el = document.getElementById("disp" + i);
-            if (el && p["disp" + i] !== undefined) {
-                el.value = p["disp" + i];
-            }
-        });
+        // Display
+        setRange("brightness", p.brightness, "brightness_value");
 
         // Matrix
         applyToggle("mx_on", p.mx_on);
@@ -714,8 +739,10 @@ async function loadParams() {
             setRange("cob" + i, p["cob" + i], "cob" + i + "_value");
         });
 
-        // Audio
-        setRange("vol", p.vol, "vol_value");
+        // Volume streams
+        setRange("vol_media",  p.vol_media,  "vol_media_value");
+        setRange("vol_alarm",  p.vol_alarm,  "vol_alarm_value");
+        setRange("vol_system", p.vol_system, "vol_system_value");
 
         // Mic
         applyToggle("mic_on", p.mic_on);
@@ -826,19 +853,11 @@ async function changeTimezone(delta) {
    DISPLAY BRIGHTNESS
    ============================================================= */
 
-async function changeGlobalBrightness(value) {
-    document.getElementById("globalBrightnessValue").textContent =
+async function changeBrightness(value) {
+    document.getElementById("brightness_value").textContent =
         value + "%";
 
-    for (let i = 1; i <= 4; ++i) {
-        const el = document.getElementById("disp" + i);
-        if (el) el.value = value;
-        await setParam("disp" + i, value);
-    }
-}
-
-async function changeDisplayBrightness(display, value) {
-    await setParam("disp" + display, value);
+    await setParam("brightness", value);
 }
 
 /* =============================================================
@@ -883,12 +902,12 @@ async function changeCobBrightness(index, value) {
 }
 
 /* =============================================================
-   VOLUME
+   VOLUME (streams)
    ============================================================= */
 
-async function changeVolume(value) {
-    document.getElementById("vol_value").textContent = value + "%";
-    await setParam("vol", value);
+async function changeVolume(name, value) {
+    document.getElementById(name + "_value").textContent = value + "%";
+    await setParam(name, value);
 }
 
 /* =============================================================
@@ -1015,21 +1034,29 @@ function renderAudioFiles() {
 }
 
 /* =============================================================
-   PLAY / STOP (placeholder)
+   PLAYER
    ============================================================= */
 
-async function playSound(path) {
+async function playSound(path, stream = "media") {
     selectedSound = path;
 
     try {
         const r = await fetch("/api/audio/play", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ path })
+            body: JSON.stringify({
+                path,
+                stream,
+                volume:   100,
+                fade_in:  500,
+                fade_out: 1000,
+                curve:    "linear"
+            })
         });
 
         if (!r.ok) throw new Error();
         showMessage("Playing");
+        updatePlayerStatus();
     } catch (e) {
         showMessage("Playback error");
     }
@@ -1054,13 +1081,79 @@ async function playSelectedSound() {
     await playSound(wav.path);
 }
 
+async function pauseSound() {
+    try {
+        const r = await fetch("/api/audio/pause", { method: "POST" });
+        if (!r.ok) throw new Error();
+        showMessage("Paused");
+        updatePlayerStatus();
+    } catch (e) {
+        showMessage("Pause error");
+    }
+}
+
+async function resumeSound() {
+    try {
+        const r = await fetch("/api/audio/resume", { method: "POST" });
+        if (!r.ok) throw new Error();
+        showMessage("Resumed");
+        updatePlayerStatus();
+    } catch (e) {
+        showMessage("Resume error");
+    }
+}
+
 async function stopSound() {
     try {
-        const r = await fetch("/api/audio/stop", { method: "POST" });
+        const r = await fetch("/api/audio/stop", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fade_out: 800 })
+        });
+
         if (!r.ok) throw new Error();
         showMessage("Playback stopped");
+        updatePlayerStatus();
     } catch (e) {
         showMessage("Stop error");
+    }
+}
+
+/* =============================================================
+   PLAYER STATUS
+   ============================================================= */
+
+function formatTime(ms) {
+    const total = Math.floor(ms / 1000);
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return m + ":" + String(s).padStart(2, "0");
+}
+
+async function updatePlayerStatus() {
+    try {
+        const r = await fetch("/api/audio/status", { cache: "no-store" });
+        if (!r.ok) throw new Error();
+
+        const s = await r.json();
+
+        const trackEl = document.getElementById("playerTrack");
+        const timeEl  = document.getElementById("playerTime");
+        const stateEl = document.getElementById("playerState");
+
+        trackEl.textContent = s.path && s.path.length
+            ? s.path
+            : "—";
+
+        timeEl.textContent =
+            formatTime(s.position || 0) + " / " +
+            formatTime(s.duration || 0);
+
+        const state = s.state || "stopped";
+        stateEl.textContent = state;
+        stateEl.className   = "player-state " + state;
+    } catch (e) {
+        // молча — не засоряем интерфейс
     }
 }
 
@@ -1105,9 +1198,12 @@ updateTime();
 loadSensors();
 loadSD();
 loadParams();
+updatePlayerStatus();
 
 setInterval(updateTime, 1000);
 setInterval(loadSensors, 2000);
+setInterval(updatePlayerStatus, 500);
+
 </script>
 
 </body>

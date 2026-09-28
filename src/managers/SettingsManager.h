@@ -10,10 +10,7 @@
 
 enum class Param : uint8_t
 {
-    DisplayBrightness1 = 0,
-    DisplayBrightness2,
-    DisplayBrightness3,
-    DisplayBrightness4,
+    DisplayBrightness = 0,
 
     MatrixEnabled,
     MatrixBrightness,
@@ -24,7 +21,14 @@ enum class Param : uint8_t
     CobBrightness3,
     CobBrightness4,
 
-    AudioVolume,
+    // --------------------------------------------------------
+    // Громкости по стримам (как на телефоне)
+    // --------------------------------------------------------
+
+    VolumeMedia,      // музыка с SD
+    VolumeAlarm,      // будильник
+    VolumeSystem,     // стартовый звук, клики
+
     MicrophoneEnabled,
     UtcOffset,
 
@@ -43,22 +47,14 @@ public:
 
     bool begin();
 
-    // ------------------------------------
-    // generic API
-    // ------------------------------------
-
     int  get(Param p) const;
-    bool set(Param p, int value);        // clamp по Config
-    bool save(Param p);                  // RAM -> Preferences
-    bool load(Param p);                  // Preferences -> RAM
+    bool set(Param p, int value);
+    bool save(Param p);
+    bool load(Param p);
 
     bool loadAll();
     bool saveAll();
     void resetAll();
-
-    // ------------------------------------
-    // names (для web API)
-    // ------------------------------------
 
     static const char* paramName(Param p);
     static bool        paramFromName(const char* name, Param& out);
