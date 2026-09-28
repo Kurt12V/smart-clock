@@ -70,78 +70,78 @@ void reset() {
 
 void print() const {
 
-    Serial.println();
-    Serial.println("================================");
-    Serial.println("          SENSOR DATA");
-    Serial.println("================================");
+    Serial0.println();
+    Serial0.println("================================");
+    Serial0.println("          SENSOR DATA");
+    Serial0.println("================================");
 
     // Temperature
-    Serial.print("Temperature: ");
+    Serial0.print("Temperature: ");
 
     if (temperatureValid) {
-        Serial.print(temperature, 2);
-        Serial.println(" C");
+        Serial0.print(temperature, 2);
+        Serial0.println(" C");
     } else {
-        Serial.println("--");
+        Serial0.println("--");
     }
 
 
     // Humidity
-    Serial.print("Humidity:    ");
+    Serial0.print("Humidity:    ");
 
     if (humidityValid) {
-        Serial.print(humidity, 2);
-        Serial.println(" %");
+        Serial0.print(humidity, 2);
+        Serial0.println(" %");
     } else {
-        Serial.println("--");
+        Serial0.println("--");
     }
 
 
     // Light
-    Serial.print("Light:       ");
+    Serial0.print("Light:       ");
 
     if (lightValid) {
-        Serial.print(lightLux, 2);
-        Serial.println(" lux");
+        Serial0.print(lightLux, 2);
+        Serial0.println(" lux");
     } else {
-        Serial.println("--");
+        Serial0.println("--");
     }
 
 
     // CO
-    Serial.print("CO:          ");
+    Serial0.print("CO:          ");
 
     if (coValid) {
-        Serial.print(coPpm, 2);
-        Serial.println(" ppm");
+        Serial0.print(coPpm, 2);
+        Serial0.println(" ppm");
     } else {
-        Serial.println("--");
+        Serial0.println("--");
     }
 
 
     // Distance
-    Serial.print("Distance:    ");
+    Serial0.print("Distance:    ");
 
     if (distanceValid) {
-        Serial.print(distance, 2);
-        Serial.println(" mm");
+        Serial0.print(distance, 2);
+        Serial0.println(" mm");
     } else {
-        Serial.println("--");
+        Serial0.println("--");
     }
 
 
     // Presence
-    Serial.print("Presence:    ");
+    Serial0.print("Presence:    ");
 
     if (presenceValid) {
-        Serial.println(
+        Serial0.println(
             presenceDetected ? "DETECTED" : "NOT DETECTED"
         );
     } else {
-        Serial.println("--");
+        Serial0.println("--");
     }
 
-    Serial.println("================================");
+    Serial0.println("================================");
 }
 
 };

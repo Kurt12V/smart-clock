@@ -51,10 +51,10 @@ bool Microphone::begin()
         return true;
     }
 
-    Serial.println();
-    Serial.println("[MIC] ========================================");
-    Serial.println("[MIC] Initializing INMP441");
-    Serial.println("[MIC] ========================================");
+    Serial0.println();
+    Serial0.println("[MIC] ========================================");
+    Serial0.println("[MIC] Initializing INMP441");
+    Serial0.println("[MIC] ========================================");
 
     // --------------------------------------------------------
     // I2S
@@ -63,7 +63,7 @@ bool Microphone::begin()
     if (!i2sManager.beginMicrophone(
             DEFAULT_SAMPLE_RATE))
     {
-        Serial.println(
+        Serial0.println(
             "[MIC] ERROR: I2SManager.beginMicrophone() failed"
         );
 
@@ -94,33 +94,33 @@ bool Microphone::begin()
     // INFO
     // --------------------------------------------------------
 
-    Serial.printf(
+    Serial0.printf(
         "[MIC] Name: %s\n",
         getName()
     );
 
-    Serial.printf(
+    Serial0.printf(
         "[MIC] Sample rate: %lu Hz\n",
         static_cast<unsigned long>(
             DEFAULT_SAMPLE_RATE
         )
     );
 
-    Serial.printf(
+    Serial0.printf(
         "[MIC] Buffer samples: %u\n",
         static_cast<unsigned>(
             AUDIO_SAMPLES
         )
     );
 
-    Serial.printf(
+    Serial0.printf(
         "[MIC] Buffer bytes: %u\n",
         static_cast<unsigned>(
             sizeof(audioBuffer)
         )
     );
 
-    Serial.println("[MIC] Initialized");
+    Serial0.println("[MIC] Initialized");
 
     return true;
 }
@@ -136,7 +136,7 @@ void Microphone::end()
         return;
     }
 
-    Serial.println("[MIC] Stopping");
+    Serial0.println("[MIC] Stopping");
 
     stopListening();
 
@@ -156,7 +156,7 @@ void Microphone::end()
         sizeof(audioBuffer)
     );
 
-    Serial.println("[MIC] Stopped");
+    Serial0.println("[MIC] Stopped");
 }
 
 // ============================================================
@@ -167,7 +167,7 @@ bool Microphone::startListening()
 {
     if (!initialized)
     {
-        Serial.println(
+        Serial0.println(
             "[MIC] ERROR: microphone is not initialized"
         );
 
@@ -176,7 +176,7 @@ bool Microphone::startListening()
 
     if (!enabled)
     {
-        Serial.println(
+        Serial0.println(
             "[MIC] ERROR: microphone is disabled"
         );
 
@@ -194,7 +194,7 @@ bool Microphone::startListening()
 
     if (!i2sManager.clearMicrophone())
     {
-        Serial.println(
+        Serial0.println(
             "[MIC] ERROR: clearMicrophone() failed"
         );
 
@@ -217,7 +217,7 @@ bool Microphone::startListening()
 
     listening = true;
 
-    Serial.println("[MIC] Listening started");
+    Serial0.println("[MIC] Listening started");
 
     return true;
 }
@@ -237,7 +237,7 @@ void Microphone::stopListening()
 
     audioChunkSize = 0;
 
-    Serial.println("[MIC] Listening stopped");
+    Serial0.println("[MIC] Listening stopped");
 }
 
 // ============================================================

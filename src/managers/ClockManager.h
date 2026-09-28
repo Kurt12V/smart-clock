@@ -4,15 +4,20 @@
 #include <time.h>
 
 #include "Constants.h"
-#include "Settings.h"
-#include "hardware/rtc/RTC.h"
+#include "./hardware/rtc/RTC.h"
+#include "./managers/SettingsManager.h"
 
 class ClockManager
 {
 public:
+
+    // ========================================================
+    // LIFECYCLE
+    // ========================================================
+
     ClockManager(
         RTC& rtc,
-        const Settings::Clock& settings
+        SettingsManager& settings
     );
 
     bool begin();
@@ -70,6 +75,11 @@ public:
     bool isValid() const;
 
 private:
+
+    // ========================================================
+    // INTERNAL
+    // ========================================================
+
     time_t calculateLocalTime(
         time_t utc
     ) const;
@@ -78,21 +88,24 @@ private:
         time_t localTime
     );
 
-private:
+    // ========================================================
+    // MEMBERS
+    // ========================================================
+
     RTC& _rtc;
 
-    const Settings::Clock& _settings;
+    SettingsManager& _settings;
 
-    time_t _utcTime = 0;
+    time_t _utcTime   = 0;
     time_t _localTime = 0;
 
-    uint8_t _hour = 0;
+    uint8_t _hour   = 0;
     uint8_t _minute = 0;
     uint8_t _second = 0;
 
-    uint8_t _day = 1;
-    uint8_t _month = 1;
-    uint16_t _year = 2000;
+    uint8_t  _day   = 1;
+    uint8_t  _month = 1;
+    uint16_t _year  = 2000;
 
     Constants::DayOfWeek _dayOfWeek =
         Constants::DayOfWeek::Sunday;

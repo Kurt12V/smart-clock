@@ -5,7 +5,7 @@ Logger::Level Logger::_level =
 
 void Logger::begin(unsigned long baud)
 {
-    Serial.begin(baud);
+    Serial0.begin(baud);
 }
 
 void Logger::setLevel(Level level)
@@ -46,13 +46,13 @@ void Logger::print(Level level,
     if (level < _level)
         return;
 
-    Serial.print("[");
-    Serial.print(millis());
-    Serial.print("] ");
+    Serial0.print("[");
+    Serial0.print(millis());
+    Serial0.print("] ");
 
-    Serial.print("[");
-    Serial.print(levelName(level));
-    Serial.print("] ");
+    Serial0.print("[");
+    Serial0.print(levelName(level));
+    Serial0.print("] ");
 
     char buffer[256];
 
@@ -63,7 +63,7 @@ void Logger::print(Level level,
         args
     );
 
-    Serial.println(buffer);
+    Serial0.println(buffer);
 }
 
 void Logger::debug(const char* format, ...)

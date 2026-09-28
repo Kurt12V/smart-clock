@@ -3,22 +3,22 @@
 bool VEML7700Sensor::begin() {
 
 
-Serial.println("[VEML7700] Initializing...");
+Serial0.println("[VEML7700] Initializing...");
 
 if (!veml.begin()) {
 
-    Serial.println("[VEML7700] ERROR: Sensor not found!");
+    Serial0.println("[VEML7700] ERROR: Sensor not found!");
 
     initialized = false;
 
     return false;
 }
 
-Serial.println("[VEML7700] Sensor found!");
+Serial0.println("[VEML7700] Sensor found!");
 
 initialized = true;
 
-Serial.println("[VEML7700] READY");
+Serial0.println("[VEML7700] READY");
 
 return true;
 
@@ -36,7 +36,7 @@ float lux = veml.readLux();
 
 if (isnan(lux) || lux < 0) {
 
-    Serial.println("[VEML7700] ERROR: Failed to read light");
+    Serial0.println("[VEML7700] ERROR: Failed to read light");
 
     data.lightValid = false;
 

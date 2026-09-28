@@ -1,106 +1,99 @@
-// #pragma once
+#pragma once
 
-// #include <Arduino.h>
+#include <Arduino.h>
 
-// #include "Settings.h"
+#include "managers/SettingsManager.h"
+#include "managers/SPIManager.h"
+#include "managers/I2SManager.h"
+#include "managers/SDManager.h"
+#include "managers/SoundManager.h"
+#include "managers/InputManager.h"
+#include "managers/SensorsManager.h"
+#include "managers/WebServerManager.h"
 
-// // ============================================================
-// // CORE SYSTEMS
-// // ============================================================
+#include "core/ClockSystem.h"
+#include "core/DisplaySystem.h"
+// #include "core/BluetoothSystem.h"
 
-// #include "./core/ClockSystem.h"
-// #include "./core/DisplaySystem.h"
-// #include "./core/BluetoothSystem.h"
+class App
+{
+public:
 
-// // ============================================================
-// // MANAGERS
-// // ============================================================
+    App();
 
-// #include "./managers/SensorsManager.h"
-// #include "./managers/InputManager.h"
-// #include "./managers/SPIManager.h"
-// #include "./managers/I2SManager.h"
-// #include "./managers/SDManager.h"
-// #include "./managers/SoundManager.h"
+    bool begin();
 
-// // ============================================================
-// // APP
-// // ============================================================
+    void update();
 
-// class App
-// {
-// public:
+    bool isReady() const;
 
-//     App();
+private:
 
-//     bool begin();
-//     void update();
+    // ========================================================
+    // INITIALIZATION STEPS
+    // ========================================================
 
-//     bool isReady() const;
+    bool initSettings();
+    bool initSPI();
+    bool initI2S();
+    bool initSD();
+    bool initSound();
+    bool initClock();
+    bool initSensors();
+    bool initDisplay();
+    bool initInput();
+    // bool initBluetooth();
+    bool initWebServer();
 
-// private:
+    // ========================================================
+    // STATE
+    // ========================================================
 
-//     // ========================================================
-//     // INITIALIZATION
-//     // ========================================================
+    bool _ready;
 
-//     bool initSPI();
-//     bool initI2S();
-//     bool initSD();
-//     bool initSound();
+    // ========================================================
+    // SETTINGS
+    //
+    // ВАЖНО: должен идти ПЕРВЫМ — от него зависят
+    // ClockSystem, DisplaySystem, SoundManager, WebServer.
+    // ========================================================
 
-//     bool initClock();
-//     bool initSensors();
+    SettingsManager _settings;
 
-//     bool initDisplay();
-//     bool initInput();
+    // ========================================================
+    // MANAGERS
+    // ========================================================
 
-//     bool initBluetooth();
+    SPIManager _spiManager;
+    I2SManager _i2sManager;
+    SDManager  _sdManager;
 
-//     // ========================================================
-//     // STATE
-//     // ========================================================
+    SoundManager _soundManager;
 
-//     bool _ready;
+    InputManager  _inputManager;
+    SensorManager _sensorManager;
 
-//     // ========================================================
-//     // SETTINGS
-//     // ========================================================
+    // ========================================================
+    // CORE SYSTEMS
+    //
+    // Порядок объявления = порядок конструирования.
+    // _clockSystem ДО _displaySystem, потому что
+    // DisplaySystem принимает его по ссылке.
+    // ========================================================
 
-//     Settings::Clock _clockSettings;
-//     Settings::Audio _audioSettings;
+    ClockSystem _clockSystem;
 
-//     // ========================================================
-//     // MANAGERS
-//     // ========================================================
+    DisplaySystem _displaySystem;
 
-//     SPIManager _spiManager;
-//     I2SManager _i2sManager;
-//     SDManager _sdManager;
+    // ========================================================
+    // WEB SERVER
+    // ========================================================
 
-//     SoundManager _soundManager;
+    WebServerManager _webServer;
 
-//     InputManager _inputManager;
-//     SensorManager _sensorManager;
+    // ========================================================
+    // BLUETOOTH
+    // ========================================================
 
-//     // ========================================================
-//     // CORE SYSTEMS
-//     // ========================================================
-
-//     ClockSystem _clockSystem;
-
-//     DisplaySystem _displaySystem;
-
-//     // ========================================================
-//     // BLUETOOTH SYSTEM
-//     // ========================================================
-
-//     BluetoothSystem _bluetoothSystem;
-
-//     // ========================================================
-//     // STARTUP SOUND
-//     // ========================================================
-
-//     static constexpr const char* STARTUP_SOUND =
-//         "/audio/system/START_SYSTEM.wav";
-// };
+    // BluetoothSystem _bluetoothSystem;
+};

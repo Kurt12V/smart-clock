@@ -2,18 +2,18 @@
 bool SHT45Sensor::begin() {
 
 
-Serial.println("[SHT45] Initializing...");
+Serial0.println("[SHT45] Initializing...");
 
 if (!sht4.begin()) {
 
-    Serial.println("[SHT45] ERROR: Sensor not found!");
+    Serial0.println("[SHT45] ERROR: Sensor not found!");
 
     initialized = false;
 
     return false;
 }
 
-Serial.println("[SHT45] Sensor found!");
+Serial0.println("[SHT45] Sensor found!");
 
 // Высокая точность
 sht4.setPrecision(SHT4X_HIGH_PRECISION);
@@ -23,7 +23,7 @@ sht4.setHeater(SHT4X_NO_HEATER);
 
 initialized = true;
 
-Serial.println("[SHT45] READY");
+Serial0.println("[SHT45] READY");
 
 return true;
 
@@ -44,7 +44,7 @@ if (!sht4.getEvent(
         &temperatureEvent
     )) {
 
-    Serial.println("[SHT45] ERROR: Failed to read sensor");
+    Serial0.println("[SHT45] ERROR: Failed to read sensor");
 
     data.temperatureValid = false;
     data.humidityValid = false;

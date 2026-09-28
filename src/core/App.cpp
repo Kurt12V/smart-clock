@@ -1,570 +1,476 @@
-// #include "App.h"
-
-// #include "Config.h"
-// #include "Pins.h"
-// #include "Constants.h"
-// #include "Version.h"
-
-// // ============================================================
-// // CONSTRUCTOR
-// // ============================================================
-
-// App::App()
-//     : _ready(false),
-
-//       // ========================================================
-//       // SETTINGS
-//       // ========================================================
-
-//       _clockSettings(),
-//       _audioSettings(),
-
-//       // ========================================================
-//       // MANAGERS
-//       // ========================================================
-
-//       _spiManager(),
-//       _i2sManager(),
-//       _sdManager(),
-
-//       _soundManager(
-//           _sdManager,
-//           _audioSettings,
-//           _i2sManager
-//       ),
-
-//       _inputManager(),
-//       _sensorManager(),
-
-//       // ========================================================
-//       // CORE SYSTEMS
-//       // ========================================================
-
-//       _clockSystem(
-//           _clockSettings
-//       ),
-
-//       _displaySystem(
-//           _clockSystem,
-//           _sensorManager
-//       ),
-
-//       // ========================================================
-//       // BLUETOOTH
-//       // ========================================================
-
-//       _bluetoothSystem(
-//           _sensorManager,
-//           _clockSystem
-//       )
-// {
-// }
-
-// // ============================================================
-// // BEGIN
-// // ============================================================
-
-// bool App::begin()
-// {
-//     Serial.println();
-//     Serial.println("========================================");
-//     Serial.println("        SMART CLOCK STARTING");
-//     Serial.println("========================================");
-
-//     _ready = false;
-
-//     // ========================================================
-//     // SPI
-//     // ========================================================
-
-//     if (!initSPI())
-//     {
-//         Serial.println(
-//             "[APP] SPI initialization failed"
-//         );
-
-//         return false;
-//     }
-
-//     // ========================================================
-//     // I2S
-//     // ========================================================
-
-//     if (!initI2S())
-//     {
-//         Serial.println(
-//             "[APP] I2S initialization failed"
-//         );
-
-//         return false;
-//     }
-
-//     // ========================================================
-//     // SD
-//     // ========================================================
-
-//     if (!initSD())
-//     {
-//         Serial.println(
-//             "[APP] SD initialization failed"
-//         );
-
-//         return false;
-//     }
-
-//     // ========================================================
-//     // SOUND
-//     // ========================================================
-
-//     if (!initSound())
-//     {
-//         Serial.println(
-//             "[APP] Sound initialization failed"
-//         );
-
-//         return false;
-//     }
-
-//     // ========================================================
-//     // CLOCK
-//     // ========================================================
-
-//     if (!initClock())
-//     {
-//         Serial.println(
-//             "[APP] Clock initialization failed"
-//         );
-
-//         return false;
-//     }
-
-//     // ========================================================
-//     // SENSORS
-//     // ========================================================
-
-//     if (!initSensors())
-//     {
-//         Serial.println(
-//             "[APP] Sensors initialization failed"
-//         );
-
-//         return false;
-//     }
-
-//     // ========================================================
-//     // DISPLAY
-//     // ========================================================
-
-//     if (!initDisplay())
-//     {
-//         Serial.println(
-//             "[APP] Display initialization failed"
-//         );
-
-//         return false;
-//     }
-
-//     // ========================================================
-//     // INPUT
-//     // ========================================================
-
-//     if (!initInput())
-//     {
-//         Serial.println(
-//             "[APP] Input initialization failed"
-//         );
-
-//         return false;
-//     }
-
-//     // ========================================================
-//     // BLUETOOTH
-//     // ========================================================
-
-//     if (!initBluetooth())
-//     {
-//         Serial.println(
-//             "[APP] Bluetooth initialization failed"
-//         );
-
-//         return false;
-//     }
-
-//     // ========================================================
-//     // STARTUP SOUND
-//     // ========================================================
-
-//     Serial.println(
-//         "[APP] Playing startup sound..."
-//     );
-
-//     if (!_soundManager.playWav(
-//         STARTUP_SOUND
-//     ))
-//     {
-//         Serial.println(
-//             "[APP] WARNING: startup sound failed"
-//         );
-//     }
-
-//     // ========================================================
-//     // READY
-//     // ========================================================
-
-//     _ready = true;
-
-//     Serial.println();
-//     Serial.println("========================================");
-//     Serial.println("        SMART CLOCK READY");
-//     Serial.println("========================================");
-
-//     return true;
-// }
-
-// // ============================================================
-// // UPDATE
-// // ============================================================
-
-// void App::update()
-// {
-//     if (!_ready)
-//         return;
-
-//     // ========================================================
-//     // INPUT
-//     // ========================================================
-
-//     _inputManager.update();
-
-//     // ========================================================
-//     // SENSORS
-//     // ========================================================
-
-//     _sensorManager.update();
-
-//     // ========================================================
-//     // CLOCK
-//     // ========================================================
-
-//     _clockSystem.update();
-
-//     // ========================================================
-//     // DISPLAY
-//     // ========================================================
-
-//     _displaySystem.update();
-
-//     // ========================================================
-//     // SOUND
-//     // ========================================================
-
-//     _soundManager.update();
-
-//     // ========================================================
-//     // BLUETOOTH
-//     //
-//     // BluetoothSystem internally handles:
-//     //
-//     // BLE transport
-//     // command queue
-//     // protocol parsing
-//     // command handling
-//     // subscriptions
-//     // publisher
-//     // notifications
-//     //
-//     // IMPORTANT:
-//     // Do NOT call BluetoothManager or BluetoothPublisher
-//     // directly here.
-//     // ========================================================
-
-//     _bluetoothSystem.update();
-// }
-
-// // ============================================================
-// // READY
-// // ============================================================
-
-// bool App::isReady() const
-// {
-//     return _ready;
-// }
-
-// // ============================================================
-// // INIT SPI
-// // ============================================================
-
-// bool App::initSPI()
-// {
-//     Serial.println(
-//         "[APP] Initializing SPI..."
-//     );
-
-//     if (!_spiManager.begin())
-//     {
-//         Serial.println(
-//             "[APP] SPI failed"
-//         );
-
-//         return false;
-//     }
-
-//     Serial.println(
-//         "[APP] SPI OK"
-//     );
-
-//     return true;
-// }
-
-// // ============================================================
-// // INIT I2S
-// // ============================================================
-
-// bool App::initI2S()
-// {
-//     Serial.println(
-//         "[APP] Initializing I2S..."
-//     );
-
-//     if (!_i2sManager.begin())
-//     {
-//         Serial.println(
-//             "[APP] I2S failed"
-//         );
-
-//         return false;
-//     }
-
-//     Serial.println(
-//         "[APP] I2S OK"
-//     );
-
-//     return true;
-// }
-
-// // ============================================================
-// // INIT SD
-// // ============================================================
-
-// bool App::initSD()
-// {
-//     Serial.println(
-//         "[APP] Initializing SD..."
-//     );
-
-//     /*
-//      * SDManager::begin() requires the CS pin.
-//      *
-//      * The SD CS pin must be defined in Pins.h.
-//      */
-
-//     if (!_sdManager.begin(PIN_SD_CS))
-//     {
-//         Serial.println(
-//             "[APP] SD failed"
-//         );
-
-//         return false;
-//     }
-
-//     Serial.println(
-//         "[APP] SD OK"
-//     );
-
-//     return true;
-// }
-
-// // ============================================================
-// // INIT SOUND
-// // ============================================================
-
-// bool App::initSound()
-// {
-//     Serial.println(
-//         "[APP] Initializing sound..."
-//     );
-
-//     if (!_soundManager.begin())
-//     {
-//         Serial.println(
-//             "[APP] Sound failed"
-//         );
-
-//         return false;
-//     }
-
-//     Serial.println(
-//         "[APP] Sound OK"
-//     );
-
-//     return true;
-// }
-
-// // ============================================================
-// // INIT CLOCK
-// // ============================================================
-
-// bool App::initClock()
-// {
-//     Serial.println(
-//         "[APP] Initializing clock..."
-//     );
-
-//     if (!_clockSystem.begin())
-//     {
-//         Serial.println(
-//             "[APP] Clock failed"
-//         );
-
-//         return false;
-//     }
-
-//     Serial.println(
-//         "[APP] Clock OK"
-//     );
-
-//     return true;
-// }
-
-// // ============================================================
-// // INIT SENSORS
-// // ============================================================
-
-// bool App::initSensors()
-// {
-//     Serial.println(
-//         "[APP] Initializing sensors..."
-//     );
-
-//     if (!_sensorManager.begin())
-//     {
-//         Serial.println(
-//             "[APP] Sensors failed"
-//         );
-
-//         return false;
-//     }
-
-//     Serial.println(
-//         "[APP] Sensors OK"
-//     );
-
-//     return true;
-// }
-
-// // ============================================================
-// // INIT DISPLAY
-// // ============================================================
-
-// bool App::initDisplay()
-// {
-//     Serial.println(
-//         "[APP] Initializing display..."
-//     );
-
-//     if (!_displaySystem.begin())
-//     {
-//         Serial.println(
-//             "[APP] Display failed"
-//         );
-
-//         return false;
-//     }
-
-//     Serial.println(
-//         "[APP] Display OK"
-//     );
-
-//     return true;
-// }
-
-// // ============================================================
-// // INIT INPUT
-// // ============================================================
-
-// bool App::initInput()
-// {
-//     Serial.println(
-//         "[APP] Initializing input..."
-//     );
-
-//     if (!_inputManager.begin())
-//     {
-//         Serial.println(
-//             "[APP] Input failed"
-//         );
-
-//         return false;
-//     }
-
-//     Serial.println(
-//         "[APP] Input OK"
-//     );
-
-//     return true;
-// }
-
-// // ============================================================
-// // INIT BLUETOOTH
-// // ============================================================
+#include "App.h"
+
+#include "Config.h"
+#include "Pins.h"
+#include "Constants.h"
+#include "Version.h"
+
+// ============================================================
+// WIFI CREDENTIALS
+// ============================================================
+
+static constexpr const char* WIFI_SSID     = "tpl47";
+static constexpr const char* WIFI_PASSWORD = "12713714";
+
+// ============================================================
+// CONSTRUCTOR
+// ============================================================
+
+App::App()
+    : _ready(false),
+
+      // ========================================================
+      // SETTINGS (первым)
+      // ========================================================
+
+      _settings(),
+
+      // ========================================================
+      // MANAGERS
+      // ========================================================
+
+      _spiManager(),
+      _i2sManager(),
+      _sdManager(),
+
+      _soundManager(
+          _sdManager,
+          _settings,
+          _i2sManager
+      ),
+
+      _inputManager(),
+      _sensorManager(),
+
+      // ========================================================
+      // CORE SYSTEMS
+      // ========================================================
+
+      _clockSystem(
+          _settings                    // ← ОБЯЗАТЕЛЬНО
+      ),
+
+      _displaySystem(
+          _settings,
+          _clockSystem,
+          _sensorManager
+      ),
+
+      // ========================================================
+      // WEB SERVER
+      // ========================================================
+
+      _webServer()
+
+      // ========================================================
+      // BLUETOOTH
+      // ========================================================
+
+    //   _bluetoothSystem(
+    //       _sensorManager,
+    //       _clockSystem
+    //   )
+ {
+}
+
+// ============================================================
+// BEGIN
+// ============================================================
+
+bool App::begin()
+{
+    Serial0.println();
+    Serial0.println("========================================");
+    Serial0.println("        SMART CLOCK STARTING");
+    Serial0.println("========================================");
+
+    _ready = false;
+
+    // --------------------------------------------------------
+    // SETTINGS
+    // --------------------------------------------------------
+
+    if (!initSettings())
+    {
+        Serial0.println("[APP] Settings initialization failed");
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // SPI
+    // --------------------------------------------------------
+
+    if (!initSPI())
+    {
+        Serial0.println("[APP] SPI initialization failed");
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // I2S
+    // --------------------------------------------------------
+
+    if (!initI2S())
+    {
+        Serial0.println("[APP] I2S initialization failed");
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // SD
+    // --------------------------------------------------------
+
+    if (!initSD())
+    {
+        Serial0.println("[APP] SD initialization failed");
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // SOUND
+    // --------------------------------------------------------
+
+    if (!initSound())
+    {
+        Serial0.println("[APP] Sound initialization failed");
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // CLOCK
+    // --------------------------------------------------------
+
+    if (!initClock())
+    {
+        Serial0.println("[APP] Clock initialization failed");
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // SENSORS
+    // --------------------------------------------------------
+
+    if (!initSensors())
+    {
+        Serial0.println("[APP] Sensors initialization failed");
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // DISPLAY
+    // --------------------------------------------------------
+
+    if (!initDisplay())
+    {
+        Serial0.println("[APP] Display initialization failed");
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // INPUT
+    // --------------------------------------------------------
+
+    if (!initInput())
+    {
+        Serial0.println("[APP] Input initialization failed");
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // BLUETOOTH
+    // --------------------------------------------------------
+
+    // if (!initBluetooth())
+    // {
+    //     Serial0.println("[APP] Bluetooth initialization failed");
+    //     return false;
+    // }
+
+    // --------------------------------------------------------
+    // WEB SERVER
+    // --------------------------------------------------------
+
+    if (!initWebServer())
+    {
+        Serial0.println("[APP] WARNING: web server failed (continuing)");
+    }
+
+    // --------------------------------------------------------
+    // STARTUP SOUND
+    // --------------------------------------------------------
+
+    Serial0.println("[APP] Playing startup sound...");
+
+    if (!_soundManager.play(Constants::STARTUP_SOUND))
+    {
+        Serial0.println("[APP] WARNING: startup sound failed");
+    }
+
+    // --------------------------------------------------------
+    // READY
+    // --------------------------------------------------------
+
+    _ready = true;
+
+    Serial0.println();
+    Serial0.println("========================================");
+    Serial0.println("        SMART CLOCK READY");
+    Serial0.println("========================================");
+
+    return true;
+}
+
+// ============================================================
+// UPDATE
+// ============================================================
+
+void App::update()
+{
+    if (!_ready)
+        return;
+
+    _webServer.update();
+
+    _inputManager.update();
+    _sensorManager.update();
+
+    _clockSystem.update();
+
+    _displaySystem.update();
+
+    _soundManager.update();
+
+    // _bluetoothSystem.update();
+}
+
+// ============================================================
+// READY
+// ============================================================
+
+bool App::isReady() const
+{
+    return _ready;
+}
+
+// ============================================================
+// INIT SETTINGS
+// ============================================================
+
+bool App::initSettings()
+{
+    Serial0.println();
+    Serial0.println("[APP] Initializing settings...");
+
+    if (!_settings.begin())
+    {
+        Serial0.println("[APP] Settings FAILED");
+        return false;
+    }
+
+    Serial0.println("[APP] Settings OK");
+    return true;
+}
+
+// ============================================================
+// INIT SPI
+// ============================================================
+
+bool App::initSPI()
+{
+    Serial0.println();
+    Serial0.println("[APP] Initializing SPI...");
+
+    if (!_spiManager.begin())
+    {
+        Serial0.println("[APP] SPI failed");
+        return false;
+    }
+
+    Serial0.println("[APP] SPI OK");
+    return true;
+}
+
+// ============================================================
+// INIT I2S
+// ============================================================
+
+bool App::initI2S()
+{
+    Serial0.println();
+    Serial0.println("[APP] Initializing I2S...");
+
+    if (!_i2sManager.begin())
+    {
+        Serial0.println("[APP] I2S failed");
+        return false;
+    }
+
+    Serial0.println("[APP] I2S OK");
+    return true;
+}
+
+// ============================================================
+// INIT SD
+// ============================================================
+
+bool App::initSD()
+{
+    Serial0.println();
+    Serial0.println("[APP] Initializing SD...");
+
+    if (!_sdManager.begin(PIN_SD_CS))
+    {
+        Serial0.println("[APP] SD failed");
+        return false;
+    }
+
+    Serial0.println("[APP] SD OK");
+    return true;
+}
+
+// ============================================================
+// INIT SOUND
+// ============================================================
+
+bool App::initSound()
+{
+    Serial0.println();
+    Serial0.println("[APP] Initializing sound...");
+
+    if (!_soundManager.begin())
+    {
+        Serial0.println("[APP] Sound failed");
+        return false;
+    }
+
+    Serial0.println("[APP] Sound OK");
+    return true;
+}
+
+// ============================================================
+// INIT CLOCK
+// ============================================================
+
+bool App::initClock()
+{
+    Serial0.println();
+    Serial0.println("[APP] Initializing clock...");
+
+    if (!_clockSystem.begin())
+    {
+        Serial0.println("[APP] Clock failed");
+        return false;
+    }
+
+    Serial0.println("[APP] Clock OK");
+    return true;
+}
+
+// ============================================================
+// INIT SENSORS
+// ============================================================
+
+bool App::initSensors()
+{
+    Serial0.println();
+    Serial0.println("[APP] Initializing sensors...");
+
+    if (!_sensorManager.begin())
+    {
+        Serial0.println("[APP] Sensors failed");
+        return false;
+    }
+
+    Serial0.println("[APP] Sensors OK");
+    return true;
+}
+
+// ============================================================
+// INIT DISPLAY
+// ============================================================
+
+bool App::initDisplay()
+{
+    Serial0.println();
+    Serial0.println("[APP] Initializing display...");
+
+    if (!_displaySystem.begin())
+    {
+        Serial0.println("[APP] Display failed");
+        return false;
+    }
+
+    Serial0.println("[APP] Display OK");
+    return true;
+}
+
+// ============================================================
+// INIT INPUT
+// ============================================================
+
+bool App::initInput()
+{
+    Serial0.println();
+    Serial0.println("[APP] Initializing input...");
+
+    if (!_inputManager.begin())
+    {
+        Serial0.println("[APP] Input failed");
+        return false;
+    }
+
+    Serial0.println("[APP] Input OK");
+    return true;
+}
+
+// ============================================================
+// INIT BLUETOOTH
+// ============================================================
 
 // bool App::initBluetooth()
 // {
-//     Serial.println();
-//     Serial.println(
-//         "========================================"
-//     );
-//     Serial.println(
-//         "[APP] Initializing Bluetooth..."
-//     );
-//     Serial.println(
-//         "========================================"
-//     );
-
-//     /*
-//      * BluetoothSystem owns:
-//      *
-//      * BluetoothManager
-//      * BluetoothSubscriptionManager
-//      * BluetoothPublisher
-//      *
-//      * It also processes commands:
-//      *
-//      * Android
-//      *    ↓
-//      * NimBLE RX
-//      *    ↓
-//      * BluetoothManager queue
-//      *    ↓
-//      * BluetoothSystem::processCommand()
-//      *    ↓
-//      * BluetoothProtocol
-//      *    ↓
-//      * BluetoothCommands
-//      *    ↓
-//      * response
-//      */
+//     Serial0.println();
+//     Serial0.println("========================================");
+//     Serial0.println("[APP] Initializing Bluetooth...");
+//     Serial0.println("========================================");
 
 //     if (!_bluetoothSystem.begin())
 //     {
-//         Serial.println(
-//             "[APP] Bluetooth failed"
-//         );
-
+//         Serial0.println("[APP] Bluetooth failed");
 //         return false;
 //     }
 
-//     Serial.println(
-//         "[APP] Bluetooth OK"
-//     );
-
-//     Serial.println(
-//         "[APP] BLE device name: SmartClock"
-//     );
-
-//     Serial.println(
-//         "========================================"
-//     );
+//     Serial0.println("[APP] Bluetooth OK");
+//     Serial0.println("[APP] BLE device name: SmartClock");
+//     Serial0.println("========================================");
 
 //     return true;
 // }
+
+// ============================================================
+// INIT WEB SERVER
+// ============================================================
+
+bool App::initWebServer()
+{
+    Serial0.println();
+    Serial0.println("========================================");
+    Serial0.println("[APP] Initializing web server...");
+    Serial0.println("========================================");
+
+    if (!_webServer.begin(
+            _settings,
+            _sdManager,
+            _soundManager,
+            WIFI_SSID,
+            WIFI_PASSWORD))
+    {
+        Serial0.println("[APP] Web server FAILED");
+        return false;
+    }
+
+    Serial0.print("[APP] Web server OK — http://");
+    Serial0.println(_webServer.getIP());
+
+    return true;
+}

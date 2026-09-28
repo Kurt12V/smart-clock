@@ -6,7 +6,7 @@
 
 bool RTC::begin()
 {
-    Serial.println("[RTC] Initializing...");
+    Serial0.println("[RTC] Initializing...");
 
     Wire.begin(
         PIN_I2C_SDA,
@@ -15,11 +15,11 @@ bool RTC::begin()
 
     if (!_rtc.begin())
     {
-        Serial.println("[RTC] ERROR: DS3231 not found");
+        Serial0.println("[RTC] ERROR: DS3231 not found");
         return false;
     }
 
-    Serial.println("[RTC] DS3231 found");
+    Serial0.println("[RTC] DS3231 found");
 
     return true;
 }

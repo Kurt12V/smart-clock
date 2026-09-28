@@ -36,7 +36,9 @@ LVGLManager::LVGLManager(
       ),
 
       _initialized(false),
-      _lastUpdate(0)
+      _lastUpdate(0),
+      _brightness(100),
+      _applied(255)
 {
     _contexts[0] = {
         0,
@@ -105,19 +107,18 @@ bool LVGLManager::begin()
     }
 
     // ========================================================
-    // BACKLIGHT
+    // BACKLIGHT PWM
     // ========================================================
 
-    pinMode(
-        PIN_TFT_BL,
-        OUTPUT
+    Serial0.println(
+        "[LVGL] Initializing backlight PWM..."
     );
 
-    // Keep displays dark while initializing.
-    digitalWrite(
-        PIN_TFT_BL,
-        LOW
-    );
+
+static constexpr uint8_t BL_CHANNEL = 0;
+ledcSetup(BL_CHANNEL, 5000, 8);
+ledcAttachPin(PIN_TFT_BL, BL_CHANNEL);
+ledcWrite(BL_CHANNEL, 0);
 
     // ========================================================
     // LVGL
@@ -138,7 +139,7 @@ bool LVGLManager::begin()
 
     for (
         uint8_t i = 0;
-        i < DISPLAY_COUNT;
+        i < Config::DISPLAY_COUNT;
         i++
     )
     {
@@ -159,20 +160,10 @@ bool LVGLManager::begin()
     }
 
     // ========================================================
-    // IMPORTANT
-    // Clear physical displays once more
+    // CLEAR
     // ========================================================
 
     clearDisplays();
-
-    // ========================================================
-    // Backlight ON
-    // ========================================================
-
-    digitalWrite(
-        PIN_TFT_BL,
-        HIGH
-    );
 
     // ========================================================
     // READY
@@ -181,6 +172,14 @@ bool LVGLManager::begin()
     _initialized = true;
 
     _lastUpdate = millis();
+
+    // ========================================================
+    // APPLY BRIGHTNESS
+    // ========================================================
+
+    _applied = 255;
+
+    applyBrightness();
 
     Serial0.println(
         "[LVGL] Display system initialized"
@@ -197,7 +196,7 @@ bool LVGLManager::initDisplay(
     uint8_t index
 )
 {
-    if (index >= DISPLAY_COUNT)
+    if (index >= Config::DISPLAY_COUNT)
         return false;
 
     DisplayContext& context =
@@ -214,19 +213,20 @@ bool LVGLManager::initDisplay(
     // ========================================================
 
     tft.init(
-        TFT_WIDTH,
-        TFT_HEIGHT
+        Config::DISPLAY_WIDTH,
+        Config::DISPLAY_HEIGHT
     );
 
-    tft.setRotation(0);
+    tft.setRotation(
+        Config::DISPLAY_ROTATION
+    );
 
     tft.setSPISpeed(
-        40000000
+        Config::DISPLAY_SPI_FREQUENCY
     );
 
     // ========================================================
-    // IMPORTANT
-    // Clear TFT GRAM immediately
+    // CLEAR GRAM
     // ========================================================
 
     tft.fillScreen(
@@ -239,8 +239,8 @@ bool LVGLManager::initDisplay(
 
     lv_display_t* display =
         lv_display_create(
-            WIDTH,
-            HEIGHT
+            Config::DISPLAY_WIDTH,
+            Config::DISPLAY_HEIGHT
         );
 
     if (display == nullptr)
@@ -263,7 +263,7 @@ bool LVGLManager::initDisplay(
         display,
         context.buffer,
         nullptr,
-        sizeof(lv_color_t) * BUFFER_SIZE,
+        sizeof(lv_color_t) * Config::LVGL_BUFFER_SIZE,
         LV_DISPLAY_RENDER_MODE_PARTIAL
     );
 
@@ -291,6 +291,65 @@ bool LVGLManager::initDisplay(
 }
 
 // ============================================================
+// SET BRIGHTNESS
+// ============================================================
+
+void LVGLManager::setBrightness(
+    uint8_t percent
+)
+{
+    if (percent > 100)
+        percent = 100;
+
+    _brightness = percent;
+
+    applyBrightness();
+}
+
+// ============================================================
+// GET BRIGHTNESS
+// ============================================================
+
+uint8_t LVGLManager::brightness() const
+{
+    return _brightness;
+}
+
+// ============================================================
+// APPLY BRIGHTNESS (PWM)
+// ============================================================
+
+void LVGLManager::applyBrightness()
+{
+    if (!_initialized)
+        return;
+
+    if (_brightness == _applied)
+        return;
+
+    _applied = _brightness;
+
+    // 0..100% -> 0..255 duty
+    uint8_t duty =
+        static_cast<uint8_t>(
+            (_brightness * 255UL) / 100UL
+        );
+
+    // СТАЛО:
+ledcWrite(BL_CHANNEL, duty);   // 0 — номер канала
+
+    Serial0.print(
+        "[LVGL] Brightness: "
+    );
+
+    Serial0.print(
+        _brightness
+    );
+
+    Serial0.println("%");
+}
+
+// ============================================================
 // CLEAR DISPLAYS
 // ============================================================
 
@@ -301,7 +360,7 @@ void LVGLManager::clearDisplays()
 
     for (
         uint8_t i = 0;
-        i < DISPLAY_COUNT;
+        i < Config::DISPLAY_COUNT;
         i++
     )
     {
@@ -321,7 +380,7 @@ void LVGLManager::clearDisplays()
 }
 
 // ============================================================
-// FORCE REFRESH
+// REFRESH
 // ============================================================
 
 void LVGLManager::refresh()
@@ -331,7 +390,7 @@ void LVGLManager::refresh()
 
     for (
         uint8_t i = 0;
-        i < DISPLAY_COUNT;
+        i < Config::DISPLAY_COUNT;
         i++
     )
     {
@@ -390,26 +449,16 @@ void LVGLManager::flushCallback(
     // LVGL AREA
     // ========================================================
 
-    int16_t x =
-        area->x1;
-
-    int16_t y =
-        area->y1;
+    int16_t x = area->x1;
+    int16_t y = area->y1;
 
     int16_t width =
-        area->x2 -
-        area->x1 +
-        1;
+        area->x2 - area->x1 + 1;
 
     int16_t height =
-        area->y2 -
-        area->y1 +
-        1;
+        area->y2 - area->y1 + 1;
 
-    if (
-        width <= 0 ||
-        height <= 0
-    )
+    if (width <= 0 || height <= 0)
     {
         lv_display_flush_ready(
             display
@@ -422,11 +471,8 @@ void LVGLManager::flushCallback(
     // PHYSICAL COORDINATES
     // ========================================================
 
-    int16_t physicalX =
-        x + X_OFFSET;
-
-    int16_t physicalY =
-        y + Y_OFFSET;
+    int16_t physicalX = x;
+    int16_t physicalY = y;
 
     // ========================================================
     // SPI
@@ -447,12 +493,8 @@ void LVGLManager::flushCallback(
         );
 
     uint32_t pixelCount =
-        static_cast<uint32_t>(
-            width
-        ) *
-        static_cast<uint32_t>(
-            height
-        );
+        static_cast<uint32_t>(width) *
+        static_cast<uint32_t>(height);
 
     tft.writePixels(
         pixels,
@@ -481,25 +523,19 @@ void LVGLManager::update()
 
     lv_timer_handler();
 
-    _lastUpdate =
-        millis();
+    _lastUpdate = millis();
 }
 
 // ============================================================
 // DISPLAY
 // ============================================================
 
-lv_display_t*
-LVGLManager::display(
+lv_display_t* LVGLManager::display(
     uint8_t index
 )
 {
-    if (
-        index >= DISPLAY_COUNT
-    )
-    {
+    if (index >= Config::DISPLAY_COUNT)
         return nullptr;
-    }
 
     return _contexts[index].lvDisplay;
 }
@@ -524,17 +560,12 @@ bool LVGLManager::testDisplays()
 
     for (
         uint8_t i = 0;
-        i < DISPLAY_COUNT;
+        i < Config::DISPLAY_COUNT;
         i++
     )
     {
-        if (
-            _contexts[i].tft ==
-            nullptr
-        )
-        {
+        if (_contexts[i].tft == nullptr)
             return false;
-        }
 
         _contexts[i].tft->fillScreen(
             ST77XX_RED

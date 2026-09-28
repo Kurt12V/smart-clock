@@ -1,53 +1,53 @@
-#pragma once
+// #pragma once
 
-#include <Arduino.h>
+// #include <Arduino.h>
 
-#include "./managers/BluetoothManager.h"
-#include "./hardware/bluetooth/BluetoothProtocol.h"
-#include "./hardware/bluetooth/BluetoothCommands.h"
-#include "./managers/BluetoothSubscriptionManager.h"
-#include "./hardware/bluetooth/BluetoothPublisher.h"
+// #include "./managers/BluetoothManager.h"
+// #include "./hardware/bluetooth/BluetoothProtocol.h"
+// #include "./hardware/bluetooth/BluetoothCommands.h"
+// #include "./managers/BluetoothSubscriptionManager.h"
+// #include "./hardware/bluetooth/BluetoothPublisher.h"
 
-#include "./managers/SensorsManager.h"
-#include "./core/ClockSystem.h"
+// #include "./managers/SensorsManager.h"
+// #include "./core/ClockSystem.h"
 
-class BluetoothSystem
-{
-public:
-    BluetoothSystem(
-        SensorManager& sensors,
-        ClockSystem& clock
-    );
+// class BluetoothSystem
+// {
+// public:
+//     BluetoothSystem(
+//         SensorManager& sensors,
+//         ClockSystem& clock
+//     );
 
-    bool begin();
+//     bool begin();
 
-    void update();
+//     void update();
 
-    bool isReady() const;
-    bool isConnected() const;
+//     bool isReady() const;
+//     bool isConnected() const;
 
-    BluetoothManager& bluetooth();
+//     BluetoothManager& bluetooth();
 
-    BluetoothSubscriptionManager&
-    subscriptions();
+//     BluetoothSubscriptionManager&
+//     subscriptions();
 
-    BluetoothPublisher& publisher();
+//     BluetoothPublisher& publisher();
 
-private:
-    void processCommand();
+// private:
+//     void processCommand();
 
-private:
-    SensorManager& _sensors;
-    ClockSystem& _clock;
+// private:
+//     SensorManager& _sensors;
+//     ClockSystem& _clock;
 
-    BluetoothManager _bluetooth;
+//     BluetoothManager _bluetooth;
 
-    BluetoothSubscriptionManager
-        _subscriptions;
+//     BluetoothSubscriptionManager
+//         _subscriptions;
 
-    BluetoothPublisher
-        _publisher;
+//     BluetoothPublisher
+//         _publisher;
 
-    bool _initialized;
-};
+//     bool _initialized;
+// };
 

@@ -30,7 +30,7 @@ AudioRecorder::AudioRecorder(
 
 bool AudioRecorder::begin()
 {
-    Serial.println("[AudioRecorder] READY");
+    Serial0.println("[AudioRecorder] READY");
 
     return true;
 }
@@ -43,7 +43,7 @@ bool AudioRecorder::startRecording(const char* path)
 {
     if (path == nullptr)
     {
-        Serial.println(
+        Serial0.println(
             "[AudioRecorder] ERROR: path is null"
         );
 
@@ -52,7 +52,7 @@ bool AudioRecorder::startRecording(const char* path)
 
     if (recording)
     {
-        Serial.println(
+        Serial0.println(
             "[AudioRecorder] ERROR: already recording"
         );
 
@@ -61,7 +61,7 @@ bool AudioRecorder::startRecording(const char* path)
 
     if (!microphone.isInitialized())
     {
-        Serial.println(
+        Serial0.println(
             "[AudioRecorder] ERROR: microphone is not initialized"
         );
 
@@ -70,7 +70,7 @@ bool AudioRecorder::startRecording(const char* path)
 
     if (!microphone.isEnabled())
     {
-        Serial.println(
+        Serial0.println(
             "[AudioRecorder] ERROR: microphone is disabled"
         );
 
@@ -79,7 +79,7 @@ bool AudioRecorder::startRecording(const char* path)
 
     if (!microphone.isListening())
     {
-        Serial.println(
+        Serial0.println(
             "[AudioRecorder] ERROR: microphone is not listening"
         );
 
@@ -97,11 +97,11 @@ bool AudioRecorder::startRecording(const char* path)
 
     if (!file)
     {
-        Serial.print(
+        Serial0.print(
             "[AudioRecorder] ERROR: cannot open file: "
         );
 
-        Serial.println(path);
+        Serial0.println(path);
 
         return false;
     }
@@ -126,11 +126,11 @@ bool AudioRecorder::startRecording(const char* path)
 
     writeWavHeader();
 
-    Serial.print(
+    Serial0.print(
         "[AudioRecorder] RECORDING: "
     );
 
-    Serial.println(path);
+    Serial0.println(path);
 
     return true;
 }
@@ -153,35 +153,35 @@ void AudioRecorder::stopRecording()
 
     recording = false;
 
-    Serial.println(
+    Serial0.println(
         "[AudioRecorder] STOPPED"
     );
 
-    Serial.print(
+    Serial0.print(
         "[AudioRecorder] Bytes: "
     );
 
-    Serial.println(
+    Serial0.println(
         recordedBytes
     );
 
-    Serial.print(
+    Serial0.print(
         "[AudioRecorder] Samples: "
     );
 
-    Serial.println(
+    Serial0.println(
         recordedSamples
     );
 
-    Serial.print(
+    Serial0.print(
         "[AudioRecorder] Duration: "
     );
 
-    Serial.print(
+    Serial0.print(
         getRecordingDurationMs()
     );
 
-    Serial.println(
+    Serial0.println(
         " ms"
     );
 }
@@ -289,7 +289,7 @@ void AudioRecorder::writeSamples(
 
     if (written != bytes)
     {
-        Serial.println(
+        Serial0.println(
             "[AudioRecorder] ERROR: incomplete write"
         );
 

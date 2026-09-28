@@ -6,7 +6,7 @@
 
 ClockManager::ClockManager(
     RTC& rtc,
-    const Settings::Clock& settings
+    SettingsManager& settings
 )
     : _rtc(rtc),
       _settings(settings)
@@ -25,12 +25,6 @@ bool ClockManager::begin()
         return false;
     }
 
-    // if (!_settings.useRTC)
-    // {
-    //     _valid = false;
-    //     return true;
-    // }
-
     update();
 
     return _valid;
@@ -42,18 +36,11 @@ bool ClockManager::begin()
 
 void ClockManager::update()
 {
-    // if (!_settings.useRTC)
-    // {
-    //     _valid = false;
-    //     return;
-    // }
-
     const DateTime now = _rtc.getDateTime();
 
     _utcTime = now.unixtime();
 
-    _localTime =
-        calculateLocalTime(_utcTime);
+    _localTime = calculateLocalTime(_utcTime);
 
     updateDateTime(_localTime);
 
@@ -68,16 +55,13 @@ time_t ClockManager::calculateLocalTime(
     time_t utc
 ) const
 {
-    const int16_t offsetHours =
-        static_cast<int16_t>(
-            _settings.utcOffset
-        );
+    int8_t offset = static_cast<int8_t>(
+        _settings.get(Param::UtcOffset)
+    );
 
     return utc +
         (
-            static_cast<time_t>(
-                offsetHours
-            ) * 3600
+            static_cast<time_t>(offset) * 3600
         );
 }
 
@@ -91,13 +75,13 @@ void ClockManager::updateDateTime(
 {
     const DateTime local(localTime);
 
-    _hour = local.hour();
+    _hour   = local.hour();
     _minute = local.minute();
     _second = local.second();
 
-    _day = local.day();
+    _day   = local.day();
     _month = local.month();
-    _year = local.year();
+    _year  = local.year();
 
     _dayOfWeek =
         static_cast<Constants::DayOfWeek>(

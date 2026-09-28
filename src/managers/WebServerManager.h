@@ -7,6 +7,8 @@
 #include <ArduinoJson.h>
 
 #include "SettingsManager.h"
+#include "SDManager.h"
+#include "SoundManager.h"
 
 class WebServerManager
 {
@@ -16,8 +18,10 @@ public:
 
     bool begin(
         SettingsManager& settings,
-        const char* ssid,
-        const char* password
+        SDManager&       sd,
+        SoundManager&    sound,
+        const char*      ssid,
+        const char*      password
     );
 
     void update();
@@ -29,11 +33,9 @@ private:
 
     WebServer        _server;
     SettingsManager* _settings;
+    SDManager*       _sd;
+    SoundManager*    _sound;
     bool             _initialized;
-
-    // --------------------------------------------------------
-    // routes
-    // --------------------------------------------------------
 
     void setupRoutes();
 
@@ -46,10 +48,14 @@ private:
     void handleReset();
 
     void handleSensors();
+    void handleSD();
 
-    // --------------------------------------------------------
-    // helpers
-    // --------------------------------------------------------
+    // audio
+    void handleAudioPlay();
+    void handleAudioPause();
+    void handleAudioResume();
+    void handleAudioStop();
+    void handleAudioStatus();
 
     bool parseJson(JsonDocument& doc);
 

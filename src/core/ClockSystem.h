@@ -7,15 +7,14 @@
 #include "Constants.h"
 #include "Settings.h"
 
-#include "hardware/rtc/RTC.h"
-#include "managers/ClockManager.h"
+#include "./hardware/rtc/RTC.h"
+#include "./managers/ClockManager.h"
+#include "./managers/SettingsManager.h"
 
 class ClockSystem
 {
 public:
-    explicit ClockSystem(
-        const Settings::Clock& settings
-    );
+    explicit ClockSystem(SettingsManager& settings);
 
     // ========================================================
     // SYSTEM
@@ -153,5 +152,5 @@ private:
 
     ClockManager _clockManager;
 
-    const Settings::Clock& _settings;
+    SettingsManager& _settings;
 };

@@ -21,6 +21,12 @@ namespace Constants
 // ============================================================
 // DAYS OF WEEK
 // ============================================================
+namespace Constants
+{
+    constexpr const char* STARTUP_SOUND = "/audio/system/START_SYSTEM.wav";
+    // constexpr const char* ALARM_SOUND   = "/sounds/alarm.wav";
+    // constexpr const char* BUTTON_SOUND  = "/sounds/button.wav";
+}
 
 namespace Constants
 {

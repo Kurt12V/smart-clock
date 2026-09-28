@@ -77,7 +77,7 @@ bool CobLed::begin()
 
     if (result == 0)
     {
-        Serial.printf(
+        Serial0.printf(
             "CobLed: LEDC setup FAILED "
             "GPIO=%u CH=%u\n",
             _pin,
@@ -107,7 +107,7 @@ bool CobLed::begin()
         0
     );
 
-    Serial.printf(
+    Serial0.printf(
         "CobLed: GPIO=%u CH=%u OK\n",
         _pin,
         _channel

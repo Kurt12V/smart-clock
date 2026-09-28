@@ -29,14 +29,14 @@ bool I2SManager::begin()
         return true;
     }
 
-    Serial.println();
-    Serial.println("[I2S] ========================================");
-    Serial.println("[I2S] I2S Manager");
-    Serial.println("[I2S] ========================================");
+    Serial0.println();
+    Serial0.println("[I2S] ========================================");
+    Serial0.println("[I2S] I2S Manager");
+    Serial0.println("[I2S] ========================================");
 
     _initialized = true;
 
-    Serial.println("[I2S] Manager initialized");
+    Serial0.println("[I2S] Manager initialized");
 
     return true;
 }
@@ -57,7 +57,7 @@ void I2SManager::end()
 
     _initialized = false;
 
-    Serial.println("[I2S] Manager stopped");
+    Serial0.println("[I2S] Manager stopped");
 }
 
 // ============================================================
@@ -90,20 +90,20 @@ bool I2SManager::beginMicrophone(
         }
     }
 
-    Serial.println();
-    Serial.println("[I2S] Initializing microphone");
-    Serial.printf(
+    Serial0.println();
+    Serial0.println("[I2S] Initializing microphone");
+    Serial0.printf(
         "[I2S] Port: I2S_NUM_%d\n",
         MICROPHONE_PORT
     );
-    Serial.printf(
+    Serial0.printf(
         "[I2S] Sample rate: %lu Hz\n",
         static_cast<unsigned long>(sampleRate)
     );
 
     if (!installMicrophoneDriver(sampleRate))
     {
-        Serial.println(
+        Serial0.println(
             "[I2S] ERROR: microphone driver installation failed"
         );
 
@@ -113,7 +113,7 @@ bool I2SManager::beginMicrophone(
     _microphoneSampleRate = sampleRate;
     _microphoneInitialized = true;
 
-    Serial.println(
+    Serial0.println(
         "[I2S] Microphone initialized"
     );
 
@@ -181,7 +181,7 @@ bool I2SManager::installMicrophoneDriver(
 
     if (result != ESP_OK)
     {
-        Serial.printf(
+        Serial0.printf(
             "[I2S] ERROR: i2s_driver_install(MIC) failed: %s\n",
             esp_err_to_name(result)
         );
@@ -212,7 +212,7 @@ bool I2SManager::installMicrophoneDriver(
 
     if (result != ESP_OK)
     {
-        Serial.printf(
+        Serial0.printf(
             "[I2S] ERROR: i2s_set_pin(MIC) failed: %s\n",
             esp_err_to_name(result)
         );
@@ -251,7 +251,7 @@ void I2SManager::endMicrophone()
 
     _microphoneInitialized = false;
 
-    Serial.println(
+    Serial0.println(
         "[I2S] Microphone stopped"
     );
 }
@@ -289,7 +289,7 @@ bool I2SManager::clearMicrophone()
 
     if (result != ESP_OK)
     {
-        Serial.printf(
+        Serial0.printf(
             "[I2S] ERROR: clear microphone failed: %s\n",
             esp_err_to_name(result)
         );
@@ -342,7 +342,7 @@ bool I2SManager::readMicrophone(
 
     if (result != ESP_OK)
     {
-        Serial.printf(
+        Serial0.printf(
             "[I2S] ERROR: microphone read failed: %s\n",
             esp_err_to_name(result)
         );
@@ -384,20 +384,20 @@ bool I2SManager::beginSpeaker(
         }
     }
 
-    Serial.println();
-    Serial.println("[I2S] Initializing speaker");
-    Serial.printf(
+    Serial0.println();
+    Serial0.println("[I2S] Initializing speaker");
+    Serial0.printf(
         "[I2S] Port: I2S_NUM_%d\n",
         SPEAKER_PORT
     );
-    Serial.printf(
+    Serial0.printf(
         "[I2S] Sample rate: %lu Hz\n",
         static_cast<unsigned long>(sampleRate)
     );
 
     if (!installSpeakerDriver(sampleRate))
     {
-        Serial.println(
+        Serial0.println(
             "[I2S] ERROR: speaker driver installation failed"
         );
 
@@ -407,7 +407,7 @@ bool I2SManager::beginSpeaker(
     _speakerSampleRate = sampleRate;
     _speakerInitialized = true;
 
-    Serial.println(
+    Serial0.println(
         "[I2S] Speaker initialized"
     );
 
@@ -475,7 +475,7 @@ bool I2SManager::installSpeakerDriver(
 
     if (result != ESP_OK)
     {
-        Serial.printf(
+        Serial0.printf(
             "[I2S] ERROR: i2s_driver_install(SPK) failed: %s\n",
             esp_err_to_name(result)
         );
@@ -506,7 +506,7 @@ bool I2SManager::installSpeakerDriver(
 
     if (result != ESP_OK)
     {
-        Serial.printf(
+        Serial0.printf(
             "[I2S] ERROR: i2s_set_pin(SPK) failed: %s\n",
             esp_err_to_name(result)
         );
@@ -541,7 +541,7 @@ void I2SManager::endSpeaker()
 
     _speakerInitialized = false;
 
-    Serial.println(
+    Serial0.println(
         "[I2S] Speaker stopped"
     );
 }
@@ -653,7 +653,7 @@ bool I2SManager::writeSpeaker(
 
     if (result != ESP_OK)
     {
-        Serial.printf(
+        Serial0.printf(
             "[I2S] ERROR: speaker write failed: %s\n",
             esp_err_to_name(result)
         );

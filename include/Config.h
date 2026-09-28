@@ -47,7 +47,7 @@ namespace Config
 // ============================================================
 
 namespace Config
-{
+{    constexpr size_t LVGL_BUFFER_SIZE = 320 * 40;
     constexpr unsigned long SERIAL_BAUD_RATE = 115200;
 }
 

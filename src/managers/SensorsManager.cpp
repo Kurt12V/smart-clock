@@ -22,10 +22,10 @@ sensors[1] = &veml7700;
 bool SensorManager::begin() {
 
 
-Serial.println();
-Serial.println("================================");
-Serial.println("         SENSOR MANAGER");
-Serial.println("================================");
+Serial0.println();
+Serial0.println("================================");
+Serial0.println("         SENSOR MANAGER");
+Serial0.println("================================");
 
 bool allOk = true;
 
@@ -33,7 +33,7 @@ for (int i = 0; i < SENSOR_COUNT; ++i) {
 
     if (!sensors[i]->begin()) {
 
-        Serial.printf(
+        Serial0.printf(
             "[SensorManager] %s FAILED\n",
             sensors[i]->getName()
         );
@@ -42,7 +42,7 @@ for (int i = 0; i < SENSOR_COUNT; ++i) {
 
     } else {
 
-        Serial.printf(
+        Serial0.printf(
             "[SensorManager] %s READY\n",
             sensors[i]->getName()
         );
@@ -53,17 +53,17 @@ for (int i = 0; i < SENSOR_COUNT; ++i) {
     // VL53L8CX
     // -------------------------
 
-    Serial.println();
+    Serial0.println();
 
     if (!vl53l8cx.begin())
     {
-        Serial.println(
+        Serial0.println(
             "[SensorManager] VL53L8CX FAILED"
         );
     }
     else
     {
-        Serial.println(
+        Serial0.println(
             "[SensorManager] VL53L8CX READY"
         );
     }
@@ -237,24 +237,24 @@ SensorManager::getVL53L8CX()
 void SensorManager::printData() const {
 
 
-Serial.println();
-Serial.println("================================");
-Serial.println("         SENSOR DATA");
-Serial.println("================================");
+Serial0.println();
+Serial0.println("================================");
+Serial0.println("         SENSOR DATA");
+Serial0.println("================================");
 
-Serial.print("Temperature C: ");
-Serial.println(getTemperatureC());
+Serial0.print("Temperature C: ");
+Serial0.println(getTemperatureC());
 
-Serial.print("Temperature F: ");
-Serial.println(getTemperatureF());
+Serial0.print("Temperature F: ");
+Serial0.println(getTemperatureF());
 
-Serial.print("Humidity:      ");
-Serial.println(getHumidity());
+Serial0.print("Humidity:      ");
+Serial0.println(getHumidity());
 
-Serial.print("Light:         ");
-Serial.println(getLight());
+Serial0.print("Light:         ");
+Serial0.println(getLight());
 
-Serial.println("================================");
+Serial0.println("================================");
 
 
 }

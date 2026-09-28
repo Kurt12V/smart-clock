@@ -7,6 +7,8 @@
 WebServerManager::WebServerManager()
     : _server(80),
       _settings(nullptr),
+      _sd(nullptr),
+      _sound(nullptr),
       _initialized(false)
 {
 }
@@ -17,8 +19,10 @@ WebServerManager::WebServerManager()
 
 bool WebServerManager::begin(
     SettingsManager& settings,
-    const char* ssid,
-    const char* password
+    SDManager&       sd,
+    SoundManager&    sound,
+    const char*      ssid,
+    const char*      password
 )
 {
     Serial0.println();
@@ -27,6 +31,8 @@ bool WebServerManager::begin(
     Serial0.println("========================================");
 
     _settings = &settings;
+    _sd       = &sd;
+    _sound    = &sound;
 
     // --------------------------------------------------------
     // WIFI
@@ -182,13 +188,57 @@ void WebServerManager::setupRoutes()
     );
 
     // --------------------------------------------------------
-    // SENSORS (placeholder)
+    // SENSORS
     // --------------------------------------------------------
 
     _server.on(
         "/api/sensors",
         HTTP_GET,
         [this]() { handleSensors(); }
+    );
+
+    // --------------------------------------------------------
+    // SD CARD
+    // --------------------------------------------------------
+
+    _server.on(
+        "/api/sd",
+        HTTP_GET,
+        [this]() { handleSD(); }
+    );
+
+    // --------------------------------------------------------
+    // AUDIO
+    // --------------------------------------------------------
+
+    _server.on(
+        "/api/audio/play",
+        HTTP_POST,
+        [this]() { handleAudioPlay(); }
+    );
+
+    _server.on(
+        "/api/audio/pause",
+        HTTP_POST,
+        [this]() { handleAudioPause(); }
+    );
+
+    _server.on(
+        "/api/audio/resume",
+        HTTP_POST,
+        [this]() { handleAudioResume(); }
+    );
+
+    _server.on(
+        "/api/audio/stop",
+        HTTP_POST,
+        [this]() { handleAudioStop(); }
+    );
+
+    _server.on(
+        "/api/audio/status",
+        HTTP_GET,
+        [this]() { handleAudioStatus(); }
     );
 
     // --------------------------------------------------------
@@ -303,7 +353,7 @@ void WebServerManager::handleSetParam()
         return;
     }
 
-    JsonDocument doc;                         // v7
+    JsonDocument doc;
 
     if (!parseJson(doc))
         return;
@@ -316,7 +366,7 @@ void WebServerManager::handleSetParam()
         return;
     }
 
-    if (!doc["value"].is<int>())              // v7: вместо containsKey
+    if (!doc["value"].is<int>())
     {
         sendError(400, "missing value");
         return;
@@ -330,18 +380,29 @@ void WebServerManager::handleSetParam()
         return;
     }
 
-    int value = doc["value"].as<int>();
+    int oldValue = _settings->get(p);
+    int newValue = doc["value"].as<int>();
 
     // set() сам clamp-ит по Config
-    _settings->set(p, value);
+    _settings->set(p, newValue);
 
-    // сохраняем только этот ключ
+    int clamped = _settings->get(p);
+
+    // Если значение не изменилось — не пишем флеш
+    if (clamped == oldValue)
+    {
+        sendOk();
+        return;
+    }
+
     _settings->save(p);
 
-    Serial0.print("[WEB] set ");
+    Serial0.print("[WEB] ");
     Serial0.print(name);
-    Serial0.print(" = ");
-    Serial0.println(_settings->get(p));
+    Serial0.print(": ");
+    Serial0.print(oldValue);
+    Serial0.print(" -> ");
+    Serial0.println(clamped);
 
     sendOk();
 }
@@ -359,7 +420,7 @@ void WebServerManager::handleGetAllParams()
         return;
     }
 
-    JsonDocument doc;                         // v7
+    JsonDocument doc;
 
     for (uint8_t i = 0;
          i < static_cast<uint8_t>(Param::COUNT);
@@ -402,12 +463,226 @@ void WebServerManager::handleReset()
 
 void WebServerManager::handleSensors()
 {
-    JsonDocument doc;                         // v7
+    JsonDocument doc;
 
     doc["temperature"] = 0;
     doc["humidity"]    = 0;
     doc["light"]       = 0;
     doc["distance"]    = 0;
+
+    String body;
+    serializeJson(doc, body);
+
+    sendJson(200, body);
+}
+
+// ============================================================
+// GET /api/sd
+//   -> { "files": [ {path,size,type}, ... ] }
+// ============================================================
+
+void WebServerManager::handleSD()
+{
+    if (!_sd || !_sd->isReady())
+    {
+        sendError(503, "SD not available");
+        return;
+    }
+
+    // --------------------------------------------------------
+    // Список файлов (макс. 300, глубина 2)
+    // --------------------------------------------------------
+
+    static constexpr size_t  MAX_FILES = 300;
+    static constexpr uint8_t MAX_DEPTH = 2;
+
+    static SDFileEntry entries[MAX_FILES];
+
+    size_t count = _sd->listFiles(
+        entries,
+        MAX_FILES,
+        MAX_DEPTH,
+        "/"
+    );
+
+    // --------------------------------------------------------
+    // JSON
+    // --------------------------------------------------------
+
+    JsonDocument doc;
+
+    JsonArray files = doc["files"].to<JsonArray>();
+
+    for (size_t i = 0; i < count; ++i)
+    {
+        JsonObject item = files.add<JsonObject>();
+
+        item["path"] = entries[i].path;
+        item["size"] = entries[i].size;
+        item["type"] = entries[i].isDir ? "dir" : "file";
+    }
+
+    String body;
+    serializeJson(doc, body);
+
+    sendJson(200, body);
+}
+
+// ============================================================
+// POST /api/audio/play
+//   body: { "path": "/music/track.wav", "volume": 100 }
+// ============================================================
+
+void WebServerManager::handleAudioPlay()
+{
+    if (!_sound || !_sound->isInitialized())
+    {
+        sendError(503, "sound not ready");
+        return;
+    }
+
+    JsonDocument doc;
+
+    if (!parseJson(doc))
+        return;
+
+    const char* path = doc["path"];
+
+    if (!path)
+    {
+        sendError(400, "missing path");
+        return;
+    }
+
+    int volume = doc["volume"] | 100;
+    volume = constrain(volume, 0, 100);
+
+    // --------------------------------------------------------
+    // Проверим, что файл существует
+    // --------------------------------------------------------
+
+    if (!_sd || !_sd->isReady() ||
+        !_sd->card().exists(path))
+    {
+        sendError(404, "file not found");
+        return;
+    }
+
+    // --------------------------------------------------------
+    // Воспроизведение
+    // --------------------------------------------------------
+
+    if (!_sound->playLocal(path, volume))
+    {
+        sendError(500, "play failed");
+        return;
+    }
+
+    Serial0.print("[WEB] audio play: ");
+    Serial0.println(path);
+
+    sendOk();
+}
+
+// ============================================================
+// POST /api/audio/pause
+// ============================================================
+
+void WebServerManager::handleAudioPause()
+{
+    if (!_sound)
+    {
+        sendError(503, "sound not ready");
+        return;
+    }
+
+    if (!_sound->isPlaying())
+    {
+        sendError(409, "not playing");
+        return;
+    }
+
+    if (!_sound->pause())
+    {
+        sendError(500, "pause failed");
+        return;
+    }
+
+    Serial0.println("[WEB] audio pause");
+
+    sendOk();
+}
+
+// ============================================================
+// POST /api/audio/resume
+// ============================================================
+
+void WebServerManager::handleAudioResume()
+{
+    if (!_sound)
+    {
+        sendError(503, "sound not ready");
+        return;
+    }
+
+    if (!_sound->isPaused())
+    {
+        sendError(409, "not paused");
+        return;
+    }
+
+    if (!_sound->resume())
+    {
+        sendError(500, "resume failed");
+        return;
+    }
+
+    Serial0.println("[WEB] audio resume");
+
+    sendOk();
+}
+
+// ============================================================
+// POST /api/audio/stop
+// ============================================================
+
+void WebServerManager::handleAudioStop()
+{
+    if (!_sound)
+    {
+        sendError(503, "sound not ready");
+        return;
+    }
+
+    _sound->stop();
+
+    Serial0.println("[WEB] audio stop");
+
+    sendOk();
+}
+
+// ============================================================
+// GET /api/audio/status
+//   -> {
+//        state, path, position, duration, volume
+//      }
+// ============================================================
+
+void WebServerManager::handleAudioStatus()
+{
+    if (!_sound)
+    {
+        sendError(503, "sound not ready");
+        return;
+    }
+
+    JsonDocument doc;
+
+    doc["state"]    = _sound->getStateString();
+    doc["path"]     = _sound->getCurrentPath();
+    doc["position"] = _sound->getPositionMs();
+    doc["duration"] = _sound->getDurationMs();
+    doc["volume"]   = _sound->getEffectiveVolume();
 
     String body;
     serializeJson(doc, body);

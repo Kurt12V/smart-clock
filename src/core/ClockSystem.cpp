@@ -8,7 +8,7 @@
 // ============================================================
 
 ClockSystem::ClockSystem(
-    const Settings::Clock& settings
+    SettingsManager& settings
 )
     : _rtc(),
       _clockManager(_rtc, settings),
@@ -400,8 +400,8 @@ time_t ClockSystem::localToUTC(
 ) const
 {
     const int16_t offsetHours =
-        static_cast<int16_t>(
-            _settings.utcOffset
+        static_cast<int8_t>(
+            _settings.get(Param::UtcOffset)
         );
 
     return local -
@@ -421,8 +421,8 @@ time_t ClockSystem::utcToLocal(
 ) const
 {
     const int16_t offsetHours =
-        static_cast<int16_t>(
-            _settings.utcOffset
+        static_cast<int8_t>(
+            _settings.get(Param::UtcOffset)
         );
 
     return utc +

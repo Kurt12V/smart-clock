@@ -1,193 +1,193 @@
-#include "BluetoothSubscriptionManager.h"
+// #include "BluetoothSubscriptionManager.h"
 
-#include <string.h>
+// #include <string.h>
 
-// ============================================================
-// CONSTRUCTOR
-// ============================================================
+// // ============================================================
+// // CONSTRUCTOR
+// // ============================================================
 
-BluetoothSubscriptionManager::BluetoothSubscriptionManager()
-    : _count(0)
-{
-    clear();
-}
+// BluetoothSubscriptionManager::BluetoothSubscriptionManager()
+//     : _count(0)
+// {
+//     clear();
+// }
 
-// ============================================================
-// FIND TOPIC
-// ============================================================
+// // ============================================================
+// // FIND TOPIC
+// // ============================================================
 
-int BluetoothSubscriptionManager::findTopic(
-    const char* topic
-) const
-{
-    if (topic == nullptr)
-        return -1;
+// int BluetoothSubscriptionManager::findTopic(
+//     const char* topic
+// ) const
+// {
+//     if (topic == nullptr)
+//         return -1;
 
-    for (uint8_t i = 0; i < MAX_SUBSCRIPTIONS; i++)
-    {
-        if (!_subscriptions[i].active)
-            continue;
+//     for (uint8_t i = 0; i < MAX_SUBSCRIPTIONS; i++)
+//     {
+//         if (!_subscriptions[i].active)
+//             continue;
 
-        if (strcmp(
-                _subscriptions[i].topic,
-                topic
-            ) == 0)
-        {
-            return i;
-        }
-    }
+//         if (strcmp(
+//                 _subscriptions[i].topic,
+//                 topic
+//             ) == 0)
+//         {
+//             return i;
+//         }
+//     }
 
-    return -1;
-}
+//     return -1;
+// }
 
-// ============================================================
-// SUBSCRIBE
-// ============================================================
+// // ============================================================
+// // SUBSCRIBE
+// // ============================================================
 
-bool BluetoothSubscriptionManager::subscribe(
-    const char* topic
-)
-{
-    if (topic == nullptr || topic[0] == '\0')
-        return false;
+// bool BluetoothSubscriptionManager::subscribe(
+//     const char* topic
+// )
+// {
+//     if (topic == nullptr || topic[0] == '\0')
+//         return false;
 
-    // Already subscribed
-    if (findTopic(topic) >= 0)
-        return true;
+//     // Already subscribed
+//     if (findTopic(topic) >= 0)
+//         return true;
 
-    // Find free slot
-    for (uint8_t i = 0; i < MAX_SUBSCRIPTIONS; i++)
-    {
-        if (_subscriptions[i].active)
-            continue;
+//     // Find free slot
+//     for (uint8_t i = 0; i < MAX_SUBSCRIPTIONS; i++)
+//     {
+//         if (_subscriptions[i].active)
+//             continue;
 
-        _subscriptions[i].active = true;
+//         _subscriptions[i].active = true;
 
-        strncpy(
-            _subscriptions[i].topic,
-            topic,
-            sizeof(_subscriptions[i].topic) - 1
-        );
+//         strncpy(
+//             _subscriptions[i].topic,
+//             topic,
+//             sizeof(_subscriptions[i].topic) - 1
+//         );
 
-        _subscriptions[i]
-            .topic[sizeof(_subscriptions[i].topic) - 1] = '\0';
+//         _subscriptions[i]
+//             .topic[sizeof(_subscriptions[i].topic) - 1] = '\0';
 
-        _count++;
+//         _count++;
 
-        Serial.printf(
-            "[BLE SUB] Subscribed: %s\n",
-            _subscriptions[i].topic
-        );
+//         Serial.printf(
+//             "[BLE SUB] Subscribed: %s\n",
+//             _subscriptions[i].topic
+//         );
 
-        return true;
-    }
+//         return true;
+//     }
 
-    Serial.println(
-        "[BLE SUB] ERROR: subscription limit reached"
-    );
+//     Serial.println(
+//         "[BLE SUB] ERROR: subscription limit reached"
+//     );
 
-    return false;
-}
+//     return false;
+// }
 
-// ============================================================
-// UNSUBSCRIBE
-// ============================================================
+// // ============================================================
+// // UNSUBSCRIBE
+// // ============================================================
 
-bool BluetoothSubscriptionManager::unsubscribe(
-    const char* topic
-)
-{
-    const int index = findTopic(topic);
+// bool BluetoothSubscriptionManager::unsubscribe(
+//     const char* topic
+// )
+// {
+//     const int index = findTopic(topic);
 
-    if (index < 0)
-        return false;
+//     if (index < 0)
+//         return false;
 
-    _subscriptions[index].active = false;
-    _subscriptions[index].topic[0] = '\0';
+//     _subscriptions[index].active = false;
+//     _subscriptions[index].topic[0] = '\0';
 
-    if (_count > 0)
-        _count--;
+//     if (_count > 0)
+//         _count--;
 
-    Serial.printf(
-        "[BLE SUB] Unsubscribed: %s\n",
-        topic
-    );
+//     Serial.printf(
+//         "[BLE SUB] Unsubscribed: %s\n",
+//         topic
+//     );
 
-    return true;
-}
+//     return true;
+// }
 
-// ============================================================
-// IS SUBSCRIBED
-// ============================================================
+// // ============================================================
+// // IS SUBSCRIBED
+// // ============================================================
 
-bool BluetoothSubscriptionManager::isSubscribed(
-    const char* topic
-) const
-{
-    return findTopic(topic) >= 0;
-}
+// bool BluetoothSubscriptionManager::isSubscribed(
+//     const char* topic
+// ) const
+// {
+//     return findTopic(topic) >= 0;
+// }
 
-// ============================================================
-// CLEAR
-// ============================================================
+// // ============================================================
+// // CLEAR
+// // ============================================================
 
-void BluetoothSubscriptionManager::clear()
-{
-    for (uint8_t i = 0; i < MAX_SUBSCRIPTIONS; i++)
-    {
-        _subscriptions[i].active = false;
-        _subscriptions[i].topic[0] = '\0';
-    }
+// void BluetoothSubscriptionManager::clear()
+// {
+//     for (uint8_t i = 0; i < MAX_SUBSCRIPTIONS; i++)
+//     {
+//         _subscriptions[i].active = false;
+//         _subscriptions[i].topic[0] = '\0';
+//     }
 
-    _count = 0;
-}
+//     _count = 0;
+// }
 
-// ============================================================
-// COUNT
-// ============================================================
+// // ============================================================
+// // COUNT
+// // ============================================================
 
-uint8_t BluetoothSubscriptionManager::count() const
-{
-    return _count;
-}
+// uint8_t BluetoothSubscriptionManager::count() const
+// {
+//     return _count;
+// }
 
-// ============================================================
-// GET TOPIC
-// ============================================================
+// // ============================================================
+// // GET TOPIC
+// // ============================================================
 
-bool BluetoothSubscriptionManager::getTopic(
-    uint8_t index,
-    char* buffer,
-    size_t bufferSize
-) const
-{
-    if (buffer == nullptr || bufferSize == 0)
-        return false;
+// bool BluetoothSubscriptionManager::getTopic(
+//     uint8_t index,
+//     char* buffer,
+//     size_t bufferSize
+// ) const
+// {
+//     if (buffer == nullptr || bufferSize == 0)
+//         return false;
 
-    uint8_t current = 0;
+//     uint8_t current = 0;
 
-    for (uint8_t i = 0; i < MAX_SUBSCRIPTIONS; i++)
-    {
-        if (!_subscriptions[i].active)
-            continue;
+//     for (uint8_t i = 0; i < MAX_SUBSCRIPTIONS; i++)
+//     {
+//         if (!_subscriptions[i].active)
+//             continue;
 
-        if (current == index)
-        {
-            strncpy(
-                buffer,
-                _subscriptions[i].topic,
-                bufferSize - 1
-            );
+//         if (current == index)
+//         {
+//             strncpy(
+//                 buffer,
+//                 _subscriptions[i].topic,
+//                 bufferSize - 1
+//             );
 
-            buffer[bufferSize - 1] = '\0';
+//             buffer[bufferSize - 1] = '\0';
 
-            return true;
-        }
+//             return true;
+//         }
 
-        current++;
-    }
+//         current++;
+//     }
 
-    buffer[0] = '\0';
+//     buffer[0] = '\0';
 
-    return false;
-}
+//     return false;
+// }

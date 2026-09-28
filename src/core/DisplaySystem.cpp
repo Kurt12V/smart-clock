@@ -5,10 +5,13 @@
 // ============================================================
 
 DisplaySystem::DisplaySystem(
+    SettingsManager& settings,
     ClockSystem& clock,
     SensorManager& sensors
 )
-    : _clock(clock),
+    : _settings(settings),
+
+      _clock(clock),
       _sensors(sensors),
 
       _spi(),
@@ -21,7 +24,8 @@ DisplaySystem::DisplaySystem(
           _lvgl
       ),
 
-      _initialized(false)
+      _initialized(false),
+      _appliedBrightness(255)
 {
 }
 
@@ -107,6 +111,12 @@ bool DisplaySystem::begin()
 
     _initialized = true;
 
+    // ========================================================
+    // APPLY BRIGHTNESS FROM SETTINGS
+    // ========================================================
+
+    pollBrightness();
+
     Serial0.println();
     Serial0.println("============================================");
     Serial0.println("[DISPLAY] DisplaySystem READY");
@@ -126,6 +136,12 @@ void DisplaySystem::update()
         return;
 
     // --------------------------------------------------------
+    // Brightness (from SettingsManager, live)
+    // --------------------------------------------------------
+
+    pollBrightness();
+
+    // --------------------------------------------------------
     // Update screen data
     // --------------------------------------------------------
 
@@ -136,6 +152,42 @@ void DisplaySystem::update()
     // --------------------------------------------------------
 
     _lvgl.update();
+}
+
+// ============================================================
+// POLL BRIGHTNESS
+// ============================================================
+
+void DisplaySystem::pollBrightness()
+{
+    // --------------------------------------------------------
+    // Физически подсветка одна (PIN_TFT_BL),
+    // поэтому используется параметр disp1.
+    //
+    // Если в будущем появятся 4 отдельных BL-пина —
+    // расширить здесь для disp2..disp4.
+    // --------------------------------------------------------
+
+    uint8_t want =
+        static_cast<uint8_t>(
+            _settings.get(
+                Param::DisplayBrightness1
+            )
+        );
+
+    if (want == _appliedBrightness)
+        return;
+
+    _appliedBrightness = want;
+
+    _lvgl.setBrightness(want);
+
+    Serial0.print(
+        "[DISPLAY] Applied brightness: "
+    );
+
+    Serial0.print(want);
+    Serial0.println("%");
 }
 
 // ============================================================
@@ -151,8 +203,7 @@ bool DisplaySystem::isReady() const
 // SPI
 // ============================================================
 
-SPIManager&
-DisplaySystem::spi()
+SPIManager& DisplaySystem::spi()
 {
     return _spi;
 }
@@ -161,8 +212,7 @@ DisplaySystem::spi()
 // LVGL
 // ============================================================
 
-LVGLManager&
-DisplaySystem::lvgl()
+LVGLManager& DisplaySystem::lvgl()
 {
     return _lvgl;
 }
@@ -171,8 +221,7 @@ DisplaySystem::lvgl()
 // SCREENS
 // ============================================================
 
-ScreenManager&
-DisplaySystem::screens()
+ScreenManager& DisplaySystem::screens()
 {
     return _screens;
 }

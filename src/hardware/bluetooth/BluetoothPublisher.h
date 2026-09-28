@@ -1,96 +1,96 @@
-#pragma once
+// #pragma once
 
-#include <Arduino.h>
-#include <ArduinoJson.h>
+// #include <Arduino.h>
+// #include <ArduinoJson.h>
 
-#include "./managers/BluetoothManager.h"
-#include "./BluetoothProtocol.h"
-#include "./managers/BluetoothSubscriptionManager.h"
-#include "./BluetoothTopics.h"
+// #include "./managers/BluetoothManager.h"
+// #include "./BluetoothProtocol.h"
+// #include "./managers/BluetoothSubscriptionManager.h"
+// #include "./BluetoothTopics.h"
 
-#include "./managers/SensorsManager.h"
-#include "./core/ClockSystem.h"
+// #include "./managers/SensorsManager.h"
+// #include "./core/ClockSystem.h"
 
-class BluetoothPublisher
-{
-public:
+// class BluetoothPublisher
+// {
+// public:
 
-    static constexpr uint32_t SENSOR_INTERVAL_MS =
-        1000;
+//     static constexpr uint32_t SENSOR_INTERVAL_MS =
+//         1000;
 
-    static constexpr uint32_t CLOCK_INTERVAL_MS =
-        1000;
+//     static constexpr uint32_t CLOCK_INTERVAL_MS =
+//         1000;
 
-    static constexpr uint32_t SYSTEM_INTERVAL_MS =
-        5000;
+//     static constexpr uint32_t SYSTEM_INTERVAL_MS =
+//         5000;
 
-public:
+// public:
 
-    BluetoothPublisher(
-        BluetoothManager& bluetooth,
-        BluetoothSubscriptionManager& subscriptions,
-        SensorManager& sensors,
-        ClockSystem& clock
-    );
+//     BluetoothPublisher(
+//         BluetoothManager& bluetooth,
+//         BluetoothSubscriptionManager& subscriptions,
+//         SensorManager& sensors,
+//         ClockSystem& clock
+//     );
 
-    bool begin();
+//     bool begin();
 
-    void update();
+//     void update();
 
-    bool isReady() const;
+//     bool isReady() const;
 
-    void publishSensors();
+//     void publishSensors();
 
-    void publishClock();
+//     void publishClock();
 
-    void publishSystem();
+//     void publishSystem();
 
-    void publishAlarms(
-        JsonObjectConst data
-    );
+//     void publishAlarms(
+//         JsonObjectConst data
+//     );
 
-    void publishLight(
-        JsonObjectConst data
-    );
+//     void publishLight(
+//         JsonObjectConst data
+//     );
 
-    void publishSound(
-        JsonObjectConst data
-    );
+//     void publishSound(
+//         JsonObjectConst data
+//     );
 
-    void publishTimer(
-        JsonObjectConst data
-    );
+//     void publishTimer(
+//         JsonObjectConst data
+//     );
 
-    void publishStopwatch(
-        JsonObjectConst data
-    );
+//     void publishStopwatch(
+//         JsonObjectConst data
+//     );
 
-private:
+// private:
 
-    bool canPublish(
-        const char* topic
-    ) const;
+//     bool canPublish(
+//         const char* topic
+//     ) const;
 
-    bool sendPublish(
-        const char* topic,
-        JsonObjectConst data
-    );
+//     bool sendPublish(
+//         const char* topic,
+//         JsonObjectConst data
+//     );
 
-private:
+// private:
 
-    BluetoothManager& _bluetooth;
+//     BluetoothManager& _bluetooth;
 
-    BluetoothSubscriptionManager& _subscriptions;
+//     BluetoothSubscriptionManager& _subscriptions;
 
-    SensorManager& _sensors;
+//     SensorManager& _sensors;
 
-    ClockSystem& _clock;
+//     ClockSystem& _clock;
 
-    bool _initialized;
+//     bool _initialized;
 
-    uint32_t _lastSensorPublish;
+//     uint32_t _lastSensorPublish;
 
-    uint32_t _lastClockPublish;
+//     uint32_t _lastClockPublish;
 
-    uint32_t _lastSystemPublish;
-};
+//     uint32_t _lastSystemPublish;
+// };

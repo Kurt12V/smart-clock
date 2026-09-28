@@ -28,14 +28,14 @@ MicrophoneManager::MicrophoneManager(
 
 bool MicrophoneManager::begin()
 {
-    Serial.println(
+    Serial0.println(
         "[MicrophoneManager] BEGIN"
     );
 
 
     if (!microphone.begin())
     {
-        Serial.println(
+        Serial0.println(
             "[MicrophoneManager] ERROR: "
             "microphone.begin() failed"
         );
@@ -46,7 +46,7 @@ bool MicrophoneManager::begin()
 
     if (!recorder.begin())
     {
-        Serial.println(
+        Serial0.println(
             "[MicrophoneManager] ERROR: "
             "recorder.begin() failed"
         );
@@ -63,7 +63,7 @@ bool MicrophoneManager::begin()
     );
 
 
-    Serial.println(
+    Serial0.println(
         "[MicrophoneManager] READY"
     );
 
@@ -96,7 +96,7 @@ void MicrophoneManager::end()
     initialized = false;
 
 
-    Serial.println(
+    Serial0.println(
         "[MicrophoneManager] STOPPED"
     );
 }
@@ -303,12 +303,12 @@ bool MicrophoneManager::startRecording(
     }
 
 
-    Serial.print(
+    Serial0.print(
         "[MicrophoneManager] "
         "RECORDING: "
     );
 
-    Serial.println(path);
+    Serial0.println(path);
 
 
     return true;
