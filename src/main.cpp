@@ -7,7 +7,7 @@ App app;
 
 void setup()
 {
-    Serial0.begin(Config::SERIAL0_BAUD_RATE);
+    Serial0.begin(Config::SERIAL_BAUD_RATE);
     delay(1000);
 
     app.begin();

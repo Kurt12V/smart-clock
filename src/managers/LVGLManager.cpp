@@ -107,18 +107,25 @@ bool LVGLManager::begin()
     }
 
     // ========================================================
-    // BACKLIGHT PWM
+    // BACKLIGHT PWM (ESP32 Arduino Core 2.x)
     // ========================================================
 
-    Serial0.println(
-        "[LVGL] Initializing backlight PWM..."
+    ledcSetup(
+        BL_CHANNEL,
+        5000,
+        8
     );
 
+    ledcAttachPin(
+        PIN_TFT_BL,
+        BL_CHANNEL
+    );
 
-static constexpr uint8_t BL_CHANNEL = 0;
-ledcSetup(BL_CHANNEL, 5000, 8);
-ledcAttachPin(PIN_TFT_BL, BL_CHANNEL);
-ledcWrite(BL_CHANNEL, 0);
+    // Keep displays dark while initializing.
+    ledcWrite(
+        BL_CHANNEL,
+        0
+    );
 
     // ========================================================
     // LVGL
@@ -139,7 +146,7 @@ ledcWrite(BL_CHANNEL, 0);
 
     for (
         uint8_t i = 0;
-        i < Config::DISPLAY_COUNT;
+        i < DISPLAY_COUNT;
         i++
     )
     {
@@ -160,7 +167,8 @@ ledcWrite(BL_CHANNEL, 0);
     }
 
     // ========================================================
-    // CLEAR
+    // IMPORTANT
+    // Clear physical displays once more
     // ========================================================
 
     clearDisplays();
@@ -177,8 +185,7 @@ ledcWrite(BL_CHANNEL, 0);
     // APPLY BRIGHTNESS
     // ========================================================
 
-    _applied = 255;
-
+    _applied = 255;   // сбросить кэш
     applyBrightness();
 
     Serial0.println(
@@ -189,114 +196,10 @@ ledcWrite(BL_CHANNEL, 0);
 }
 
 // ============================================================
-// INIT DISPLAY
-// ============================================================
-
-bool LVGLManager::initDisplay(
-    uint8_t index
-)
-{
-    if (index >= Config::DISPLAY_COUNT)
-        return false;
-
-    DisplayContext& context =
-        _contexts[index];
-
-    if (context.tft == nullptr)
-        return false;
-
-    Adafruit_ST7789& tft =
-        *context.tft;
-
-    // ========================================================
-    // TFT
-    // ========================================================
-
-    tft.init(
-        Config::DISPLAY_WIDTH,
-        Config::DISPLAY_HEIGHT
-    );
-
-    tft.setRotation(
-        Config::DISPLAY_ROTATION
-    );
-
-    tft.setSPISpeed(
-        Config::DISPLAY_SPI_FREQUENCY
-    );
-
-    // ========================================================
-    // CLEAR GRAM
-    // ========================================================
-
-    tft.fillScreen(
-        ST77XX_BLACK
-    );
-
-    // ========================================================
-    // LVGL DISPLAY
-    // ========================================================
-
-    lv_display_t* display =
-        lv_display_create(
-            Config::DISPLAY_WIDTH,
-            Config::DISPLAY_HEIGHT
-        );
-
-    if (display == nullptr)
-    {
-        Serial0.println(
-            "[LVGL] lv_display_create failed"
-        );
-
-        return false;
-    }
-
-    context.lvDisplay =
-        display;
-
-    // ========================================================
-    // BUFFER
-    // ========================================================
-
-    lv_display_set_buffers(
-        display,
-        context.buffer,
-        nullptr,
-        sizeof(lv_color_t) * Config::LVGL_BUFFER_SIZE,
-        LV_DISPLAY_RENDER_MODE_PARTIAL
-    );
-
-    // ========================================================
-    // FLUSH CALLBACK
-    // ========================================================
-
-    lv_display_set_flush_cb(
-        display,
-        LVGLManager::flushCallback
-    );
-
-    // ========================================================
-    // USER DATA
-    // ========================================================
-
-    lv_display_set_user_data(
-        display,
-        &context
-    );
-
-    context.initialized = true;
-
-    return true;
-}
-
-// ============================================================
 // SET BRIGHTNESS
 // ============================================================
 
-void LVGLManager::setBrightness(
-    uint8_t percent
-)
+void LVGLManager::setBrightness(uint8_t percent)
 {
     if (percent > 100)
         percent = 100;
@@ -330,23 +233,116 @@ void LVGLManager::applyBrightness()
     _applied = _brightness;
 
     // 0..100% -> 0..255 duty
-    uint8_t duty =
-        static_cast<uint8_t>(
-            (_brightness * 255UL) / 100UL
+    uint8_t duty = static_cast<uint8_t>(
+        (static_cast<uint16_t>(_brightness) * 255U) / 100U
+    );
+
+    ledcWrite(BL_CHANNEL, duty);
+
+    Serial0.print("[LVGL] Brightness: ");
+    Serial0.print(_brightness);
+    Serial0.println("%");
+}
+
+// ============================================================
+// INIT DISPLAY
+// ============================================================
+
+bool LVGLManager::initDisplay(
+    uint8_t index
+)
+{
+    if (index >= DISPLAY_COUNT)
+        return false;
+
+    DisplayContext& context =
+        _contexts[index];
+
+    if (context.tft == nullptr)
+        return false;
+
+    Adafruit_ST7789& tft =
+        *context.tft;
+
+    // ========================================================
+    // TFT
+    // ========================================================
+
+    tft.init(
+        TFT_WIDTH,
+        TFT_HEIGHT
+    );
+
+    tft.setRotation(0);
+
+    tft.setSPISpeed(
+        40000000
+    );
+
+    // ========================================================
+    // IMPORTANT
+    // Clear TFT GRAM immediately
+    // ========================================================
+
+    tft.fillScreen(
+        ST77XX_BLACK
+    );
+
+    // ========================================================
+    // LVGL DISPLAY
+    // ========================================================
+
+    lv_display_t* display =
+        lv_display_create(
+            WIDTH,
+            HEIGHT
         );
 
-    // СТАЛО:
-ledcWrite(BL_CHANNEL, duty);   // 0 — номер канала
+    if (display == nullptr)
+    {
+        Serial0.println(
+            "[LVGL] lv_display_create failed"
+        );
 
-    Serial0.print(
-        "[LVGL] Brightness: "
+        return false;
+    }
+
+    context.lvDisplay =
+        display;
+
+    // ========================================================
+    // BUFFER
+    // ========================================================
+
+    lv_display_set_buffers(
+        display,
+        context.buffer,
+        nullptr,
+        sizeof(lv_color_t) * BUFFER_SIZE,
+        LV_DISPLAY_RENDER_MODE_PARTIAL
     );
 
-    Serial0.print(
-        _brightness
+    // ========================================================
+    // FLUSH CALLBACK
+    // ========================================================
+
+    lv_display_set_flush_cb(
+        display,
+        LVGLManager::flushCallback
     );
 
-    Serial0.println("%");
+    // ========================================================
+    // USER DATA
+    // ========================================================
+
+    lv_display_set_user_data(
+        display,
+        &context
+    );
+
+    context.initialized = true;
+
+    return true;
 }
 
 // ============================================================
@@ -360,7 +356,7 @@ void LVGLManager::clearDisplays()
 
     for (
         uint8_t i = 0;
-        i < Config::DISPLAY_COUNT;
+        i < DISPLAY_COUNT;
         i++
     )
     {
@@ -380,7 +376,7 @@ void LVGLManager::clearDisplays()
 }
 
 // ============================================================
-// REFRESH
+// FORCE REFRESH
 // ============================================================
 
 void LVGLManager::refresh()
@@ -390,7 +386,7 @@ void LVGLManager::refresh()
 
     for (
         uint8_t i = 0;
-        i < Config::DISPLAY_COUNT;
+        i < DISPLAY_COUNT;
         i++
     )
     {
@@ -449,16 +445,26 @@ void LVGLManager::flushCallback(
     // LVGL AREA
     // ========================================================
 
-    int16_t x = area->x1;
-    int16_t y = area->y1;
+    int16_t x =
+        area->x1;
+
+    int16_t y =
+        area->y1;
 
     int16_t width =
-        area->x2 - area->x1 + 1;
+        area->x2 -
+        area->x1 +
+        1;
 
     int16_t height =
-        area->y2 - area->y1 + 1;
+        area->y2 -
+        area->y1 +
+        1;
 
-    if (width <= 0 || height <= 0)
+    if (
+        width <= 0 ||
+        height <= 0
+    )
     {
         lv_display_flush_ready(
             display
@@ -471,8 +477,11 @@ void LVGLManager::flushCallback(
     // PHYSICAL COORDINATES
     // ========================================================
 
-    int16_t physicalX = x;
-    int16_t physicalY = y;
+    int16_t physicalX =
+        x + X_OFFSET;
+
+    int16_t physicalY =
+        y + Y_OFFSET;
 
     // ========================================================
     // SPI
@@ -493,8 +502,12 @@ void LVGLManager::flushCallback(
         );
 
     uint32_t pixelCount =
-        static_cast<uint32_t>(width) *
-        static_cast<uint32_t>(height);
+        static_cast<uint32_t>(
+            width
+        ) *
+        static_cast<uint32_t>(
+            height
+        );
 
     tft.writePixels(
         pixels,
@@ -523,19 +536,25 @@ void LVGLManager::update()
 
     lv_timer_handler();
 
-    _lastUpdate = millis();
+    _lastUpdate =
+        millis();
 }
 
 // ============================================================
 // DISPLAY
 // ============================================================
 
-lv_display_t* LVGLManager::display(
+lv_display_t*
+LVGLManager::display(
     uint8_t index
 )
 {
-    if (index >= Config::DISPLAY_COUNT)
+    if (
+        index >= DISPLAY_COUNT
+    )
+    {
         return nullptr;
+    }
 
     return _contexts[index].lvDisplay;
 }
@@ -560,12 +579,17 @@ bool LVGLManager::testDisplays()
 
     for (
         uint8_t i = 0;
-        i < Config::DISPLAY_COUNT;
+        i < DISPLAY_COUNT;
         i++
     )
     {
-        if (_contexts[i].tft == nullptr)
+        if (
+            _contexts[i].tft ==
+            nullptr
+        )
+        {
             return false;
+        }
 
         _contexts[i].tft->fillScreen(
             ST77XX_RED
