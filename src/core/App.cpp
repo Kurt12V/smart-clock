@@ -410,7 +410,7 @@ bool App::initCob()
     for (uint8_t i = 0; i < 4; ++i)
     {
         Param p = static_cast<Param>(
-            static_cast<uint8_t>(Param::CobBrightness1) + i
+            static_cast<uint8_t>(Param::COB_BRIGHTNESS_1) + i
         );
 
         _cobEffects.setBrightness(
@@ -421,16 +421,16 @@ bool App::initCob()
 
     _cobEffects.setEffect(
         static_cast<CobEffectType>(
-            _settings.get(Param::CobEffect)
+            _settings.get(Param::COB_EFFECT)
         )
     );
 
     _cobEffects.setSpeed(
-        static_cast<uint8_t>(_settings.get(Param::CobSpeed))
+        static_cast<uint8_t>(_settings.get(Param::COB_SPEED))
     );
 
     _cobEffects.setEnabled(
-        _settings.get(Param::CobEnabled) != 0
+        _settings.get(Param:: COB_ENABLED) != 0
     );
 
     _cobEffects.begin();
@@ -518,7 +518,7 @@ void App::updateCob()
     for (uint8_t i = 0; i < 4; ++i)
     {
         Param p = static_cast<Param>(
-            static_cast<uint8_t>(Param::CobBrightness1) + i
+            static_cast<uint8_t>(Param::COB_BRIGHTNESS_1) + i
         );
 
         uint8_t want = static_cast<uint8_t>(_settings.get(p));
@@ -529,7 +529,7 @@ void App::updateCob()
 
     // Эффект
     CobEffectType eff = static_cast<CobEffectType>(
-        _settings.get(Param::CobEffect)
+        _settings.get(Param::COB_EFFECT)
     );
 
     if (_cobEffects.effect() != eff)
@@ -537,14 +537,14 @@ void App::updateCob()
 
     // Скорость
     uint8_t spd = static_cast<uint8_t>(
-        _settings.get(Param::CobSpeed)
+        _settings.get(Param::COB_SPEED)
     );
 
     if (_cobEffects.speed() != spd)
         _cobEffects.setSpeed(spd);
 
     // Вкл/выкл
-    bool on = _settings.get(Param::CobEnabled) != 0;
+    bool on = _settings.get(Param::COB_ENABLED) != 0;
 
     if (_cobEffects.isEnabled() != on)
         _cobEffects.setEnabled(on);

@@ -1,1245 +1,2548 @@
 <!DOCTYPE html>
 <html lang="ru">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartClock</title>
-
-    <style>
-        * { box-sizing: border-box; }
-
-        html, body {
-            margin: 0;
-            padding: 0;
-            min-height: 100%;
-            background: #080808;
-            color: #eee;
-            font-family: Arial, Helvetica, sans-serif;
-        }
-
-        body { min-height: 100vh; }
-
-        .page {
-            width: 100%;
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 20px 20px 50px;
-        }
-
-        /* HEADER */
-
-        .header {
-            height: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            border-bottom: 1px solid #242424;
-        }
-
-        .logo {
-            font-size: 17px;
-            font-weight: 600;
-            letter-spacing: 0.12em;
-        }
-
-        .connection {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: #666;
-            font-size: 12px;
-        }
-
-        .connection-dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: #444;
-            transition: background 0.2s;
-        }
-
-        .connection-dot.online { background: #54d88a; }
-
-        /* SECTIONS */
-
-        .section {
-            padding: 24px 0;
-            border-bottom: 1px solid #242424;
-        }
-
-        .section-title {
-            margin-bottom: 18px;
-            color: #666;
-            font-size: 10px;
-            font-weight: 600;
-            letter-spacing: 0.15em;
-            text-transform: uppercase;
-        }
-
-        /* SENSORS */
-
-        .sensors {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
-        }
-
-        .sensor-value {
-            font-size: 28px;
-            line-height: 1;
-            font-weight: 400;
-            letter-spacing: -0.04em;
-        }
-
-        .sensor-label {
-            margin-top: 8px;
-            color: #555;
-            font-size: 10px;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-        }
-
-        /* TIME */
-
-        .time-container {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 30px;
-        }
-
-        .time {
-            font-size: 46px;
-            line-height: 1;
-            font-weight: 300;
-            letter-spacing: -0.06em;
-        }
-
-        .date {
-            margin-top: 8px;
-            color: #555;
-            font-size: 12px;
-        }
-
-        .timezone {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .timezone-value {
-            width: 75px;
-            text-align: center;
-            font-size: 16px;
-            color: #bbb;
-        }
-
-        /* BUTTONS */
-
-        button {
-            height: 36px;
-            padding: 0 14px;
-            border: 1px solid #303030;
-            border-radius: 5px;
-            background: #111;
-            color: #ddd;
-            font-size: 12px;
-            cursor: pointer;
-            transition: background 0.15s, border-color 0.15s;
-        }
-
-        button:hover { background: #181818; border-color: #444; }
-        button:active { background: #222; }
-
-        button.primary {
-            background: #eee;
-            border-color: #eee;
-            color: #080808;
-        }
-        button.primary:hover { background: #d4d4d4; }
-
-        button.danger { color: #ff7070; }
-
-        button.toggle {
-            min-width: 60px;
-        }
-
-        button.toggle.on {
-            background: #1e3a24;
-            border-color: #2c5a37;
-            color: #7fe0a3;
-        }
-
-        /* RANGE */
-
-        .range-row {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .range-row:last-child { margin-bottom: 0; }
-
-        .range-label {
-            width: 90px;
-            flex-shrink: 0;
-            color: #aaa;
-            font-size: 12px;
-        }
-
-        .range-value {
-            width: 45px;
-            text-align: right;
-            color: #666;
-            font-size: 12px;
-        }
-
-        input[type="range"] {
-            flex: 1;
-            width: 100%;
-            height: 3px;
-            margin: 0;
-            padding: 0;
-            appearance: none;
-            -webkit-appearance: none;
-            background: #303030;
-            border-radius: 2px;
-            outline: none;
-        }
-
-        input[type="range"]::-webkit-slider-thumb {
-            appearance: none;
-            -webkit-appearance: none;
-            width: 14px;
-            height: 14px;
-            border: none;
-            border-radius: 50%;
-            background: #eee;
-            cursor: pointer;
-        }
-
-        input[type="range"]::-moz-range-thumb {
-            width: 14px;
-            height: 14px;
-            border: none;
-            border-radius: 50%;
-            background: #eee;
-            cursor: pointer;
-        }
-
-        /* SELECT */
-
-        select {
-            flex: 1;
-            height: 36px;
-            padding: 0 12px;
-            border: 1px solid #303030;
-            border-radius: 5px;
-            outline: none;
-            background: #111;
-            color: #eee;
-            font-size: 12px;
-            cursor: pointer;
-        }
-
-        select:hover { border-color: #444; }
-        select:focus { border-color: #555; }
-
-        /* SWITCH ROW */
-
-        .switch-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 20px;
-        }
-
-        .switch-label {
-            color: #aaa;
-            font-size: 12px;
-        }
-
-        /* SD */
-
-        .sd-search {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 15px;
-        }
-
-        input[type="text"] {
-            flex: 1;
-            height: 36px;
-            padding: 0 12px;
-            border: 1px solid #303030;
-            border-radius: 5px;
-            outline: none;
-            background: #111;
-            color: #eee;
-            font-size: 12px;
-        }
-
-        input[type="text"]:focus { border-color: #555; }
-
-        .file-list {
-            max-height: 320px;
-            overflow-y: auto;
-        }
-
-        .file {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            min-height: 38px;
-            border-bottom: 1px solid #181818;
-        }
-        .file:last-child { border-bottom: none; }
-
-        .file-path {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            color: #aaa;
-            font-size: 12px;
-        }
-
-        .file-size {
-            flex-shrink: 0;
-            margin-left: 10px;
-            color: #444;
-            font-size: 10px;
-        }
-
-        /* SOUND */
-
-        .sound-buttons {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 25px;
-        }
-
-        .record-status {
-            display: flex;
-            align-items: center;
-            margin-left: auto;
-            color: #555;
-            font-size: 11px;
-        }
-
-        .record-dot {
-            width: 7px;
-            height: 7px;
-            margin-right: 7px;
-            border-radius: 50%;
-            background: #444;
-        }
-
-        .record-status.recording { color: #ff6b6b; }
-        .record-status.recording .record-dot { background: #ff4d4d; }
-
-        .audio-list {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .audio-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            min-height: 45px;
-            border-bottom: 1px solid #181818;
-        }
-
-        .audio-name {
-            flex: 1;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            color: #aaa;
-            font-size: 12px;
-        }
-
-        .audio-play {
-            width: 38px;
-            padding: 0;
-        }
-
-        /* PLAYER STATUS */
-
-        .player-status {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 20px;
-            padding: 10px 14px;
-            border: 1px solid #222;
-            border-radius: 5px;
-            background: #0c0c0c;
-            font-size: 12px;
-        }
-
-        .player-track {
-            flex: 1;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            color: #aaa;
-        }
-
-        .player-time {
-            flex-shrink: 0;
-            margin-left: 12px;
-            color: #666;
-            font-variant-numeric: tabular-nums;
-        }
-
-        .player-state {
-            flex-shrink: 0;
-            margin-left: 12px;
-            padding: 2px 8px;
-            border-radius: 3px;
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-        }
-
-        .player-state.playing    { color: #7fe0a3; background: #16281b; }
-        .player-state.paused     { color: #ffd479; background: #2a2415; }
-        .player-state.fading_out { color: #ff9b6b; background: #2a1d15; }
-        .player-state.stopped    { color: #666;    background: #141414; }
-
-        /* EMPTY */
-
-        .empty {
-            padding: 15px 0;
-            color: #444;
-            font-size: 12px;
-        }
-
-        /* MESSAGE */
-
-        .message {
-            position: fixed;
-            left: 50%;
-            bottom: 20px;
-            z-index: 100;
-            transform: translate(-50%, 20px);
-            padding: 9px 14px;
-            border: 1px solid #303030;
-            border-radius: 5px;
-            background: #111;
-            color: #ccc;
-            font-size: 12px;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s, transform 0.2s;
-        }
-
-        .message.show {
-            opacity: 1;
-            transform: translate(-50%, 0);
-        }
-
-        /* MOBILE */
-
-        @media (max-width: 650px) {
-            .page { padding: 15px 15px 40px; }
-            .sensors { grid-template-columns: repeat(2, 1fr); gap: 22px; }
-            .time-container {
-                align-items: flex-start;
-                flex-direction: column;
-                gap: 20px;
-            }
-            .timezone { width: 100%; }
-            .timezone-value { flex: 1; }
-            .time { font-size: 40px; }
-        }
-
-        @media (max-width: 400px) {
-            .sensor-value { font-size: 25px; }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>SmartClock</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+    background: #080808;
+    color: #eee;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+body {
+    min-height: 100vh;
+}
+
+.page {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px 20px 50px;
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+
+.header {
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #242424;
+}
+
+.logo {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+}
+
+.connection {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #666;
+    font-size: 12px;
+}
+
+.connection-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #444;
+}
+
+.connection-dot.online {
+    background: #54d88a;
+}
+
+/* ============================================================
+   SECTIONS
+   ============================================================ */
+
+.section {
+    padding: 24px 0;
+    border-bottom: 1px solid #242424;
+}
+
+.section-title {
+    margin-bottom: 18px;
+    color: #666;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+}
+
+/* ============================================================
+   TIMEZONE
+   ============================================================ */
+
+.timezone {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 300px;
+}
+
+.timezone-value {
+    width: 100px;
+    text-align: center;
+    font-size: 16px;
+    color: #bbb;
+}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+
+button {
+    height: 36px;
+    padding: 0 14px;
+    border: 1px solid #303030;
+    border-radius: 5px;
+    background: #111;
+    color: #ddd;
+    font-size: 12px;
+    cursor: pointer;
+    transition:
+        background 0.1s,
+        border-color 0.1s;
+}
+
+button:hover {
+    background: #181818;
+    border-color: #444;
+}
+
+button:active {
+    background: #222;
+}
+
+button.primary {
+    background: #eee;
+    border-color: #eee;
+    color: #080808;
+}
+
+button.primary:hover {
+    background: #d4d4d4;
+}
+
+button.danger {
+    color: #ff7070;
+}
+
+button.toggle {
+    min-width: 60px;
+}
+
+button.toggle.on {
+    background: #1e3a24;
+    border-color: #2c5a37;
+    color: #7fe0a3;
+}
+
+/* ============================================================
+   RANGE
+   ============================================================ */
+
+.range-row {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.range-row:last-child {
+    margin-bottom: 0;
+}
+
+.range-label {
+    width: 90px;
+    flex-shrink: 0;
+    color: #aaa;
+    font-size: 12px;
+}
+
+.range-value {
+    width: 45px;
+    text-align: right;
+    color: #666;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+input[type="range"] {
+    flex: 1;
+    width: 100%;
+    height: 3px;
+    margin: 0;
+    padding: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    background: #303030;
+    border-radius: 2px;
+    outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border: none;
+    border-radius: 50%;
+    background: #eee;
+    cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border: none;
+    border-radius: 50%;
+    background: #eee;
+    cursor: pointer;
+}
+
+/* ============================================================
+   SELECT
+   ============================================================ */
+
+select {
+    flex: 1;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid #303030;
+    border-radius: 5px;
+    outline: none;
+    background: #111;
+    color: #eee;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+select:hover {
+    border-color: #444;
+}
+
+/* ============================================================
+   SWITCH
+   ============================================================ */
+
+.switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.switch-label {
+    color: #aaa;
+    font-size: 12px;
+}
+
+/* ============================================================
+   SD
+   ============================================================ */
+
+.sd-search {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+input[type="text"] {
+    flex: 1;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid #303030;
+    border-radius: 5px;
+    outline: none;
+    background: #111;
+    color: #eee;
+    font-size: 12px;
+}
+
+input[type="text"]:focus {
+    border-color: #555;
+}
+
+.file-list {
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.file {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 38px;
+    border-bottom: 1px solid #181818;
+}
+
+.file:last-child {
+    border-bottom: none;
+}
+
+.file-path {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #aaa;
+    font-size: 12px;
+}
+
+.file-size {
+    flex-shrink: 0;
+    margin-left: 10px;
+    color: #444;
+    font-size: 10px;
+}
+
+/* ============================================================
+   SOUND
+   ============================================================ */
+
+.sound-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 25px;
+}
+
+.record-status {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    color: #555;
+    font-size: 11px;
+}
+
+.record-dot {
+    width: 7px;
+    height: 7px;
+    margin-right: 7px;
+    border-radius: 50%;
+    background: #444;
+}
+
+.record-status.recording {
+    color: #ff6b6b;
+}
+
+.record-status.recording .record-dot {
+    background: #ff4d4d;
+}
+
+.audio-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.audio-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 45px;
+    border-bottom: 1px solid #181818;
+}
+
+.audio-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #aaa;
+    font-size: 12px;
+}
+
+.audio-play {
+    width: 38px;
+    padding: 0;
+}
+
+/* ============================================================
+   PLAYER
+   ============================================================ */
+
+.player-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    padding: 10px 14px;
+    border: 1px solid #222;
+    border-radius: 5px;
+    background: #0c0c0c;
+    font-size: 12px;
+}
+
+.player-track {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #aaa;
+}
+
+.player-time {
+    flex-shrink: 0;
+    margin-left: 12px;
+    color: #666;
+    font-variant-numeric: tabular-nums;
+}
+
+.player-state {
+    flex-shrink: 0;
+    margin-left: 12px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.player-state.playing {
+    color: #7fe0a3;
+    background: #16281b;
+}
+
+.player-state.paused {
+    color: #ffd479;
+    background: #2a2415;
+}
+
+.player-state.fading_out {
+    color: #ff9b6b;
+    background: #2a1d15;
+}
+
+.player-state.stopped {
+    color: #666;
+    background: #141414;
+}
+
+/* ============================================================
+   EMPTY
+   ============================================================ */
+
+.empty {
+    padding: 15px 0;
+    color: #444;
+    font-size: 12px;
+}
+
+/* ============================================================
+   MESSAGE
+   ============================================================ */
+
+.message {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    z-index: 100;
+    transform: translate(-50%, 20px);
+    padding: 9px 14px;
+    border: 1px solid #303030;
+    border-radius: 5px;
+    background: #111;
+    color: #ccc;
+    font-size: 12px;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+        opacity 0.15s,
+        transform 0.15s;
+}
+
+.message.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+/* ============================================================
+   MOBILE
+   ============================================================ */
+
+@media (max-width: 650px) {
+
+    .page {
+        padding: 15px 15px 40px;
+    }
+
+    .timezone {
+        max-width: none;
+        width: 100%;
+    }
+
+    .timezone-value {
+        flex: 1;
+    }
+}
+</style>
 </head>
 
 <body>
 
 <div class="page">
 
-    <!-- HEADER -->
-    <header class="header">
-        <div class="logo">SMARTCLOCK</div>
-        <div class="connection">
-            <span id="connectionDot" class="connection-dot"></span>
-            <span id="connectionText">Connecting</span>
-        </div>
-    </header>
+<!-- ============================================================
+     HEADER
+     ============================================================ -->
 
-    <!-- SENSORS -->
-    <section class="section">
-        <div class="section-title">Sensors</div>
-        <div class="sensors">
-            <div>
-                <div id="temperature" class="sensor-value">--</div>
-                <div class="sensor-label">Temperature</div>
-            </div>
-            <div>
-                <div id="humidity" class="sensor-value">--</div>
-                <div class="sensor-label">Humidity</div>
-            </div>
-            <div>
-                <div id="light" class="sensor-value">--</div>
-                <div class="sensor-label">Light</div>
-            </div>
-            <div>
-                <div id="distance" class="sensor-value">--</div>
-                <div class="sensor-label">Distance</div>
-            </div>
-        </div>
-    </section>
+<header class="header">
 
-    <!-- TIME -->
-    <section class="section">
-        <div class="section-title">Time</div>
-        <div class="time-container">
-            <div>
-                <div id="time" class="time">--:--</div>
-                <div id="date" class="date">---</div>
-            </div>
-            <div class="timezone">
-                <button onclick="changeTimezone(-1)">−</button>
-                <div id="timezone" class="timezone-value">UTC +3</div>
-                <button onclick="changeTimezone(1)">+</button>
-            </div>
-        </div>
-    </section>
+    <div class="logo">
+        SMARTCLOCK
+    </div>
 
-    <!-- DISPLAY -->
-    <section class="section">
-        <div class="section-title">Display</div>
+    <div class="connection">
 
-        <div class="range-row">
-            <div class="range-label">Brightness</div>
-            <input id="brightness"
-                   type="range" min="0" max="100" value="80"
-                   oninput="changeBrightness(this.value)">
-            <div id="brightness_value" class="range-value">80%</div>
-        </div>
-    </section>
+        <span
+            id="connectionDot"
+            class="connection-dot"
+        ></span>
 
-    <!-- LED MATRIX -->
-    <section class="section">
-        <div class="section-title">LED Matrix</div>
+        <span id="connectionText">
+            Connecting
+        </span>
 
-        <div class="switch-row">
-            <div class="switch-label">Enabled</div>
-            <button id="mx_on" class="toggle" onclick="toggleMatrix()">--</button>
+    </div>
+
+</header>
+
+
+<!-- ============================================================
+     TIMEZONE ONLY
+     ============================================================ -->
+
+<section class="section">
+
+    <div class="section-title">
+        Time
+    </div>
+
+    <div class="timezone">
+
+        <button onclick="changeTimezone(-1)">
+            −
+        </button>
+
+        <div
+            id="timezone"
+            class="timezone-value"
+        >
+            UTC +3
         </div>
 
-        <div class="range-row">
-            <div class="range-label">Brightness</div>
-            <input id="mx_br" type="range" min="0" max="100" value="50"
-                   oninput="changeMatrixBrightness(this.value)">
-            <div id="mx_br_value" class="range-value">50%</div>
-        </div>
-    </section>
+        <button onclick="changeTimezone(1)">
+            +
+        </button>
 
-    <!-- COB LED -->
-    <section class="section">
-        <div class="section-title">COB LED</div>
+    </div>
 
-        <div class="switch-row">
-            <div class="switch-label">Enabled</div>
-            <button id="cob_on" class="toggle" onclick="toggleCob()">--</button>
-        </div>
+</section>
 
-        <div class="range-row">
-            <div class="range-label">Effect</div>
-            <select id="cob_eff" onchange="changeCobEffect(this.value)">
-                <option value="0">Static</option>
-                <option value="1">Breath</option>
-                <option value="2">Strobe</option>
-                <option value="3">Wave</option>
-            </select>
+
+<!-- ============================================================
+     DISPLAY
+     ============================================================ -->
+
+<section class="section">
+
+    <div class="section-title">
+        Display
+    </div>
+
+    <div class="range-row">
+
+        <div class="range-label">
+            Brightness
         </div>
 
-        <div class="range-row">
-            <div class="range-label">Speed</div>
-            <input id="cob_spd" type="range" min="0" max="100" value="50"
-                   oninput="changeCobSpeed(this.value)">
-            <div id="cob_spd_value" class="range-value">50%</div>
+        <input
+            id="brightness"
+            type="range"
+            min="0"
+            max="100"
+            value="80"
+            oninput="changeBrightness(this.value)"
+        >
+
+        <div
+            id="brightness_value"
+            class="range-value"
+        >
+            80%
         </div>
 
-        <div class="range-row">
-            <div class="range-label">COB 1</div>
-            <input id="cob1" type="range" min="0" max="100" value="100"
-                   oninput="changeCobBrightness(1, this.value)">
-            <div id="cob1_value" class="range-value">100%</div>
+    </div>
+
+</section>
+
+
+<!-- ============================================================
+     LED MATRIX
+     ============================================================ -->
+
+<section class="section">
+
+    <div class="section-title">
+        LED Matrix
+    </div>
+
+    <div class="switch-row">
+
+        <div class="switch-label">
+            Enabled
         </div>
 
-        <div class="range-row">
-            <div class="range-label">COB 2</div>
-            <input id="cob2" type="range" min="0" max="100" value="100"
-                   oninput="changeCobBrightness(2, this.value)">
-            <div id="cob2_value" class="range-value">100%</div>
+        <button
+            id="mx_on"
+            class="toggle"
+            onclick="toggleMatrix()"
+        >
+            --
+        </button>
+
+    </div>
+
+    <div class="range-row">
+
+        <div class="range-label">
+            Brightness
         </div>
 
-        <div class="range-row">
-            <div class="range-label">COB 3</div>
-            <input id="cob3" type="range" min="0" max="100" value="100"
-                   oninput="changeCobBrightness(3, this.value)">
-            <div id="cob3_value" class="range-value">100%</div>
+        <input
+            id="mx_br"
+            type="range"
+            min="0"
+            max="100"
+            value="50"
+            oninput="changeMatrixBrightness(this.value)"
+        >
+
+        <div
+            id="mx_br_value"
+            class="range-value"
+        >
+            50%
         </div>
 
-        <div class="range-row">
-            <div class="range-label">COB 4</div>
-            <input id="cob4" type="range" min="0" max="100" value="100"
-                   oninput="changeCobBrightness(4, this.value)">
-            <div id="cob4_value" class="range-value">100%</div>
-        </div>
-    </section>
+    </div>
 
-    <!-- SD -->
-    <section class="section">
-        <div class="section-title">SD Card</div>
+</section>
 
-        <div class="sd-search">
-            <input id="searchInput" type="text" placeholder="Search files..."
-                   oninput="filterFiles()">
-            <button onclick="loadSD()">Refresh</button>
-        </div>
 
-        <div id="fileList" class="file-list">
-            <div class="empty">Loading...</div>
-        </div>
-    </section>
+<!-- ============================================================
+     COB LED
+     ============================================================ -->
 
-    <!-- SOUND -->
-    <section class="section">
-        <div class="section-title">Sound</div>
+<section class="section">
 
-        <div class="player-status">
-            <div id="playerTrack" class="player-track">—</div>
-            <div id="playerTime"  class="player-time">0:00 / 0:00</div>
-            <div id="playerState" class="player-state stopped">stopped</div>
+    <div class="section-title">
+        COB LED
+    </div>
+
+    <div class="switch-row">
+
+        <div class="switch-label">
+            Enabled
         </div>
 
-        <div class="range-row">
-            <div class="range-label">Media</div>
-            <input id="vol_media" type="range" min="0" max="100" value="60"
-                   oninput="changeVolume('vol_media', this.value)">
-            <div id="vol_media_value" class="range-value">60%</div>
+        <button
+            id="cob_on"
+            class="toggle"
+            onclick="toggleCob()"
+        >
+            --
+        </button>
+
+    </div>
+
+    <div class="range-row">
+
+        <div class="range-label">
+            Effect
         </div>
 
-        <div class="range-row">
-            <div class="range-label">Alarm</div>
-            <input id="vol_alarm" type="range" min="0" max="100" value="90"
-                   oninput="changeVolume('vol_alarm', this.value)">
-            <div id="vol_alarm_value" class="range-value">90%</div>
+        <select
+            id="cob_eff"
+            onchange="changeCobEffect(this.value)"
+        >
+            <option value="0">
+                Static
+            </option>
+
+            <option value="1">
+                Breath
+            </option>
+
+            <option value="2">
+                Strobe
+            </option>
+
+            <option value="3">
+                Wave
+            </option>
+        </select>
+
+    </div>
+
+    <div class="range-row">
+
+        <div class="range-label">
+            Speed
         </div>
 
-        <div class="range-row">
-            <div class="range-label">System</div>
-            <input id="vol_system" type="range" min="0" max="100" value="40"
-                   oninput="changeVolume('vol_system', this.value)">
-            <div id="vol_system_value" class="range-value">40%</div>
+        <input
+            id="cob_spd"
+            type="range"
+            min="0"
+            max="100"
+            value="50"
+            oninput="changeCobSpeed(this.value)"
+        >
+
+        <div
+            id="cob_spd_value"
+            class="range-value"
+        >
+            50%
         </div>
 
-        <div class="sound-buttons" style="margin-top: 20px;">
-            <button class="primary" onclick="playSelectedSound()">▶ Test</button>
-            <button onclick="pauseSound()">❚❚ Pause</button>
-            <button onclick="resumeSound()">▶ Resume</button>
-            <button onclick="stopSound()">■ Stop</button>
+    </div>
+
+    <div class="range-row">
+
+        <div class="range-label">
+            COB 1
         </div>
 
-        <div class="section-title">Microphone</div>
+        <input
+            id="cob1"
+            type="range"
+            min="0"
+            max="100"
+            value="100"
+            oninput="changeCobBrightness(1, this.value)"
+        >
 
-        <div class="switch-row">
-            <div class="switch-label">Enabled</div>
-            <button id="mic_on" class="toggle" onclick="toggleMic()">--</button>
+        <div
+            id="cob1_value"
+            class="range-value"
+        >
+            100%
         </div>
 
-        <div class="sound-buttons">
-            <button class="primary" onclick="startRecording()">● Record</button>
-            <button class="danger" onclick="stopRecording()">■ Stop</button>
+    </div>
 
-            <div id="recordStatus" class="record-status">
-                <span class="record-dot"></span>
-                <span id="recordText">Ready</span>
-            </div>
+    <div class="range-row">
+
+        <div class="range-label">
+            COB 2
         </div>
 
-        <div id="audioList" class="audio-list">
-            <div class="empty">No sounds</div>
+        <input
+            id="cob2"
+            type="range"
+            min="0"
+            max="100"
+            value="100"
+            oninput="changeCobBrightness(2, this.value)"
+        >
+
+        <div
+            id="cob2_value"
+            class="range-value"
+        >
+            100%
         </div>
-    </section>
+
+    </div>
+
+    <div class="range-row">
+
+        <div class="range-label">
+            COB 3
+        </div>
+
+        <input
+            id="cob3"
+            type="range"
+            min="0"
+            max="100"
+            value="100"
+            oninput="changeCobBrightness(3, this.value)"
+        >
+
+        <div
+            id="cob3_value"
+            class="range-value"
+        >
+            100%
+        </div>
+
+    </div>
+
+    <div class="range-row">
+
+        <div class="range-label">
+            COB 4
+        </div>
+
+        <input
+            id="cob4"
+            type="range"
+            min="0"
+            max="100"
+            value="100"
+            oninput="changeCobBrightness(4, this.value)"
+        >
+
+        <div
+            id="cob4_value"
+            class="range-value"
+        >
+            100%
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- ============================================================
+     SD CARD
+     ============================================================ -->
+
+<section class="section">
+
+    <div class="section-title">
+        SD Card
+    </div>
+
+    <div class="sd-search">
+
+        <input
+            id="searchInput"
+            type="text"
+            placeholder="Search files..."
+            oninput="filterFiles()"
+        >
+
+        <button onclick="loadSD()">
+            Refresh
+        </button>
+
+    </div>
+
+    <div
+        id="fileList"
+        class="file-list"
+    >
+
+        <div class="empty">
+            Loading...
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- ============================================================
+     SOUND
+     ============================================================ -->
+
+<section class="section">
+
+    <div class="section-title">
+        Sound
+    </div>
+
+
+    <!-- PLAYER -->
+
+    <div class="player-status">
+
+        <div
+            id="playerTrack"
+            class="player-track"
+        >
+            —
+        </div>
+
+        <div
+            id="playerTime"
+            class="player-time"
+        >
+            0:00 / 0:00
+        </div>
+
+        <div
+            id="playerState"
+            class="player-state stopped"
+        >
+            stopped
+        </div>
+
+    </div>
+
+
+    <!-- VOLUME MEDIA -->
+
+    <div class="range-row">
+
+        <div class="range-label">
+            Media
+        </div>
+
+        <input
+            id="vol_media"
+            type="range"
+            min="0"
+            max="100"
+            value="60"
+            oninput="changeVolume('vol_media', this.value)"
+        >
+
+        <div
+            id="vol_media_value"
+            class="range-value"
+        >
+            60%
+        </div>
+
+    </div>
+
+
+    <!-- VOLUME ALARM -->
+
+    <div class="range-row">
+
+        <div class="range-label">
+            Alarm
+        </div>
+
+        <input
+            id="vol_alarm"
+            type="range"
+            min="0"
+            max="100"
+            value="90"
+            oninput="changeVolume('vol_alarm', this.value)"
+        >
+
+        <div
+            id="vol_alarm_value"
+            class="range-value"
+        >
+            90%
+        </div>
+
+    </div>
+
+
+    <!-- VOLUME SYSTEM -->
+
+    <div class="range-row">
+
+        <div class="range-label">
+            System
+        </div>
+
+        <input
+            id="vol_system"
+            type="range"
+            min="0"
+            max="100"
+            value="40"
+            oninput="changeVolume('vol_system', this.value)"
+        >
+
+        <div
+            id="vol_system_value"
+            class="range-value"
+        >
+            40%
+        </div>
+
+    </div>
+
+
+    <!-- PLAYER CONTROLS -->
+
+    <div
+        class="sound-buttons"
+        style="margin-top:20px;"
+    >
+
+        <button
+            class="primary"
+            onclick="playSelectedSound()"
+        >
+            ▶ Test
+        </button>
+
+        <button onclick="pauseSound()">
+            ❚❚ Pause
+        </button>
+
+        <button onclick="resumeSound()">
+            ▶ Resume
+        </button>
+
+        <button onclick="stopSound()">
+            ■ Stop
+        </button>
+
+    </div>
+
+
+    <!-- MICROPHONE -->
+
+    <div class="section-title">
+        Microphone
+    </div>
+
+    <div class="switch-row">
+
+        <div class="switch-label">
+            Enabled
+        </div>
+
+        <button
+            id="mic_on"
+            class="toggle"
+            onclick="toggleMic()"
+        >
+            --
+        </button>
+
+    </div>
+
+
+    <!-- RECORD -->
+
+    <div class="sound-buttons">
+
+        <button
+            class="primary"
+            onclick="startRecording()"
+        >
+            ● Record
+        </button>
+
+        <button
+            class="danger"
+            onclick="stopRecording()"
+        >
+            ■ Stop
+        </button>
+
+        <div
+            id="recordStatus"
+            class="record-status"
+        >
+
+            <span class="record-dot"></span>
+
+            <span id="recordText">
+                Ready
+            </span>
+
+        </div>
+
+    </div>
+
+
+    <!-- AUDIO LIST -->
+
+    <div
+        id="audioList"
+        class="audio-list"
+    >
+
+        <div class="empty">
+            No sounds
+        </div>
+
+    </div>
+
+</section>
 
 </div>
 
-<div id="message" class="message">OK</div>
+
+<!-- ============================================================
+     MESSAGE
+     ============================================================ -->
+
+<div
+    id="message"
+    class="message"
+>
+    OK
+</div>
+
 
 <script>
-/* =============================================================
+
+/* ============================================================
    STATE
-   ============================================================= */
+   ============================================================ */
 
 let files = [];
+
 let timezoneOffset = 3;
+
 let selectedSound = null;
+
 let messageTimer = null;
 
-/* =============================================================
+let playerRequest = false;
+
+let paramsRequest = false;
+
+let sdRequest = false;
+
+const debounceTimers = {};
+
+
+/* ============================================================
    MESSAGE
-   ============================================================= */
+   ============================================================ */
 
 function showMessage(text) {
-    const el = document.getElementById("message");
+
+    const el =
+        document.getElementById(
+            "message"
+        );
+
     el.textContent = text;
+
     el.classList.add("show");
 
-    clearTimeout(messageTimer);
-    messageTimer = setTimeout(() => el.classList.remove("show"), 1800);
+    clearTimeout(
+        messageTimer
+    );
+
+    messageTimer =
+        setTimeout(
+            () => {
+                el.classList.remove(
+                    "show"
+                );
+            },
+            1200
+        );
 }
 
-/* =============================================================
+
+/* ============================================================
    CONNECTION
-   ============================================================= */
+   ============================================================ */
 
 function setConnection(online) {
-    const dot  = document.getElementById("connectionDot");
-    const text = document.getElementById("connectionText");
 
-    if (online) {
-        dot.classList.add("online");
-        text.textContent = "Online";
-    } else {
-        dot.classList.remove("online");
-        text.textContent = "Offline";
+    const dot =
+        document.getElementById(
+            "connectionDot"
+        );
+
+    const text =
+        document.getElementById(
+            "connectionText"
+        );
+
+    dot.classList.toggle(
+        "online",
+        online
+    );
+
+    text.textContent =
+        online
+            ? "Online"
+            : "Offline";
+}
+
+
+/* ============================================================
+   FAST FETCH
+   ============================================================ */
+
+async function apiFetch(
+    url,
+    options = {},
+    timeout = 1200
+) {
+
+    const controller =
+        new AbortController();
+
+    const timer =
+        setTimeout(
+            () => controller.abort(),
+            timeout
+        );
+
+    try {
+
+        const response =
+            await fetch(
+                url,
+                {
+                    ...options,
+                    cache: "no-store",
+                    signal:
+                        controller.signal
+                }
+            );
+
+        if (!response.ok) {
+            throw new Error(
+                "HTTP " +
+                response.status
+            );
+        }
+
+        return response;
+
+    } finally {
+
+        clearTimeout(timer);
+
     }
 }
 
-/* =============================================================
-   GENERIC API
-   ============================================================= */
 
-async function setParam(name, value) {
+/* ============================================================
+   DEBOUNCE
+   ============================================================ */
+
+function debounce(
+    name,
+    callback,
+    delay = 80
+) {
+
+    clearTimeout(
+        debounceTimers[name]
+    );
+
+    debounceTimers[name] =
+        setTimeout(
+            callback,
+            delay
+        );
+}
+
+
+/* ============================================================
+   PARAM
+   ============================================================ */
+
+async function setParam(
+    name,
+    value,
+    silent = true
+) {
+
     try {
-        const r = await fetch("/api/param", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ param: name, value: Number(value) })
-        });
 
-        if (!r.ok) throw new Error();
+        await apiFetch(
+            "/api/param",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+
+                body:
+                    JSON.stringify({
+                        param: name,
+                        value:
+                            Number(value)
+                    })
+            },
+            1000
+        );
+
         setConnection(true);
+
         return true;
+
     } catch (e) {
+
         setConnection(false);
-        showMessage("Error: " + name);
+
+        if (!silent) {
+
+            showMessage(
+                "Error: " + name
+            );
+        }
+
         return false;
     }
 }
 
+
+/* ============================================================
+   PARAMS
+   ============================================================ */
+
 async function loadParams() {
+
+    if (paramsRequest) {
+        return;
+    }
+
+    paramsRequest = true;
+
     try {
-        const r = await fetch("/api/params", { cache: "no-store" });
-        if (!r.ok) throw new Error();
 
-        const p = await r.json();
+        const response =
+            await apiFetch(
+                "/api/params",
+                {},
+                1500
+            );
 
-        // Display
-        setRange("brightness", p.brightness, "brightness_value");
+        const p =
+            await response.json();
 
-        // Matrix
-        applyToggle("mx_on", p.mx_on);
-        setRange("mx_br", p.mx_br, "mx_br_value");
 
-        // COB
-        applyToggle("cob_on", p.cob_on);
-        [1, 2, 3, 4].forEach(i => {
-            setRange("cob" + i, p["cob" + i], "cob" + i + "_value");
-        });
+        /* Display */
 
-        const effSel = document.getElementById("cob_eff");
-        if (effSel && p.cob_eff !== undefined) {
-            effSel.value = p.cob_eff;
+        setRange(
+            "brightness",
+            p.brightness,
+            "brightness_value"
+        );
+
+
+        /* Matrix */
+
+        applyToggle(
+            "mx_on",
+            p.mx_on
+        );
+
+        setRange(
+            "mx_br",
+            p.mx_br,
+            "mx_br_value"
+        );
+
+
+        /* COB */
+
+        applyToggle(
+            "cob_on",
+            p.cob_on
+        );
+
+        for (
+            let i = 1;
+            i <= 4;
+            i++
+        ) {
+
+            setRange(
+                "cob" + i,
+                p["cob" + i],
+                "cob" +
+                i +
+                "_value"
+            );
         }
 
-        setRange("cob_spd", p.cob_spd, "cob_spd_value");
 
-        // Volume streams
-        setRange("vol_media",  p.vol_media,  "vol_media_value");
-        setRange("vol_alarm",  p.vol_alarm,  "vol_alarm_value");
-        setRange("vol_system", p.vol_system, "vol_system_value");
+        const effect =
+            document.getElementById(
+                "cob_eff"
+            );
 
-        // Mic
-        applyToggle("mic_on", p.mic_on);
+        if (
+            effect &&
+            p.cob_eff !== undefined
+        ) {
 
-        // Timezone
-        if (p.utc !== undefined) {
-            timezoneOffset = p.utc;
+            effect.value =
+                p.cob_eff;
+        }
+
+
+        setRange(
+            "cob_spd",
+            p.cob_spd,
+            "cob_spd_value"
+        );
+
+
+        /* Volume */
+
+        setRange(
+            "vol_media",
+            p.vol_media,
+            "vol_media_value"
+        );
+
+        setRange(
+            "vol_alarm",
+            p.vol_alarm,
+            "vol_alarm_value"
+        );
+
+        setRange(
+            "vol_system",
+            p.vol_system,
+            "vol_system_value"
+        );
+
+
+        /* Microphone */
+
+        applyToggle(
+            "mic_on",
+            p.mic_on
+        );
+
+
+        /* TIMEZONE */
+
+        if (
+            p.utc !== undefined
+        ) {
+
+            timezoneOffset =
+                Number(p.utc);
+
             renderTimezone();
         }
 
+
         setConnection(true);
+
     } catch (e) {
+
         setConnection(false);
+
+    } finally {
+
+        paramsRequest = false;
     }
 }
 
-function setRange(id, value, valueId) {
-    const el = document.getElementById(id);
-    if (!el || value === undefined) return;
+
+/* ============================================================
+   RANGE
+   ============================================================ */
+
+function setRange(
+    id,
+    value,
+    valueId
+) {
+
+    const el =
+        document.getElementById(id);
+
+    if (
+        !el ||
+        value === undefined ||
+        value === null
+    ) {
+        return;
+    }
+
     el.value = value;
+
     if (valueId) {
-        const v = document.getElementById(valueId);
-        if (v) v.textContent = value + "%";
+
+        const valueEl =
+            document.getElementById(
+                valueId
+            );
+
+        if (valueEl) {
+
+            valueEl.textContent =
+                value + "%";
+        }
     }
 }
 
-function applyToggle(id, value) {
-    const el = document.getElementById(id);
-    if (!el) return;
 
-    const on = value === 1 || value === true;
-    el.classList.toggle("on", on);
-    el.textContent = on ? "ON" : "OFF";
-}
+/* ============================================================
+   TOGGLE
+   ============================================================ */
 
-/* =============================================================
-   SENSORS
-   ============================================================= */
+function applyToggle(
+    id,
+    value
+) {
 
-async function loadSensors() {
-    try {
-        const r = await fetch("/api/sensors", { cache: "no-store" });
-        if (!r.ok) throw new Error();
+    const el =
+        document.getElementById(id);
 
-        const d = await r.json();
-
-        document.getElementById("temperature").textContent =
-            Number(d.temperature).toFixed(1) + "°";
-        document.getElementById("humidity").textContent =
-            Number(d.humidity).toFixed(0) + "%";
-        document.getElementById("light").textContent =
-            Number(d.light).toFixed(0);
-        document.getElementById("distance").textContent =
-            Number(d.distance).toFixed(0) + " cm";
-
-        setConnection(true);
-    } catch (e) {
-        setConnection(false);
+    if (!el) {
+        return;
     }
+
+    const on =
+        value === 1 ||
+        value === true ||
+        value === "1";
+
+    el.classList.toggle(
+        "on",
+        on
+    );
+
+    el.textContent =
+        on
+            ? "ON"
+            : "OFF";
 }
 
-/* =============================================================
-   TIME
-   ============================================================= */
 
-function updateTime() {
-    const now = new Date();
-
-    const hours   = String(now.getHours()).padStart(2, "0");
-    const minutes = String(now.getMinutes()).padStart(2, "0");
-
-    document.getElementById("time").textContent = hours + ":" + minutes;
-
-    const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-    const months = ["January","February","March","April","May","June",
-                    "July","August","September","October","November","December"];
-
-    document.getElementById("date").textContent =
-        days[now.getDay()] + ", " +
-        now.getDate() + " " +
-        months[now.getMonth()] + " " +
-        now.getFullYear();
-}
-
-/* =============================================================
+/* ============================================================
    TIMEZONE
-   ============================================================= */
+   ============================================================ */
 
 function renderTimezone() {
-    const sign = timezoneOffset >= 0 ? "+" : "";
-    document.getElementById("timezone").textContent =
-        "UTC " + sign + timezoneOffset;
+
+    const sign =
+        timezoneOffset >= 0
+            ? "+"
+            : "";
+
+    document.getElementById(
+        "timezone"
+    ).textContent =
+        "UTC " +
+        sign +
+        timezoneOffset;
 }
+
 
 async function changeTimezone(delta) {
-    let value = timezoneOffset + delta;
-    if (value < -12) value = -12;
-    if (value > 14)  value = 14;
 
-    timezoneOffset = value;
+    let value =
+        timezoneOffset + delta;
+
+    if (value < -12) {
+        value = -12;
+    }
+
+    if (value > 14) {
+        value = 14;
+    }
+
+    timezoneOffset =
+        value;
+
     renderTimezone();
 
-    const ok = await setParam("utc", value);
-    showMessage(ok ? "Timezone changed" : "Timezone error");
-}
+    const ok =
+        await setParam(
+            "utc",
+            value,
+            false
+        );
 
-/* =============================================================
-   DISPLAY BRIGHTNESS
-   ============================================================= */
+    if (ok) {
 
-async function changeBrightness(value) {
-    document.getElementById("brightness_value").textContent =
-        value + "%";
-    await setParam("brightness", value);
-}
+        showMessage(
+            "Timezone changed"
+        );
 
-/* =============================================================
-   MATRIX
-   ============================================================= */
+    } else {
 
-async function toggleMatrix() {
-    const el = document.getElementById("mx_on");
-    const currentlyOn = el.classList.contains("on");
-    const newState = currentlyOn ? 0 : 1;
-
-    applyToggle("mx_on", newState);
-
-    const ok = await setParam("mx_on", newState);
-    if (!ok) applyToggle("mx_on", currentlyOn ? 1 : 0);
-}
-
-async function changeMatrixBrightness(value) {
-    document.getElementById("mx_br_value").textContent = value + "%";
-    await setParam("mx_br", value);
-}
-
-/* =============================================================
-   COB
-   ============================================================= */
-
-async function toggleCob() {
-    const el = document.getElementById("cob_on");
-    const currentlyOn = el.classList.contains("on");
-    const newState = currentlyOn ? 0 : 1;
-
-    applyToggle("cob_on", newState);
-
-    const ok = await setParam("cob_on", newState);
-    if (!ok) applyToggle("cob_on", currentlyOn ? 1 : 0);
-}
-
-async function changeCobEffect(value) {
-    await setParam("cob_eff", value);
-    showMessage("Effect changed");
-}
-
-async function changeCobSpeed(value) {
-    document.getElementById("cob_spd_value").textContent = value + "%";
-    await setParam("cob_spd", value);
-}
-
-async function changeCobBrightness(index, value) {
-    document.getElementById("cob" + index + "_value").textContent =
-        value + "%";
-    await setParam("cob" + index, value);
-}
-
-/* =============================================================
-   VOLUME (streams)
-   ============================================================= */
-
-async function changeVolume(name, value) {
-    document.getElementById(name + "_value").textContent = value + "%";
-    await setParam(name, value);
-}
-
-/* =============================================================
-   MICROPHONE
-   ============================================================= */
-
-async function toggleMic() {
-    const el = document.getElementById("mic_on");
-    const currentlyOn = el.classList.contains("on");
-    const newState = currentlyOn ? 0 : 1;
-
-    applyToggle("mic_on", newState);
-
-    const ok = await setParam("mic_on", newState);
-    if (!ok) applyToggle("mic_on", currentlyOn ? 1 : 0);
-}
-
-/* =============================================================
-   SD CARD
-   ============================================================= */
-
-async function loadSD() {
-    const list = document.getElementById("fileList");
-    list.innerHTML = '<div class="empty">Loading...</div>';
-
-    try {
-        const r = await fetch("/api/sd", { cache: "no-store" });
-        if (!r.ok) throw new Error();
-
-        const data = await r.json();
-        files = Array.isArray(data.files) ? data.files : [];
-
-        renderFiles();
-        renderAudioFiles();
-        setConnection(true);
-    } catch (e) {
-        list.innerHTML = '<div class="empty">SD unavailable</div>';
+        showMessage(
+            "Timezone error"
+        );
     }
 }
 
+
+/* ============================================================
+   DISPLAY
+   ============================================================ */
+
+function changeBrightness(value) {
+
+    document.getElementById(
+        "brightness_value"
+    ).textContent =
+        value + "%";
+
+    debounce(
+        "brightness",
+        () =>
+            setParam(
+                "brightness",
+                value
+            )
+    );
+}
+
+
+/* ============================================================
+   MATRIX
+   ============================================================ */
+
+async function toggleMatrix() {
+
+    const el =
+        document.getElementById(
+            "mx_on"
+        );
+
+    const oldState =
+        el.classList.contains(
+            "on"
+        );
+
+    const newState =
+        oldState
+            ? 0
+            : 1;
+
+    applyToggle(
+        "mx_on",
+        newState
+    );
+
+    const ok =
+        await setParam(
+            "mx_on",
+            newState,
+            false
+        );
+
+    if (!ok) {
+
+        applyToggle(
+            "mx_on",
+            oldState
+        );
+    }
+}
+
+
+function changeMatrixBrightness(
+    value
+) {
+
+    document.getElementById(
+        "mx_br_value"
+    ).textContent =
+        value + "%";
+
+    debounce(
+        "mx_br",
+        () =>
+            setParam(
+                "mx_br",
+                value
+            )
+    );
+}
+
+
+/* ============================================================
+   COB
+   ============================================================ */
+
+async function toggleCob() {
+
+    const el =
+        document.getElementById(
+            "cob_on"
+        );
+
+    const oldState =
+        el.classList.contains(
+            "on"
+        );
+
+    const newState =
+        oldState
+            ? 0
+            : 1;
+
+    applyToggle(
+        "cob_on",
+        newState
+    );
+
+    const ok =
+        await setParam(
+            "cob_on",
+            newState,
+            false
+        );
+
+    if (!ok) {
+
+        applyToggle(
+            "cob_on",
+            oldState
+        );
+    }
+}
+
+
+function changeCobEffect(
+    value
+) {
+
+    setParam(
+        "cob_eff",
+        value
+    );
+}
+
+
+function changeCobSpeed(
+    value
+) {
+
+    document.getElementById(
+        "cob_spd_value"
+    ).textContent =
+        value + "%";
+
+    debounce(
+        "cob_spd",
+        () =>
+            setParam(
+                "cob_spd",
+                value
+            )
+    );
+}
+
+
+function changeCobBrightness(
+    index,
+    value
+) {
+
+    document.getElementById(
+        "cob" +
+        index +
+        "_value"
+    ).textContent =
+        value + "%";
+
+    debounce(
+        "cob" + index,
+        () =>
+            setParam(
+                "cob" + index,
+                value
+            )
+    );
+}
+
+
+/* ============================================================
+   VOLUME
+   ============================================================ */
+
+function changeVolume(
+    name,
+    value
+) {
+
+    document.getElementById(
+        name + "_value"
+    ).textContent =
+        value + "%";
+
+    debounce(
+        name,
+        () =>
+            setParam(
+                name,
+                value
+            ),
+        60
+    );
+}
+
+
+/* ============================================================
+   MICROPHONE
+   ============================================================ */
+
+async function toggleMic() {
+
+    const el =
+        document.getElementById(
+            "mic_on"
+        );
+
+    const oldState =
+        el.classList.contains(
+            "on"
+        );
+
+    const newState =
+        oldState
+            ? 0
+            : 1;
+
+    applyToggle(
+        "mic_on",
+        newState
+    );
+
+    const ok =
+        await setParam(
+            "mic_on",
+            newState,
+            false
+        );
+
+    if (!ok) {
+
+        applyToggle(
+            "mic_on",
+            oldState
+        );
+    }
+}
+
+
+/* ============================================================
+   SD
+   ============================================================ */
+
+async function loadSD() {
+
+    if (sdRequest) {
+        return;
+    }
+
+    sdRequest = true;
+
+    const list =
+        document.getElementById(
+            "fileList"
+        );
+
+    list.innerHTML =
+        '<div class="empty">Loading...</div>';
+
+    try {
+
+        const response =
+            await apiFetch(
+                "/api/sd",
+                {},
+                2500
+            );
+
+        const data =
+            await response.json();
+
+        files =
+            Array.isArray(
+                data.files
+            )
+                ? data.files
+                : [];
+
+        renderFiles();
+
+        renderAudioFiles();
+
+        setConnection(true);
+
+    } catch (e) {
+
+        list.innerHTML =
+            '<div class="empty">SD unavailable</div>';
+
+    } finally {
+
+        sdRequest = false;
+    }
+}
+
+
 function filterFiles() {
+
     renderFiles();
 }
 
+
 function renderFiles() {
-    const list  = document.getElementById("fileList");
-    const input = document.getElementById("searchInput");
-    const query = input.value.toLowerCase().trim();
 
-    const filtered = files.filter(f =>
-        String(f.path).toLowerCase().includes(query)
-    );
+    const list =
+        document.getElementById(
+            "fileList"
+        );
 
-    if (filtered.length === 0) {
-        list.innerHTML = '<div class="empty">No files</div>';
+    const input =
+        document.getElementById(
+            "searchInput"
+        );
+
+    const query =
+        input.value
+            .toLowerCase()
+            .trim();
+
+    const filtered =
+        files.filter(
+            f =>
+                String(f.path)
+                    .toLowerCase()
+                    .includes(query)
+        );
+
+    if (!filtered.length) {
+
+        list.innerHTML =
+            '<div class="empty">No files</div>';
+
         return;
     }
 
-    list.innerHTML = "";
+    const fragment =
+        document.createDocumentFragment();
 
-    filtered.forEach(f => {
-        const row  = document.createElement("div");
-        row.className = "file";
+    filtered.forEach(
+        f => {
 
-        const path = document.createElement("div");
-        path.className = "file-path";
-        path.textContent = f.path;
+            const row =
+                document.createElement(
+                    "div"
+                );
 
-        const size = document.createElement("div");
-        size.className = "file-size";
-        size.textContent = f.type === "dir"
-            ? "DIR"
-            : formatSize(Number(f.size || 0));
+            row.className =
+                "file";
 
-        row.appendChild(path);
-        row.appendChild(size);
-        list.appendChild(row);
-    });
+            const path =
+                document.createElement(
+                    "div"
+                );
+
+            path.className =
+                "file-path";
+
+            path.textContent =
+                f.path;
+
+            const size =
+                document.createElement(
+                    "div"
+                );
+
+            size.className =
+                "file-size";
+
+            size.textContent =
+                f.type === "dir"
+                    ? "DIR"
+                    : formatSize(
+                        Number(
+                            f.size || 0
+                        )
+                    );
+
+            row.appendChild(
+                path
+            );
+
+            row.appendChild(
+                size
+            );
+
+            fragment.appendChild(
+                row
+            );
+        }
+    );
+
+    list.replaceChildren(
+        fragment
+    );
 }
+
 
 function formatSize(bytes) {
-    if (bytes < 1024) return bytes + " B";
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-    return (bytes / 1024 / 1024).toFixed(1) + " MB";
+
+    if (bytes < 1024) {
+        return bytes + " B";
+    }
+
+    if (
+        bytes <
+        1024 * 1024
+    ) {
+
+        return (
+            bytes / 1024
+        ).toFixed(1) +
+        " KB";
+    }
+
+    return (
+        bytes /
+        1024 /
+        1024
+    ).toFixed(1) +
+        " MB";
 }
 
-/* =============================================================
+
+/* ============================================================
    AUDIO FILES
-   ============================================================= */
+   ============================================================ */
 
 function renderAudioFiles() {
-    const list = document.getElementById("audioList");
 
-    const audioFiles = files.filter(f => {
-        if (f.type === "dir") return false;
-        const p = String(f.path).toLowerCase();
-        return p.endsWith(".wav") || p.endsWith(".mp3");
-    });
+    const list =
+        document.getElementById(
+            "audioList"
+        );
 
-    if (audioFiles.length === 0) {
-        list.innerHTML = '<div class="empty">No sounds</div>';
+    const audioFiles =
+        files.filter(
+            f => {
+
+                if (
+                    f.type === "dir"
+                ) {
+                    return false;
+                }
+
+                const path =
+                    String(
+                        f.path
+                    ).toLowerCase();
+
+                return (
+                    path.endsWith(
+                        ".wav"
+                    ) ||
+                    path.endsWith(
+                        ".mp3"
+                    )
+                );
+            }
+        );
+
+    if (!audioFiles.length) {
+
+        list.innerHTML =
+            '<div class="empty">No sounds</div>';
+
         return;
     }
 
-    list.innerHTML = "";
+    const fragment =
+        document.createDocumentFragment();
 
-    audioFiles.forEach(f => {
-        const row = document.createElement("div");
-        row.className = "audio-row";
+    audioFiles.forEach(
+        f => {
 
-        const name = document.createElement("div");
-        name.className = "audio-name";
-        name.textContent = f.path;
+            const row =
+                document.createElement(
+                    "div"
+                );
 
-        const btn = document.createElement("button");
-        btn.className = "audio-play";
-        btn.textContent = "▶";
-        btn.onclick = () => playSound(f.path);
+            row.className =
+                "audio-row";
 
-        row.appendChild(name);
-        row.appendChild(btn);
-        list.appendChild(row);
-    });
-}
+            const name =
+                document.createElement(
+                    "div"
+                );
 
-/* =============================================================
-   PLAYER
-   ============================================================= */
+            name.className =
+                "audio-name";
 
-async function playSound(path, stream = "media") {
-    selectedSound = path;
+            name.textContent =
+                f.path;
 
-    try {
-        const r = await fetch("/api/audio/play", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                path,
-                stream,
-                volume:   100,
-                fade_in:  500,
-                fade_out: 1000,
-                curve:    "linear"
-            })
-        });
+            const button =
+                document.createElement(
+                    "button"
+                );
 
-        if (!r.ok) throw new Error();
-        showMessage("Playing");
-        updatePlayerStatus();
-    } catch (e) {
-        showMessage("Playback error");
-    }
-}
+            button.className =
+                "audio-play";
 
-async function playSelectedSound() {
-    if (selectedSound) {
-        await playSound(selectedSound);
-        return;
-    }
+            button.textContent =
+                "▶";
 
-    const wav = files.find(f =>
-        f.type !== "dir" &&
-        String(f.path).toLowerCase().endsWith(".wav")
+            button.onclick =
+                () =>
+                    playSound(
+                        f.path
+                    );
+
+            row.appendChild(
+                name
+            );
+
+            row.appendChild(
+                button
+            );
+
+            fragment.appendChild(
+                row
+            );
+        }
     );
 
-    if (!wav) {
-        showMessage("No WAV files");
+    list.replaceChildren(
+        fragment
+    );
+}
+
+
+/* ============================================================
+   PLAYER
+   ============================================================ */
+
+async function playSound(
+    path,
+    stream = "media"
+) {
+
+    selectedSound =
+        path;
+
+    try {
+
+        await apiFetch(
+            "/api/audio/play",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+
+                body:
+                    JSON.stringify({
+
+                        path,
+
+                        stream,
+
+                        volume: 100,
+
+                        fade_in: 0,
+
+                        fade_out: 0,
+
+                        curve: "linear"
+
+                    })
+            },
+            1200
+        );
+
+        setConnection(true);
+
+        updatePlayerStatus();
+
+        showMessage(
+            "Playing"
+        );
+
+    } catch (e) {
+
+        showMessage(
+            "Playback error"
+        );
+    }
+}
+
+
+async function playSelectedSound() {
+
+    if (selectedSound) {
+
+        await playSound(
+            selectedSound
+        );
+
         return;
     }
 
-    await playSound(wav.path);
+    const wav =
+        files.find(
+            f =>
+                f.type !== "dir" &&
+                String(
+                    f.path
+                )
+                .toLowerCase()
+                .endsWith(".wav")
+        );
+
+    if (!wav) {
+
+        showMessage(
+            "No WAV files"
+        );
+
+        return;
+    }
+
+    await playSound(
+        wav.path
+    );
 }
+
 
 async function pauseSound() {
+
     try {
-        const r = await fetch("/api/audio/pause", { method: "POST" });
-        if (!r.ok) throw new Error();
-        showMessage("Paused");
+
+        await apiFetch(
+            "/api/audio/pause",
+            {
+                method: "POST"
+            },
+            1000
+        );
+
         updatePlayerStatus();
+
+        showMessage(
+            "Paused"
+        );
+
     } catch (e) {
-        showMessage("Pause error");
+
+        showMessage(
+            "Pause error"
+        );
     }
 }
+
 
 async function resumeSound() {
+
     try {
-        const r = await fetch("/api/audio/resume", { method: "POST" });
-        if (!r.ok) throw new Error();
-        showMessage("Resumed");
+
+        await apiFetch(
+            "/api/audio/resume",
+            {
+                method: "POST"
+            },
+            1000
+        );
+
         updatePlayerStatus();
+
+        showMessage(
+            "Resumed"
+        );
+
     } catch (e) {
-        showMessage("Resume error");
+
+        showMessage(
+            "Resume error"
+        );
     }
 }
+
 
 async function stopSound() {
-    try {
-        const r = await fetch("/api/audio/stop", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fade_out: 800 })
-        });
 
-        if (!r.ok) throw new Error();
-        showMessage("Playback stopped");
+    try {
+
+        await apiFetch(
+            "/api/audio/stop",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+
+                body:
+                    JSON.stringify({
+                        fade_out: 0
+                    })
+            },
+            1000
+        );
+
         updatePlayerStatus();
+
+        showMessage(
+            "Playback stopped"
+        );
+
     } catch (e) {
-        showMessage("Stop error");
+
+        showMessage(
+            "Stop error"
+        );
     }
 }
 
-/* =============================================================
+
+/* ============================================================
    PLAYER STATUS
-   ============================================================= */
+   ============================================================ */
 
 function formatTime(ms) {
-    const total = Math.floor(ms / 1000);
-    const m = Math.floor(total / 60);
-    const s = total % 60;
-    return m + ":" + String(s).padStart(2, "0");
+
+    const total =
+        Math.floor(
+            Number(ms || 0) /
+            1000
+        );
+
+    const minutes =
+        Math.floor(
+            total / 60
+        );
+
+    const seconds =
+        total % 60;
+
+    return (
+        minutes +
+        ":" +
+        String(seconds)
+            .padStart(2, "0")
+    );
 }
+
 
 async function updatePlayerStatus() {
+
+    if (playerRequest) {
+        return;
+    }
+
+    playerRequest = true;
+
     try {
-        const r = await fetch("/api/audio/status", { cache: "no-store" });
-        if (!r.ok) throw new Error();
 
-        const s = await r.json();
+        const response =
+            await apiFetch(
+                "/api/audio/status",
+                {},
+                700
+            );
 
-        const trackEl = document.getElementById("playerTrack");
-        const timeEl  = document.getElementById("playerTime");
-        const stateEl = document.getElementById("playerState");
+        const s =
+            await response.json();
 
-        trackEl.textContent = s.path && s.path.length ? s.path : "—";
+        document.getElementById(
+            "playerTrack"
+        ).textContent =
+            s.path &&
+            s.path.length
+                ? s.path
+                : "—";
 
-        timeEl.textContent =
-            formatTime(s.position || 0) + " / " +
-            formatTime(s.duration || 0);
+        document.getElementById(
+            "playerTime"
+        ).textContent =
+            formatTime(
+                s.position
+            ) +
+            " / " +
+            formatTime(
+                s.duration
+            );
 
-        const state = s.state || "stopped";
-        stateEl.textContent = state;
-        stateEl.className   = "player-state " + state;
+        const state =
+            s.state ||
+            "stopped";
+
+        const stateEl =
+            document.getElementById(
+                "playerState"
+            );
+
+        stateEl.textContent =
+            state;
+
+        stateEl.className =
+            "player-state " +
+            state;
+
     } catch (e) {
-        // молча
+
+        /* silent */
+
+    } finally {
+
+        playerRequest = false;
     }
 }
 
-/* =============================================================
-   RECORD (placeholder)
-   ============================================================= */
+
+/* ============================================================
+   RECORDING
+   ============================================================ */
 
 async function startRecording() {
-    try {
-        const r = await fetch("/api/audio/record/start", { method: "POST" });
-        if (!r.ok) throw new Error();
 
-        document.getElementById("recordStatus").classList.add("recording");
-        document.getElementById("recordText").textContent = "Recording";
-        showMessage("Recording started");
+    try {
+
+        await apiFetch(
+            "/api/audio/record/start",
+            {
+                method: "POST"
+            },
+            1000
+        );
+
+        document
+            .getElementById(
+                "recordStatus"
+            )
+            .classList.add(
+                "recording"
+            );
+
+        document
+            .getElementById(
+                "recordText"
+            )
+            .textContent =
+            "Recording";
+
+        showMessage(
+            "Recording started"
+        );
+
     } catch (e) {
-        showMessage("Microphone error");
+
+        showMessage(
+            "Microphone error"
+        );
     }
 }
+
 
 async function stopRecording() {
+
     try {
-        const r = await fetch("/api/audio/record/stop", { method: "POST" });
-        if (!r.ok) throw new Error();
 
-        document.getElementById("recordStatus").classList.remove("recording");
-        document.getElementById("recordText").textContent = "Ready";
-        showMessage("Recording saved");
+        await apiFetch(
+            "/api/audio/record/stop",
+            {
+                method: "POST"
+            },
+            1200
+        );
 
-        setTimeout(loadSD, 500);
+        document
+            .getElementById(
+                "recordStatus"
+            )
+            .classList.remove(
+                "recording"
+            );
+
+        document
+            .getElementById(
+                "recordText"
+            )
+            .textContent =
+            "Ready";
+
+        showMessage(
+            "Recording saved"
+        );
+
+        setTimeout(
+            loadSD,
+            300
+        );
+
     } catch (e) {
-        showMessage("Recording error");
+
+        showMessage(
+            "Recording error"
+        );
     }
 }
 
-/* =============================================================
+
+/* ============================================================
    INIT
-   ============================================================= */
+   ============================================================ */
 
 renderTimezone();
-updateTime();
-loadSensors();
-loadSD();
-loadParams();
-updatePlayerStatus();
 
-setInterval(updateTime, 1000);
-setInterval(loadSensors, 2000);
-setInterval(updatePlayerStatus, 500);
+(async function init() {
+
+    /*
+     * Загружаем параметры.
+     * Здесь находится UTC.
+     */
+
+    await loadParams();
+
+    /*
+     * После этого загружаем
+     * SD и статус аудио.
+     */
+
+    await Promise.all([
+        loadSD(),
+        updatePlayerStatus()
+    ]);
+
+})();
+
+
+/*
+ * Статус плеера обновляется раз
+ * в секунду.
+ *
+ * Кнопки play/pause/resume/stop
+ * обновляют его сразу после действия.
+ */
+
+setInterval(
+    updatePlayerStatus,
+    1000
+);
+
 </script>
 
 </body>

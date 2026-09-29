@@ -1,5 +1,11 @@
 #include "WebServerManager.h"
 
+#include <Arduino.h>
+#include <WiFi.h>
+#include <LittleFS.h>
+#include <ArduinoJson.h>
+
+
 // ============================================================
 // CONSTRUCTOR
 // ============================================================
@@ -13,138 +19,241 @@ WebServerManager::WebServerManager()
 {
 }
 
+
 // ============================================================
 // BEGIN
 // ============================================================
 
 bool WebServerManager::begin(
     SettingsManager& settings,
-    SDManager&       sd,
-    SoundManager&    sound,
-    const char*      ssid,
-    const char*      password
+    SDManager& sd,
+    SoundManager& sound,
+    const char* ssid,
+    const char* password
 )
 {
     Serial.println();
-    Serial.println("========================================");
-    Serial.println("          WEB SERVER START");
-    Serial.println("========================================");
+    Serial.println(
+        "========================================"
+    );
+    Serial.println(
+        "          WEB SERVER STARTING"
+    );
+    Serial.println(
+        "========================================"
+    );
+
+
+    // --------------------------------------------------------
+    // MANAGERS
+    // --------------------------------------------------------
 
     _settings = &settings;
     _sd       = &sd;
     _sound    = &sound;
 
+
     // --------------------------------------------------------
     // WIFI
     // --------------------------------------------------------
 
-    Serial.println("[WEB] WiFi mode: STA");
+    Serial.println(
+        "[WEB] Starting WiFi..."
+    );
+
 
     WiFi.mode(WIFI_STA);
-    WiFi.disconnect(true, true);
-    delay(300);
 
-    Serial.print  ("[WEB] SSID: ");
-    Serial.println(ssid);
 
-    WiFi.begin(ssid, password);
+    // Не стираем сохранённую конфигурацию WiFi.
 
-    uint32_t startTime = millis();
+    WiFi.disconnect(
+        false,
+        false
+    );
 
-    while (
-        WiFi.status() != WL_CONNECTED &&
-        millis() - startTime < 20000
+
+    delay(50);
+
+
+    if (
+        !ssid ||
+        !password
     )
     {
-        delay(500);
-
-        Serial.print("[WEB] WiFi status: ");
-        Serial.println(WiFi.status());
-    }
-
-    // --------------------------------------------------------
-    // CHECK WIFI
-    // --------------------------------------------------------
-
-    if (WiFi.status() != WL_CONNECTED)
-    {
-        Serial.println();
-        Serial.println("[WEB] ================================");
-        Serial.println("[WEB] WIFI CONNECTION FAILED");
-        Serial.println("[WEB] ================================");
-
-        Serial.print  ("[WEB] Status: ");
-        Serial.println(WiFi.status());
-
-        Serial.print  ("[WEB] SSID:   ");
-        Serial.println(WiFi.SSID());
-
-        Serial.print  ("[WEB] RSSI:   ");
-        Serial.println(WiFi.RSSI());
+        Serial.println(
+            "[WEB] ERROR: invalid WiFi credentials"
+        );
 
         return false;
     }
 
+
+    WiFi.begin(
+        ssid,
+        password
+    );
+
+
+    const uint32_t startTime =
+        millis();
+
+
+    // --------------------------------------------------------
+    // WAIT FOR WIFI
+    // --------------------------------------------------------
+
+    while (
+        WiFi.status() != WL_CONNECTED &&
+        static_cast<uint32_t>(
+            millis() - startTime
+        ) < 20000UL
+    )
+    {
+        delay(100);
+        yield();
+    }
+
+
+    if (
+        WiFi.status() != WL_CONNECTED
+    )
+    {
+        Serial.println(
+            "[WEB] WiFi connection FAILED"
+        );
+
+        Serial.print(
+            "[WEB] Status: "
+        );
+
+        Serial.println(
+            WiFi.status()
+        );
+
+        return false;
+    }
+
+
+    // --------------------------------------------------------
+    // WIFI INFO
+    // --------------------------------------------------------
+
     Serial.println();
-    Serial.println("[WEB] WiFi connected");
+    Serial.println(
+        "[WEB] WiFi connected"
+    );
 
-    Serial.print  ("[WEB] IP:      ");
-    Serial.println(WiFi.localIP());
 
-    Serial.print  ("[WEB] Gateway: ");
-    Serial.println(WiFi.gatewayIP());
+    Serial.print(
+        "[WEB] IP: "
+    );
 
-    Serial.print  ("[WEB] Subnet:  ");
-    Serial.println(WiFi.subnetMask());
+    Serial.println(
+        WiFi.localIP()
+    );
 
-    Serial.print  ("[WEB] RSSI:    ");
-    Serial.println(WiFi.RSSI());
+
+    Serial.print(
+        "[WEB] RSSI: "
+    );
+
+    Serial.println(
+        WiFi.RSSI()
+    );
+
 
     // --------------------------------------------------------
     // LITTLEFS
     // --------------------------------------------------------
 
     Serial.println();
-    Serial.println("[WEB] Mounting LittleFS...");
 
-    if (!LittleFS.begin(true))
+    Serial.println(
+        "[WEB] Mounting LittleFS..."
+    );
+
+
+    if (
+        !LittleFS.begin(true)
+    )
     {
-        Serial.println("[WEB] LittleFS mount FAILED");
+        Serial.println(
+            "[WEB] LittleFS mount FAILED"
+        );
+
         return false;
     }
 
-    Serial.println("[WEB] LittleFS mounted");
 
-    if (LittleFS.exists("/index.html"))
-        Serial.println("[WEB] /index.html found");
-    else
-        Serial.println("[WEB] WARNING: /index.html NOT FOUND");
+    Serial.println(
+        "[WEB] LittleFS mounted"
+    );
+
+
+    if (
+        !LittleFS.exists(
+            "/index.html"
+        )
+    )
+    {
+        Serial.println(
+            "[WEB] WARNING: /index.html NOT FOUND"
+        );
+    }
+
 
     // --------------------------------------------------------
-    // ROUTES + SERVER
+    // ROUTES
     // --------------------------------------------------------
 
     setupRoutes();
 
+
+    // --------------------------------------------------------
+    // START HTTP SERVER
+    // --------------------------------------------------------
+
     _server.begin();
 
-    Serial.println();
-    Serial.println("[WEB] HTTP server started");
-
-    Serial.print  ("[WEB] Open: http://");
-    Serial.println(WiFi.localIP());
 
     _initialized = true;
 
-    Serial.println("========================================");
-    Serial.println("          WEB SERVER READY");
-    Serial.println("========================================");
+
+    Serial.println();
+    Serial.println(
+        "[WEB] HTTP server started"
+    );
+
+
+    Serial.print(
+        "[WEB] Open: http://"
+    );
+
+    Serial.println(
+        WiFi.localIP()
+    );
+
+
+    Serial.println(
+        "========================================"
+    );
+
+    Serial.println(
+        "          WEB SERVER READY"
+    );
+
+    Serial.println(
+        "========================================"
+    );
+
 
     return true;
 }
 
+
 // ============================================================
-// ROUTES
+// SETUP ROUTES
 // ============================================================
 
 void WebServerManager::setupRoutes()
@@ -156,36 +265,68 @@ void WebServerManager::setupRoutes()
     _server.on(
         "/",
         HTTP_GET,
-        [this]() { handleRoot(); }
+        [this]()
+        {
+            handleRoot();
+        }
     );
 
+
     // --------------------------------------------------------
-    // SETTINGS
+    // GET PARAM
     // --------------------------------------------------------
 
     _server.on(
         "/api/param",
         HTTP_GET,
-        [this]() { handleGetParam(); }
+        [this]()
+        {
+            handleGetParam();
+        }
     );
+
+
+    // --------------------------------------------------------
+    // SET PARAM
+    // --------------------------------------------------------
 
     _server.on(
         "/api/param",
         HTTP_POST,
-        [this]() { handleSetParam(); }
+        [this]()
+        {
+            handleSetParam();
+        }
     );
+
+
+    // --------------------------------------------------------
+    // GET ALL PARAMS
+    // --------------------------------------------------------
 
     _server.on(
         "/api/params",
         HTTP_GET,
-        [this]() { handleGetAllParams(); }
+        [this]()
+        {
+            handleGetAllParams();
+        }
     );
+
+
+    // --------------------------------------------------------
+    // RESET
+    // --------------------------------------------------------
 
     _server.on(
         "/api/reset",
         HTTP_POST,
-        [this]() { handleReset(); }
+        [this]()
+        {
+            handleReset();
+        }
     );
+
 
     // --------------------------------------------------------
     // SENSORS
@@ -194,61 +335,109 @@ void WebServerManager::setupRoutes()
     _server.on(
         "/api/sensors",
         HTTP_GET,
-        [this]() { handleSensors(); }
+        [this]()
+        {
+            handleSensors();
+        }
     );
 
+
     // --------------------------------------------------------
-    // SD CARD
+    // SD
     // --------------------------------------------------------
 
     _server.on(
         "/api/sd",
         HTTP_GET,
-        [this]() { handleSD(); }
+        [this]()
+        {
+            handleSD();
+        }
     );
 
+
     // --------------------------------------------------------
-    // AUDIO
+    // AUDIO PLAY
     // --------------------------------------------------------
 
     _server.on(
         "/api/audio/play",
         HTTP_POST,
-        [this]() { handleAudioPlay(); }
+        [this]()
+        {
+            handleAudioPlay();
+        }
     );
+
+
+    // --------------------------------------------------------
+    // AUDIO PAUSE
+    // --------------------------------------------------------
 
     _server.on(
         "/api/audio/pause",
         HTTP_POST,
-        [this]() { handleAudioPause(); }
+        [this]()
+        {
+            handleAudioPause();
+        }
     );
+
+
+    // --------------------------------------------------------
+    // AUDIO RESUME
+    // --------------------------------------------------------
 
     _server.on(
         "/api/audio/resume",
         HTTP_POST,
-        [this]() { handleAudioResume(); }
+        [this]()
+        {
+            handleAudioResume();
+        }
     );
+
+
+    // --------------------------------------------------------
+    // AUDIO STOP
+    // --------------------------------------------------------
 
     _server.on(
         "/api/audio/stop",
         HTTP_POST,
-        [this]() { handleAudioStop(); }
+        [this]()
+        {
+            handleAudioStop();
+        }
     );
+
+
+    // --------------------------------------------------------
+    // AUDIO STATUS
+    // --------------------------------------------------------
 
     _server.on(
         "/api/audio/status",
         HTTP_GET,
-        [this]() { handleAudioStatus(); }
+        [this]()
+        {
+            handleAudioStatus();
+        }
     );
+
 
     // --------------------------------------------------------
     // 404
     // --------------------------------------------------------
 
     _server.onNotFound(
-        [this]() { handleNotFound(); }
+        [this]()
+        {
+            handleNotFound();
+        }
     );
 }
+
 
 // ============================================================
 // ROOT
@@ -256,17 +445,28 @@ void WebServerManager::setupRoutes()
 
 void WebServerManager::handleRoot()
 {
-    if (!LittleFS.exists("/index.html"))
+    if (
+        !LittleFS.exists(
+            "/index.html"
+        )
+    )
     {
         _server.send(
             404,
             "text/plain",
             "index.html not found"
         );
+
         return;
     }
 
-    File file = LittleFS.open("/index.html", "r");
+
+    File file =
+        LittleFS.open(
+            "/index.html",
+            "r"
+        );
+
 
     if (!file)
     {
@@ -275,12 +475,20 @@ void WebServerManager::handleRoot()
             "text/plain",
             "Failed to open index.html"
         );
+
         return;
     }
 
-    _server.streamFile(file, "text/html");
+
+    _server.streamFile(
+        file,
+        "text/html"
+    );
+
+
     file.close();
 }
+
 
 // ============================================================
 // 404
@@ -288,155 +496,336 @@ void WebServerManager::handleRoot()
 
 void WebServerManager::handleNotFound()
 {
-    Serial.print("[WEB] 404: ");
-    Serial.println(_server.uri());
-
     _server.send(
         404,
         "text/plain",
-        "404 - Not Found"
+        "404"
     );
 }
 
+
 // ============================================================
-// GET /api/param?name=brightness
-//   -> {"param":"brightness","value":80}
+// GET /api/param
 // ============================================================
 
 void WebServerManager::handleGetParam()
 {
     if (!_settings)
     {
-        sendError(500, "settings not initialized");
+        sendError(
+            500,
+            "settings not initialized"
+        );
+
         return;
     }
 
-    String name = _server.arg("name");
 
-    if (name.length() == 0)
+    String name =
+        _server.arg("name");
+
+
+    if (
+        name.length() == 0
+    )
     {
-        sendError(400, "missing name");
+        sendError(
+            400,
+            "missing name"
+        );
+
         return;
     }
 
-    Param p;
 
-    if (!SettingsManager::paramFromName(name.c_str(), p))
+    Param param;
+
+
+    if (
+        !SettingsManager::paramFromName(
+            name.c_str(),
+            param
+        )
+    )
     {
-        sendError(400, "unknown param");
+        sendError(
+            400,
+            "unknown param"
+        );
+
         return;
     }
+
 
     String body;
+
     body.reserve(64);
 
-    body  = "{\"param\":\"";
-    body += SettingsManager::paramName(p);
-    body += "\",\"value\":";
-    body += _settings->get(p);
-    body += "}";
 
-    sendJson(200, body);
+    body +=
+        "{\"param\":\"";
+
+
+    body +=
+        SettingsManager::paramName(
+            param
+        );
+
+
+    body +=
+        "\",\"value\":";
+
+
+    body +=
+        String(
+            _settings->get(param)
+        );
+
+
+    body +=
+        "}";
+
+
+    sendJson(
+        200,
+        body
+    );
 }
+
 
 // ============================================================
 // POST /api/param
-//   body: {"param":"brightness","value":80}
-//   -> {"ok":true}
+// ============================================================
+//
+// {
+//     "param": "brightness",
+//     "value": 80
+// }
+//
 // ============================================================
 
 void WebServerManager::handleSetParam()
 {
     if (!_settings)
     {
-        sendError(500, "settings not initialized");
+        sendError(
+            500,
+            "settings not initialized"
+        );
+
         return;
     }
+
 
     JsonDocument doc;
 
-    if (!parseJson(doc))
-        return;
 
-    const char* name = doc["param"];
+    if (
+        !parseJson(doc)
+    )
+    {
+        return;
+    }
+
+
+    const char* name =
+        doc["param"];
+
 
     if (!name)
     {
-        sendError(400, "missing param");
+        sendError(
+            400,
+            "missing param"
+        );
+
         return;
     }
 
-    if (!doc["value"].is<int>())
+
+    JsonVariant value =
+        doc["value"];
+
+
+    if (
+        value.isNull()
+    )
     {
-        sendError(400, "missing value");
+        sendError(
+            400,
+            "missing value"
+        );
+
         return;
     }
 
-    Param p;
 
-    if (!SettingsManager::paramFromName(name, p))
+    Param param;
+
+
+    if (
+        !SettingsManager::paramFromName(
+            name,
+            param
+        )
+    )
     {
-        sendError(400, "unknown param");
+        sendError(
+            400,
+            "unknown param"
+        );
+
         return;
     }
 
-    int oldValue = _settings->get(p);
-    int newValue = doc["value"].as<int>();
 
-    // set() сам clamp-ит по Config
-    _settings->set(p, newValue);
+    const int requestedValue =
+        value.as<int>();
 
-    int clamped = _settings->get(p);
 
-    // Если значение не изменилось — не пишем флеш
-    if (clamped == oldValue)
-    {
-        sendOk();
-        return;
-    }
+    // --------------------------------------------------------
+    // SET RAM
+    // --------------------------------------------------------
 
-    _settings->save(p);
+    const bool changed =
+        _settings->set(
+            param,
+            requestedValue
+        );
 
-    Serial.print("[WEB] ");
-    Serial.print(name);
-    Serial.print(": ");
-    Serial.print(oldValue);
-    Serial.print(" -> ");
-    Serial.println(clamped);
 
-    sendOk();
+    // --------------------------------------------------------
+    // ACTUAL VALUE
+    // --------------------------------------------------------
+    //
+    // SettingsManager может сделать clamp.
+    //
+    // Например:
+    //
+    // 150 -> 100
+    //
+    // Поэтому возвращаем именно фактическое значение.
+    //
+    // --------------------------------------------------------
+
+    const int actualValue =
+        _settings->get(param);
+
+
+    // --------------------------------------------------------
+    // RESPONSE
+    // --------------------------------------------------------
+
+    String body;
+
+    body.reserve(96);
+
+
+    body +=
+        "{\"ok\":true";
+
+
+    body +=
+        ",\"changed\":";
+
+
+    body +=
+        changed
+        ? "true"
+        : "false";
+
+
+    body +=
+        ",\"param\":\"";
+
+
+    body +=
+        SettingsManager::paramName(
+            param
+        );
+
+
+    body +=
+        "\",\"value\":";
+
+
+    body +=
+        String(actualValue);
+
+
+    body +=
+        "}";
+
+
+    sendJson(
+        200,
+        body
+    );
 }
+
 
 // ============================================================
 // GET /api/params
-//   -> {"brightness":80,"mx_on":1,...,"utc":3}
 // ============================================================
 
 void WebServerManager::handleGetAllParams()
 {
     if (!_settings)
     {
-        sendError(500, "settings not initialized");
+        sendError(
+            500,
+            "settings not initialized"
+        );
+
         return;
     }
 
+
     JsonDocument doc;
 
-    for (uint8_t i = 0;
-         i < static_cast<uint8_t>(Param::COUNT);
-         ++i)
-    {
-        Param p = static_cast<Param>(i);
 
-        doc[SettingsManager::paramName(p)] =
-            _settings->get(p);
+    // --------------------------------------------------------
+    // ADD ALL PARAMETERS
+    // --------------------------------------------------------
+
+    for (
+        uint8_t i = 0;
+        i < static_cast<uint8_t>(Param::COUNT);
+        ++i
+    )
+    {
+        const Param param =
+            static_cast<Param>(i);
+
+
+        doc[
+            SettingsManager::paramName(
+                param
+            )
+        ] =
+            _settings->get(
+                param
+            );
     }
 
-    String body;
-    serializeJson(doc, body);
 
-    sendJson(200, body);
+    String body;
+
+    body.reserve(512);
+
+
+    serializeJson(
+        doc,
+        body
+    );
+
+
+    sendJson(
+        200,
+        body
+    );
 }
+
 
 // ============================================================
 // POST /api/reset
@@ -446,64 +835,112 @@ void WebServerManager::handleReset()
 {
     if (!_settings)
     {
-        sendError(500, "settings not initialized");
+        sendError(
+            500,
+            "settings not initialized"
+        );
+
         return;
     }
 
+
     _settings->resetAll();
 
-    Serial.println("[WEB] settings reset");
 
     sendOk();
 }
 
+
 // ============================================================
-// GET /api/sensors (placeholder)
+// GET /api/sensors
+// ============================================================
+//
+// Сейчас WebServerManager не получает SensorsManager.
+//
+// Поэтому endpoint оставлен для совместимости с HTML/API,
+// но реальные датчики здесь НЕ генерируются.
+//
 // ============================================================
 
 void WebServerManager::handleSensors()
 {
     JsonDocument doc;
 
+
     doc["temperature"] = 0;
     doc["humidity"]    = 0;
     doc["light"]       = 0;
     doc["distance"]    = 0;
 
-    String body;
-    serializeJson(doc, body);
 
-    sendJson(200, body);
+    String body;
+
+    body.reserve(128);
+
+
+    serializeJson(
+        doc,
+        body
+    );
+
+
+    sendJson(
+        200,
+        body
+    );
 }
+
 
 // ============================================================
 // GET /api/sd
-//   -> { "files": [ {path,size,type}, ... ] }
 // ============================================================
 
 void WebServerManager::handleSD()
 {
-    if (!_sd || !_sd->isReady())
+    if (!_sd)
     {
-        sendError(503, "SD not available");
+        sendError(
+            503,
+            "sd not initialized"
+        );
+
         return;
     }
 
+
+    if (
+        !_sd->isReady()
+    )
+    {
+        sendError(
+            503,
+            "SD not available"
+        );
+
+        return;
+    }
+
+
     // --------------------------------------------------------
-    // Список файлов (макс. 300, глубина 2)
+    // FILE LIST
     // --------------------------------------------------------
 
-    static constexpr size_t  MAX_FILES = 300;
+    static constexpr size_t MAX_FILES = 300;
+
     static constexpr uint8_t MAX_DEPTH = 2;
+
 
     static SDFileEntry entries[MAX_FILES];
 
-    size_t count = _sd->listFiles(
-        entries,
-        MAX_FILES,
-        MAX_DEPTH,
-        "/"
-    );
+
+    const size_t count =
+        _sd->listFiles(
+            entries,
+            MAX_FILES,
+            MAX_DEPTH,
+            "/"
+        );
+
 
     // --------------------------------------------------------
     // JSON
@@ -511,118 +948,353 @@ void WebServerManager::handleSD()
 
     JsonDocument doc;
 
-    JsonArray files = doc["files"].to<JsonArray>();
 
-    for (size_t i = 0; i < count; ++i)
+    JsonArray files =
+        doc["files"].to<JsonArray>();
+
+
+    for (
+        size_t i = 0;
+        i < count;
+        ++i
+    )
     {
-        JsonObject item = files.add<JsonObject>();
+        JsonObject item =
+            files.add<JsonObject>();
 
-        item["path"] = entries[i].path;
-        item["size"] = entries[i].size;
-        item["type"] = entries[i].isDir ? "dir" : "file";
+
+        item["path"] =
+            entries[i].path;
+
+
+        item["size"] =
+            entries[i].size;
+
+
+        item["type"] =
+            entries[i].isDir
+            ? "dir"
+            : "file";
     }
 
-    String body;
-    serializeJson(doc, body);
 
-    sendJson(200, body);
+    String body;
+
+
+    body.reserve(
+        512 +
+        count * 64
+    );
+
+
+    serializeJson(
+        doc,
+        body
+    );
+
+
+    sendJson(
+        200,
+        body
+    );
 }
+
 
 // ============================================================
 // POST /api/audio/play
+// ============================================================
 //
-// body:
-// {
-//     "path":     "/music/song.wav",
-//     "stream":   "media" | "alarm" | "system",
-//     "volume":   0..100,          (local percent, optional)
-//     "fade_in":  0..N ms,         (optional)
-//     "fade_out": 0..N ms,         (optional)
-//     "curve":    "linear" | "exp" | "log"   (optional)
-// }
+// Current SoundManager API:
+//
+// PlayOptions:
+//
+//     stream
+//     localPercent
+//     fadeInMs
+//     fadeOutMs
+//     curve
+//
+// Старых:
+//     volume
+//     loop
+//     fadeIn
+//     fadeOut
+//
+// здесь больше НЕТ.
 // ============================================================
 
 void WebServerManager::handleAudioPlay()
 {
-    if (!_sound || !_sound->isInitialized())
+    if (!_sound)
     {
-        sendError(503, "sound not ready");
+        sendError(
+            503,
+            "audio unavailable"
+        );
+
         return;
     }
+
+
+    if (!_sd)
+    {
+        sendError(
+            503,
+            "sd not initialized"
+        );
+
+        return;
+    }
+
+
+    if (
+        !_sd->isReady()
+    )
+    {
+        sendError(
+            503,
+            "SD not available"
+        );
+
+        return;
+    }
+
 
     JsonDocument doc;
 
-    if (!parseJson(doc))
-        return;
 
-    const char* path = doc["path"];
-
-    if (!path)
+    if (
+        !parseJson(doc)
+    )
     {
-        sendError(400, "missing path");
         return;
     }
 
-    // --------------------------------------------------------
-    // Проверка файла
-    // --------------------------------------------------------
 
-    if (!_sd || !_sd->isReady() || !_sd->card().exists(path))
+    const char* path =
+        doc["path"];
+
+
+    if (
+        !path ||
+        path[0] == '\0'
+    )
     {
-        sendError(404, "file not found");
+        sendError(
+            400,
+            "missing path"
+        );
+
         return;
     }
 
+
     // --------------------------------------------------------
-    // Собираем PlayOptions
+    // FILE CHECK
     // --------------------------------------------------------
 
-    SoundManager::PlayOptions opts;
+    if (
+        !_sd->card().exists(path)
+    )
+    {
+        sendError(
+            404,
+            "file not found"
+        );
 
-    // --- stream ---
-    const char* streamStr = doc["stream"] | "media";
+        return;
+    }
 
-    if (strcmp(streamStr, "alarm") == 0)
-        opts.stream = SoundManager::AudioStream::Alarm;
-    else if (strcmp(streamStr, "system") == 0)
-        opts.stream = SoundManager::AudioStream::System;
-    else
-        opts.stream = SoundManager::AudioStream::Media;
 
-    // --- local percent ---
-    opts.localPercent = static_cast<uint8_t>(
-        constrain(doc["volume"] | 100, 0, 100)
+    // --------------------------------------------------------
+    // OPTIONS
+    // --------------------------------------------------------
+
+    SoundManager::PlayOptions options;
+
+
+    // --------------------------------------------------------
+    // STREAM
+    // --------------------------------------------------------
+
+    if (
+        !doc["stream"].isNull()
+    )
+    {
+        const int stream =
+            doc["stream"].as<int>();
+
+
+        switch (stream)
+        {
+            case 1:
+
+                options.stream =
+                    SoundManager::AudioStream::Alarm;
+
+                break;
+
+
+            case 2:
+
+                options.stream =
+                    SoundManager::AudioStream::System;
+
+                break;
+
+
+            case 0:
+            default:
+
+                options.stream =
+                    SoundManager::AudioStream::Media;
+
+                break;
+        }
+    }
+
+
+    // --------------------------------------------------------
+    // LOCAL PERCENT
+    // --------------------------------------------------------
+
+    if (
+        !doc["localPercent"].isNull()
+    )
+    {
+        options.localPercent =
+            static_cast<uint8_t>(
+                constrain(
+                    doc["localPercent"].as<int>(),
+                    0,
+                    100
+                )
+            );
+    }
+
+
+    // --------------------------------------------------------
+    // FADE IN
+    // --------------------------------------------------------
+
+    if (
+        !doc["fadeInMs"].isNull()
+    )
+    {
+        options.fadeInMs =
+            doc["fadeInMs"].as<uint32_t>();
+    }
+
+
+    // --------------------------------------------------------
+    // FADE OUT
+    // --------------------------------------------------------
+
+    if (
+        !doc["fadeOutMs"].isNull()
+    )
+    {
+        options.fadeOutMs =
+            doc["fadeOutMs"].as<uint32_t>();
+    }
+
+
+    // --------------------------------------------------------
+    // FADE CURVE
+    // --------------------------------------------------------
+
+    if (
+        !doc["curve"].isNull()
+    )
+    {
+        const int curve =
+            doc["curve"].as<int>();
+
+
+        switch (curve)
+        {
+            case 1:
+
+                options.curve =
+                    SoundManager::FadeCurve::Exponential;
+
+                break;
+
+
+            case 2:
+
+                options.curve =
+                    SoundManager::FadeCurve::Logarithmic;
+
+                break;
+
+
+            case 0:
+            default:
+
+                options.curve =
+                    SoundManager::FadeCurve::Linear;
+
+                break;
+        }
+    }
+
+
+    // --------------------------------------------------------
+    // PLAY
+    // --------------------------------------------------------
+
+    const bool success =
+        _sound->play(
+            path,
+            options
+        );
+
+
+    if (!success)
+    {
+        sendError(
+            500,
+            "play failed"
+        );
+
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // RESPONSE
+    // --------------------------------------------------------
+
+    JsonDocument response;
+
+
+    response["ok"] = true;
+
+    response["state"] =
+        _sound->getStateString();
+
+    response["path"] =
+        _sound->getCurrentPath();
+
+
+    String body;
+
+    body.reserve(160);
+
+
+    serializeJson(
+        response,
+        body
     );
 
-    // --- fades ---
-    opts.fadeInMs  = doc["fade_in"]  | 0;
-    opts.fadeOutMs = doc["fade_out"] | 0;
 
-    // --- curve ---
-    const char* curveStr = doc["curve"] | "linear";
-
-    if (strcmp(curveStr, "exp") == 0)
-        opts.curve = SoundManager::FadeCurve::Exponential;
-    else if (strcmp(curveStr, "log") == 0)
-        opts.curve = SoundManager::FadeCurve::Logarithmic;
-    else
-        opts.curve = SoundManager::FadeCurve::Linear;
-
-    // --------------------------------------------------------
-    // Play
-    // --------------------------------------------------------
-
-    if (!_sound->play(path, opts))
-    {
-        sendError(500, "play failed");
-        return;
-    }
-
-    Serial.print("[WEB] audio play: ");
-    Serial.println(path);
-
-    sendOk();
+    sendJson(
+        200,
+        body
+    );
 }
+
 
 // ============================================================
 // POST /api/audio/pause
@@ -632,26 +1304,31 @@ void WebServerManager::handleAudioPause()
 {
     if (!_sound)
     {
-        sendError(503, "sound not ready");
+        sendError(
+            503,
+            "audio unavailable"
+        );
+
         return;
     }
 
-    if (!_sound->isPlaying())
+
+    if (
+        !_sound->pause()
+    )
     {
-        sendError(409, "not playing");
+        sendError(
+            409,
+            "pause failed"
+        );
+
         return;
     }
 
-    if (!_sound->pause())
-    {
-        sendError(500, "pause failed");
-        return;
-    }
-
-    Serial.println("[WEB] audio pause");
 
     sendOk();
 }
+
 
 // ============================================================
 // POST /api/audio/resume
@@ -661,151 +1338,318 @@ void WebServerManager::handleAudioResume()
 {
     if (!_sound)
     {
-        sendError(503, "sound not ready");
+        sendError(
+            503,
+            "audio unavailable"
+        );
+
         return;
     }
 
-    if (!_sound->isPaused())
+
+    if (
+        !_sound->resume()
+    )
     {
-        sendError(409, "not paused");
+        sendError(
+            409,
+            "resume failed"
+        );
+
         return;
     }
 
-    if (!_sound->resume())
-    {
-        sendError(500, "resume failed");
-        return;
-    }
-
-    Serial.println("[WEB] audio resume");
 
     sendOk();
 }
 
+
 // ============================================================
 // POST /api/audio/stop
+// ============================================================
 //
-// body (optional):
+// Можно передать:
+//
 // {
-//     "fade_out": 800   // ms плавного затухания
+//     "fadeOutMs": 1000
 // }
+//
+// или:
+//
+// {}
+//
 // ============================================================
 
 void WebServerManager::handleAudioStop()
 {
     if (!_sound)
     {
-        sendError(503, "sound not ready");
+        sendError(
+            503,
+            "audio unavailable"
+        );
+
         return;
     }
 
-    uint32_t fadeOut = 0;
 
-    if (_server.hasArg("plain"))
+    uint32_t fadeOutMs = 0;
+
+
+    // --------------------------------------------------------
+    // JSON OPTIONAL
+    // --------------------------------------------------------
+
+    if (
+        _server.hasArg("plain")
+    )
     {
         JsonDocument doc;
 
-        DeserializationError err =
-            deserializeJson(doc, _server.arg("plain"));
 
-        if (!err)
-            fadeOut = doc["fade_out"] | 0;
+        const String& body =
+            _server.arg("plain");
+
+
+        if (
+            body.length() > 0
+        )
+        {
+            const DeserializationError error =
+                deserializeJson(
+                    doc,
+                    body
+                );
+
+
+            if (!error &&
+                !doc["fadeOutMs"].isNull())
+            {
+                fadeOutMs =
+                    doc["fadeOutMs"].as<uint32_t>();
+            }
+        }
     }
 
-    if (fadeOut > 0)
-        _sound->stop(fadeOut);
-    else
-        _sound->stop();
 
-    Serial.print("[WEB] audio stop");
-    if (fadeOut > 0)
+    // --------------------------------------------------------
+    // STOP
+    // --------------------------------------------------------
+
+    if (fadeOutMs > 0)
     {
-        Serial.print(" (fade ");
-        Serial.print(fadeOut);
-        Serial.print(" ms)");
+        _sound->stop(
+            fadeOutMs
+        );
     }
-    Serial.println();
+    else
+    {
+        _sound->stop();
+    }
+
 
     sendOk();
 }
 
+
 // ============================================================
 // GET /api/audio/status
-//
-// -> {
-//      state:    "playing" | "paused" | "stopped" | "fading_out",
-//      path:     "/music/song.wav",
-//      stream:   0 | 1 | 2,
-//      position: 12000,
-//      duration: 180000,
-//      volume:   72
-//    }
 // ============================================================
 
 void WebServerManager::handleAudioStatus()
 {
     if (!_sound)
     {
-        sendError(503, "sound not ready");
+        sendError(
+            503,
+            "audio unavailable"
+        );
+
         return;
     }
 
+
     JsonDocument doc;
 
-    doc["state"]    = _sound->getStateString();
-    doc["path"]     = _sound->getCurrentPath();
-    doc["stream"]   = static_cast<uint8_t>(
-                          _sound->getCurrentStream()
-                      );
-    doc["position"] = _sound->getPositionMs();
-    doc["duration"] = _sound->getDurationMs();
-    doc["volume"]   = _sound->getEffectiveVolume();
+
+    // --------------------------------------------------------
+    // STATE
+    // --------------------------------------------------------
+
+    doc["ok"] =
+        true;
+
+
+    doc["state"] =
+        _sound->getStateString();
+
+
+    doc["playing"] =
+        _sound->isPlaying();
+
+
+    doc["paused"] =
+        _sound->isPaused();
+
+
+    doc["active"] =
+        _sound->isActive();
+
+
+    // --------------------------------------------------------
+    // FILE
+    // --------------------------------------------------------
+
+    doc["path"] =
+        _sound->getCurrentPath();
+
+
+    // --------------------------------------------------------
+    // POSITION
+    // --------------------------------------------------------
+
+    doc["positionMs"] =
+        _sound->getPositionMs();
+
+
+    doc["durationMs"] =
+        _sound->getDurationMs();
+
+
+    // --------------------------------------------------------
+    // VOLUME
+    // --------------------------------------------------------
+
+    doc["localPercent"] =
+        _sound->getLocalPercent();
+
+
+    doc["effectiveVolume"] =
+        _sound->getEffectiveVolume();
+
+
+    // --------------------------------------------------------
+    // STREAM
+    // --------------------------------------------------------
+
+    doc["stream"] =
+        static_cast<uint8_t>(
+            _sound->getCurrentStream()
+        );
+
 
     String body;
-    serializeJson(doc, body);
 
-    sendJson(200, body);
+    body.reserve(320);
+
+
+    serializeJson(
+        doc,
+        body
+    );
+
+
+    sendJson(
+        200,
+        body
+    );
 }
 
+
 // ============================================================
-// HELPERS
+// PARSE JSON
 // ============================================================
 
-bool WebServerManager::parseJson(JsonDocument& doc)
+bool WebServerManager::parseJson(
+    JsonDocument& doc
+)
 {
-    if (!_server.hasArg("plain"))
+    if (
+        !_server.hasArg("plain")
+    )
     {
-        sendError(400, "body missing");
+        sendError(
+            400,
+            "missing body"
+        );
+
         return false;
     }
 
-    DeserializationError err =
-        deserializeJson(doc, _server.arg("plain"));
 
-    if (err)
+    const String& body =
+        _server.arg("plain");
+
+
+    if (
+        body.length() == 0
+    )
     {
-        Serial.print("[WEB] JSON error: ");
-        Serial.println(err.c_str());
+        sendError(
+            400,
+            "empty body"
+        );
 
-        sendError(400, "invalid JSON");
         return false;
     }
+
+
+    const DeserializationError error =
+        deserializeJson(
+            doc,
+            body
+        );
+
+
+    if (error)
+    {
+        sendError(
+            400,
+            "invalid json"
+        );
+
+        return false;
+    }
+
 
     return true;
 }
+
+
+// ============================================================
+// SEND JSON
+// ============================================================
 
 void WebServerManager::sendJson(
     int code,
     const String& body
 )
 {
-    _server.send(code, "application/json", body);
+    _server.send(
+        code,
+        "application/json",
+        body
+    );
 }
+
+
+// ============================================================
+// SEND OK
+// ============================================================
 
 void WebServerManager::sendOk()
 {
-    sendJson(200, "{\"ok\":true}");
+    _server.send(
+        200,
+        "application/json",
+        "{\"ok\":true}"
+    );
 }
+
+
+// ============================================================
+// SEND ERROR
+// ============================================================
 
 void WebServerManager::sendError(
     int code,
@@ -813,14 +1657,50 @@ void WebServerManager::sendError(
 )
 {
     String body;
-    body.reserve(64);
 
-    body  = "{\"ok\":false,\"error\":\"";
-    body += message;
-    body += "\"}";
+    body.reserve(128);
 
-    sendJson(code, body);
+
+    body +=
+        "{\"ok\":false,\"error\":\"";
+
+
+    if (message)
+    {
+        // ----------------------------------------------------
+        // Минимальное экранирование кавычек.
+        // ----------------------------------------------------
+
+        for (
+            const char* p = message;
+            *p;
+            ++p
+        )
+        {
+            if (
+                *p == '"' ||
+                *p == '\\'
+            )
+            {
+                body += '\\';
+            }
+
+            body += *p;
+        }
+    }
+
+
+    body +=
+        "\"}";
+
+
+    _server.send(
+        code,
+        "application/json",
+        body
+    );
 }
+
 
 // ============================================================
 // UPDATE
@@ -829,24 +1709,64 @@ void WebServerManager::sendError(
 void WebServerManager::update()
 {
     if (!_initialized)
+    {
         return;
+    }
+
+
+    // --------------------------------------------------------
+    // HTTP
+    // --------------------------------------------------------
 
     _server.handleClient();
+
+
+    // --------------------------------------------------------
+    // SETTINGS
+    // --------------------------------------------------------
+    //
+    // 700 ms debounce выполняется здесь.
+    //
+    // --------------------------------------------------------
+
+    if (_settings)
+    {
+        _settings->update();
+    }
 }
 
+
 // ============================================================
-// STATE
+// IS CONNECTED
 // ============================================================
 
 bool WebServerManager::isConnected() const
 {
-    return WiFi.status() == WL_CONNECTED;
+    return (
+        _initialized &&
+        WiFi.status() == WL_CONNECTED
+    );
 }
+
+
+// ============================================================
+// GET IP
+// ============================================================
+//
+// В .h возвращается String,
+// поэтому здесь тоже String.
+//
+// ============================================================
 
 String WebServerManager::getIP() const
 {
-    if (WiFi.status() != WL_CONNECTED)
-        return String("0.0.0.0");
+    if (
+        WiFi.status() != WL_CONNECTED
+    )
+    {
+        return String();
+    }
+
 
     return WiFi.localIP().toString();
 }

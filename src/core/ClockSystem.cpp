@@ -401,7 +401,7 @@ time_t ClockSystem::localToUTC(
 {
     const int16_t offsetHours =
         static_cast<int8_t>(
-            _settings.get(Param::UtcOffset)
+            _settings.get(Param::UTC_OFFSET)
         );
 
     return local -
@@ -422,7 +422,7 @@ time_t ClockSystem::utcToLocal(
 {
     const int16_t offsetHours =
         static_cast<int8_t>(
-            _settings.get(Param::UtcOffset)
+            _settings.get(Param::UTC_OFFSET)
         );
 
     return utc +

@@ -10,11 +10,21 @@
 #include "SDManager.h"
 #include "SoundManager.h"
 
+
 class WebServerManager
 {
 public:
 
+    // ========================================================
+    // CONSTRUCTOR
+    // ========================================================
+
     WebServerManager();
+
+
+    // ========================================================
+    // BEGIN
+    // ========================================================
 
     bool begin(
         SettingsManager& settings,
@@ -24,42 +34,122 @@ public:
         const char*      password
     );
 
+
+    // ========================================================
+    // UPDATE
+    // ========================================================
+
     void update();
 
-    bool   isConnected() const;
+
+    // ========================================================
+    // STATUS
+    // ========================================================
+
+    bool isConnected() const;
+
     String getIP() const;
+
 
 private:
 
-    WebServer        _server;
+    // ========================================================
+    // SERVER
+    // ========================================================
+
+    WebServer _server;
+
+
+    // ========================================================
+    // MANAGERS
+    // ========================================================
+
     SettingsManager* _settings;
     SDManager*       _sd;
     SoundManager*    _sound;
-    bool             _initialized;
+
+
+    // ========================================================
+    // STATE
+    // ========================================================
+
+    bool _initialized;
+
+
+    // ========================================================
+    // ROUTES
+    // ========================================================
 
     void setupRoutes();
 
+
+    // ========================================================
+    // GENERAL
+    // ========================================================
+
     void handleRoot();
     void handleNotFound();
+
+
+    // ========================================================
+    // SETTINGS API
+    // ========================================================
 
     void handleGetParam();
     void handleSetParam();
     void handleGetAllParams();
     void handleReset();
 
+
+    // ========================================================
+    // SENSORS
+    // ========================================================
+
     void handleSensors();
+
+
+    // ========================================================
+    // SD
+    // ========================================================
+
     void handleSD();
 
-    // audio
+
+    // ========================================================
+    // AUDIO
+    // ========================================================
+
     void handleAudioPlay();
     void handleAudioPause();
     void handleAudioResume();
     void handleAudioStop();
     void handleAudioStatus();
 
-    bool parseJson(JsonDocument& doc);
 
-    void sendJson(int code, const String& body);
+    // ========================================================
+    // JSON
+    // ========================================================
+
+    bool parseJson(
+        JsonDocument& doc
+    );
+
+
+    // ========================================================
+    // RESPONSE
+    // ========================================================
+
+    void sendJson(
+        int code,
+        const String& body
+    );
+
+
     void sendOk();
-    void sendError(int code, const char* message);
+
+
+    void sendError(
+        int code,
+        const char* message
+    );
 };
