@@ -13,6 +13,20 @@ static constexpr const char* WIFI_SSID     = "tpl47";
 static constexpr const char* WIFI_PASSWORD = "12713714";
 
 // ============================================================
+// PWM CHANNELS
+// ============================================================
+
+namespace
+{
+    // Канал 0 занят подсветкой дисплея (LVGLManager).
+    // COB: каналы 1..4.
+    constexpr uint8_t COB_CH1 = 1;
+    constexpr uint8_t COB_CH2 = 2;
+    constexpr uint8_t COB_CH3 = 3;
+    constexpr uint8_t COB_CH4 = 4;
+}
+
+// ============================================================
 // CONSTRUCTOR
 // ============================================================
 
@@ -20,7 +34,7 @@ App::App()
     : _ready(false),
 
       // ========================================================
-      // SETTINGS (первым — от него зависят остальные)
+      // SETTINGS
       // ========================================================
 
       _settings(),
@@ -39,7 +53,51 @@ App::App()
           _i2sManager
       ),
 
+      _inputManager(),
       _sensorManager(),
+
+      // ========================================================
+      // COB LED
+      // ========================================================
+
+      _cob1(
+          PIN_COB1,
+          COB_CH1,
+          Config::COB_PWM_FREQUENCY,
+          Config::COB_PWM_RESOLUTION
+      ),
+
+      _cob2(
+          PIN_COB2,
+          COB_CH2,
+          Config::COB_PWM_FREQUENCY,
+          Config::COB_PWM_RESOLUTION
+      ),
+
+      _cob3(
+          PIN_COB3,
+          COB_CH3,
+          Config::COB_PWM_FREQUENCY,
+          Config::COB_PWM_RESOLUTION
+      ),
+
+      _cob4(
+          PIN_COB4,
+          COB_CH4,
+          Config::COB_PWM_FREQUENCY,
+          Config::COB_PWM_RESOLUTION
+      ),
+
+      _cobManager(
+          _cob1,
+          _cob2,
+          _cob3,
+          _cob4
+      ),
+
+      _cobEffects(
+          _cobManager
+      ),
 
       // ========================================================
       // CORE SYSTEMS
@@ -76,19 +134,11 @@ bool App::begin()
 
     _ready = false;
 
-    // --------------------------------------------------------
-    // SETTINGS
-    // --------------------------------------------------------
-
     if (!initSettings())
     {
         Serial0.println("[APP] Settings initialization failed");
         return false;
     }
-
-    // --------------------------------------------------------
-    // SPI
-    // --------------------------------------------------------
 
     if (!initSPI())
     {
@@ -96,19 +146,11 @@ bool App::begin()
         return false;
     }
 
-    // --------------------------------------------------------
-    // I2S
-    // --------------------------------------------------------
-
     if (!initI2S())
     {
         Serial0.println("[APP] I2S initialization failed");
         return false;
     }
-
-    // --------------------------------------------------------
-    // SD
-    // --------------------------------------------------------
 
     if (!initSD())
     {
@@ -116,19 +158,11 @@ bool App::begin()
         return false;
     }
 
-    // --------------------------------------------------------
-    // SOUND
-    // --------------------------------------------------------
-
     if (!initSound())
     {
         Serial0.println("[APP] Sound initialization failed");
         return false;
     }
-
-    // --------------------------------------------------------
-    // CLOCK
-    // --------------------------------------------------------
 
     if (!initClock())
     {
@@ -136,19 +170,17 @@ bool App::begin()
         return false;
     }
 
-    // --------------------------------------------------------
-    // SENSORS
-    // --------------------------------------------------------
-
     if (!initSensors())
     {
         Serial0.println("[APP] Sensors initialization failed");
         return false;
     }
 
-    // --------------------------------------------------------
-    // DISPLAY
-    // --------------------------------------------------------
+    if (!initCob())
+    {
+        Serial0.println("[APP] COB initialization failed");
+        return false;
+    }
 
     if (!initDisplay())
     {
@@ -156,19 +188,11 @@ bool App::begin()
         return false;
     }
 
-    // --------------------------------------------------------
-    // INPUT
-    // --------------------------------------------------------
-
-    // if (!initInput())
-    // {
-    //     Serial0.println("[APP] Input initialization failed");
-    //     return false;
-    // }
-
-    // --------------------------------------------------------
-    // WEB SERVER
-    // --------------------------------------------------------
+    if (!initInput())
+    {
+        Serial0.println("[APP] Input initialization failed");
+        return false;
+    }
 
     if (!initWebServer())
     {
@@ -177,25 +201,24 @@ bool App::begin()
 
     // --------------------------------------------------------
     // STARTUP SOUND
-    //
-    // Стрим System, короткий fade in/out 200 мс.
-    // Не зависит от vol_media / vol_alarm.
     // --------------------------------------------------------
 
     Serial0.println("[APP] Playing startup sound...");
 
-   SoundManager::PlayOptions opts;
-opts.stream       = SoundManager::AudioStream::System;
-opts.localPercent = 100;
-opts.fadeInMs     = 200;
-opts.fadeOutMs    = 200;
-opts.curve        = SoundManager::FadeCurve::Linear;
+    {
+        SoundManager::PlayOptions opts;
 
-if (!_soundManager.play(Constants::STARTUP_SOUND, opts))
+        opts.stream       = SoundManager::AudioStream::System;
+        opts.localPercent = 100;
+        opts.fadeInMs     = 200;
+        opts.fadeOutMs    = 200;
+        opts.curve        = SoundManager::FadeCurve::Linear;
 
-    // --------------------------------------------------------
-    // READY
-    // --------------------------------------------------------
+        if (!_soundManager.play(Constants::STARTUP_SOUND, opts))
+        {
+            Serial0.println("[APP] WARNING: startup sound failed");
+        }
+    }
 
     _ready = true;
 
@@ -216,42 +239,16 @@ void App::update()
     if (!_ready)
         return;
 
-    // --------------------------------------------------------
-    // WEB SERVER (принимает HTTP, меняет Settings)
-    // --------------------------------------------------------
-
     _webServer.update();
 
-    // --------------------------------------------------------
-    // INPUT / SENSORS
-    // --------------------------------------------------------
-
-    // _inputManager.update();
+    _inputManager.update();
     _sensorManager.update();
-
-    // --------------------------------------------------------
-    // CLOCK
-    // --------------------------------------------------------
 
     _clockSystem.update();
 
-    // --------------------------------------------------------
-    // DISPLAY
-    //
-    // Внутри:
-    //   - pollBrightness() читает Settings и дёргает LVGL
-    //   - screens.update() обновляет цифры/датчики
-    //   - lvgl.update() гоняет lv_timer_handler
-    // --------------------------------------------------------
+    updateCob();
 
     _displaySystem.update();
-
-    // --------------------------------------------------------
-    // SOUND
-    //
-    // Качает PCM в I2S, следит за fade in/out,
-    // завершает трек, обрабатывает плавный стоп.
-    // --------------------------------------------------------
 
     _soundManager.update();
 }
@@ -399,6 +396,50 @@ bool App::initSensors()
 }
 
 // ============================================================
+// INIT COB
+// ============================================================
+
+bool App::initCob()
+{
+    Serial0.println();
+    Serial0.println("[APP] Initializing COB...");
+
+    _cobManager.begin();
+
+    // Начальные яркости (0..3) из Settings
+    for (uint8_t i = 0; i < 4; ++i)
+    {
+        Param p = static_cast<Param>(
+            static_cast<uint8_t>(Param::CobBrightness1) + i
+        );
+
+        _cobEffects.setBrightness(
+            i,
+            static_cast<uint8_t>(_settings.get(p))
+        );
+    }
+
+    _cobEffects.setEffect(
+        static_cast<CobEffectType>(
+            _settings.get(Param::CobEffect)
+        )
+    );
+
+    _cobEffects.setSpeed(
+        static_cast<uint8_t>(_settings.get(Param::CobSpeed))
+    );
+
+    _cobEffects.setEnabled(
+        _settings.get(Param::CobEnabled) != 0
+    );
+
+    _cobEffects.begin();
+
+    Serial0.println("[APP] COB OK");
+    return true;
+}
+
+// ============================================================
 // INIT DISPLAY
 // ============================================================
 
@@ -421,20 +462,20 @@ bool App::initDisplay()
 // INIT INPUT
 // ============================================================
 
-// bool App::initInput()
-// {
-//     Serial0.println();
-//     Serial0.println("[APP] Initializing input...");
+bool App::initInput()
+{
+    Serial0.println();
+    Serial0.println("[APP] Initializing input...");
 
-//     if (!_inputManager.begin())
-//     {
-//         Serial0.println("[APP] Input failed");
-//         return false;
-//     }
+    if (!_inputManager.begin())
+    {
+        Serial0.println("[APP] Input failed");
+        return false;
+    }
 
-//     Serial0.println("[APP] Input OK");
-//     return true;
-// }
+    Serial0.println("[APP] Input OK");
+    return true;
+}
 
 // ============================================================
 // INIT WEB SERVER
@@ -462,4 +503,55 @@ bool App::initWebServer()
     Serial0.println(_webServer.getIP());
 
     return true;
+}
+
+// ============================================================
+// UPDATE COB
+//
+// Читает Settings каждый цикл, применяет изменения в
+// CobEffects. Изменения из веба подхватываются ≤10 мс.
+// ============================================================
+
+void App::updateCob()
+{
+    // Яркости 0..3
+    for (uint8_t i = 0; i < 4; ++i)
+    {
+        Param p = static_cast<Param>(
+            static_cast<uint8_t>(Param::CobBrightness1) + i
+        );
+
+        uint8_t want = static_cast<uint8_t>(_settings.get(p));
+
+        if (_cobEffects.brightness(i) != want)
+            _cobEffects.setBrightness(i, want);
+    }
+
+    // Эффект
+    CobEffectType eff = static_cast<CobEffectType>(
+        _settings.get(Param::CobEffect)
+    );
+
+    if (_cobEffects.effect() != eff)
+        _cobEffects.setEffect(eff);
+
+    // Скорость
+    uint8_t spd = static_cast<uint8_t>(
+        _settings.get(Param::CobSpeed)
+    );
+
+    if (_cobEffects.speed() != spd)
+        _cobEffects.setSpeed(spd);
+
+    // Вкл/выкл
+    bool on = _settings.get(Param::CobEnabled) != 0;
+
+    if (_cobEffects.isEnabled() != on)
+        _cobEffects.setEnabled(on);
+
+    // Тик эффекта
+    _cobEffects.update();
+
+    // Тик CobLed (обрабатывает fadeTo, если где-то используется)
+    _cobManager.update();
 }

@@ -66,6 +66,9 @@ const ParamDesc PARAMS[] =
       Config::UTC_OFFSET_MIN,
       Config::UTC_OFFSET_MAX,
       Config::UTC_OFFSET_DEFAULT },
+    { "cob_eff", 0,   3,   0  },
+    { "cob_spd", 0, 100,  50  },
+
 };
 
     static_assert(

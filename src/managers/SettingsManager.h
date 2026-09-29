@@ -31,7 +31,8 @@ enum class Param : uint8_t
 
     MicrophoneEnabled,
     UtcOffset,
-
+    CobEffect,     // 0=Static, 1=Breath, 2=Strobe, 3=Wave
+    CobSpeed,      // 0..100
     COUNT
 };
 

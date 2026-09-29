@@ -11,9 +11,12 @@
 #include "managers/SensorsManager.h"
 #include "managers/WebServerManager.h"
 
+#include "hardware/cob/CobLed.h"
+#include "hardware/cob/CobLedManager.h"
+#include "hardware/cob/CobEffects.h"
+
 #include "core/ClockSystem.h"
 #include "core/DisplaySystem.h"
-// #include "core/BluetoothSystem.h"
 
 class App
 {
@@ -40,10 +43,16 @@ private:
     bool initSound();
     bool initClock();
     bool initSensors();
+    bool initCob();
     bool initDisplay();
     bool initInput();
-    // bool initBluetooth();
     bool initWebServer();
+
+    // ========================================================
+    // RUNTIME POLLING
+    // ========================================================
+
+    void updateCob();
 
     // ========================================================
     // STATE
@@ -52,10 +61,7 @@ private:
     bool _ready;
 
     // ========================================================
-    // SETTINGS
-    //
-    // ВАЖНО: должен идти ПЕРВЫМ — от него зависят
-    // ClockSystem, DisplaySystem, SoundManager, WebServer.
+    // SETTINGS (первым — от него зависят остальные)
     // ========================================================
 
     SettingsManager _settings;
@@ -74,15 +80,25 @@ private:
     SensorManager _sensorManager;
 
     // ========================================================
-    // CORE SYSTEMS
+    // COB LED (4 штуки + менеджер + эффекты)
     //
-    // Порядок объявления = порядок конструирования.
-    // _clockSystem ДО _displaySystem, потому что
-    // DisplaySystem принимает его по ссылке.
+    // Порядок: сначала сами CobLed, потом CobLedManager,
+    // потом CobEffects (принимает ссылку на менеджер).
     // ========================================================
 
-    ClockSystem _clockSystem;
+    CobLed _cob1;
+    CobLed _cob2;
+    CobLed _cob3;
+    CobLed _cob4;
 
+    CobLedManager _cobManager;
+    CobEffects    _cobEffects;
+
+    // ========================================================
+    // CORE SYSTEMS
+    // ========================================================
+
+    ClockSystem   _clockSystem;
     DisplaySystem _displaySystem;
 
     // ========================================================
@@ -90,10 +106,4 @@ private:
     // ========================================================
 
     WebServerManager _webServer;
-
-    // ========================================================
-    // BLUETOOTH
-    // ========================================================
-
-    // BluetoothSystem _bluetoothSystem;
 };

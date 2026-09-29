@@ -229,6 +229,24 @@
             cursor: pointer;
         }
 
+        /* SELECT */
+
+        select {
+            flex: 1;
+            height: 36px;
+            padding: 0 12px;
+            border: 1px solid #303030;
+            border-radius: 5px;
+            outline: none;
+            background: #111;
+            color: #eee;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        select:hover { border-color: #444; }
+        select:focus { border-color: #555; }
+
         /* SWITCH ROW */
 
         .switch-row {
@@ -538,6 +556,23 @@
         </div>
 
         <div class="range-row">
+            <div class="range-label">Effect</div>
+            <select id="cob_eff" onchange="changeCobEffect(this.value)">
+                <option value="0">Static</option>
+                <option value="1">Breath</option>
+                <option value="2">Strobe</option>
+                <option value="3">Wave</option>
+            </select>
+        </div>
+
+        <div class="range-row">
+            <div class="range-label">Speed</div>
+            <input id="cob_spd" type="range" min="0" max="100" value="50"
+                   oninput="changeCobSpeed(this.value)">
+            <div id="cob_spd_value" class="range-value">50%</div>
+        </div>
+
+        <div class="range-row">
             <div class="range-label">COB 1</div>
             <input id="cob1" type="range" min="0" max="100" value="100"
                    oninput="changeCobBrightness(1, this.value)">
@@ -585,15 +620,11 @@
     <section class="section">
         <div class="section-title">Sound</div>
 
-        <!-- PLAYER STATUS -->
-
         <div class="player-status">
             <div id="playerTrack" class="player-track">—</div>
             <div id="playerTime"  class="player-time">0:00 / 0:00</div>
             <div id="playerState" class="player-state stopped">stopped</div>
         </div>
-
-        <!-- VOLUME STREAMS -->
 
         <div class="range-row">
             <div class="range-label">Media</div>
@@ -616,16 +647,12 @@
             <div id="vol_system_value" class="range-value">40%</div>
         </div>
 
-        <!-- PLAY CONTROLS -->
-
         <div class="sound-buttons" style="margin-top: 20px;">
             <button class="primary" onclick="playSelectedSound()">▶ Test</button>
             <button onclick="pauseSound()">❚❚ Pause</button>
             <button onclick="resumeSound()">▶ Resume</button>
             <button onclick="stopSound()">■ Stop</button>
         </div>
-
-        <!-- MICROPHONE -->
 
         <div class="section-title">Microphone</div>
 
@@ -644,8 +671,6 @@
             </div>
         </div>
 
-        <!-- AUDIO LIST -->
-
         <div id="audioList" class="audio-list">
             <div class="empty">No sounds</div>
         </div>
@@ -653,7 +678,6 @@
 
 </div>
 
-<!-- MESSAGE -->
 <div id="message" class="message">OK</div>
 
 <script>
@@ -665,7 +689,6 @@ let files = [];
 let timezoneOffset = 3;
 let selectedSound = null;
 let messageTimer = null;
-let statusTimer = null;
 
 /* =============================================================
    MESSAGE
@@ -738,6 +761,13 @@ async function loadParams() {
         [1, 2, 3, 4].forEach(i => {
             setRange("cob" + i, p["cob" + i], "cob" + i + "_value");
         });
+
+        const effSel = document.getElementById("cob_eff");
+        if (effSel && p.cob_eff !== undefined) {
+            effSel.value = p.cob_eff;
+        }
+
+        setRange("cob_spd", p.cob_spd, "cob_spd_value");
 
         // Volume streams
         setRange("vol_media",  p.vol_media,  "vol_media_value");
@@ -856,7 +886,6 @@ async function changeTimezone(delta) {
 async function changeBrightness(value) {
     document.getElementById("brightness_value").textContent =
         value + "%";
-
     await setParam("brightness", value);
 }
 
@@ -893,6 +922,16 @@ async function toggleCob() {
 
     const ok = await setParam("cob_on", newState);
     if (!ok) applyToggle("cob_on", currentlyOn ? 1 : 0);
+}
+
+async function changeCobEffect(value) {
+    await setParam("cob_eff", value);
+    showMessage("Effect changed");
+}
+
+async function changeCobSpeed(value) {
+    document.getElementById("cob_spd_value").textContent = value + "%";
+    await setParam("cob_spd", value);
 }
 
 async function changeCobBrightness(index, value) {
@@ -1141,9 +1180,7 @@ async function updatePlayerStatus() {
         const timeEl  = document.getElementById("playerTime");
         const stateEl = document.getElementById("playerState");
 
-        trackEl.textContent = s.path && s.path.length
-            ? s.path
-            : "—";
+        trackEl.textContent = s.path && s.path.length ? s.path : "—";
 
         timeEl.textContent =
             formatTime(s.position || 0) + " / " +
@@ -1153,7 +1190,7 @@ async function updatePlayerStatus() {
         stateEl.textContent = state;
         stateEl.className   = "player-state " + state;
     } catch (e) {
-        // молча — не засоряем интерфейс
+        // молча
     }
 }
 
@@ -1203,7 +1240,6 @@ updatePlayerStatus();
 setInterval(updateTime, 1000);
 setInterval(loadSensors, 2000);
 setInterval(updatePlayerStatus, 500);
-
 </script>
 
 </body>
