@@ -9,7 +9,7 @@
 // WIFI CREDENTIALS
 // ============================================================
 
-static constexpr const char* WIFI_SSID     = "tpl47";
+static constexpr const char* WIFI_SSID     = "tpl45";
 static constexpr const char* WIFI_PASSWORD = "12713714";
 
 // ============================================================

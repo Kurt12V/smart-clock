@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
-#include "CobLedManager.h"
+#include "./managers/CobLedManager.h"
 
 // ============================================================
 // EFFECT TYPE

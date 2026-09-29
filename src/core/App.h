@@ -2,21 +2,21 @@
 
 #include <Arduino.h>
 
-#include "managers/SettingsManager.h"
-#include "managers/SPIManager.h"
-#include "managers/I2SManager.h"
-#include "managers/SDManager.h"
-#include "managers/SoundManager.h"
-#include "managers/InputManager.h"
-#include "managers/SensorsManager.h"
-#include "managers/WebServerManager.h"
+#include "./managers/SettingsManager.h"
+#include "./managers/SPIManager.h"
+#include "./managers/I2SManager.h"
+#include "./managers/SDManager.h"
+#include "./managers/SoundManager.h"
+#include "./managers/InputManager.h"
+#include "./managers/SensorsManager.h"
+#include "./managers/WebServerManager.h"
 
-#include "hardware/cob/CobLed.h"
-#include "hardware/cob/CobLedManager.h"
-#include "hardware/cob/CobEffects.h"
+#include "./hardware/light/CobLed.h"
+#include "./managers/CobLedManager.h"
+#include "./hardware/light/CobEffects.h"
 
-#include "core/ClockSystem.h"
-#include "core/DisplaySystem.h"
+#include "./core/ClockSystem.h"
+#include "./core/DisplaySystem.h"
 
 class App
 {
