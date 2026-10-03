@@ -5,236 +5,207 @@
 
 #include "Config.h"
 
-// ============================================================
-// PARAM
-// ============================================================
-
-enum class Param : uint8_t
-{
-    // --------------------------------------------------------
-    // DISPLAY
-    // --------------------------------------------------------
-
-    BRIGHTNESS = 0,
-
-    // --------------------------------------------------------
-    // MATRIX
-    // --------------------------------------------------------
-
-    MATRIX_ENABLED,
-    MATRIX_BRIGHTNESS,
-
-    // --------------------------------------------------------
-    // COB
-    // --------------------------------------------------------
-
-    COB_ENABLED,
-    COB_BRIGHTNESS_1,
-    COB_BRIGHTNESS_2,
-    COB_BRIGHTNESS_3,
-    COB_BRIGHTNESS_4,
-
-    // --------------------------------------------------------
-    // AUDIO
-    // --------------------------------------------------------
-
-    VOLUME_MEDIA,
-    VOLUME_ALARM,
-    VOLUME_SYSTEM,
-
-    // --------------------------------------------------------
-    // MICROPHONE
-    // --------------------------------------------------------
-
-    MIC_ENABLED,
-
-    // --------------------------------------------------------
-    // CLOCK
-    // --------------------------------------------------------
-
-    UTC_OFFSET,
-
-    // --------------------------------------------------------
-    // COB EFFECT
-    // --------------------------------------------------------
-
-    COB_EFFECT,
-
-    // --------------------------------------------------------
-    // COB SPEED
-    // --------------------------------------------------------
-
-    COB_SPEED,
-
-    // --------------------------------------------------------
-    // COUNT
-    // --------------------------------------------------------
-
-    COUNT
-};
-
-
-// ============================================================
-// SETTINGS MANAGER
-// ============================================================
-//
-// RAM → dirty → 700 ms → Preferences
-//
-// set() НИКОГДА не пишет во Flash напрямую.
-//
-// Это позволяет безопасно использовать SettingsManager
-// из WebServer / Bluetooth / UI.
-//
-// ============================================================
 
 class SettingsManager
 {
 public:
 
     // ========================================================
-    // CONSTRUCTOR
+    // PARAMETER IDs
     // ========================================================
 
-    SettingsManager();
+    enum class Id : uint8_t
+    {
+        DISPLAY_BRIGHTNESS,
+
+        MATRIX_ENABLED,
+        MATRIX_BRIGHTNESS,
+        MATRIX_EFFECT,
+        MATRIX_SPEED,
+
+        COB_ENABLED,
+        COB_BRIGHTNESS,
+        COB_EFFECT,
+        COB_SPEED,
+
+        MIC_ENABLED,
+
+        VOLUME_MEDIA,
+        VOLUME_ALARM,
+        VOLUME_SYSTEM,
+
+        UTC_OFFSET,
+
+        COUNT
+    };
 
 
     // ========================================================
-    // INIT
+    // SETTINGS DATA
+    // ========================================================
+
+    struct Data
+    {
+        // Display
+        uint8_t displayBrightness;
+
+        // Matrix
+        bool    matrixEnabled;
+        uint8_t matrixBrightness;
+        uint8_t matrixEffect;
+        uint8_t matrixSpeed;
+
+        // COB
+        bool    cobEnabled;
+        uint8_t cobBrightness;
+        uint8_t cobEffect;
+        uint8_t cobSpeed;
+
+        // Microphone
+        bool micEnabled;
+
+        // Audio
+        uint8_t volumeMedia;
+        uint8_t volumeAlarm;
+        uint8_t volumeSystem;
+
+        // Time
+        int8_t utcOffset;
+    };
+
+
+    // ========================================================
+    // LIFECYCLE
     // ========================================================
 
     bool begin();
 
-
-    // ========================================================
-    // UPDATE
-    // ========================================================
-    //
-    // Вызывать регулярно из loop().
-    //
-    // Проверяет:
-    // - есть ли изменения
-    // - прошло ли SAVE_DELAY_MS
-    //
-    // ========================================================
-
     void update();
 
+    bool load();
 
-    // ========================================================
-    // GET
-    // ========================================================
+    bool save();
 
-    int get(
-        Param p
-    ) const;
+    void reset();
 
 
     // ========================================================
-    // SET
-    // ========================================================
-    //
-    // Изменяет только RAM.
-    //
-    // Значение автоматически ограничивается диапазоном
-    // конкретного параметра.
-    //
-    // Возвращает true только если значение действительно
-    // изменилось.
-    //
+    // STATE
     // ========================================================
 
-    bool set(
-        Param p,
-        int value
-    );
+    bool isInitialized() const;
+
+    bool isDirty() const;
 
 
     // ========================================================
-    // LOAD ONE
+    // DATA
     // ========================================================
 
-    bool load(
-        Param p
-    );
+    const Data& data() const;
 
-
-    // ========================================================
-    // LOAD ALL
-    // ========================================================
-
-    bool loadAll();
+    bool setData(const Data& data);
 
 
     // ========================================================
-    // SAVE ONE
+    // DISPLAY
     // ========================================================
 
-    bool save(
-        Param p
-    );
+    uint8_t getDisplayBrightness() const;
 
-
-    // ========================================================
-    // SAVE ALL
-    // ========================================================
-
-    bool saveAll();
+    bool setDisplayBrightness(uint8_t value);
 
 
     // ========================================================
-    // RESET
+    // MATRIX
     // ========================================================
 
-    void resetAll();
+    bool isMatrixEnabled() const;
+
+    bool setMatrixEnabled(bool enabled);
 
 
-    // ========================================================
-    // DIRTY
-    // ========================================================
+    uint8_t getMatrixBrightness() const;
 
-    bool isDirty(
-        Param p
-    ) const;
+    bool setMatrixBrightness(uint8_t value);
 
 
-    bool hasDirty() const;
+    uint8_t getMatrixEffect() const;
+
+    bool setMatrixEffect(uint8_t value);
 
 
-    // ========================================================
-    // FLUSH
-    // ========================================================
-    //
-    // Немедленно сохраняет все изменения.
-    //
-    // ========================================================
+    uint8_t getMatrixSpeed() const;
 
-    bool flush();
+    bool setMatrixSpeed(uint8_t value);
 
 
     // ========================================================
-    // PARAM NAME
+    // COB
     // ========================================================
 
-    static const char* paramName(
-        Param p
-    );
+    bool isCobEnabled() const;
+
+    bool setCobEnabled(bool enabled);
+
+
+    uint8_t getCobBrightness() const;
+
+    bool setCobBrightness(uint8_t value);
+
+
+    uint8_t getCobEffect() const;
+
+    bool setCobEffect(uint8_t value);
+
+
+    uint8_t getCobSpeed() const;
+
+    bool setCobSpeed(uint8_t value);
 
 
     // ========================================================
-    // PARAM FROM NAME
+    // MICROPHONE
     // ========================================================
 
-    static bool paramFromName(
-        const char* name,
-        Param& out
-    );
+    bool isMicEnabled() const;
+
+    bool setMicEnabled(bool enabled);
 
 
     // ========================================================
-    // SAVE DELAY
+    // AUDIO
     // ========================================================
 
-    static constexpr uint32_t SAVE_DELAY_MS = 700;
+    uint8_t getMediaVolume() const;
+
+    bool setMediaVolume(uint8_t value);
+
+
+    uint8_t getAlarmVolume() const;
+
+    bool setAlarmVolume(uint8_t value);
+
+
+    uint8_t getSystemVolume() const;
+
+    bool setSystemVolume(uint8_t value);
+
+
+    // ========================================================
+    // TIMEZONE
+    // ========================================================
+
+    int8_t getUtcOffset() const;
+
+    bool setUtcOffset(int8_t value);
+
+
+    // ========================================================
+    // PARAMETER NAME
+    // ========================================================
+
+    static const char* getName(Id id);
 
 
 private:
@@ -243,65 +214,76 @@ private:
     // DEFAULTS
     // ========================================================
 
-    void applyDefaults();
+    static Data defaultSettings();
 
 
     // ========================================================
-    // DIRTY
+    // CLAMP
     // ========================================================
 
-    void markDirty(
-        Param p
+    static uint8_t clampDisplayBrightness(uint8_t value);
+
+    static uint8_t clampMatrixBrightness(uint8_t value);
+
+    static uint8_t clampMatrixEffect(uint8_t value);
+
+    static uint8_t clampMatrixSpeed(uint8_t value);
+
+    static uint8_t clampCobBrightness(uint8_t value);
+
+    static uint8_t clampCobEffect(uint8_t value);
+
+    static uint8_t clampCobSpeed(uint8_t value);
+
+    static uint8_t clampMediaVolume(uint8_t value);
+
+    static uint8_t clampAlarmVolume(uint8_t value);
+
+    static uint8_t clampSystemVolume(uint8_t value);
+
+    static int8_t clampUtcOffset(int8_t value);
+
+
+    // ========================================================
+    // COMPARISON
+    // ========================================================
+
+    static bool equals(
+        const Data& a,
+        const Data& b
     );
 
 
-    void clearDirty(
-        Param p
-    );
-
-
     // ========================================================
-    // INTERNAL SAVE
+    // STORAGE
     // ========================================================
 
-    bool saveDirty();
+    Preferences _preferences;
 
-
-private:
-
-    // ========================================================
-    // VALUES
-    // ========================================================
-
-    int _values[
-        static_cast<size_t>(Param::COUNT)
-    ];
-
-
-    // ========================================================
-    // DIRTY MASK
-    // ========================================================
-
-    uint32_t _dirtyMask;
-
-
-    // ========================================================
-    // LAST CHANGE
-    // ========================================================
-
-    uint32_t _lastChangeMs;
+    Data _data{};
 
 
     // ========================================================
     // STATE
     // ========================================================
 
-    bool _initialized;
+    bool _initialized = false;
+
+    bool _dirty = false;
+
+    uint32_t _lastChangeTime = 0;
 
 
     // ========================================================
-    // PREFERENCES
+    // SAVE SETTINGS
     // ========================================================
 
-    Preferences _preferences;
+    static constexpr uint32_t SAVE_DELAY_MS = 700;
+
+
+    // ========================================================
+    // NVS
+    // ========================================================
+
+    static constexpr const char* NAMESPACE = "smartclock";
 };

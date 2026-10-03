@@ -1,81 +1,190 @@
 #pragma once
 
 #include <Arduino.h>
+
 #include "./hardware/light/LedMatrix.h"
+#include "./hardware/light/LedMatrixEffects.h"
+#include "./managers/SettingsManager.h"
 
 class LedMatrixManager
 {
 public:
-    enum class Animation
+
+    // ============================================================
+    // MODE
+    // ============================================================
+
+    enum class Mode : uint8_t
     {
-        None,
-        Rainbow,
-        Pulse,
-        Wave,
-        Scanner,
-        Fire
+        Lighting = 0,
+        Effect
     };
 
-    explicit LedMatrixManager(
-        uint8_t dataPin
+    // ============================================================
+    // CONSTRUCTOR
+    // ============================================================
+
+    LedMatrixManager(
+        uint8_t dataPin,
+        SettingsManager& settings
     );
 
+    // ============================================================
+    // LIFECYCLE
+    // ============================================================
+
     void begin();
+
     void update();
+
+    // ============================================================
+    // POWER
+    // ============================================================
 
     void on();
     void off();
-    void toggle();
 
     bool isOn() const;
 
-    void setBrightness(uint8_t brightness);
+    // ============================================================
+    // BRIGHTNESS
+    // ============================================================
+
+    void setBrightness(
+        uint8_t brightness
+    );
+
     uint8_t brightness() const;
 
-    void clear();
-    void show();
+    // ============================================================
+    // LIGHTING
+    // ============================================================
 
-    void fill(
+    void setLighting(
         uint8_t r,
         uint8_t g,
         uint8_t b
     );
 
-    void setPixel(
-        uint8_t x,
-        uint8_t y,
-        uint8_t r,
-        uint8_t g,
-        uint8_t b
+    uint8_t red() const;
+    uint8_t green() const;
+    uint8_t blue() const;
+
+    // ============================================================
+    // EFFECT
+    // ============================================================
+
+    void setEffect(
+        uint8_t effect
     );
 
-    void setAnimation(Animation animation);
-    void stopAnimation();
+    uint8_t effect() const;
 
-    Animation animation() const;
+    // ============================================================
+    // SPEED
+    // ============================================================
+
+    void setSpeed(
+        uint8_t speed
+    );
+
+    uint8_t speed() const;
+
+    // ============================================================
+    // FIRE
+    // ============================================================
+
+    void setFireDirection(
+        bool forward
+    );
+
+    void setFireDirection(
+        LedMatrixEffects::FireDirection direction
+    );
+
+    // ============================================================
+    // MODE
+    // ============================================================
+
+    void setMode(
+        Mode mode
+    );
+
+    Mode mode() const;
+
+    // ============================================================
+    // EFFECT ENGINE
+    // ============================================================
+
+    LedMatrixEffects& effects();
+
+    const LedMatrixEffects& effects() const;
+
+    // ============================================================
+    // HARDWARE
+    // ============================================================
+
+    LedMatrix& matrix();
+
+    const LedMatrix& matrix() const;
 
 private:
-    // Hardware
+
+    // ============================================================
+    // HARDWARE
+    // ============================================================
+
     LedMatrix _matrix;
 
-    // State
-    bool _isOn = true;
+    LedMatrixEffects _effects;
 
-    uint8_t _brightness = 30;
+    // ============================================================
+    // SETTINGS
+    // ============================================================
 
-    Animation _animation = Animation::None;
+    SettingsManager& _settings;
 
-    uint32_t _lastAnimationUpdate = 0;
-    uint16_t _animationStep = 0;
+    // ============================================================
+    // STATE
+    // ============================================================
 
-    // Animations
-    void updateRainbow();
-    void updatePulse();
-    void updateWave();
-    void updateScanner();
-    void updateFire();
+    Mode _mode;
 
-    // Helpers
-    uint32_t wheel(uint8_t position);
-    uint8_t sin8(uint8_t value);
+    bool _isOn;
+    bool _initialized;
+
+    uint8_t _brightness;
+
+    uint8_t _effect;
+    uint8_t _speed;
+
+    uint8_t _r;
+    uint8_t _g;
+    uint8_t _b;
+
+    // ============================================================
+    // SETTINGS CACHE
+    // ============================================================
+
+    bool _lastSettingsEnabled;
+
+    uint8_t _lastSettingsBrightness;
+    uint8_t _lastSettingsEffect;
+    uint8_t _lastSettingsSpeed;
+
+    // ============================================================
+    // INTERNAL
+    // ============================================================
+
+    void synchronizeSettings();
+
+    void renderLighting();
+
+    void clear();
+
+    void show();
+
+    LedMatrixEffects::Type effectToType(
+        uint8_t effect
+    ) const;
 };

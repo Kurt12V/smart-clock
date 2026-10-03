@@ -1,7 +1,8 @@
 #pragma once
 
 #include <Arduino.h>
-#include "./managers/CobLedManager.h"
+
+#include "./hardware/light/CobLed.h"
 
 // ============================================================
 // EFFECT TYPE
@@ -9,78 +10,161 @@
 
 enum class CobEffectType : uint8_t
 {
-    Static = 0,   // постоянная яркость
-    Breath,       // плавное дыхание
-    Strobe,       // мигание
-    Wave,         // бегущая волна по 4 LED
+    Static = 0,
+    Breath,
+    Strobe,
+    Wave,
+    Blink,
+    Pulse,
+
     COUNT
 };
 
 // ============================================================
-// COB EFFECTS
+// COB EFFECT ENGINE
 //
-// Управляет эффектами через CobLedManager.
-// Наружу работает в 0..100, внутри мапит в 0..255.
+// Responsible ONLY for dynamic effects.
+//
+// It does not know about:
+// - SettingsManager
+// - CobLedManager
+// - AlarmManager
+// - WebServer
+//
+// It only controls CobLed outputs.
 // ============================================================
 
 class CobEffects
 {
 public:
 
-    explicit CobEffects(CobLedManager& manager);
+    static constexpr uint8_t LED_COUNT = 4;
+
+    CobEffects(
+        CobLed& cob1,
+        CobLed& cob2,
+        CobLed& cob3,
+        CobLed& cob4
+    );
+
+    // ============================================================
+    // LIFECYCLE
+    // ============================================================
 
     void begin();
     void update();
 
-    // ------------------------------------
+    // ============================================================
     // EFFECT
-    // ------------------------------------
+    // ============================================================
 
-    void setEffect(CobEffectType e);
-    CobEffectType effect() const { return _effect; }
+    void setEffect(
+        CobEffectType effect
+    );
 
-    // ------------------------------------
-    // SPEED (0..100)
-    // ------------------------------------
+    CobEffectType effect() const;
 
-    void setSpeed(uint8_t speed);
-    uint8_t speed() const { return _speed; }
+    // ============================================================
+    // SPEED
+    //
+    // 0..100
+    // ============================================================
 
-    // ------------------------------------
-    // BRIGHTNESS (0..100)
-    // ------------------------------------
+    void setSpeed(
+        uint8_t speed
+    );
 
-    void setBrightness(uint8_t index, uint8_t value);  // index 0..3
-    uint8_t brightness(uint8_t index) const;
-    void setAllBrightness(uint8_t value);
+    uint8_t speed() const;
 
-    // ------------------------------------
+    // ============================================================
     // ENABLE
-    // ------------------------------------
+    // ============================================================
 
-    void setEnabled(bool enabled);
-    bool isEnabled() const { return _enabled; }
+    void setEnabled(
+        bool enabled
+    );
+
+    bool isEnabled() const;
+
+    // ============================================================
+    // BASE BRIGHTNESS
+    //
+    // 0..255
+    // ============================================================
+
+    void setBrightness(
+        uint8_t index,
+        uint8_t value
+    );
+
+    uint8_t brightness(
+        uint8_t index
+    ) const;
+
+    void setAllBrightness(
+        uint8_t value
+    );
+
+    // ============================================================
+    // RESET
+    // ============================================================
+
+    void reset();
 
 private:
 
-    static constexpr uint8_t LED_COUNT = 4;
-
-    CobLedManager& _manager;
+    CobLed* _leds[LED_COUNT];
 
     CobEffectType _effect;
-    uint8_t       _speed;
-    uint8_t       _base[LED_COUNT];
-    bool          _enabled;
+
+    uint8_t _speed;
+
+    uint8_t _base[LED_COUNT];
+
+    bool _enabled;
 
     uint32_t _lastUpdate;
     uint32_t _phase;
 
-    // helpers
-    void    apply(uint8_t index, uint8_t value);   // 0..100 → через manager
-    uint8_t triangle(uint32_t p) const;
+    // ============================================================
+    // TIMING
+    // ============================================================
+
+    uint32_t calculatePeriod() const;
+
+    // ============================================================
+    // EFFECTS
+    // ============================================================
 
     void applyStatic();
     void applyBreath();
     void applyStrobe();
     void applyWave();
+    void applyBlink();
+    void applyPulse();
+
+    // ============================================================
+    // MATH
+    // ============================================================
+
+    uint8_t triangle(
+        uint32_t phase
+    ) const;
+
+    uint8_t sineWave(
+        uint32_t phase
+    ) const;
+
+    // ============================================================
+    // OUTPUT
+    // ============================================================
+
+    void output(
+        uint8_t index,
+        uint8_t value
+    );
+
+    void outputAll(
+        uint8_t value
+    );
 };

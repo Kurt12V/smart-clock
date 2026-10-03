@@ -1,125 +1,153 @@
 #include "App.h"
 
-#include "Config.h"
-#include "Pins.h"
-#include "Constants.h"
-#include "Version.h"
+#include <Arduino.h>
 
-// ============================================================
-// WIFI CREDENTIALS
-// ============================================================
+#include "./Config.h"
+#include "./Pins.h"
+#include "./Constants.h"
+#include "./Version.h"
 
-static constexpr const char* WIFI_SSID     = "tpl45";
-static constexpr const char* WIFI_PASSWORD = "12713714";
-
-// ============================================================
-// PWM CHANNELS
-// ============================================================
-
-namespace
-{
-    // Канал 0 занят подсветкой дисплея (LVGLManager).
-    // COB: каналы 1..4.
-    constexpr uint8_t COB_CH1 = 1;
-    constexpr uint8_t COB_CH2 = 2;
-    constexpr uint8_t COB_CH3 = 3;
-    constexpr uint8_t COB_CH4 = 4;
-}
 
 // ============================================================
 // CONSTRUCTOR
 // ============================================================
 
 App::App()
-    : _ready(false),
 
-      // ========================================================
-      // SETTINGS
-      // ========================================================
+    // --------------------------------------------------------
+    // STATE
+    // --------------------------------------------------------
 
-      _settings(),
+    : _ready(false)
 
-      // ========================================================
-      // MANAGERS
-      // ========================================================
 
-      _spiManager(),
-      _i2sManager(),
-      _sdManager(),
+    // --------------------------------------------------------
+    // BASIC MANAGERS
+    // --------------------------------------------------------
 
-      _soundManager(
-          _sdManager,
-          _settings,
-          _i2sManager
-      ),
+    , _settings()
 
-      _inputManager(),
-      _sensorManager(),
+    , _spiManager()
 
-      // ========================================================
-      // COB LED
-      // ========================================================
+    , _i2sManager()
 
-      _cob1(
-          PIN_COB1,
-          COB_CH1,
-          Config::COB_PWM_FREQUENCY,
-          Config::COB_PWM_RESOLUTION
-      ),
+    , _sdManager()
 
-      _cob2(
-          PIN_COB2,
-          COB_CH2,
-          Config::COB_PWM_FREQUENCY,
-          Config::COB_PWM_RESOLUTION
-      ),
+    , _soundManager(
+        _sdManager,
+        _settings,
+        _i2sManager
+    )
 
-      _cob3(
-          PIN_COB3,
-          COB_CH3,
-          Config::COB_PWM_FREQUENCY,
-          Config::COB_PWM_RESOLUTION
-      ),
+    , _inputManager()
 
-      _cob4(
-          PIN_COB4,
-          COB_CH4,
-          Config::COB_PWM_FREQUENCY,
-          Config::COB_PWM_RESOLUTION
-      ),
+    , _sensorManager()
 
-      _cobManager(
-          _cob1,
-          _cob2,
-          _cob3,
-          _cob4
-      ),
 
-      _cobEffects(
-          _cobManager
-      ),
+    // --------------------------------------------------------
+    // CLOCK
+    // --------------------------------------------------------
 
-      // ========================================================
-      // CORE SYSTEMS
-      // ========================================================
+    , _clockSystem(
+        _settings
+    )
 
-      _clockSystem(
-          _settings
-      ),
 
-      _displaySystem(
-          _settings,
-          _clockSystem,
-          _sensorManager
-      ),
+    // --------------------------------------------------------
+    // COB LEDS
+    // --------------------------------------------------------
 
-      // ========================================================
-      // WEB SERVER
-      // ========================================================
+    , _cob1(
+        PIN_COB1,
+        1,
+        Config::COB_PWM_FREQUENCY,
+        Config::COB_PWM_RESOLUTION
+    )
 
-      _webServer()
+    , _cob2(
+        PIN_COB2,
+        2,
+        Config::COB_PWM_FREQUENCY,
+        Config::COB_PWM_RESOLUTION
+    )
+
+    , _cob3(
+        PIN_COB3,
+        3,
+        Config::COB_PWM_FREQUENCY,
+        Config::COB_PWM_RESOLUTION
+    )
+
+    , _cob4(
+        PIN_COB4,
+        4,
+        Config::COB_PWM_FREQUENCY,
+        Config::COB_PWM_RESOLUTION
+    )
+
+
+    // --------------------------------------------------------
+    // COB MANAGER
+    // --------------------------------------------------------
+
+    , _cobManager(
+        _cob1,
+        _cob2,
+        _cob3,
+        _cob4,
+        _settings
+    )
+
+
+    // --------------------------------------------------------
+    // LED MATRIX
+    // --------------------------------------------------------
+
+    , _matrixManager(
+        PIN_LED_MATRIX,
+        _settings
+    )
+
+
+    // --------------------------------------------------------
+    // LIGHT SYSTEM
+    // --------------------------------------------------------
+
+    , _lightSystem(
+        _cobManager,
+        _matrixManager
+    )
+
+
+    // --------------------------------------------------------
+    // ALARM MANAGER
+    // --------------------------------------------------------
+
+    , _alarmManager(
+        _clockSystem,
+        _sdManager
+    )
+
+
+    // --------------------------------------------------------
+    // DISPLAY
+    // --------------------------------------------------------
+
+    , _displaySystem(
+        _settings,
+        _clockSystem,
+        _sensorManager
+    )
+
+
+    // --------------------------------------------------------
+    // WEB SERVER
+    // --------------------------------------------------------
+
+    , _webServer()
 {
 }
+
 
 // ============================================================
 // BEGIN
@@ -128,11 +156,16 @@ App::App()
 bool App::begin()
 {
     Serial0.println();
+    Serial0.println();
     Serial0.println("========================================");
-    Serial0.println("        SMART CLOCK STARTING");
+    Serial0.println("        SMART CLOCK STARTUP");
     Serial0.println("========================================");
+    Serial0.println();
 
-    _ready = false;
+
+    // ========================================================
+    // SETTINGS
+    // ========================================================
 
     if (!initSettings())
     {
@@ -140,11 +173,21 @@ bool App::begin()
         return false;
     }
 
+
+    // ========================================================
+    // SPI
+    // ========================================================
+
     if (!initSPI())
     {
         Serial0.println("[APP] SPI initialization failed");
         return false;
     }
+
+
+    // ========================================================
+    // I2S
+    // ========================================================
 
     if (!initI2S())
     {
@@ -152,11 +195,21 @@ bool App::begin()
         return false;
     }
 
+
+    // ========================================================
+    // SD
+    // ========================================================
+
     if (!initSD())
     {
         Serial0.println("[APP] SD initialization failed");
         return false;
     }
+
+
+    // ========================================================
+    // SOUND
+    // ========================================================
 
     if (!initSound())
     {
@@ -164,23 +217,54 @@ bool App::begin()
         return false;
     }
 
+
+    // ========================================================
+    // CLOCK
+    // ========================================================
+
     if (!initClock())
     {
         Serial0.println("[APP] Clock initialization failed");
         return false;
     }
 
-    if (!initSensors())
+
+    // ========================================================
+    // ALARM
+    // ========================================================
+
+    if (!initAlarm())
     {
-        Serial0.println("[APP] Sensors initialization failed");
+        Serial0.println("[APP] Alarm initialization failed");
         return false;
     }
 
-    if (!initCob())
+
+    // ========================================================
+    // SENSORS
+    // ========================================================
+
+    if (!initSensors())
     {
-        Serial0.println("[APP] COB initialization failed");
+        Serial0.println("[APP] Sensor initialization failed");
         return false;
     }
+
+
+    // ========================================================
+    // LIGHT
+    // ========================================================
+
+    if (!initLight())
+    {
+        Serial0.println("[APP] Light initialization failed");
+        return false;
+    }
+
+
+    // ========================================================
+    // DISPLAY
+    // ========================================================
 
     if (!initDisplay())
     {
@@ -188,37 +272,32 @@ bool App::begin()
         return false;
     }
 
+
+    // ========================================================
+    // INPUT
+    // ========================================================
+
     if (!initInput())
     {
         Serial0.println("[APP] Input initialization failed");
         return false;
     }
 
+
+    // ========================================================
+    // WEB SERVER
+    // ========================================================
+
     if (!initWebServer())
     {
-        Serial0.println("[APP] WARNING: web server failed (continuing)");
+        Serial0.println("[APP] Web server initialization failed");
+        return false;
     }
 
-    // --------------------------------------------------------
-    // STARTUP SOUND
-    // --------------------------------------------------------
 
-    Serial0.println("[APP] Playing startup sound...");
-
-    {
-        SoundManager::PlayOptions opts;
-
-        opts.stream       = SoundManager::AudioStream::System;
-        opts.localPercent = 100;
-        opts.fadeInMs     = 200;
-        opts.fadeOutMs    = 200;
-        opts.curve        = SoundManager::FadeCurve::Linear;
-
-        if (!_soundManager.play(Constants::STARTUP_SOUND, opts))
-        {
-            Serial0.println("[APP] WARNING: startup sound failed");
-        }
-    }
+    // ========================================================
+    // READY
+    // ========================================================
 
     _ready = true;
 
@@ -226,9 +305,11 @@ bool App::begin()
     Serial0.println("========================================");
     Serial0.println("        SMART CLOCK READY");
     Serial0.println("========================================");
+    Serial0.println();
 
     return true;
 }
+
 
 // ============================================================
 // UPDATE
@@ -239,19 +320,70 @@ void App::update()
     if (!_ready)
         return;
 
-    _webServer.update();
+
+    // --------------------------------------------------------
+    // SETTINGS
+    // --------------------------------------------------------
+
+    _settings.update();
+
+
+    // --------------------------------------------------------
+    // INPUT
+    // --------------------------------------------------------
 
     _inputManager.update();
+
+
+    // --------------------------------------------------------
+    // SENSORS
+    // --------------------------------------------------------
+
     _sensorManager.update();
+
+
+    // --------------------------------------------------------
+    // CLOCK
+    // --------------------------------------------------------
 
     _clockSystem.update();
 
-    updateCob();
+
+    // --------------------------------------------------------
+    // ALARMS
+    // --------------------------------------------------------
+
+    _alarmManager.update();
+
+
+    // --------------------------------------------------------
+    // LIGHT
+    // --------------------------------------------------------
+
+    _lightSystem.update();
+
+
+    // --------------------------------------------------------
+    // DISPLAY
+    // --------------------------------------------------------
 
     _displaySystem.update();
 
+
+    // --------------------------------------------------------
+    // SOUND
+    // --------------------------------------------------------
+
     _soundManager.update();
+
+
+    // --------------------------------------------------------
+    // WEB
+    // --------------------------------------------------------
+
+    _webServer.update();
 }
+
 
 // ============================================================
 // READY
@@ -262,32 +394,36 @@ bool App::isReady() const
     return _ready;
 }
 
+
 // ============================================================
-// INIT SETTINGS
+// SETTINGS
 // ============================================================
 
 bool App::initSettings()
 {
-    Serial0.println();
     Serial0.println("[APP] Initializing settings...");
+
+    // Если SettingsManager::begin() возвращает bool,
+    // используем его.
 
     if (!_settings.begin())
     {
-        Serial0.println("[APP] Settings FAILED");
+        Serial0.println("[APP] Settings failed");
         return false;
     }
 
     Serial0.println("[APP] Settings OK");
+
     return true;
 }
 
+
 // ============================================================
-// INIT SPI
+// SPI
 // ============================================================
 
 bool App::initSPI()
 {
-    Serial0.println();
     Serial0.println("[APP] Initializing SPI...");
 
     if (!_spiManager.begin())
@@ -297,16 +433,17 @@ bool App::initSPI()
     }
 
     Serial0.println("[APP] SPI OK");
+
     return true;
 }
 
+
 // ============================================================
-// INIT I2S
+// I2S
 // ============================================================
 
 bool App::initI2S()
 {
-    Serial0.println();
     Serial0.println("[APP] Initializing I2S...");
 
     if (!_i2sManager.begin())
@@ -316,16 +453,17 @@ bool App::initI2S()
     }
 
     Serial0.println("[APP] I2S OK");
+
     return true;
 }
 
+
 // ============================================================
-// INIT SD
+// SD
 // ============================================================
 
 bool App::initSD()
 {
-    Serial0.println();
     Serial0.println("[APP] Initializing SD...");
 
     if (!_sdManager.begin(PIN_SD_CS))
@@ -335,16 +473,17 @@ bool App::initSD()
     }
 
     Serial0.println("[APP] SD OK");
+
     return true;
 }
 
+
 // ============================================================
-// INIT SOUND
+// SOUND
 // ============================================================
 
 bool App::initSound()
 {
-    Serial0.println();
     Serial0.println("[APP] Initializing sound...");
 
     if (!_soundManager.begin())
@@ -354,16 +493,17 @@ bool App::initSound()
     }
 
     Serial0.println("[APP] Sound OK");
+
     return true;
 }
 
+
 // ============================================================
-// INIT CLOCK
+// CLOCK
 // ============================================================
 
 bool App::initClock()
 {
-    Serial0.println();
     Serial0.println("[APP] Initializing clock...");
 
     if (!_clockSystem.begin())
@@ -373,16 +513,45 @@ bool App::initClock()
     }
 
     Serial0.println("[APP] Clock OK");
+
     return true;
 }
 
+
 // ============================================================
-// INIT SENSORS
+// ALARM
+// ============================================================
+
+bool App::initAlarm()
+{
+    Serial.println();
+    Serial.println(
+        "[APP] Initializing alarm manager..."
+    );
+
+    if (!_alarmManager.begin())
+    {
+        Serial.println(
+            "[APP] Alarm manager failed"
+        );
+
+        return false;
+    }
+
+    Serial.println(
+        "[APP] Alarm manager OK"
+    );
+
+    return true;
+}
+
+
+// ============================================================
+// SENSORS
 // ============================================================
 
 bool App::initSensors()
 {
-    Serial0.println();
     Serial0.println("[APP] Initializing sensors...");
 
     if (!_sensorManager.begin())
@@ -392,60 +561,37 @@ bool App::initSensors()
     }
 
     Serial0.println("[APP] Sensors OK");
+
     return true;
 }
 
+
 // ============================================================
-// INIT COB
+// LIGHT
 // ============================================================
 
-bool App::initCob()
+bool App::initLight()
 {
-    Serial0.println();
-    Serial0.println("[APP] Initializing COB...");
+    Serial0.println("[APP] Initializing lighting...");
 
-    _cobManager.begin();
-
-    // Начальные яркости (0..3) из Settings
-    for (uint8_t i = 0; i < 4; ++i)
+    if (!_lightSystem.begin())
     {
-        Param p = static_cast<Param>(
-            static_cast<uint8_t>(Param::COB_BRIGHTNESS_1) + i
-        );
-
-        _cobEffects.setBrightness(
-            i,
-            static_cast<uint8_t>(_settings.get(p))
-        );
+        Serial0.println("[APP] Lighting failed");
+        return false;
     }
 
-    _cobEffects.setEffect(
-        static_cast<CobEffectType>(
-            _settings.get(Param::COB_EFFECT)
-        )
-    );
+    Serial0.println("[APP] Lighting OK");
 
-    _cobEffects.setSpeed(
-        static_cast<uint8_t>(_settings.get(Param::COB_SPEED))
-    );
-
-    _cobEffects.setEnabled(
-        _settings.get(Param:: COB_ENABLED) != 0
-    );
-
-    _cobEffects.begin();
-
-    Serial0.println("[APP] COB OK");
     return true;
 }
 
+
 // ============================================================
-// INIT DISPLAY
+// DISPLAY
 // ============================================================
 
 bool App::initDisplay()
 {
-    Serial0.println();
     Serial0.println("[APP] Initializing display...");
 
     if (!_displaySystem.begin())
@@ -455,16 +601,17 @@ bool App::initDisplay()
     }
 
     Serial0.println("[APP] Display OK");
+
     return true;
 }
 
+
 // ============================================================
-// INIT INPUT
+// INPUT
 // ============================================================
 
 bool App::initInput()
 {
-    Serial0.println();
     Serial0.println("[APP] Initializing input...");
 
     if (!_inputManager.begin())
@@ -474,84 +621,47 @@ bool App::initInput()
     }
 
     Serial0.println("[APP] Input OK");
+
     return true;
 }
 
+
 // ============================================================
-// INIT WEB SERVER
-// ============================================================
+// WEB SERVER
 
 bool App::initWebServer()
 {
-    Serial0.println();
-    Serial0.println("========================================");
-    Serial0.println("[APP] Initializing web server...");
-    Serial0.println("========================================");
+    Serial0.println(
+        "[APP] Initializing web server..."
+    );
 
-    if (!_webServer.begin(
+
+    if (
+        !_webServer.begin(
             _settings,
             _sdManager,
             _soundManager,
-            WIFI_SSID,
-            WIFI_PASSWORD))
+            _clockSystem,
+            _alarmManager,
+            Config::WIFI_SSID,
+            Config::WIFI_PASSWORD
+        )
+    )
     {
-        Serial0.println("[APP] Web server FAILED");
+        Serial0.println(
+            "[APP] Web server failed"
+        );
+
         return false;
     }
 
-    Serial0.print("[APP] Web server OK — http://");
-    Serial0.println(_webServer.getIP());
+
+    Serial0.println(
+        "[APP] Web server OK"
+    );
+
 
     return true;
 }
 
-// ============================================================
-// UPDATE COB
-//
-// Читает Settings каждый цикл, применяет изменения в
-// CobEffects. Изменения из веба подхватываются ≤10 мс.
-// ============================================================
 
-void App::updateCob()
-{
-    // Яркости 0..3
-    for (uint8_t i = 0; i < 4; ++i)
-    {
-        Param p = static_cast<Param>(
-            static_cast<uint8_t>(Param::COB_BRIGHTNESS_1) + i
-        );
-
-        uint8_t want = static_cast<uint8_t>(_settings.get(p));
-
-        if (_cobEffects.brightness(i) != want)
-            _cobEffects.setBrightness(i, want);
-    }
-
-    // Эффект
-    CobEffectType eff = static_cast<CobEffectType>(
-        _settings.get(Param::COB_EFFECT)
-    );
-
-    if (_cobEffects.effect() != eff)
-        _cobEffects.setEffect(eff);
-
-    // Скорость
-    uint8_t spd = static_cast<uint8_t>(
-        _settings.get(Param::COB_SPEED)
-    );
-
-    if (_cobEffects.speed() != spd)
-        _cobEffects.setSpeed(spd);
-
-    // Вкл/выкл
-    bool on = _settings.get(Param::COB_ENABLED) != 0;
-
-    if (_cobEffects.isEnabled() != on)
-        _cobEffects.setEnabled(on);
-
-    // Тик эффекта
-    _cobEffects.update();
-
-    // Тик CobLed (обрабатывает fadeTo, если где-то используется)
-    _cobManager.update();
-}

@@ -1,6 +1,11 @@
+
 #pragma once
 
 #include <Arduino.h>
+
+// ============================================================
+// MANAGERS
+// ============================================================
 
 #include "./managers/SettingsManager.h"
 #include "./managers/SPIManager.h"
@@ -9,14 +14,31 @@
 #include "./managers/SoundManager.h"
 #include "./managers/InputManager.h"
 #include "./managers/SensorsManager.h"
+
+#include "./managers/CobLedManager.h"
+#include "./managers/LedMatrixManager.h"
+
+#include "./managers/AlarmManager.h"
 #include "./managers/WebServerManager.h"
 
+// ============================================================
+// HARDWARE
+// ============================================================
+
 #include "./hardware/light/CobLed.h"
-#include "./managers/CobLedManager.h"
-#include "./hardware/light/CobEffects.h"
+
+// ============================================================
+// CORE
+// ============================================================
 
 #include "./core/ClockSystem.h"
 #include "./core/DisplaySystem.h"
+#include "./core/LightSystem.h"
+
+
+// ============================================================
+// APP
+// ============================================================
 
 class App
 {
@@ -25,15 +47,15 @@ public:
     App();
 
     bool begin();
-
     void update();
 
     bool isReady() const;
 
+
 private:
 
     // ========================================================
-    // INITIALIZATION STEPS
+    // INITIALIZATION
     // ========================================================
 
     bool initSettings();
@@ -41,18 +63,18 @@ private:
     bool initI2S();
     bool initSD();
     bool initSound();
+
     bool initClock();
     bool initSensors();
-    bool initCob();
+
+    bool initAlarm();
+
+    bool initLight();
+
     bool initDisplay();
     bool initInput();
     bool initWebServer();
 
-    // ========================================================
-    // RUNTIME POLLING
-    // ========================================================
-
-    void updateCob();
 
     // ========================================================
     // STATE
@@ -60,30 +82,35 @@ private:
 
     bool _ready;
 
+
     // ========================================================
-    // SETTINGS (первым — от него зависят остальные)
+    // CORE MANAGERS
     // ========================================================
 
     SettingsManager _settings;
 
-    // ========================================================
-    // MANAGERS
-    // ========================================================
-
     SPIManager _spiManager;
+
     I2SManager _i2sManager;
-    SDManager  _sdManager;
+
+    SDManager _sdManager;
 
     SoundManager _soundManager;
 
-    InputManager  _inputManager;
+    InputManager _inputManager;
+
     SensorManager _sensorManager;
 
+
     // ========================================================
-    // COB LED (4 штуки + менеджер + эффекты)
-    //
-    // Порядок: сначала сами CobLed, потом CobLedManager,
-    // потом CobEffects (принимает ссылку на менеджер).
+    // CLOCK
+    // ========================================================
+
+    ClockSystem _clockSystem;
+
+
+    // ========================================================
+    // COB LED HARDWARE
     // ========================================================
 
     CobLed _cob1;
@@ -91,18 +118,34 @@ private:
     CobLed _cob3;
     CobLed _cob4;
 
+
+    // ========================================================
+    // LIGHT MANAGERS
+    // ========================================================
+
     CobLedManager _cobManager;
-    CobEffects    _cobEffects;
+
+    LedMatrixManager _matrixManager;
+
+    LightSystem _lightSystem;
+
 
     // ========================================================
-    // CORE SYSTEMS
+    // ALARM
     // ========================================================
 
-    ClockSystem   _clockSystem;
+    AlarmManager _alarmManager;
+
+
+    // ========================================================
+    // DISPLAY
+    // ========================================================
+
     DisplaySystem _displaySystem;
 
+
     // ========================================================
-    // WEB SERVER
+    // WEB
     // ========================================================
 
     WebServerManager _webServer;

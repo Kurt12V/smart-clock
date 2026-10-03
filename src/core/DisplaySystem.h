@@ -34,8 +34,10 @@ public:
     // ACCESSORS
     // ========================================================
 
-    SPIManager&    spi();
-    LVGLManager&   lvgl();
+    SPIManager& spi();
+
+    LVGLManager& lvgl();
+
     ScreenManager& screens();
 
 private:
@@ -52,13 +54,14 @@ private:
 
     SettingsManager& _settings;
 
-    ClockSystem&   _clock;
+    ClockSystem& _clock;
     SensorManager& _sensors;
 
-    SPIManager    _spi;
-    LVGLManager   _lvgl;
+    SPIManager _spi;
+    LVGLManager _lvgl;
     ScreenManager _screens;
 
-    bool    _initialized;
+    bool _initialized;
+
     uint8_t _appliedBrightness;
 };

@@ -1,120 +1,386 @@
 #include "LedMatrixManager.h"
-#include <math.h>
+
+#include "Config.h"
 
 // ============================================================
-// Constructor
+// CONSTRUCTOR
 // ============================================================
 
 LedMatrixManager::LedMatrixManager(
-    uint8_t dataPin
+    uint8_t dataPin,
+    SettingsManager& settings
 )
     : _matrix(
-        dataPin,
-        _brightness
-    )
+        dataPin
+    ),
+      _effects(
+          _matrix
+      ),
+      _settings(
+          settings
+      ),
+
+      _mode(
+          Mode::Effect
+      ),
+
+      _isOn(false),
+      _initialized(false),
+
+      _brightness(50),
+
+      _effect(0),
+      _speed(50),
+
+      _r(255),
+      _g(255),
+      _b(255),
+
+      _lastSettingsEnabled(false),
+      _lastSettingsBrightness(255),
+      _lastSettingsEffect(255),
+      _lastSettingsSpeed(255)
 {
 }
 
 // ============================================================
-// Initialization
+// BEGIN
 // ============================================================
 
 void LedMatrixManager::begin()
 {
     _matrix.begin();
 
+    _effects.begin();
+
+    _initialized =
+        true;
+
+    // ----------------------------------------------------------
+    // Read settings
+    // ----------------------------------------------------------
+
+    _isOn =
+        _settings.isMatrixEnabled();
+
+    _brightness =
+        _settings.getMatrixBrightness();
+
+    _effect =
+        _settings.getMatrixEffect();
+
+    _speed =
+        _settings.getMatrixSpeed();
+
+    // ----------------------------------------------------------
+    // Cache
+    // ----------------------------------------------------------
+
+    _lastSettingsEnabled =
+        _isOn;
+
+    _lastSettingsBrightness =
+        _brightness;
+
+    _lastSettingsEffect =
+        _effect;
+
+    _lastSettingsSpeed =
+        _speed;
+
+    // ----------------------------------------------------------
+    // Hardware brightness
+    // ----------------------------------------------------------
+
     _matrix.setBrightness(
         _brightness
     );
 
-    _matrix.clear();
-    _matrix.show();
+    // ----------------------------------------------------------
+    // Effect configuration
+    // ----------------------------------------------------------
 
-    _isOn = true;
+    _effects.setSpeed(
+        _speed
+    );
 
-    _animation = Animation::None;
-    _animationStep = 0;
-    _lastAnimationUpdate = millis();
+    _effects.setType(
+        effectToType(
+            _effect
+        )
+    );
+
+    // ----------------------------------------------------------
+    // Initial render
+    // ----------------------------------------------------------
+
+    if (!_isOn)
+    {
+        clear();
+        show();
+        return;
+    }
+
+    if (_mode == Mode::Lighting)
+    {
+        renderLighting();
+    }
+    else
+    {
+        _effects.update();
+    }
+
+    show();
 }
 
 // ============================================================
-// Update
+// UPDATE
 // ============================================================
 
 void LedMatrixManager::update()
 {
+    if (!_initialized)
+        return;
+
+    // ----------------------------------------------------------
+    // Settings
+    // ----------------------------------------------------------
+
+    synchronizeSettings();
+
+    // ----------------------------------------------------------
+    // OFF
+    // ----------------------------------------------------------
+
     if (!_isOn)
         return;
 
-    const uint32_t now = millis();
+    // ----------------------------------------------------------
+    // LIGHTING
+    // ----------------------------------------------------------
 
-    // ~30 FPS
-    if (now - _lastAnimationUpdate < 33)
-        return;
-
-    _lastAnimationUpdate = now;
-
-    switch (_animation)
+    if (_mode == Mode::Lighting)
     {
-        case Animation::None:
-            return;
-
-        case Animation::Rainbow:
-            updateRainbow();
-            break;
-
-        case Animation::Pulse:
-            updatePulse();
-            break;
-
-        case Animation::Wave:
-            updateWave();
-            break;
-
-        case Animation::Scanner:
-            updateScanner();
-            break;
-
-        case Animation::Fire:
-            updateFire();
-            break;
+        return;
     }
 
-    _matrix.show();
+    // ----------------------------------------------------------
+    // EFFECT
+    // ----------------------------------------------------------
 
-    _animationStep++;
+    uint32_t before =
+        _matrix.pixel(0);
+
+    _effects.update();
+
+    /*
+     * Effects render directly into the matrix buffer.
+     *
+     * We always show after update.
+     *
+     * LedMatrixEffects itself controls its
+     * internal update interval.
+     */
+
+    (void)before;
+
+    show();
 }
 
 // ============================================================
-// Power
+// SYNCHRONIZE SETTINGS
+// ============================================================
+
+void LedMatrixManager::synchronizeSettings()
+{
+    const bool newEnabled =
+        _settings.isMatrixEnabled();
+
+    const uint8_t newBrightness =
+        _settings.getMatrixBrightness();
+
+    const uint8_t newEffect =
+        _settings.getMatrixEffect();
+
+    const uint8_t newSpeed =
+        _settings.getMatrixSpeed();
+
+    // ==========================================================
+    // ENABLE
+    // ==========================================================
+
+    if (
+        newEnabled !=
+        _lastSettingsEnabled
+    )
+    {
+        _lastSettingsEnabled =
+            newEnabled;
+
+        _isOn =
+            newEnabled;
+
+        if (!_isOn)
+        {
+            clear();
+            show();
+            return;
+        }
+    }
+
+    // ==========================================================
+    // BRIGHTNESS
+    // ==========================================================
+
+    if (
+        newBrightness !=
+        _lastSettingsBrightness
+    )
+    {
+        _lastSettingsBrightness =
+            newBrightness;
+
+        _brightness =
+            newBrightness;
+
+        _matrix.setBrightness(
+            _brightness
+        );
+    }
+
+    // ==========================================================
+    // EFFECT
+    // ==========================================================
+
+    if (
+        newEffect !=
+        _lastSettingsEffect
+    )
+    {
+        _lastSettingsEffect =
+            newEffect;
+
+        _effect =
+            newEffect;
+
+        _effects.setType(
+            effectToType(
+                _effect
+            )
+        );
+
+        _mode =
+            Mode::Effect;
+    }
+
+    // ==========================================================
+    // SPEED
+    // ==========================================================
+
+    if (
+        newSpeed !=
+        _lastSettingsSpeed
+    )
+    {
+        _lastSettingsSpeed =
+            newSpeed;
+
+        _speed =
+            newSpeed;
+
+        _effects.setSpeed(
+            _speed
+        );
+    }
+}
+
+// ============================================================
+// EFFECT CONVERSION
+// ============================================================
+
+LedMatrixEffects::Type
+LedMatrixManager::effectToType(
+    uint8_t effect
+) const
+{
+    if (
+        effect >=
+        static_cast<uint8_t>(
+            LedMatrixEffects::Type::COUNT
+        )
+    )
+    {
+        effect = 0;
+    }
+
+    return static_cast<
+        LedMatrixEffects::Type
+    >(effect);
+}
+
+// ============================================================
+// RENDER LIGHTING
+// ============================================================
+
+void LedMatrixManager::renderLighting()
+{
+    _matrix.fill(
+        _matrix.color(
+            _r,
+            _g,
+            _b
+        )
+    );
+
+    show();
+}
+
+// ============================================================
+// ON
 // ============================================================
 
 void LedMatrixManager::on()
 {
-    _isOn = true;
-
-    _matrix.setBrightness(
-        _brightness
+    _settings.setMatrixEnabled(
+        true
     );
 
-    _matrix.show();
+    _isOn =
+        true;
+
+    _lastSettingsEnabled =
+        true;
+
+    if (_mode == Mode::Lighting)
+    {
+        renderLighting();
+    }
 }
+
+// ============================================================
+// OFF
+// ============================================================
 
 void LedMatrixManager::off()
 {
-    _isOn = false;
+    _settings.setMatrixEnabled(
+        false
+    );
 
-    _matrix.clear();
-    _matrix.show();
+    _isOn =
+        false;
+
+    _lastSettingsEnabled =
+        false;
+
+    clear();
+
+    show();
 }
 
-void LedMatrixManager::toggle()
-{
-    if (_isOn)
-        off();
-    else
-        on();
-}
+// ============================================================
+// IS ON
+// ============================================================
 
 bool LedMatrixManager::isOn() const
 {
@@ -122,29 +388,38 @@ bool LedMatrixManager::isOn() const
 }
 
 // ============================================================
-// Brightness
+// SET BRIGHTNESS
 // ============================================================
 
 void LedMatrixManager::setBrightness(
     uint8_t brightness
 )
 {
-    if (brightness >
-        LedMatrix::MAX_BRIGHTNESS)
-    {
-        brightness =
-            LedMatrix::MAX_BRIGHTNESS;
-    }
+    brightness =
+        constrain(
+            brightness,
+            Config::MATRIX_BRIGHTNESS_MIN,
+            Config::MATRIX_BRIGHTNESS_MAX
+        );
 
-    _brightness = brightness;
-
-    _matrix.setBrightness(
-        _brightness
+    _settings.setMatrixBrightness(
+        brightness
     );
 
-    if (_isOn)
-        _matrix.show();
+    _brightness =
+        brightness;
+
+    _lastSettingsBrightness =
+        brightness;
+
+    _matrix.setBrightness(
+        brightness
+    );
 }
+
+// ============================================================
+// GET BRIGHTNESS
+// ============================================================
 
 uint8_t LedMatrixManager::brightness() const
 {
@@ -152,7 +427,245 @@ uint8_t LedMatrixManager::brightness() const
 }
 
 // ============================================================
-// Basic drawing
+// SET LIGHTING
+// ============================================================
+
+void LedMatrixManager::setLighting(
+    uint8_t r,
+    uint8_t g,
+    uint8_t b
+)
+{
+    _r = r;
+    _g = g;
+    _b = b;
+
+    _mode =
+        Mode::Lighting;
+
+    if (!_isOn)
+        return;
+
+    renderLighting();
+}
+
+// ============================================================
+// RGB GETTERS
+// ============================================================
+
+uint8_t LedMatrixManager::red() const
+{
+    return _r;
+}
+
+uint8_t LedMatrixManager::green() const
+{
+    return _g;
+}
+
+uint8_t LedMatrixManager::blue() const
+{
+    return _b;
+}
+
+// ============================================================
+// SET EFFECT
+// ============================================================
+
+void LedMatrixManager::setEffect(
+    uint8_t effect
+)
+{
+    effect =
+        constrain(
+            effect,
+            Config::MATRIX_EFFECT_MIN,
+            Config::MATRIX_EFFECT_MAX
+        );
+
+    _settings.setMatrixEffect(
+        effect
+    );
+
+    _effect =
+        effect;
+
+    _lastSettingsEffect =
+        effect;
+
+    _mode =
+        Mode::Effect;
+
+    _effects.setType(
+        effectToType(
+            effect
+        )
+    );
+
+    _effects.setSpeed(
+        _speed
+    );
+
+    if (_isOn)
+    {
+        clear();
+        show();
+    }
+}
+
+// ============================================================
+// GET EFFECT
+// ============================================================
+
+uint8_t LedMatrixManager::effect() const
+{
+    return _effect;
+}
+
+// ============================================================
+// SET SPEED
+// ============================================================
+
+void LedMatrixManager::setSpeed(
+    uint8_t speed
+)
+{
+    speed =
+        constrain(
+            speed,
+            Config::MATRIX_SPEED_MIN,
+            Config::MATRIX_SPEED_MAX
+        );
+
+    _settings.setMatrixSpeed(
+        speed
+    );
+
+    _speed =
+        speed;
+
+    _lastSettingsSpeed =
+        speed;
+
+    _effects.setSpeed(
+        speed
+    );
+}
+
+// ============================================================
+// GET SPEED
+// ============================================================
+
+uint8_t LedMatrixManager::speed() const
+{
+    return _speed;
+}
+
+// ============================================================
+// FIRE DIRECTION BOOL
+// ============================================================
+
+void LedMatrixManager::setFireDirection(
+    bool forward
+)
+{
+    setFireDirection(
+        forward
+            ? LedMatrixEffects::FireDirection::LeftToRight
+            : LedMatrixEffects::FireDirection::RightToLeft
+    );
+}
+
+// ============================================================
+// FIRE DIRECTION ENUM
+// ============================================================
+
+void LedMatrixManager::setFireDirection(
+    LedMatrixEffects::FireDirection direction
+)
+{
+    _effects.setFireDirection(
+        direction
+    );
+}
+
+// ============================================================
+// SET MODE
+// ============================================================
+
+void LedMatrixManager::setMode(
+    Mode mode
+)
+{
+    if (_mode == mode)
+        return;
+
+    _mode =
+        mode;
+
+    if (_mode == Mode::Effect)
+    {
+        _effects.setType(
+            effectToType(
+                _effect
+            )
+        );
+
+        _effects.setSpeed(
+            _speed
+        );
+    }
+    else
+    {
+        if (_isOn)
+            renderLighting();
+    }
+}
+
+// ============================================================
+// GET MODE
+// ============================================================
+
+LedMatrixManager::Mode
+LedMatrixManager::mode() const
+{
+    return _mode;
+}
+
+// ============================================================
+// EFFECTS
+// ============================================================
+
+LedMatrixEffects&
+LedMatrixManager::effects()
+{
+    return _effects;
+}
+
+const LedMatrixEffects&
+LedMatrixManager::effects() const
+{
+    return _effects;
+}
+
+// ============================================================
+// MATRIX
+// ============================================================
+
+LedMatrix&
+LedMatrixManager::matrix()
+{
+    return _matrix;
+}
+
+const LedMatrix&
+LedMatrixManager::matrix() const
+{
+    return _matrix;
+}
+
+// ============================================================
+// CLEAR
 // ============================================================
 
 void LedMatrixManager::clear()
@@ -160,366 +673,11 @@ void LedMatrixManager::clear()
     _matrix.clear();
 }
 
+// ============================================================
+// SHOW
+// ============================================================
+
 void LedMatrixManager::show()
 {
-    if (!_isOn)
-        return;
-
     _matrix.show();
-}
-
-void LedMatrixManager::fill(
-    uint8_t r,
-    uint8_t g,
-    uint8_t b
-)
-{
-    if (!_isOn)
-        return;
-
-    _matrix.fill(
-        r,
-        g,
-        b
-    );
-}
-
-void LedMatrixManager::setPixel(
-    uint8_t x,
-    uint8_t y,
-    uint8_t r,
-    uint8_t g,
-    uint8_t b
-)
-{
-    if (!_isOn)
-        return;
-
-    _matrix.setPixel(
-        x,
-        y,
-        r,
-        g,
-        b
-    );
-}
-
-// ============================================================
-// Animation control
-// ============================================================
-
-void LedMatrixManager::setAnimation(
-    Animation animation
-)
-{
-    _animation = animation;
-
-    _animationStep = 0;
-
-    _lastAnimationUpdate = millis();
-
-    _matrix.clear();
-
-    if (_isOn)
-        _matrix.show();
-}
-
-void LedMatrixManager::stopAnimation()
-{
-    _animation = Animation::None;
-
-    _animationStep = 0;
-
-    _matrix.clear();
-
-    if (_isOn)
-        _matrix.show();
-}
-
-LedMatrixManager::Animation
-LedMatrixManager::animation() const
-{
-    return _animation;
-}
-
-// ============================================================
-// Rainbow
-// ============================================================
-
-void LedMatrixManager::updateRainbow()
-{
-    for (uint8_t y = 0;
-         y < LedMatrix::HEIGHT;
-         y++)
-    {
-        for (uint8_t x = 0;
-             x < LedMatrix::WIDTH;
-             x++)
-        {
-            uint8_t position =
-                (_animationStep * 3)
-                + (x * 8)
-                + (y * 8);
-
-            uint32_t color =
-                wheel(position);
-
-            _matrix.setPixel(
-                x,
-                y,
-                color
-            );
-        }
-    }
-}
-
-// ============================================================
-// Pulse
-// ============================================================
-
-void LedMatrixManager::updatePulse()
-{
-    uint8_t level =
-        sin8(
-            _animationStep * 2
-        );
-
-    // Ограничиваем рабочую яркость
-    level =
-        map(
-            level,
-            0,
-            255,
-            5,
-            120
-        );
-
-    _matrix.fill(
-        level,
-        level / 4,
-        level
-    );
-}
-
-// ============================================================
-// Wave
-// ============================================================
-
-void LedMatrixManager::updateWave()
-{
-    _matrix.clear();
-
-    for (uint8_t x = 0;
-         x < LedMatrix::WIDTH;
-         x++)
-    {
-        uint8_t wave =
-            sin8(
-                _animationStep * 4
-                + x * 16
-            );
-
-        uint8_t height =
-            map(
-                wave,
-                0,
-                255,
-                1,
-                LedMatrix::HEIGHT
-            );
-
-        for (uint8_t y = 0;
-             y < height;
-             y++)
-        {
-            uint8_t brightness =
-                map(
-                    y,
-                    0,
-                    height,
-                    10,
-                    100
-                );
-
-            _matrix.setPixel(
-                x,
-                LedMatrix::HEIGHT - 1 - y,
-                0,
-                brightness,
-                brightness
-            );
-        }
-    }
-}
-
-// ============================================================
-// Scanner
-// ============================================================
-
-void LedMatrixManager::updateScanner()
-{
-    _matrix.clear();
-
-    const uint16_t period =
-        (LedMatrix::WIDTH - 1) * 2;
-
-    uint16_t position =
-        _animationStep % period;
-
-    uint8_t x;
-
-    if (position <
-        LedMatrix::WIDTH)
-    {
-        x = position;
-    }
-    else
-    {
-        x =
-            period - position;
-    }
-
-    for (uint8_t y = 0;
-         y < LedMatrix::HEIGHT;
-         y++)
-    {
-        uint8_t brightness =
-            map(
-                y,
-                0,
-                LedMatrix::HEIGHT - 1,
-                20,
-                100
-            );
-
-        _matrix.setPixel(
-            x,
-            y,
-            brightness,
-            0,
-            brightness
-        );
-    }
-}
-
-// ============================================================
-// Fire
-// ============================================================
-
-void LedMatrixManager::updateFire()
-{
-    _matrix.clear();
-
-    for (uint8_t x = 0;
-         x < LedMatrix::WIDTH;
-         x++)
-    {
-        uint8_t heat =
-            random(
-                80,
-                180
-            );
-
-        for (uint8_t y = 0;
-             y < LedMatrix::HEIGHT;
-             y++)
-        {
-            uint8_t reduction =
-                random(
-                    0,
-                    50
-                );
-
-            uint8_t value;
-
-            if (heat > reduction)
-                value = heat - reduction;
-            else
-                value = 0;
-
-            uint8_t red =
-                value;
-
-            uint8_t green =
-                value / 3;
-
-            uint8_t blue = 0;
-
-            _matrix.setPixel(
-                x,
-                LedMatrix::HEIGHT - 1 - y,
-                red,
-                green,
-                blue
-            );
-
-            if (heat > 5)
-                heat -= 5;
-            else
-                heat = 0;
-        }
-    }
-}
-
-// ============================================================
-// Color wheel
-// ============================================================
-
-uint32_t LedMatrixManager::wheel(
-    uint8_t position
-)
-{
-    position =
-        255 - position;
-
-    if (position < 85)
-    {
-        return _matrix.color(
-            255 - position * 3,
-            0,
-            position * 3
-        );
-    }
-
-    if (position < 170)
-    {
-        position -= 85;
-
-        return _matrix.color(
-            0,
-            position * 3,
-            255 - position * 3
-        );
-    }
-
-    position -= 170;
-
-    return _matrix.color(
-        position * 3,
-        255 - position * 3,
-        0
-    );
-}
-
-// ============================================================
-// 8-bit sine
-// ============================================================
-
-uint8_t LedMatrixManager::sin8(
-    uint8_t value
-)
-{
-    float radians =
-        value *
-        2.0f *
-        PI /
-        255.0f;
-
-    float result =
-        (sinf(radians) + 1.0f)
-        * 127.5f;
-
-    return static_cast<uint8_t>(
-        result
-    );
 }

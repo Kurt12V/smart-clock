@@ -2,18 +2,15 @@
 
 #include <math.h>
 
-
 // ============================================================
-// Static
+// STATIC
 // ============================================================
 
 uint8_t CobLed::_gammaTable[256];
-
 bool CobLed::_gammaReady = false;
 
-
 // ============================================================
-// Constructor
+// CONSTRUCTOR
 // ============================================================
 
 CobLed::CobLed(
@@ -25,13 +22,26 @@ CobLed::CobLed(
     : _pin(pin),
       _channel(channel),
       _frequency(frequency),
-      _resolution(resolution)
+      _resolution(resolution),
+
+      _initialized(false),
+
+      _brightness(0),
+      _isOn(false),
+
+      _outputBrightness(0),
+
+      _fading(false),
+
+      _fadeStart(0),
+      _fadeTarget(0),
+      _fadeStartTime(0),
+      _fadeDuration(0)
 {
 }
 
-
 // ============================================================
-// Gamma
+// GAMMA
 // ============================================================
 
 void CobLed::buildGamma()
@@ -39,29 +49,23 @@ void CobLed::buildGamma()
     if (_gammaReady)
         return;
 
-    for (int i = 0; i < 256; i++)
+    for (uint16_t i = 0; i < 256; ++i)
     {
         float x =
-            i / 255.0f;
+            (float)i / 255.0f;
 
         float value =
-            powf(
-                x,
-                2.2f
-            ) * 255.0f;
+            powf(x, 2.2f) * 255.0f;
 
         _gammaTable[i] =
-            (uint8_t)(
-                value + 0.5f
-            );
+            (uint8_t)(value + 0.5f);
     }
 
     _gammaReady = true;
 }
 
-
 // ============================================================
-// Begin
+// BEGIN
 // ============================================================
 
 bool CobLed::begin()
@@ -97,9 +101,9 @@ bool CobLed::begin()
     _initialized = true;
 
     _brightness = 0;
+    _outputBrightness = 0;
 
     _isOn = false;
-
     _fading = false;
 
     ledcWrite(
@@ -116,9 +120,8 @@ bool CobLed::begin()
     return true;
 }
 
-
 // ============================================================
-// Gamma
+// GAMMA
 // ============================================================
 
 uint8_t CobLed::gamma(
@@ -128,9 +131,8 @@ uint8_t CobLed::gamma(
     return _gammaTable[value];
 }
 
-
 // ============================================================
-// Apply
+// APPLY NORMAL OUTPUT
 // ============================================================
 
 void CobLed::apply()
@@ -143,10 +145,13 @@ void CobLed::apply()
     if (_isOn)
     {
         pwm =
-            gamma(
-                _brightness
-            );
+            gamma(_brightness);
     }
+
+    _outputBrightness =
+        _isOn
+            ? _brightness
+            : 0;
 
     ledcWrite(
         _channel,
@@ -154,9 +159,8 @@ void CobLed::apply()
     );
 }
 
-
 // ============================================================
-// Set brightness
+// SET BRIGHTNESS
 // ============================================================
 
 void CobLed::setBrightness(
@@ -168,17 +172,14 @@ void CobLed::setBrightness(
     _brightness =
         brightness;
 
-    if (_brightness == 0)
-        _isOn = false;
-    else
-        _isOn = true;
+    _isOn =
+        (_brightness > 0);
 
     apply();
 }
 
-
 // ============================================================
-// Get brightness
+// GET BRIGHTNESS
 // ============================================================
 
 uint8_t CobLed::getBrightness() const
@@ -186,6 +187,54 @@ uint8_t CobLed::getBrightness() const
     return _brightness;
 }
 
+// ============================================================
+// DIRECT EFFECT OUTPUT
+//
+// IMPORTANT:
+//
+// Does not modify _brightness.
+//
+// This allows:
+//
+// user brightness = 200
+//
+// effect output:
+// 200 → 100 → 200
+//
+// Base brightness remains 200.
+// ============================================================
+
+void CobLed::output(
+    uint8_t brightness
+)
+{
+    if (!_initialized)
+        return;
+
+    brightness =
+        constrain(
+            brightness,
+            0,
+            255
+        );
+
+    _outputBrightness =
+        brightness;
+
+    ledcWrite(
+        _channel,
+        gamma(brightness)
+    );
+}
+
+// ============================================================
+// GET OUTPUT BRIGHTNESS
+// ============================================================
+
+uint8_t CobLed::getOutputBrightness() const
+{
+    return _outputBrightness;
+}
 
 // ============================================================
 // ON
@@ -200,7 +249,6 @@ void CobLed::on()
     apply();
 }
 
-
 // ============================================================
 // OFF
 // ============================================================
@@ -211,12 +259,19 @@ void CobLed::off()
 
     _isOn = false;
 
-    apply();
+    if (!_initialized)
+        return;
+
+    _outputBrightness = 0;
+
+    ledcWrite(
+        _channel,
+        0
+    );
 }
 
-
 // ============================================================
-// Toggle
+// TOGGLE
 // ============================================================
 
 void CobLed::toggle()
@@ -227,9 +282,8 @@ void CobLed::toggle()
         on();
 }
 
-
 // ============================================================
-// Is ON
+// IS ON
 // ============================================================
 
 bool CobLed::isOn() const
@@ -237,9 +291,8 @@ bool CobLed::isOn() const
     return _isOn;
 }
 
-
 // ============================================================
-// Increase
+// INCREASE
 // ============================================================
 
 void CobLed::increase(
@@ -258,9 +311,8 @@ void CobLed::increase(
     );
 }
 
-
 // ============================================================
-// Decrease
+// DECREASE
 // ============================================================
 
 void CobLed::decrease(
@@ -279,9 +331,8 @@ void CobLed::decrease(
     );
 }
 
-
 // ============================================================
-// Fade
+// FADE TO
 // ============================================================
 
 void CobLed::fadeTo(
@@ -319,9 +370,8 @@ void CobLed::fadeTo(
         _isOn = true;
 }
 
-
 // ============================================================
-// Update fade
+// UPDATE
 // ============================================================
 
 void CobLed::update()
@@ -340,10 +390,8 @@ void CobLed::update()
 
         _fading = false;
 
-        if (_brightness == 0)
-            _isOn = false;
-        else
-            _isOn = true;
+        _isOn =
+            (_brightness > 0);
 
         apply();
 
@@ -359,23 +407,27 @@ void CobLed::update()
         (
             (int)_fadeTarget -
             (int)_fadeStart
-        ) * progress;
+        ) *
+        progress;
 
-    if (value < 0)
-        value = 0;
-
-    if (value > 255)
-        value = 255;
+    value =
+        constrain(
+            value,
+            0,
+            255
+        );
 
     _brightness =
         (uint8_t)value;
 
+    _isOn =
+        (_brightness > 0);
+
     apply();
 }
 
-
 // ============================================================
-// Is fading
+// IS FADING
 // ============================================================
 
 bool CobLed::isFading() const

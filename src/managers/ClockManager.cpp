@@ -55,9 +55,8 @@ time_t ClockManager::calculateLocalTime(
     time_t utc
 ) const
 {
-    int8_t offset = static_cast<int8_t>(
-        _settings.get(Param::UTC_OFFSET)
-    );
+    const int8_t offset =
+        _settings.getUtcOffset();
 
     return utc +
         (

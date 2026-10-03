@@ -39,6 +39,11 @@ namespace Config
     constexpr const char* DEVICE_NAME = "SmartClock";
     constexpr const char* DEVICE_DESCRIPTION = "ESP32-S3 Smart Clock";
     constexpr bool DEBUG = true;
+
+
+
+    constexpr const char* WIFI_SSID = "tpl45";
+    constexpr const char* WIFI_PASSWORD = "12713714";
 }
 
 
@@ -150,8 +155,19 @@ namespace Config
 {
     constexpr uint8_t  MATRIX_WIDTH  = 16;
     constexpr uint8_t  MATRIX_HEIGHT = 16;
-    constexpr uint16_t MATRIX_LED_COUNT = MATRIX_WIDTH * MATRIX_HEIGHT; // 256
+    constexpr uint16_t MATRIX_LED_COUNT = MATRIX_WIDTH * MATRIX_HEIGHT;
+
     constexpr uint8_t  MATRIX_MAX_BRIGHTNESS = 255;
+
+    // Пользовательские настройки
+    constexpr uint8_t MATRIX_EFFECT_MIN     = 0;
+    constexpr uint8_t MATRIX_EFFECT_MAX     = 10;
+    constexpr uint8_t MATRIX_EFFECT_DEFAULT = 0;
+
+    constexpr uint8_t MATRIX_SPEED_MIN      = 0;
+    constexpr uint8_t MATRIX_SPEED_MAX      = 100;
+    constexpr uint8_t MATRIX_SPEED_DEFAULT  = 50;
+
     constexpr uint32_t LED_UPDATE_INTERVAL_MS = 30;
 }
 
@@ -162,9 +178,18 @@ namespace Config
 
 namespace Config
 {
-    constexpr uint8_t  COB_PWM_RESOLUTION = 8;   // бит, диапазон 0-255
-    constexpr uint32_t COB_PWM_FREQUENCY = 5000; // Гц
+    constexpr uint8_t  COB_PWM_RESOLUTION = 8;
+    constexpr uint32_t COB_PWM_FREQUENCY = 5000;
     constexpr uint8_t  COB_COUNT = 4;
+
+    // Пользовательские настройки
+    constexpr uint8_t COB_EFFECT_MIN     = 0;
+    constexpr uint8_t COB_EFFECT_MAX     = 10;
+    constexpr uint8_t COB_EFFECT_DEFAULT = 0;
+
+    constexpr uint8_t COB_SPEED_MIN      = 0;
+    constexpr uint8_t COB_SPEED_MAX      = 100;
+    constexpr uint8_t COB_SPEED_DEFAULT  = 50;
 }
 
 

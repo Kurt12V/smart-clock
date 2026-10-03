@@ -41,6 +41,7 @@ SoundManager::SoundManager(
     memset(&_wav, 0, sizeof(_wav));
 }
 
+
 // ============================================================
 // BEGIN / END
 // ============================================================
@@ -66,17 +67,17 @@ bool SoundManager::begin()
 
     Serial0.print("[SOUND] vol_media  = ");
     Serial0.println(
-        _settings.get(Param::VOLUME_MEDIA)
+        _settings.getMediaVolume()
     );
 
     Serial0.print("[SOUND] vol_alarm  = ");
     Serial0.println(
-        _settings.get(Param::VOLUME_ALARM)
+        _settings.getAlarmVolume()
     );
 
     Serial0.print("[SOUND] vol_system = ");
     Serial0.println(
-        _settings.get(Param::VOLUME_SYSTEM)
+        _settings.getSystemVolume()
     );
 
     Serial0.println("[SOUND] Ready");
@@ -84,12 +85,14 @@ bool SoundManager::begin()
     return true;
 }
 
+
 void SoundManager::end()
 {
     stop();
 
     _initialized = false;
 }
+
 
 // ============================================================
 // UPDATE
@@ -129,6 +132,7 @@ void SoundManager::update()
     readAndPlayChunk();
 }
 
+
 // ============================================================
 // PLAY
 // ============================================================
@@ -139,6 +143,7 @@ bool SoundManager::play(const char* path)
 
     return play(path, opts);
 }
+
 
 // ============================================================
 // PLAY WITH OPTIONS
@@ -181,7 +186,6 @@ bool SoundManager::play(
     // --------------------------------------------------------
 
     _currentPath   = path;
-
     _currentStream = opts.stream;
 
     _localPercent =
@@ -283,6 +287,7 @@ bool SoundManager::play(
     return true;
 }
 
+
 // ============================================================
 // STOP
 // ============================================================
@@ -300,7 +305,6 @@ void SoundManager::stop()
     }
 
     _i2sManager.stopSpeaker();
-
     _i2sManager.clearSpeaker();
 
     if (_file)
@@ -322,6 +326,7 @@ void SoundManager::stop()
         "[SOUND] stopped"
     );
 }
+
 
 // ============================================================
 // STOP WITH FADE
@@ -358,6 +363,7 @@ void SoundManager::stop(
     );
 }
 
+
 // ============================================================
 // PAUSE
 // ============================================================
@@ -376,6 +382,7 @@ bool SoundManager::pause()
     return true;
 }
 
+
 // ============================================================
 // RESUME
 // ============================================================
@@ -393,6 +400,7 @@ bool SoundManager::resume()
 
     return true;
 }
+
 
 // ============================================================
 // OPEN WAV
@@ -422,6 +430,7 @@ bool SoundManager::openWav(
 
     return true;
 }
+
 
 // ============================================================
 // PARSE WAV
@@ -459,11 +468,8 @@ bool SoundManager::parseWav(
         return false;
     }
 
-    bool foundFmt =
-        false;
-
-    bool foundData =
-        false;
+    bool foundFmt  = false;
+    bool foundData = false;
 
     while (file.available())
     {
@@ -545,43 +551,33 @@ bool SoundManager::parseWav(
                 (fmt[3] << 8);
 
             _wav.sampleRate =
-                static_cast<uint32_t>(
-                    fmt[4]
+                static_cast<uint32_t>(fmt[4]) |
+                (
+                    static_cast<uint32_t>(fmt[5])
+                    << 8
                 ) |
                 (
-                    static_cast<uint32_t>(
-                        fmt[5]
-                    ) << 8
+                    static_cast<uint32_t>(fmt[6])
+                    << 16
                 ) |
                 (
-                    static_cast<uint32_t>(
-                        fmt[6]
-                    ) << 16
-                ) |
-                (
-                    static_cast<uint32_t>(
-                        fmt[7]
-                    ) << 24
+                    static_cast<uint32_t>(fmt[7])
+                    << 24
                 );
 
             _wav.byteRate =
-                static_cast<uint32_t>(
-                    fmt[8]
+                static_cast<uint32_t>(fmt[8]) |
+                (
+                    static_cast<uint32_t>(fmt[9])
+                    << 8
                 ) |
                 (
-                    static_cast<uint32_t>(
-                        fmt[9]
-                    ) << 8
+                    static_cast<uint32_t>(fmt[10])
+                    << 16
                 ) |
                 (
-                    static_cast<uint32_t>(
-                        fmt[10]
-                    ) << 16
-                ) |
-                (
-                    static_cast<uint32_t>(
-                        fmt[11]
-                    ) << 24
+                    static_cast<uint32_t>(fmt[11])
+                    << 24
                 );
 
             _wav.blockAlign =
@@ -633,7 +629,6 @@ bool SoundManager::parseWav(
                 chunkDataOffset +
                 chunkSize;
 
-            // WAV chunks are word aligned
             if (chunkSize & 1)
                 next++;
 
@@ -663,17 +658,16 @@ bool SoundManager::parseWav(
     return true;
 }
 
+
 // ============================================================
 // VALIDATE WAV
 // ============================================================
 
 bool SoundManager::validateWav() const
 {
-    // PCM
     if (_wav.audioFormat != 1)
         return false;
 
-    // Mono or stereo
     if (_wav.channels != 1 &&
         _wav.channels != 2)
     {
@@ -683,7 +677,6 @@ bool SoundManager::validateWav() const
     if (_wav.sampleRate == 0)
         return false;
 
-    // Only 16-bit WAV
     if (_wav.bitsPerSample != 16)
         return false;
 
@@ -696,6 +689,7 @@ bool SoundManager::validateWav() const
     return true;
 }
 
+
 // ============================================================
 // READ + PLAY CHUNK
 // ============================================================
@@ -704,10 +698,6 @@ bool SoundManager::readAndPlayChunk()
 {
     if (!_file)
         return false;
-
-    // --------------------------------------------------------
-    // Проверяем конец файла
-    // --------------------------------------------------------
 
     if (_positionBytes >= _wav.dataSize)
     {
@@ -721,9 +711,7 @@ bool SoundManager::readAndPlayChunk()
 
     size_t bytesToRead =
         min(
-            static_cast<size_t>(
-                remaining
-            ),
+            static_cast<size_t>(remaining),
             BUFFER_BYTES
         );
 
@@ -744,8 +732,7 @@ bool SoundManager::readAndPlayChunk()
             bytesRead
         );
 
-    size_t outputSamples =
-        0;
+    size_t outputSamples = 0;
 
     // --------------------------------------------------------
     // MONO
@@ -832,8 +819,7 @@ bool SoundManager::readAndPlayChunk()
         outputSamples *
         sizeof(int16_t);
 
-    size_t written =
-        0;
+    size_t written = 0;
 
     if (!_i2sManager.writeSpeaker(
             reinterpret_cast<
@@ -853,6 +839,7 @@ bool SoundManager::readAndPlayChunk()
 
     return true;
 }
+
 
 // ============================================================
 // FINISH PLAYBACK
@@ -879,6 +866,7 @@ void SoundManager::finishPlayback()
     _stopFadeActive =
         false;
 }
+
 
 // ============================================================
 // APPLY VOLUME
@@ -935,6 +923,7 @@ void SoundManager::applyVolume(
     }
 }
 
+
 // ============================================================
 // STREAM VOLUME
 // ============================================================
@@ -946,31 +935,17 @@ uint8_t SoundManager::streamVolume(
     switch (s)
     {
         case AudioStream::Alarm:
-
-            return static_cast<uint8_t>(
-                _settings.get(
-                    Param::VOLUME_ALARM
-                )
-            );
+            return _settings.getAlarmVolume();
 
         case AudioStream::System:
-
-            return static_cast<uint8_t>(
-                _settings.get(
-                    Param::VOLUME_SYSTEM
-                )
-            );
+            return _settings.getSystemVolume();
 
         case AudioStream::Media:
         default:
-
-            return static_cast<uint8_t>(
-                _settings.get(
-                    Param::VOLUME_MEDIA
-                )
-            );
+            return _settings.getMediaVolume();
     }
 }
+
 
 // ============================================================
 // SET STREAM VOLUME
@@ -988,57 +963,29 @@ void SoundManager::setStreamVolume(
             100
         );
 
-    Param p =
-        Param::VOLUME_MEDIA;
-
     switch (s)
     {
         case AudioStream::Alarm:
 
-            p =
-                Param::VOLUME_ALARM;
+            _settings.setAlarmVolume(v);
 
             break;
 
         case AudioStream::System:
 
-            p =
-                Param::VOLUME_SYSTEM;
+            _settings.setSystemVolume(v);
 
             break;
 
         case AudioStream::Media:
         default:
 
-            p =
-                Param::VOLUME_MEDIA;
+            _settings.setMediaVolume(v);
 
             break;
     }
-
-    // ========================================================
-    // ВАЖНО
-    // ========================================================
-    //
-    // Здесь НЕТ:
-    //
-    //     _settings.save(p);
-    //
-    // Значение изменяется только в RAM.
-    //
-    // SettingsManager сам сохранит его после
-    // SAVE_DELAY_MS (700 мс) без новых изменений.
-    //
-    // Это предотвращает медленные записи Preferences
-    // при движении ползунка громкости.
-    //
-    // ========================================================
-
-    _settings.set(
-        p,
-        v
-    );
 }
+
 
 // ============================================================
 // LOCAL PERCENT
@@ -1049,13 +996,14 @@ uint8_t SoundManager::getLocalPercent() const
     return _localPercent;
 }
 
+
 // ============================================================
 // BASE VOLUME
 // ============================================================
 
 uint8_t SoundManager::calculateBaseVolume() const
 {
-    uint8_t streamVol =
+    const uint8_t streamVol =
         streamVolume(
             _currentStream
         );
@@ -1071,6 +1019,7 @@ uint8_t SoundManager::calculateBaseVolume() const
         ) / 100
     );
 }
+
 
 // ============================================================
 // EFFECTIVE VOLUME
@@ -1098,6 +1047,7 @@ uint8_t SoundManager::getEffectiveVolume() const
         result
     );
 }
+
 
 // ============================================================
 // FADE MULTIPLIER
@@ -1128,12 +1078,8 @@ float SoundManager::calculateFadeMultiplier() const
         float value =
             1.0f -
             (
-                static_cast<float>(
-                    elapsed
-                ) /
-                static_cast<float>(
-                    _stopFadeDurationMs
-                )
+                static_cast<float>(elapsed) /
+                static_cast<float>(_stopFadeDurationMs)
             );
 
         value =
@@ -1162,12 +1108,8 @@ float SoundManager::calculateFadeMultiplier() const
         if (elapsed < _fadeInMs)
         {
             float value =
-                static_cast<float>(
-                    elapsed
-                ) /
-                static_cast<float>(
-                    _fadeInMs
-                );
+                static_cast<float>(elapsed) /
+                static_cast<float>(_fadeInMs);
 
             return applyFadeCurve(
                 value
@@ -1200,12 +1142,8 @@ float SoundManager::calculateFadeMultiplier() const
             float value =
                 1.0f -
                 (
-                    static_cast<float>(
-                        elapsed
-                    ) /
-                    static_cast<float>(
-                        _fadeOutMs
-                    )
+                    static_cast<float>(elapsed) /
+                    static_cast<float>(_fadeOutMs)
                 );
 
             value =
@@ -1223,6 +1161,7 @@ float SoundManager::calculateFadeMultiplier() const
 
     return 1.0f;
 }
+
 
 // ============================================================
 // FADE CURVE
@@ -1255,6 +1194,7 @@ float SoundManager::applyFadeCurve(
     }
 }
 
+
 // ============================================================
 // POSITION
 // ============================================================
@@ -1274,6 +1214,7 @@ uint32_t SoundManager::getPositionMs() const
     );
 }
 
+
 // ============================================================
 // DURATION
 // ============================================================
@@ -1282,6 +1223,7 @@ uint32_t SoundManager::getDurationMs() const
 {
     return _durationMs;
 }
+
 
 // ============================================================
 // STATUS
@@ -1292,17 +1234,20 @@ bool SoundManager::isInitialized() const
     return _initialized;
 }
 
+
 bool SoundManager::isPlaying() const
 {
     return _state ==
            State::PLAYING;
 }
 
+
 bool SoundManager::isPaused() const
 {
     return _state ==
            State::PAUSED;
 }
+
 
 bool SoundManager::isActive() const
 {
@@ -1311,11 +1256,13 @@ bool SoundManager::isActive() const
            _state == State::FADING_OUT;
 }
 
+
 SoundManager::State
 SoundManager::getState() const
 {
     return _state;
 }
+
 
 // ============================================================
 // STATE STRING
@@ -1339,6 +1286,7 @@ const char* SoundManager::getStateString() const
     }
 }
 
+
 // ============================================================
 // CURRENT PATH
 // ============================================================
@@ -1347,6 +1295,7 @@ const char* SoundManager::getCurrentPath() const
 {
     return _currentPath.c_str();
 }
+
 
 // ============================================================
 // CURRENT STREAM
@@ -1357,6 +1306,7 @@ SoundManager::getCurrentStream() const
 {
     return _currentStream;
 }
+
 
 // ============================================================
 // DEBUG STATUS

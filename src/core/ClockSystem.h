@@ -14,7 +14,10 @@
 class ClockSystem
 {
 public:
-    explicit ClockSystem(SettingsManager& settings);
+
+    explicit ClockSystem(
+        SettingsManager& settings
+    );
 
     // ========================================================
     // SYSTEM
@@ -137,6 +140,7 @@ public:
     bool isTimeValid() const;
 
 private:
+
     time_t localToUTC(
         time_t local
     ) const;
@@ -148,6 +152,7 @@ private:
     void updateManager();
 
 private:
+
     RTC _rtc;
 
     ClockManager _clockManager;

@@ -44,11 +44,9 @@ bool ClockSystem::syncFromNTP(
 )
 {
     if (WiFi.status() != WL_CONNECTED)
-    {
         return false;
-    }
 
-    // Получаем именно UTC
+    // Получаем именно UTC.
     configTime(
         0,
         0,
@@ -63,9 +61,8 @@ bool ClockSystem::syncFromNTP(
         ++attempt
     )
     {
-        // Важно:
         // ::getLocalTime — функция Arduino,
-        // а не ClockSystem::getLocalTime()
+        // а не ClockSystem::getLocalTime().
         if (::getLocalTime(
                 &timeInfo,
                 1000
@@ -123,9 +120,7 @@ bool ClockSystem::setLocalDateTime(
     );
 
     const time_t utc =
-        localToUTC(
-            local.unixtime()
-        );
+        localToUTC(local.unixtime());
 
     _rtc.setDateTime(utc);
 
@@ -171,11 +166,9 @@ bool ClockSystem::setLocalTime(
     uint8_t second
 )
 {
-    // Берём именно локальное время
+    // Берём именно локальное время,
     // чтобы корректно работать около полуночи.
-    DateTime currentLocal(
-        getLocalTime()
-    );
+    const DateTime currentLocal = getLocalTime();
 
     DateTime local(
         currentLocal.year(),
@@ -187,9 +180,7 @@ bool ClockSystem::setLocalTime(
     );
 
     const time_t utc =
-        localToUTC(
-            local.unixtime()
-        );
+        localToUTC(local.unixtime());
 
     _rtc.setDateTime(utc);
 
@@ -235,9 +226,8 @@ bool ClockSystem::setLocalDate(
     uint8_t day
 )
 {
-    DateTime currentLocal(
-        getLocalTime()
-    );
+    const DateTime currentLocal =
+        getLocalTime();
 
     DateTime local(
         year,
@@ -249,9 +239,7 @@ bool ClockSystem::setLocalDate(
     );
 
     const time_t utc =
-        localToUTC(
-            local.unixtime()
-        );
+        localToUTC(local.unixtime());
 
     _rtc.setDateTime(utc);
 
@@ -399,16 +387,24 @@ time_t ClockSystem::localToUTC(
     time_t local
 ) const
 {
-    const int16_t offsetHours =
-        static_cast<int8_t>(
-            _settings.get(Param::UTC_OFFSET)
-        );
+    // SettingsManager хранит смещение числом:
+    //
+    // UTC+3 ->  3
+    // UTC+1 ->  1
+    // UTC+0 ->  0
+    // UTC-5 -> -5
+    //
+    // Поэтому:
+    //
+    // UTC = LOCAL - OFFSET
+
+    const int8_t offsetHours =
+        _settings.getUtcOffset();
 
     return local -
         (
-            static_cast<time_t>(
-                offsetHours
-            ) * 3600
+            static_cast<time_t>(offsetHours) *
+            3600
         );
 }
 
@@ -420,16 +416,15 @@ time_t ClockSystem::utcToLocal(
     time_t utc
 ) const
 {
-    const int16_t offsetHours =
-        static_cast<int8_t>(
-            _settings.get(Param::UTC_OFFSET)
-        );
+    // LOCAL = UTC + OFFSET
+
+    const int8_t offsetHours =
+        _settings.getUtcOffset();
 
     return utc +
         (
-            static_cast<time_t>(
-                offsetHours
-            ) * 3600
+            static_cast<time_t>(offsetHours) *
+            3600
         );
 }
 

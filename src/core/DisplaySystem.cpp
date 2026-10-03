@@ -10,20 +10,15 @@ DisplaySystem::DisplaySystem(
     SensorManager& sensors
 )
     : _settings(settings),
-
       _clock(clock),
       _sensors(sensors),
-
       _spi(),
-
       _lvgl(_spi),
-
       _screens(
           clock,
           sensors,
           _lvgl
       ),
-
       _initialized(false),
       _appliedBrightness(255)
 {
@@ -51,7 +46,10 @@ bool DisplaySystem::begin()
 
     if (!_spi.begin())
     {
-        Serial0.println("[DISPLAY] SPI initialization FAILED");
+        Serial0.println(
+            "[DISPLAY] SPI initialization FAILED"
+        );
+
         return false;
     }
 
@@ -61,11 +59,16 @@ bool DisplaySystem::begin()
     // LVGL + TFT
     // ========================================================
 
-    Serial0.println("[DISPLAY] Initializing LVGL + TFT...");
+    Serial0.println(
+        "[DISPLAY] Initializing LVGL + TFT..."
+    );
 
     if (!_lvgl.begin())
     {
-        Serial0.println("[DISPLAY] LVGL initialization FAILED");
+        Serial0.println(
+            "[DISPLAY] LVGL initialization FAILED"
+        );
+
         return false;
     }
 
@@ -75,35 +78,50 @@ bool DisplaySystem::begin()
     // CLEAR DISPLAYS
     // ========================================================
 
-    Serial0.println("[DISPLAY] Clearing physical displays...");
+    Serial0.println(
+        "[DISPLAY] Clearing physical displays..."
+    );
 
     _lvgl.clearDisplays();
 
-    Serial0.println("[DISPLAY] Displays cleared");
+    Serial0.println(
+        "[DISPLAY] Displays cleared"
+    );
 
     // ========================================================
     // SCREENS
     // ========================================================
 
-    Serial0.println("[DISPLAY] Initializing ScreenManager...");
+    Serial0.println(
+        "[DISPLAY] Initializing ScreenManager..."
+    );
 
     if (!_screens.begin())
     {
-        Serial0.println("[DISPLAY] ScreenManager initialization FAILED");
+        Serial0.println(
+            "[DISPLAY] ScreenManager initialization FAILED"
+        );
+
         return false;
     }
 
-    Serial0.println("[DISPLAY] ScreenManager OK");
+    Serial0.println(
+        "[DISPLAY] ScreenManager OK"
+    );
 
     // ========================================================
     // FIRST FRAME
     // ========================================================
 
-    Serial0.println("[DISPLAY] Rendering first frame...");
+    Serial0.println(
+        "[DISPLAY] Rendering first frame..."
+    );
 
     _lvgl.refresh();
 
-    Serial0.println("[DISPLAY] First frame rendered");
+    Serial0.println(
+        "[DISPLAY] First frame rendered"
+    );
 
     // ========================================================
     // READY
@@ -118,9 +136,15 @@ bool DisplaySystem::begin()
     pollBrightness();
 
     Serial0.println();
-    Serial0.println("============================================");
-    Serial0.println("[DISPLAY] DisplaySystem READY");
-    Serial0.println("============================================");
+    Serial0.println(
+        "============================================"
+    );
+    Serial0.println(
+        "[DISPLAY] DisplaySystem READY"
+    );
+    Serial0.println(
+        "============================================"
+    );
     Serial0.println();
 
     return true;
@@ -136,13 +160,13 @@ void DisplaySystem::update()
         return;
 
     // --------------------------------------------------------
-    // Brightness (from SettingsManager, live)
+    // Brightness
     // --------------------------------------------------------
 
     pollBrightness();
 
     // --------------------------------------------------------
-    // Update screen data
+    // Screens
     // --------------------------------------------------------
 
     _screens.update();
@@ -160,33 +184,30 @@ void DisplaySystem::update()
 
 void DisplaySystem::pollBrightness()
 {
-    // --------------------------------------------------------
-    // Физически подсветка одна (PIN_TFT_BL),
-    // поэтому используется параметр disp1.
+    // Физически подсветка дисплеев
+    // управляется одним каналом.
     //
-    // Если в будущем появятся 4 отдельных BL-пина —
-    // расширить здесь для disp2..disp4.
-    // --------------------------------------------------------
+    // SettingsManager:
+    //
+    // displayBrightness = 0..100
 
-    uint8_t want =
-        static_cast<uint8_t>(
-            _settings.get(
-                Param::BRIGHTNESS
-            )
-        );
+    const uint8_t brightness =
+        _settings.getDisplayBrightness();
 
-    if (want == _appliedBrightness)
+    if (brightness == _appliedBrightness)
         return;
 
-    _appliedBrightness = want;
+    _appliedBrightness = brightness;
 
-    _lvgl.setBrightness(want);
+    _lvgl.setBrightness(
+        brightness
+    );
 
     Serial0.print(
         "[DISPLAY] Applied brightness: "
     );
 
-    Serial0.print(want);
+    Serial0.print(brightness);
     Serial0.println("%");
 }
 
