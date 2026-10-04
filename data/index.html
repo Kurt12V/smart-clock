@@ -653,7 +653,92 @@ input[type="text"]:focus {
 
     </div>
 
+    <div class="range-row">
+
+        <div class="range-label">
+            Effect
+        </div>
+
+        <select
+            id="mx_eff"
+            onchange="changeMatrixEffect(this.value)"
+        >
+
+            <option value="0">
+                None
+            </option>
+
+            <option value="1">
+                Rainbow
+            </option>
+
+            <option value="2">
+                Rainbow Wave
+            </option>
+
+            <option value="3">
+                Fire
+            </option>
+
+            <option value="4">
+                Fireplace
+            </option>
+
+            <option value="5">
+                Plasma
+            </option>
+
+            <option value="6">
+                Aurora
+            </option>
+
+            <option value="7">
+                Ocean
+            </option>
+
+            <option value="8">
+                Twinkle
+            </option>
+
+            <option value="9">
+                Meteor
+            </option>
+
+            <option value="10">
+                Matrix
+            </option>
+
+        </select>
+
+    </div>
+
+    <div class="range-row">
+
+        <div class="range-label">
+            Speed
+        </div>
+
+        <input
+            id="mx_spd"
+            type="range"
+            min="0"
+            max="100"
+            value="50"
+            oninput="changeMatrixSpeed(this.value)"
+        >
+
+        <div
+            id="mx_spd_value"
+            class="range-value"
+        >
+            50%
+        </div>
+
+    </div>
+
 </section>
+
+
 
 
 <!-- ============================================================
@@ -1276,6 +1361,27 @@ async function loadParams() {
             "mx_br_value"
         );
 
+        const matrixEffect =
+            document.getElementById(
+                "mx_eff"
+            );
+
+        if (
+            matrixEffect &&
+            p.mx_eff !== undefined
+        ) {
+
+            matrixEffect.value =
+                p.mx_eff;
+        }
+
+        setRange(
+            "mx_spd",
+            p.mx_spd,
+            "mx_spd_value"
+        );
+
+
 
         /* ----------------------------------------------------
            COB
@@ -1594,6 +1700,36 @@ function changeMatrixBrightness(
         () =>
             setParam(
                 "mx_br",
+                value
+            )
+    );
+}
+
+function changeMatrixEffect(
+    value
+) {
+
+    setParam(
+        "mx_eff",
+        value
+    );
+}
+
+
+function changeMatrixSpeed(
+    value
+) {
+
+    document.getElementById(
+        "mx_spd_value"
+    ).textContent =
+        value + "%";
+
+    debounce(
+        "mx_spd",
+        () =>
+            setParam(
+                "mx_spd",
                 value
             )
     );

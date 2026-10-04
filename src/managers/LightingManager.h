@@ -2,8 +2,8 @@
 
 #include "SettingsManager.h"
 
-#include "./hardware/light/CobLed.h"
 #include "CobLedManager.h"
+#include "LedMatrixManager.h"
 
 
 class LightingManager
@@ -15,7 +15,6 @@ public:
     );
 
     bool begin();
-
     void update();
 
 private:
@@ -26,6 +25,10 @@ private:
 
     SettingsManager& _settings;
 
+    // ========================================================
+    // COB
+    // ========================================================
+
     CobLed _cob1;
     CobLed _cob2;
     CobLed _cob3;
@@ -33,12 +36,26 @@ private:
 
     CobLedManager _cob;
 
+    uint8_t _cobBrightness;
+    uint8_t _cobEffect;
+    uint8_t _cobSpeed;
+    bool _cobEnabled;
+
+    // ========================================================
+    // MATRIX
+    // ========================================================
+
+    LedMatrixManager _matrix;
+
+    uint8_t _matrixBrightness;
+    uint8_t _matrixEffect;
+    uint8_t _matrixSpeed;
+    bool _matrixEnabled;
+
+    // ========================================================
+    // STATE
+    // ========================================================
+
     bool _initialized;
-
     bool _firstApply;
-
-    uint8_t _brightness;
-    uint8_t _effect;
-    uint8_t _speed;
-    bool _enabled;
 };

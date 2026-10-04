@@ -1,4 +1,3 @@
-
 #include "WebServerManager.h"
 
 #include <cstring>
@@ -23,10 +22,10 @@ WebServerManager::WebServerManager()
 
 bool WebServerManager::begin(
     SettingsManager& settings,
-    SDManager&       sd,
-    SoundManager&    sound,
-    const char*      ssid,
-    const char*      password
+    SDManager& sd,
+    SoundManager& sound,
+    const char* ssid,
+    const char* password
 )
 {
     _settings = &settings;
@@ -42,10 +41,7 @@ bool WebServerManager::begin(
 
     delay(300);
 
-    WiFi.begin(
-        ssid,
-        password
-    );
+    WiFi.begin(ssid, password);
 
     const uint32_t startTime = millis();
 
@@ -116,9 +112,9 @@ void WebServerManager::update()
 
 void WebServerManager::setupRoutes()
 {
-    // --------------------------------------------------------
+    // ========================================================
     // WEB UI
-    // --------------------------------------------------------
+    // ========================================================
 
     _server.on(
         "/",
@@ -129,9 +125,9 @@ void WebServerManager::setupRoutes()
         }
     );
 
-    // --------------------------------------------------------
+    // ========================================================
     // SETTINGS
-    // --------------------------------------------------------
+    // ========================================================
 
     _server.on(
         "/api/param",
@@ -169,9 +165,9 @@ void WebServerManager::setupRoutes()
         }
     );
 
-    // --------------------------------------------------------
+    // ========================================================
     // SENSORS
-    // --------------------------------------------------------
+    // ========================================================
 
     _server.on(
         "/api/sensors",
@@ -182,9 +178,9 @@ void WebServerManager::setupRoutes()
         }
     );
 
-    // --------------------------------------------------------
+    // ========================================================
     // SD
-    // --------------------------------------------------------
+    // ========================================================
 
     _server.on(
         "/api/sd",
@@ -195,9 +191,9 @@ void WebServerManager::setupRoutes()
         }
     );
 
-    // --------------------------------------------------------
+    // ========================================================
     // AUDIO
-    // --------------------------------------------------------
+    // ========================================================
 
     _server.on(
         "/api/audio/play",
@@ -244,9 +240,9 @@ void WebServerManager::setupRoutes()
         }
     );
 
-    // --------------------------------------------------------
+    // ========================================================
     // 404
-    // --------------------------------------------------------
+    // ========================================================
 
     _server.onNotFound(
         [this]()
@@ -292,7 +288,7 @@ void WebServerManager::handleRoot()
 
     _server.streamFile(
         file,
-        "text/html"
+        "text/html; charset=utf-8"
     );
 
     file.close();
@@ -318,14 +314,8 @@ void WebServerManager::handleNotFound()
 // ============================================================
 //
 // /api/param?name=brightness
+// /api/param?param=brightness
 //
-// Response:
-//
-// {
-//     "ok": true,
-//     "param": "brightness",
-//     "value": 80
-// }
 // ============================================================
 
 void WebServerManager::handleGetParam()
@@ -394,9 +384,18 @@ void WebServerManager::handleGetParam()
 // POST /api/param
 // ============================================================
 //
+// Frontend:
+//
 // {
-//     "name": "brightness",
-//     "value": 80
+//     "param": "mx_br",
+//     "value": 50
+// }
+//
+// Также поддерживается:
+//
+// {
+//     "name": "mx_br",
+//     "value": 50
 // }
 //
 // ============================================================
@@ -418,20 +417,28 @@ void WebServerManager::handleSetParam()
     if (!parseJson(doc))
         return;
 
-    const char* name = doc["name"];
+    // --------------------------------------------------------
+    // NAME
+    // --------------------------------------------------------
 
-    if (!name)
-        name = doc["param"];
+    const char* name = doc["param"];
 
-    if (!name)
+    if (!name || name[0] == '\0')
+        name = doc["name"];
+
+    if (!name || name[0] == '\0')
     {
         sendError(
             400,
-            "missing name"
+            "missing param"
         );
 
         return;
     }
+
+    // --------------------------------------------------------
+    // VALUE
+    // --------------------------------------------------------
 
     if (doc["value"].isNull())
     {
@@ -442,6 +449,13 @@ void WebServerManager::handleSetParam()
 
         return;
     }
+
+    const int requestedValue =
+        doc["value"].as<int>();
+
+    // --------------------------------------------------------
+    // PARAM
+    // --------------------------------------------------------
 
     const SettingsManager::Param param =
         _settings->paramFromName(name);
@@ -456,11 +470,34 @@ void WebServerManager::handleSetParam()
         return;
     }
 
+    // --------------------------------------------------------
+    // CURRENT VALUE
+    // --------------------------------------------------------
+
     const uint8_t oldValue =
         _settings->get(param);
 
-    const int requestedValue =
-        doc["value"].as<int>();
+    // --------------------------------------------------------
+    // VALUE LIMIT
+    // --------------------------------------------------------
+    //
+    // Большинство параметров:
+    //
+    // brightness
+    // mx_br
+    // mx_eff
+    // mx_spd
+    // cob_br
+    // cob_eff
+    // cob_spd
+    // volumes
+    //
+    // используют 0..255 на уровне SettingsManager.
+    //
+    // Реальные диапазоны дополнительно контролируются
+    // SettingsManager.
+    //
+    // --------------------------------------------------------
 
     const uint8_t value =
         static_cast<uint8_t>(
@@ -478,6 +515,10 @@ void WebServerManager::handleSetParam()
 
     const uint8_t actualValue =
         _settings->get(param);
+
+    // --------------------------------------------------------
+    // RESPONSE
+    // --------------------------------------------------------
 
     JsonDocument response;
 
@@ -582,10 +623,6 @@ void WebServerManager::handleReset()
 
 // ============================================================
 // GET /api/sensors
-// ============================================================
-//
-// Пока SensorsManager не передаётся в WebServerManager.
-// Оставляем совместимый endpoint.
 // ============================================================
 
 void WebServerManager::handleSensors()
@@ -707,10 +744,14 @@ void WebServerManager::handleAudioPlay()
     if (!parseJson(doc))
         return;
 
+    // --------------------------------------------------------
+    // PATH
+    // --------------------------------------------------------
+
     const char* path =
         doc["path"];
 
-    if (!path)
+    if (!path || path[0] == '\0')
     {
         sendError(
             400,
@@ -719,6 +760,10 @@ void WebServerManager::handleAudioPlay()
 
         return;
     }
+
+    // --------------------------------------------------------
+    // SD
+    // --------------------------------------------------------
 
     if (
         !_sd ||
@@ -742,6 +787,10 @@ void WebServerManager::handleAudioPlay()
 
         return;
     }
+
+    // --------------------------------------------------------
+    // OPTIONS
+    // --------------------------------------------------------
 
     SoundManager::PlayOptions options;
 
@@ -771,9 +820,28 @@ void WebServerManager::handleAudioPlay()
     // --------------------------------------------------------
     // VOLUME
     // --------------------------------------------------------
+    //
+    // Поддерживаем:
+    //
+    // localPercent
+    // volume
+    //
+    // Фронтенд использует localPercent.
+    //
+    // --------------------------------------------------------
 
-    int volume =
-        doc["volume"] | 100;
+    int volume = 100;
+
+    if (!doc["localPercent"].isNull())
+    {
+        volume =
+            doc["localPercent"].as<int>();
+    }
+    else if (!doc["volume"].isNull())
+    {
+        volume =
+            doc["volume"].as<int>();
+    }
 
     volume =
         constrain(
@@ -786,14 +854,34 @@ void WebServerManager::handleAudioPlay()
         static_cast<uint8_t>(volume);
 
     // --------------------------------------------------------
-    // FADE
+    // FADE IN
     // --------------------------------------------------------
 
-    options.fadeInMs =
-        doc["fade_in"] | 0;
+    if (!doc["fadeInMs"].isNull())
+    {
+        options.fadeInMs =
+            doc["fadeInMs"].as<uint32_t>();
+    }
+    else
+    {
+        options.fadeInMs =
+            doc["fade_in"] | 0;
+    }
 
-    options.fadeOutMs =
-        doc["fade_out"] | 0;
+    // --------------------------------------------------------
+    // FADE OUT
+    // --------------------------------------------------------
+
+    if (!doc["fadeOutMs"].isNull())
+    {
+        options.fadeOutMs =
+            doc["fadeOutMs"].as<uint32_t>();
+    }
+    else
+    {
+        options.fadeOutMs =
+            doc["fade_out"] | 0;
+    }
 
     // --------------------------------------------------------
     // CURVE
@@ -822,12 +910,7 @@ void WebServerManager::handleAudioPlay()
     // PLAY
     // --------------------------------------------------------
 
-    if (
-        !_sound->play(
-            path,
-            options
-        )
-    )
+    if (!_sound->play(path, options))
     {
         sendError(
             500,
@@ -847,7 +930,10 @@ void WebServerManager::handleAudioPlay()
 
 void WebServerManager::handleAudioPause()
 {
-    if (!_sound)
+    if (
+        !_sound ||
+        !_sound->isInitialized()
+    )
     {
         sendError(
             503,
@@ -887,7 +973,10 @@ void WebServerManager::handleAudioPause()
 
 void WebServerManager::handleAudioResume()
 {
-    if (!_sound)
+    if (
+        !_sound ||
+        !_sound->isInitialized()
+    )
     {
         sendError(
             503,
@@ -927,7 +1016,10 @@ void WebServerManager::handleAudioResume()
 
 void WebServerManager::handleAudioStop()
 {
-    if (!_sound)
+    if (
+        !_sound ||
+        !_sound->isInitialized()
+    )
     {
         sendError(
             503,
@@ -951,8 +1043,18 @@ void WebServerManager::handleAudioStop()
 
         if (!error)
         {
-            fadeOut =
-                doc["fade_out"] | 0;
+            // Новый frontend
+            if (!doc["fadeOutMs"].isNull())
+            {
+                fadeOut =
+                    doc["fadeOutMs"].as<uint32_t>();
+            }
+            // Старое имя
+            else
+            {
+                fadeOut =
+                    doc["fade_out"] | 0;
+            }
         }
     }
 
@@ -975,7 +1077,10 @@ void WebServerManager::handleAudioStop()
 
 void WebServerManager::handleAudioStatus()
 {
-    if (!_sound)
+    if (
+        !_sound ||
+        !_sound->isInitialized()
+    )
     {
         sendError(
             503,
@@ -987,25 +1092,66 @@ void WebServerManager::handleAudioStatus()
 
     JsonDocument doc;
 
+    // --------------------------------------------------------
+    // STATE
+    // --------------------------------------------------------
+
     doc["state"] =
         _sound->getStateString();
 
+    // --------------------------------------------------------
+    // PATH
+    // --------------------------------------------------------
+
     doc["path"] =
         _sound->getCurrentPath();
+
+    // --------------------------------------------------------
+    // STREAM
+    // --------------------------------------------------------
 
     doc["stream"] =
         static_cast<uint8_t>(
             _sound->getCurrentStream()
         );
 
-    doc["position"] =
+    // --------------------------------------------------------
+    // POSITION
+    // --------------------------------------------------------
+    //
+    // Frontend ожидает positionMs.
+    //
+    // Старое имя position оставляем
+    // для совместимости.
+    //
+    // --------------------------------------------------------
+
+    const uint32_t position =
         _sound->getPositionMs();
 
-    doc["duration"] =
+    doc["positionMs"] = position;
+    doc["position"]   = position;
+
+    // --------------------------------------------------------
+    // DURATION
+    // --------------------------------------------------------
+
+    const uint32_t duration =
         _sound->getDurationMs();
+
+    doc["durationMs"] = duration;
+    doc["duration"]   = duration;
+
+    // --------------------------------------------------------
+    // VOLUME
+    // --------------------------------------------------------
 
     doc["volume"] =
         _sound->getEffectiveVolume();
+
+    // --------------------------------------------------------
+    // RESPONSE
+    // --------------------------------------------------------
 
     String body;
 
@@ -1142,4 +1288,3 @@ String WebServerManager::getIP() const
 
     return WiFi.localIP().toString();
 }
-
