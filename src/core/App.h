@@ -7,35 +7,23 @@
 #include "./managers/I2SManager.h"
 #include "./managers/SDManager.h"
 #include "./managers/SoundManager.h"
-#include "./managers/InputManager.h"
 #include "./managers/SensorsManager.h"
+#include "./managers/LightingManager.h"
 #include "./managers/WebServerManager.h"
-
-#include "./hardware/light/CobLed.h"
-#include "./managers/CobLedManager.h"
-#include "./hardware/light/CobEffects.h"
 
 #include "./core/ClockSystem.h"
 #include "./core/DisplaySystem.h"
 
+
 class App
 {
 public:
-
     App();
 
     bool begin();
-
     void update();
 
-    bool isReady() const;
-
 private:
-
-    // ========================================================
-    // INITIALIZATION STEPS
-    // ========================================================
-
     bool initSettings();
     bool initSPI();
     bool initI2S();
@@ -43,67 +31,31 @@ private:
     bool initSound();
     bool initClock();
     bool initSensors();
-    bool initCob();
+    bool initLighting();
     bool initDisplay();
-    bool initInput();
     bool initWebServer();
 
-    // ========================================================
-    // RUNTIME POLLING
-    // ========================================================
-
-    void updateCob();
-
-    // ========================================================
-    // STATE
-    // ========================================================
-
-    bool _ready;
-
-    // ========================================================
-    // SETTINGS (первым — от него зависят остальные)
-    // ========================================================
-
+private:
     SettingsManager _settings;
 
-    // ========================================================
-    // MANAGERS
-    // ========================================================
-
     SPIManager _spiManager;
+
     I2SManager _i2sManager;
-    SDManager  _sdManager;
+
+    SDManager _sdManager;
 
     SoundManager _soundManager;
 
-    InputManager  _inputManager;
     SensorManager _sensorManager;
 
-    // ========================================================
-    // COB LED (4 штуки + менеджер + эффекты)
-    //
-    // Порядок: сначала сами CobLed, потом CobLedManager,
-    // потом CobEffects (принимает ссылку на менеджер).
-    // ========================================================
+    ClockSystem _clockSystem;
 
-    CobLed _cob1;
-    CobLed _cob2;
-    CobLed _cob3;
-    CobLed _cob4;
+    LightingManager _lighting;
 
-    CobLedManager _cobManager;
-    CobEffects    _cobEffects;
-
-    // ========================================================
-    // CORE SYSTEMS
-    // ========================================================
-
-    ClockSystem   _clockSystem;
     DisplaySystem _displaySystem;
 
-    // ========================================================
-    // WEB SERVER
-    // ========================================================
-
     WebServerManager _webServer;
+
+    bool _initialized;
 };
+

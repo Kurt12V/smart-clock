@@ -1,227 +1,194 @@
 #include "SettingsManager.h"
 
+#include "Config.h"
+
 #include <cstring>
 
-
 // ============================================================
-// PARAM DESCRIPTION
+// SAVE DELAY
 // ============================================================
 
 namespace
 {
-
-struct ParamDesc
-{
-    const char* key;
-
-    int minValue;
-    int maxValue;
-    int defaultValue;
-};
+    constexpr uint32_t SAVE_DELAY_MS = 1000;
+}
 
 
 // ============================================================
 // PARAMETER TABLE
 // ============================================================
-//
-// ПОРЯДОК ДОЛЖЕН ПОЛНОСТЬЮ СОВПАДАТЬ С enum Param.
-//
-// ============================================================
 
-constexpr ParamDesc PARAMS[] =
+namespace
 {
-    // --------------------------------------------------------
-    // BRIGHTNESS
-    // --------------------------------------------------------
-
+    const SettingsManager::ParamDesc PARAMS[] =
     {
-        "brightness",
-        Config::DISPLAY_MIN_BRIGHTNESS,
-        Config::DISPLAY_MAX_BRIGHTNESS,
-        Config::DISPLAY_DEFAULT_BRIGHTNESS
-    },
+        // ----------------------------------------------------
+        // DISPLAY
+        // ----------------------------------------------------
+
+        {
+            SettingsManager::Param::BRIGHTNESS,
+            "brightness",
+            "brightness",
+            Config::DISPLAY_MIN_BRIGHTNESS,
+            Config::DISPLAY_MAX_BRIGHTNESS,
+            Config::DISPLAY_DEFAULT_BRIGHTNESS
+        },
 
 
-    // --------------------------------------------------------
-    // MATRIX ENABLED
-    // --------------------------------------------------------
+        // ----------------------------------------------------
+        // MATRIX
+        // ----------------------------------------------------
 
-    {
-        "mx_on",
-        0,
-        1,
-        Config::MATRIX_ENABLED_DEFAULT ? 1 : 0
-    },
+        {
+            SettingsManager::Param::MATRIX_ENABLED,
+            "mx_on",
+            "mx_on",
+            0,
+            1,
+            Config::MATRIX_ENABLED_DEFAULT
+        },
 
+        {
+            SettingsManager::Param::MATRIX_BRIGHTNESS,
+            "mx_br",
+            "mx_br",
+            Config::MATRIX_BRIGHTNESS_MIN,
+            Config::MATRIX_BRIGHTNESS_MAX,
+            Config::MATRIX_BRIGHTNESS_DEFAULT
+        },
 
-    // --------------------------------------------------------
-    // MATRIX BRIGHTNESS
-    // --------------------------------------------------------
+        {
+            SettingsManager::Param::MATRIX_EFFECT,
+            "mx_eff",
+            "mx_eff",
+            Config::MATRIX_EFFECT_MIN,
+            Config::MATRIX_EFFECT_MAX,
+            Config::MATRIX_EFFECT_DEFAULT
+        },
 
-    {
-        "mx_br",
-        Config::MATRIX_BRIGHTNESS_MIN,
-        Config::MATRIX_BRIGHTNESS_MAX,
-        Config::MATRIX_BRIGHTNESS_DEFAULT
-    },
-
-
-    // --------------------------------------------------------
-    // COB ENABLED
-    // --------------------------------------------------------
-
-    {
-        "cob_on",
-        0,
-        1,
-        Config::COB_ENABLED_DEFAULT ? 1 : 0
-    },
-
-
-    // --------------------------------------------------------
-    // COB BRIGHTNESS 1
-    // --------------------------------------------------------
-
-    {
-        "cob1",
-        Config::COB_BRIGHTNESS_MIN,
-        Config::COB_BRIGHTNESS_MAX,
-        Config::COB_BRIGHTNESS_DEFAULT
-    },
+        {
+            SettingsManager::Param::MATRIX_SPEED,
+            "mx_spd",
+            "mx_spd",
+            Config::MATRIX_SPEED_MIN,
+            Config::MATRIX_SPEED_MAX,
+            Config::MATRIX_SPEED_DEFAULT
+        },
 
 
-    // --------------------------------------------------------
-    // COB BRIGHTNESS 2
-    // --------------------------------------------------------
+        // ----------------------------------------------------
+        // COB
+        // ----------------------------------------------------
 
-    {
-        "cob2",
-        Config::COB_BRIGHTNESS_MIN,
-        Config::COB_BRIGHTNESS_MAX,
-        Config::COB_BRIGHTNESS_DEFAULT
-    },
+        {
+            SettingsManager::Param::COB_ENABLED,
+            "cob_on",
+            "cob_on",
+            0,
+            1,
+            Config::COB_ENABLED_DEFAULT
+        },
 
+        {
+            SettingsManager::Param::COB_BRIGHTNESS,
+            "cob_br",
+            "cob_br",
+            Config::COB_BRIGHTNESS_MIN,
+            Config::COB_BRIGHTNESS_MAX,
+            Config::COB_BRIGHTNESS_DEFAULT
+        },
 
-    // --------------------------------------------------------
-    // COB BRIGHTNESS 3
-    // --------------------------------------------------------
+        {
+            SettingsManager::Param::COB_EFFECT,
+            "cob_eff",
+            "cob_eff",
+            Config::COB_EFFECT_MIN,
+            Config::COB_EFFECT_MAX,
+            Config::COB_EFFECT_DEFAULT
+        },
 
-    {
-        "cob3",
-        Config::COB_BRIGHTNESS_MIN,
-        Config::COB_BRIGHTNESS_MAX,
-        Config::COB_BRIGHTNESS_DEFAULT
-    },
-
-
-    // --------------------------------------------------------
-    // COB BRIGHTNESS 4
-    // --------------------------------------------------------
-
-    {
-        "cob4",
-        Config::COB_BRIGHTNESS_MIN,
-        Config::COB_BRIGHTNESS_MAX,
-        Config::COB_BRIGHTNESS_DEFAULT
-    },
-
-
-    // --------------------------------------------------------
-    // MEDIA VOLUME
-    // --------------------------------------------------------
-
-    {
-        "vol_media",
-        0,
-        100,
-        60
-    },
+        {
+            SettingsManager::Param::COB_SPEED,
+            "cob_spd",
+            "cob_spd",
+            Config::COB_SPEED_MIN,
+            Config::COB_SPEED_MAX,
+            Config::COB_SPEED_DEFAULT
+        },
 
 
-    // --------------------------------------------------------
-    // ALARM VOLUME
-    // --------------------------------------------------------
+        // ----------------------------------------------------
+        // AUDIO
+        // ----------------------------------------------------
 
-    {
-        "vol_alarm",
-        0,
-        100,
-        90
-    },
+        {
+            SettingsManager::Param::VOLUME_MEDIA,
+            "vol_media",
+            "vol_media",
+            Config::AUDIO_MIN_VOLUME,
+            Config::AUDIO_MAX_VOLUME,
+            Config::MEDIA_VOLUME_DEFAULT
+        },
 
+        {
+            SettingsManager::Param::VOLUME_ALARM,
+            "vol_alarm",
+            "vol_alarm",
+            Config::AUDIO_MIN_VOLUME,
+            Config::AUDIO_MAX_VOLUME,
+            Config::ALARM_VOLUME_DEFAULT
+        },
 
-    // --------------------------------------------------------
-    // SYSTEM VOLUME
-    // --------------------------------------------------------
-
-    {
-        "vol_system",
-        0,
-        100,
-        40
-    },
-
-
-    // --------------------------------------------------------
-    // MICROPHONE
-    // --------------------------------------------------------
-
-    {
-        "mic_on",
-        0,
-        1,
-        Config::MIC_ENABLED_DEFAULT ? 1 : 0
-    },
+        {
+            SettingsManager::Param::VOLUME_SYSTEM,
+            "vol_system",
+            "vol_system",
+            Config::AUDIO_MIN_VOLUME,
+            Config::AUDIO_MAX_VOLUME,
+            Config::SYSTEM_VOLUME_DEFAULT
+        },
 
 
-    // --------------------------------------------------------
-    // UTC OFFSET
-    // --------------------------------------------------------
+        // ----------------------------------------------------
+        // MICROPHONE
+        // ----------------------------------------------------
 
-    {
-        "utc",
-        Config::UTC_OFFSET_MIN,
-        Config::UTC_OFFSET_MAX,
-        Config::UTC_OFFSET_DEFAULT
-    },
-
-
-    // --------------------------------------------------------
-    // COB EFFECT
-    // --------------------------------------------------------
-
-    {
-        "cob_eff",
-        0,
-        3,
-        0
-    },
+        {
+            SettingsManager::Param::MICROPHONE_ENABLED,
+            "mic_on",
+            "mic_on",
+            0,
+            1,
+            Config::MIC_ENABLED_DEFAULT
+        },
 
 
-    // --------------------------------------------------------
-    // COB SPEED
-    // --------------------------------------------------------
+        // ----------------------------------------------------
+        // TIMEZONE
+        // ----------------------------------------------------
 
-    {
-        "cob_spd",
-        0,
-        100,
-        50
-    }
-};
+        {
+            SettingsManager::Param::UTC_OFFSET,
+            "utc",
+            "utc",
+            Config::UTC_OFFSET_MIN,
+            Config::UTC_OFFSET_MAX,
+            Config::UTC_OFFSET_DEFAULT
+        }
+    };
 
 
-// ============================================================
-// TABLE SIZE CHECK
-// ============================================================
+    constexpr size_t PARAM_COUNT =
+        sizeof(PARAMS) / sizeof(PARAMS[0]);
 
-static_assert(
-    sizeof(PARAMS) / sizeof(PARAMS[0]) ==
-    static_cast<size_t>(Param::COUNT),
-    "SettingsManager: PARAMS table does not match Param::COUNT"
-);
 
-} // namespace
+    static_assert(
+        PARAM_COUNT ==
+        static_cast<size_t>(SettingsManager::Param::COUNT),
+        "SettingsManager: PARAMS and Param enum are out of sync"
+    );
+}
 
 
 // ============================================================
@@ -229,28 +196,12 @@ static_assert(
 // ============================================================
 
 SettingsManager::SettingsManager()
-    : _dirtyMask(0),
-      _lastChangeMs(0),
+    : _preferences(),
+      _values{},
+      _dirty{},
+      _lastChangeTime(0),
       _initialized(false)
 {
-    applyDefaults();
-}
-
-
-// ============================================================
-// DEFAULTS
-// ============================================================
-
-void SettingsManager::applyDefaults()
-{
-    for (
-        size_t i = 0;
-        i < static_cast<size_t>(Param::COUNT);
-        ++i
-    )
-    {
-        _values[i] = PARAMS[i].defaultValue;
-    }
 }
 
 
@@ -260,565 +211,22 @@ void SettingsManager::applyDefaults()
 
 bool SettingsManager::begin()
 {
-    Serial0.println(
-        "[SETTINGS] Starting..."
-    );
+    if (_initialized)
+        return true;
 
-
-    // --------------------------------------------------------
-    // OPEN NVS
-    // --------------------------------------------------------
-
-    if (!_preferences.begin("smartclock", false))
+    if (!_preferences.begin(
+            "smartclock",
+            false))
     {
-        Serial0.println(
-            "[SETTINGS] Preferences FAILED"
-        );
-
-        _initialized = false;
-
         return false;
     }
-
-
-    // --------------------------------------------------------
-    // LOAD ALL
-    // --------------------------------------------------------
 
     if (!loadAll())
-    {
-        Serial0.println(
-            "[SETTINGS] Load FAILED"
-        );
-
-        _initialized = false;
-
         return false;
-    }
-
-
-    // --------------------------------------------------------
-    // STATE
-    // --------------------------------------------------------
-
-    _dirtyMask = 0;
-
-    _lastChangeMs = millis();
 
     _initialized = true;
 
-
-    Serial0.println(
-        "[SETTINGS] Ready"
-    );
-
-
     return true;
-}
-
-
-// ============================================================
-// GET
-// ============================================================
-
-int SettingsManager::get(
-    Param p
-) const
-{
-    const size_t index =
-        static_cast<size_t>(p);
-
-
-    if (
-        index >=
-        static_cast<size_t>(Param::COUNT)
-    )
-    {
-        return 0;
-    }
-
-
-    return _values[index];
-}
-
-
-// ============================================================
-// SET
-// ============================================================
-
-bool SettingsManager::set(
-    Param p,
-    int value
-)
-{
-    const size_t index =
-        static_cast<size_t>(p);
-
-
-    // --------------------------------------------------------
-    // VALIDATE PARAM
-    // --------------------------------------------------------
-
-    if (
-        index >=
-        static_cast<size_t>(Param::COUNT)
-    )
-    {
-        return false;
-    }
-
-
-    const ParamDesc& desc =
-        PARAMS[index];
-
-
-    // --------------------------------------------------------
-    // CLAMP
-    // --------------------------------------------------------
-
-    const int clampedValue =
-        constrain(
-            value,
-            desc.minValue,
-            desc.maxValue
-        );
-
-
-    // --------------------------------------------------------
-    // NO CHANGE
-    // --------------------------------------------------------
-
-    if (
-        _values[index] ==
-        clampedValue
-    )
-    {
-        return false;
-    }
-
-
-    // --------------------------------------------------------
-    // UPDATE RAM
-    // --------------------------------------------------------
-
-    _values[index] =
-        clampedValue;
-
-
-    // --------------------------------------------------------
-    // MARK DIRTY
-    // --------------------------------------------------------
-
-    markDirty(p);
-
-
-    // --------------------------------------------------------
-    // RESET SAVE TIMER
-    // --------------------------------------------------------
-
-    _lastChangeMs =
-        millis();
-
-
-    return true;
-}
-
-
-// ============================================================
-// LOAD ONE
-// ============================================================
-
-bool SettingsManager::load(
-    Param p
-)
-{
-    const size_t index =
-        static_cast<size_t>(p);
-
-
-    // --------------------------------------------------------
-    // VALIDATE PARAM
-    // --------------------------------------------------------
-
-    if (
-        index >=
-        static_cast<size_t>(Param::COUNT)
-    )
-    {
-        return false;
-    }
-
-
-    const ParamDesc& desc =
-        PARAMS[index];
-
-
-    // --------------------------------------------------------
-    // READ NVS
-    // --------------------------------------------------------
-
-    const int storedValue =
-        _preferences.getInt(
-            desc.key,
-            desc.defaultValue
-        );
-
-
-    // --------------------------------------------------------
-    // CLAMP STORED VALUE
-    // --------------------------------------------------------
-
-    _values[index] =
-        constrain(
-            storedValue,
-            desc.minValue,
-            desc.maxValue
-        );
-
-
-    return true;
-}
-
-
-// ============================================================
-// LOAD ALL
-// ============================================================
-
-bool SettingsManager::loadAll()
-{
-    // --------------------------------------------------------
-    // START WITH DEFAULTS
-    // --------------------------------------------------------
-
-    applyDefaults();
-
-
-    // --------------------------------------------------------
-    // LOAD EVERY PARAMETER
-    // --------------------------------------------------------
-
-    for (
-        size_t i = 0;
-        i < static_cast<size_t>(Param::COUNT);
-        ++i
-    )
-    {
-        if (
-            !load(
-                static_cast<Param>(i)
-            )
-        )
-        {
-            Serial0.printf(
-                "[SETTINGS] Failed to load parameter %u\n",
-                static_cast<unsigned>(i)
-            );
-
-            return false;
-        }
-    }
-
-
-    // --------------------------------------------------------
-    // NOTHING DIRTY AFTER LOAD
-    // --------------------------------------------------------
-
-    _dirtyMask = 0;
-
-
-    Serial0.println(
-        "[SETTINGS] Loaded"
-    );
-
-
-    return true;
-}
-
-
-// ============================================================
-// SAVE ONE
-// ============================================================
-
-bool SettingsManager::save(
-    Param p
-)
-{
-    if (!_initialized)
-    {
-        return false;
-    }
-
-
-    const size_t index =
-        static_cast<size_t>(p);
-
-
-    // --------------------------------------------------------
-    // VALIDATE PARAM
-    // --------------------------------------------------------
-
-    if (
-        index >=
-        static_cast<size_t>(Param::COUNT)
-    )
-    {
-        return false;
-    }
-
-
-    // --------------------------------------------------------
-    // WRITE NVS
-    // --------------------------------------------------------
-
-    const size_t result =
-        _preferences.putInt(
-            PARAMS[index].key,
-            _values[index]
-        );
-
-
-    // --------------------------------------------------------
-    // CHECK RESULT
-    // --------------------------------------------------------
-
-    if (result == 0)
-    {
-        return false;
-    }
-
-
-    // --------------------------------------------------------
-    // CLEAR DIRTY
-    // --------------------------------------------------------
-
-    clearDirty(p);
-
-
-    return true;
-}
-
-
-// ============================================================
-// MARK DIRTY
-// ============================================================
-
-void SettingsManager::markDirty(
-    Param p
-)
-{
-    const uint8_t bit =
-        static_cast<uint8_t>(p);
-
-
-    if (
-        bit >=
-        static_cast<uint8_t>(Param::COUNT)
-    )
-    {
-        return;
-    }
-
-
-    _dirtyMask |=
-        (uint32_t(1) << bit);
-}
-
-
-// ============================================================
-// CLEAR DIRTY
-// ============================================================
-
-void SettingsManager::clearDirty(
-    Param p
-)
-{
-    const uint8_t bit =
-        static_cast<uint8_t>(p);
-
-
-    if (
-        bit >=
-        static_cast<uint8_t>(Param::COUNT)
-    )
-    {
-        return;
-    }
-
-
-    _dirtyMask &=
-        ~(uint32_t(1) << bit);
-}
-
-
-// ============================================================
-// IS DIRTY
-// ============================================================
-
-bool SettingsManager::isDirty(
-    Param p
-) const
-{
-    const uint8_t bit =
-        static_cast<uint8_t>(p);
-
-
-    if (
-        bit >=
-        static_cast<uint8_t>(Param::COUNT)
-    )
-    {
-        return false;
-    }
-
-
-    return (
-        _dirtyMask &
-        (uint32_t(1) << bit)
-    ) != 0;
-}
-
-
-// ============================================================
-// HAS DIRTY
-// ============================================================
-
-bool SettingsManager::hasDirty() const
-{
-    return _dirtyMask != 0;
-}
-
-
-// ============================================================
-// SAVE DIRTY
-// ============================================================
-
-bool SettingsManager::saveDirty()
-{
-    if (!_initialized)
-    {
-        return false;
-    }
-
-
-    if (_dirtyMask == 0)
-    {
-        return true;
-    }
-
-
-    bool success = true;
-
-
-    // --------------------------------------------------------
-    // SAVE ONLY CHANGED PARAMETERS
-    // --------------------------------------------------------
-
-    for (
-        uint8_t i = 0;
-        i < static_cast<uint8_t>(Param::COUNT);
-        ++i
-    )
-    {
-        const uint32_t mask =
-            uint32_t(1) << i;
-
-
-        if (
-            (_dirtyMask & mask) == 0
-        )
-        {
-            continue;
-        }
-
-
-        const size_t result =
-            _preferences.putInt(
-                PARAMS[i].key,
-                _values[i]
-            );
-
-
-        if (result == 0)
-        {
-            success = false;
-
-            Serial0.printf(
-                "[SETTINGS] Save failed: %s\n",
-                PARAMS[i].key
-            );
-        }
-    }
-
-
-    // --------------------------------------------------------
-    // CLEAR DIRTY ONLY IF EVERYTHING WORKED
-    // --------------------------------------------------------
-
-    if (success)
-    {
-        _dirtyMask = 0;
-    }
-
-
-    return success;
-}
-
-
-// ============================================================
-// SAVE ALL
-// ============================================================
-
-bool SettingsManager::saveAll()
-{
-    if (!_initialized)
-    {
-        Serial0.println(
-            "[SETTINGS] saveAll(): not initialized"
-        );
-
-        return false;
-    }
-
-
-    bool success = true;
-
-
-    // --------------------------------------------------------
-    // SAVE EVERY PARAMETER
-    // --------------------------------------------------------
-
-    for (
-        uint8_t i = 0;
-        i < static_cast<uint8_t>(Param::COUNT);
-        ++i
-    )
-    {
-        const size_t result =
-            _preferences.putInt(
-                PARAMS[i].key,
-                _values[i]
-            );
-
-
-        if (result == 0)
-        {
-            success = false;
-
-            Serial0.printf(
-                "[SETTINGS] Save failed: %s\n",
-                PARAMS[i].key
-            );
-        }
-    }
-
-
-    if (success)
-    {
-        _dirtyMask = 0;
-    }
-
-
-    return success;
 }
 
 
@@ -829,48 +237,205 @@ bool SettingsManager::saveAll()
 void SettingsManager::update()
 {
     if (!_initialized)
+        return;
+
+    if (_lastChangeTime == 0)
+        return;
+
+    if (millis() - _lastChangeTime <
+        SAVE_DELAY_MS)
     {
         return;
     }
-
-
-    // --------------------------------------------------------
-    // NOTHING TO SAVE
-    // --------------------------------------------------------
-
-    if (_dirtyMask == 0)
-    {
-        return;
-    }
-
-
-    // --------------------------------------------------------
-    // CURRENT TIME
-    // --------------------------------------------------------
-
-    const uint32_t now =
-        millis();
-
-
-    // --------------------------------------------------------
-    // WAIT 700 ms AFTER LAST CHANGE
-    // --------------------------------------------------------
-
-    if (
-        static_cast<uint32_t>(
-            now - _lastChangeMs
-        ) < SAVE_DELAY_MS
-    )
-    {
-        return;
-    }
-
-
-    // --------------------------------------------------------
-    // SAVE
-    // --------------------------------------------------------
 
     saveDirty();
+
+    _lastChangeTime = 0;
+}
+
+
+// ============================================================
+// GET
+// ============================================================
+
+int SettingsManager::get(
+    Param param
+) const
+{
+    const size_t index =
+        static_cast<size_t>(param);
+
+    if (index >=
+        static_cast<size_t>(Param::COUNT))
+    {
+        return 0;
+    }
+
+    return _values[index];
+}
+
+
+// ============================================================
+// SET
+// ============================================================
+
+bool SettingsManager::set(
+    Param param,
+    int value
+)
+{
+    const size_t index =
+        static_cast<size_t>(param);
+
+    if (index >=
+        static_cast<size_t>(Param::COUNT))
+    {
+        return false;
+    }
+
+    const ParamDesc& desc =
+        getDesc(param);
+
+    value = constrain(
+        value,
+        desc.minValue,
+        desc.maxValue
+    );
+
+    if (_values[index] == value)
+        return false;
+
+    _values[index] = value;
+
+    _dirty[index] = true;
+
+    _lastChangeTime = millis();
+
+    return true;
+}
+
+
+// ============================================================
+// LOAD PARAMETER
+// ============================================================
+
+bool SettingsManager::load(
+    Param param
+)
+{
+    const size_t index =
+        static_cast<size_t>(param);
+
+    if (index >=
+        static_cast<size_t>(Param::COUNT))
+    {
+        return false;
+    }
+
+    return loadValue(
+        getDesc(param)
+    );
+}
+
+
+// ============================================================
+// LOAD ALL
+// ============================================================
+
+bool SettingsManager::loadAll()
+{
+    for (size_t i = 0;
+         i < PARAM_COUNT;
+         ++i)
+    {
+        if (!loadValue(PARAMS[i]))
+            return false;
+    }
+
+    return true;
+}
+
+
+// ============================================================
+// SAVE PARAMETER
+// ============================================================
+
+bool SettingsManager::save(
+    Param param
+)
+{
+    const size_t index =
+        static_cast<size_t>(param);
+
+    if (index >=
+        static_cast<size_t>(Param::COUNT))
+    {
+        return false;
+    }
+
+    if (!saveValue(
+            getDesc(param)))
+    {
+        return false;
+    }
+
+    _dirty[index] = false;
+
+    return true;
+}
+
+
+// ============================================================
+// SAVE DIRTY
+// ============================================================
+
+bool SettingsManager::saveDirty()
+{
+    bool result = true;
+
+    for (size_t i = 0;
+         i < PARAM_COUNT;
+         ++i)
+    {
+        if (!_dirty[i])
+            continue;
+
+        if (saveValue(PARAMS[i]))
+        {
+            _dirty[i] = false;
+        }
+        else
+        {
+            result = false;
+        }
+    }
+
+    return result;
+}
+
+
+// ============================================================
+// SAVE ALL
+// ============================================================
+
+bool SettingsManager::saveAll()
+{
+    bool result = true;
+
+    for (size_t i = 0;
+         i < PARAM_COUNT;
+         ++i)
+    {
+        if (!saveValue(PARAMS[i]))
+        {
+            result = false;
+            continue;
+        }
+
+        _dirty[i] = false;
+    }
+
+    return result;
 }
 
 
@@ -878,15 +443,14 @@ void SettingsManager::update()
 // FLUSH
 // ============================================================
 
-bool SettingsManager::flush()
+void SettingsManager::flush()
 {
     if (!_initialized)
-    {
-        return false;
-    }
+        return;
 
+    saveDirty();
 
-    return saveDirty();
+    _lastChangeTime = 0;
 }
 
 
@@ -896,43 +460,17 @@ bool SettingsManager::flush()
 
 void SettingsManager::resetAll()
 {
-    // --------------------------------------------------------
-    // CLEAR NVS
-    // --------------------------------------------------------
-
-    if (_initialized)
+    for (size_t i = 0;
+         i < PARAM_COUNT;
+         ++i)
     {
-        _preferences.clear();
+        _values[i] =
+            PARAMS[i].defaultValue;
+
+        _dirty[i] = true;
     }
 
-
-    // --------------------------------------------------------
-    // RESTORE DEFAULTS
-    // --------------------------------------------------------
-
-    applyDefaults();
-
-
-    // --------------------------------------------------------
-    // CLEAR DIRTY
-    // --------------------------------------------------------
-
-    _dirtyMask = 0;
-
-
-    // --------------------------------------------------------
-    // SAVE DEFAULTS
-    // --------------------------------------------------------
-
-    if (_initialized)
-    {
-        saveAll();
-    }
-
-
-    Serial0.println(
-        "[SETTINGS] Reset to defaults"
-    );
+    _lastChangeTime = millis();
 }
 
 
@@ -941,23 +479,16 @@ void SettingsManager::resetAll()
 // ============================================================
 
 const char* SettingsManager::paramName(
-    Param p
-)
+    Param param
+) const
 {
     const size_t index =
-        static_cast<size_t>(p);
+        static_cast<size_t>(param);
 
-
-    if (
-        index >=
-        static_cast<size_t>(Param::COUNT)
-    )
-    {
+    if (index >= PARAM_COUNT)
         return "";
-    }
 
-
-    return PARAMS[index].key;
+    return PARAMS[index].name;
 }
 
 
@@ -965,51 +496,89 @@ const char* SettingsManager::paramName(
 // PARAM FROM NAME
 // ============================================================
 
-bool SettingsManager::paramFromName(
-    const char* name,
-    Param& out
-)
+SettingsManager::Param
+SettingsManager::paramFromName(
+    const char* name
+) const
 {
-    // --------------------------------------------------------
-    // VALIDATE
-    // --------------------------------------------------------
-
     if (name == nullptr)
+        return Param::COUNT;
+
+    for (size_t i = 0;
+         i < PARAM_COUNT;
+         ++i)
     {
-        return false;
-    }
-
-
-    if (*name == '\0')
-    {
-        return false;
-    }
-
-
-    // --------------------------------------------------------
-    // SEARCH
-    // --------------------------------------------------------
-
-    for (
-        uint8_t i = 0;
-        i < static_cast<uint8_t>(Param::COUNT);
-        ++i
-    )
-    {
-        if (
-            strcmp(
-                name,
-                PARAMS[i].key
-            ) == 0
-        )
+        if (std::strcmp(
+                PARAMS[i].name,
+                name) == 0)
         {
-            out =
-                static_cast<Param>(i);
-
-            return true;
+            return PARAMS[i].param;
         }
     }
 
+    return Param::COUNT;
+}
 
-    return false;
+
+// ============================================================
+// GET DESCRIPTION
+// ============================================================
+
+const SettingsManager::ParamDesc&
+SettingsManager::getDesc(
+    Param param
+) const
+{
+    const size_t index =
+        static_cast<size_t>(param);
+
+    return PARAMS[index];
+}
+
+
+// ============================================================
+// LOAD VALUE
+// ============================================================
+
+bool SettingsManager::loadValue(
+    const ParamDesc& desc
+)
+{
+    const size_t index =
+        static_cast<size_t>(desc.param);
+
+    const int value =
+        _preferences.getInt(
+            desc.key,
+            desc.defaultValue
+        );
+
+    _values[index] =
+        constrain(
+            value,
+            desc.minValue,
+            desc.maxValue
+        );
+
+    _dirty[index] = false;
+
+    return true;
+}
+
+
+// ============================================================
+// SAVE VALUE
+// ============================================================
+
+bool SettingsManager::saveValue(
+    const ParamDesc& desc
+)
+{
+    const size_t index =
+        static_cast<size_t>(desc.param);
+
+    return _preferences.putInt(
+        desc.key,
+        _values[index]
+    ) > 0;
 }

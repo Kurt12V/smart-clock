@@ -4,7 +4,6 @@
 
 #include "./hardware/light/CobLed.h"
 
-
 class CobLedManager
 {
 public:
@@ -21,7 +20,19 @@ public:
     void update();
 
     // ========================================================
-    // Управление отдельным COB
+    // Get COB
+    // ========================================================
+
+    CobLed& getCob(
+        uint8_t cob
+    );
+
+    const CobLed& getCob(
+        uint8_t cob
+    ) const;
+
+    // ========================================================
+    // Brightness
     // ========================================================
 
     void set(
@@ -43,11 +54,19 @@ public:
         uint8_t value
     );
 
+    // ========================================================
+    // Fade
+    // ========================================================
+
     void fade(
         uint8_t cob,
         uint8_t target,
         uint32_t durationMs
     );
+
+    // ========================================================
+    // Individual ON / OFF
+    // ========================================================
 
     void on(
         uint8_t cob
@@ -61,8 +80,12 @@ public:
         uint8_t cob
     );
 
+    bool isOn(
+        uint8_t cob
+    ) const;
+
     // ========================================================
-    // Все COB
+    // All COB
     // ========================================================
 
     void setAll(
@@ -74,12 +97,24 @@ public:
     void offAll();
 
     // ========================================================
-    // Состояние
+    // Effect
     // ========================================================
 
-    bool isOn(
-        uint8_t cob
-    ) const;
+    void setEffect(
+        uint8_t effect
+    );
+
+    uint8_t effect() const;
+
+    // ========================================================
+    // Speed
+    // ========================================================
+
+    void setSpeed(
+        uint8_t speed
+    );
+
+    uint8_t speed() const;
 
 private:
 
@@ -88,11 +123,6 @@ private:
     CobLed& _cob3;
     CobLed& _cob4;
 
-    CobLed& getCob(
-        uint8_t cob
-    );
-
-    const CobLed& getCob(
-        uint8_t cob
-    ) const;
+    uint8_t _effect;
+    uint8_t _speed;
 };

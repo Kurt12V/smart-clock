@@ -14,7 +14,9 @@ CobLedManager::CobLedManager(
     : _cob1(cob1),
       _cob2(cob2),
       _cob3(cob3),
-      _cob4(cob4)
+      _cob4(cob4),
+      _effect(0),
+      _speed(50)
 {
 }
 
@@ -108,10 +110,9 @@ void CobLedManager::set(
     uint8_t brightness
 )
 {
-    getCob(cob)
-        .setBrightness(
-            brightness
-        );
+    getCob(cob).setBrightness(
+        brightness
+    );
 }
 
 
@@ -123,8 +124,7 @@ uint8_t CobLedManager::get(
     uint8_t cob
 ) const
 {
-    return getCob(cob)
-        .getBrightness();
+    return getCob(cob).getBrightness();
 }
 
 
@@ -137,8 +137,9 @@ void CobLedManager::increase(
     uint8_t value
 )
 {
-    getCob(cob)
-        .increase(value);
+    getCob(cob).increase(
+        value
+    );
 }
 
 
@@ -151,8 +152,9 @@ void CobLedManager::decrease(
     uint8_t value
 )
 {
-    getCob(cob)
-        .decrease(value);
+    getCob(cob).decrease(
+        value
+    );
 }
 
 
@@ -166,11 +168,10 @@ void CobLedManager::fade(
     uint32_t durationMs
 )
 {
-    getCob(cob)
-        .fadeTo(
-            target,
-            durationMs
-        );
+    getCob(cob).fadeTo(
+        target,
+        durationMs
+    );
 }
 
 
@@ -182,8 +183,7 @@ void CobLedManager::on(
     uint8_t cob
 )
 {
-    getCob(cob)
-        .on();
+    getCob(cob).on();
 }
 
 
@@ -195,8 +195,7 @@ void CobLedManager::off(
     uint8_t cob
 )
 {
-    getCob(cob)
-        .off();
+    getCob(cob).off();
 }
 
 
@@ -208,13 +207,24 @@ void CobLedManager::toggle(
     uint8_t cob
 )
 {
-    getCob(cob)
-        .toggle();
+    getCob(cob).toggle();
 }
 
 
 // ============================================================
-// Set all
+// Is ON
+// ============================================================
+
+bool CobLedManager::isOn(
+    uint8_t cob
+) const
+{
+    return getCob(cob).isOn();
+}
+
+
+// ============================================================
+// Set All
 // ============================================================
 
 void CobLedManager::setAll(
@@ -229,7 +239,7 @@ void CobLedManager::setAll(
 
 
 // ============================================================
-// ON all
+// ON All
 // ============================================================
 
 void CobLedManager::onAll()
@@ -242,7 +252,7 @@ void CobLedManager::onAll()
 
 
 // ============================================================
-// OFF all
+// OFF All
 // ============================================================
 
 void CobLedManager::offAll()
@@ -255,13 +265,36 @@ void CobLedManager::offAll()
 
 
 // ============================================================
-// Is ON
+// Effect
 // ============================================================
 
-bool CobLedManager::isOn(
-    uint8_t cob
-) const
+void CobLedManager::setEffect(
+    uint8_t effect
+)
 {
-    return getCob(cob)
-        .isOn();
+    _effect = effect;
+}
+
+
+uint8_t CobLedManager::effect() const
+{
+    return _effect;
+}
+
+
+// ============================================================
+// Speed
+// ============================================================
+
+void CobLedManager::setSpeed(
+    uint8_t speed
+)
+{
+    _speed = speed;
+}
+
+
+uint8_t CobLedManager::speed() const
+{
+    return _speed;
 }

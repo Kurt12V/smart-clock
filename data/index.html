@@ -1,12 +1,17 @@
 <!DOCTYPE html>
+
 <html lang="ru">
+
 <head>
+
 <meta charset="UTF-8">
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>SmartClock</title>
 
 <style>
+
 * {
     box-sizing: border-box;
 }
@@ -494,7 +499,9 @@ input[type="text"]:focus {
         flex: 1;
     }
 }
+
 </style>
+
 </head>
 
 <body>
@@ -528,7 +535,7 @@ input[type="text"]:focus {
 
 
 <!-- ============================================================
-     TIMEZONE ONLY
+     TIMEZONE
      ============================================================ -->
 
 <section class="section">
@@ -678,6 +685,30 @@ input[type="text"]:focus {
     <div class="range-row">
 
         <div class="range-label">
+            Brightness
+        </div>
+
+        <input
+            id="cob_br"
+            type="range"
+            min="0"
+            max="100"
+            value="100"
+            oninput="changeCobBrightness(this.value)"
+        >
+
+        <div
+            id="cob_br_value"
+            class="range-value"
+        >
+            100%
+        </div>
+
+    </div>
+
+    <div class="range-row">
+
+        <div class="range-label">
             Effect
         </div>
 
@@ -685,6 +716,7 @@ input[type="text"]:focus {
             id="cob_eff"
             onchange="changeCobEffect(this.value)"
         >
+
             <option value="0">
                 Static
             </option>
@@ -700,6 +732,7 @@ input[type="text"]:focus {
             <option value="3">
                 Wave
             </option>
+
         </select>
 
     </div>
@@ -724,102 +757,6 @@ input[type="text"]:focus {
             class="range-value"
         >
             50%
-        </div>
-
-    </div>
-
-    <div class="range-row">
-
-        <div class="range-label">
-            COB 1
-        </div>
-
-        <input
-            id="cob1"
-            type="range"
-            min="0"
-            max="100"
-            value="100"
-            oninput="changeCobBrightness(1, this.value)"
-        >
-
-        <div
-            id="cob1_value"
-            class="range-value"
-        >
-            100%
-        </div>
-
-    </div>
-
-    <div class="range-row">
-
-        <div class="range-label">
-            COB 2
-        </div>
-
-        <input
-            id="cob2"
-            type="range"
-            min="0"
-            max="100"
-            value="100"
-            oninput="changeCobBrightness(2, this.value)"
-        >
-
-        <div
-            id="cob2_value"
-            class="range-value"
-        >
-            100%
-        </div>
-
-    </div>
-
-    <div class="range-row">
-
-        <div class="range-label">
-            COB 3
-        </div>
-
-        <input
-            id="cob3"
-            type="range"
-            min="0"
-            max="100"
-            value="100"
-            oninput="changeCobBrightness(3, this.value)"
-        >
-
-        <div
-            id="cob3_value"
-            class="range-value"
-        >
-            100%
-        </div>
-
-    </div>
-
-    <div class="range-row">
-
-        <div class="range-label">
-            COB 4
-        </div>
-
-        <input
-            id="cob4"
-            type="range"
-            min="0"
-            max="100"
-            value="100"
-            oninput="changeCobBrightness(4, this.value)"
-        >
-
-        <div
-            id="cob4_value"
-            class="range-value"
-        >
-            100%
         </div>
 
     </div>
@@ -1038,40 +975,6 @@ input[type="text"]:focus {
     </div>
 
 
-    <!-- RECORD -->
-
-    <div class="sound-buttons">
-
-        <button
-            class="primary"
-            onclick="startRecording()"
-        >
-            ● Record
-        </button>
-
-        <button
-            class="danger"
-            onclick="stopRecording()"
-        >
-            ■ Stop
-        </button>
-
-        <div
-            id="recordStatus"
-            class="record-status"
-        >
-
-            <span class="record-dot"></span>
-
-            <span id="recordText">
-                Ready
-            </span>
-
-        </div>
-
-    </div>
-
-
     <!-- AUDIO LIST -->
 
     <div
@@ -1147,9 +1050,11 @@ function showMessage(text) {
     messageTimer =
         setTimeout(
             () => {
+
                 el.classList.remove(
                     "show"
                 );
+
             },
             1200
         );
@@ -1185,7 +1090,7 @@ function setConnection(online) {
 
 
 /* ============================================================
-   FAST FETCH
+   API FETCH
    ============================================================ */
 
 async function apiFetch(
@@ -1217,6 +1122,7 @@ async function apiFetch(
             );
 
         if (!response.ok) {
+
             throw new Error(
                 "HTTP " +
                 response.status
@@ -1256,7 +1162,7 @@ function debounce(
 
 
 /* ============================================================
-   PARAM
+   SET PARAM
    ============================================================ */
 
 async function setParam(
@@ -1267,29 +1173,41 @@ async function setParam(
 
     try {
 
-        await apiFetch(
-            "/api/param",
-            {
-                method: "POST",
+        const response =
+            await apiFetch(
+                "/api/param",
+                {
+                    method: "POST",
 
-                headers: {
-                    "Content-Type":
-                        "application/json"
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:
+                        JSON.stringify({
+                            param: name,
+                            value:
+                                Number(value)
+                        })
                 },
+                1000
+            );
 
-                body:
-                    JSON.stringify({
-                        param: name,
-                        value:
-                            Number(value)
-                    })
-            },
-            1000
-        );
+        const result =
+            await response.json();
+
+        if (!result.ok) {
+
+            throw new Error(
+                result.error ||
+                "Parameter error"
+            );
+        }
 
         setConnection(true);
 
-        return true;
+        return result;
 
     } catch (e) {
 
@@ -1302,13 +1220,13 @@ async function setParam(
             );
         }
 
-        return false;
+        return null;
     }
 }
 
 
 /* ============================================================
-   PARAMS
+   LOAD PARAMETERS
    ============================================================ */
 
 async function loadParams() {
@@ -1332,7 +1250,9 @@ async function loadParams() {
             await response.json();
 
 
-        /* Display */
+        /* ----------------------------------------------------
+           DISPLAY
+           ---------------------------------------------------- */
 
         setRange(
             "brightness",
@@ -1341,7 +1261,9 @@ async function loadParams() {
         );
 
 
-        /* Matrix */
+        /* ----------------------------------------------------
+           MATRIX
+           ---------------------------------------------------- */
 
         applyToggle(
             "mx_on",
@@ -1355,28 +1277,20 @@ async function loadParams() {
         );
 
 
-        /* COB */
+        /* ----------------------------------------------------
+           COB
+           ---------------------------------------------------- */
 
         applyToggle(
             "cob_on",
             p.cob_on
         );
 
-        for (
-            let i = 1;
-            i <= 4;
-            i++
-        ) {
-
-            setRange(
-                "cob" + i,
-                p["cob" + i],
-                "cob" +
-                i +
-                "_value"
-            );
-        }
-
+        setRange(
+            "cob_br",
+            p.cob_br,
+            "cob_br_value"
+        );
 
         const effect =
             document.getElementById(
@@ -1392,7 +1306,6 @@ async function loadParams() {
                 p.cob_eff;
         }
 
-
         setRange(
             "cob_spd",
             p.cob_spd,
@@ -1400,7 +1313,9 @@ async function loadParams() {
         );
 
 
-        /* Volume */
+        /* ----------------------------------------------------
+           VOLUME
+           ---------------------------------------------------- */
 
         setRange(
             "vol_media",
@@ -1421,7 +1336,9 @@ async function loadParams() {
         );
 
 
-        /* Microphone */
+        /* ----------------------------------------------------
+           MICROPHONE
+           ---------------------------------------------------- */
 
         applyToggle(
             "mic_on",
@@ -1429,7 +1346,9 @@ async function loadParams() {
         );
 
 
-        /* TIMEZONE */
+        /* ----------------------------------------------------
+           TIMEZONE
+           ---------------------------------------------------- */
 
         if (
             p.utc !== undefined
@@ -1451,6 +1370,7 @@ async function loadParams() {
     } finally {
 
         paramsRequest = false;
+
     }
 }
 
@@ -1560,30 +1480,38 @@ async function changeTimezone(delta) {
         value = 14;
     }
 
+    const oldValue =
+        timezoneOffset;
+
     timezoneOffset =
         value;
 
     renderTimezone();
 
-    const ok =
+    const result =
         await setParam(
             "utc",
             value,
             false
         );
 
-    if (ok) {
+    if (!result) {
 
-        showMessage(
-            "Timezone changed"
-        );
+        timezoneOffset =
+            oldValue;
 
-    } else {
+        renderTimezone();
 
         showMessage(
             "Timezone error"
         );
+
+        return;
     }
+
+    showMessage(
+        "Timezone changed"
+    );
 }
 
 
@@ -1635,14 +1563,14 @@ async function toggleMatrix() {
         newState
     );
 
-    const ok =
+    const result =
         await setParam(
             "mx_on",
             newState,
             false
         );
 
-    if (!ok) {
+    if (!result) {
 
         applyToggle(
             "mx_on",
@@ -1698,20 +1626,40 @@ async function toggleCob() {
         newState
     );
 
-    const ok =
+    const result =
         await setParam(
             "cob_on",
             newState,
             false
         );
 
-    if (!ok) {
+    if (!result) {
 
         applyToggle(
             "cob_on",
             oldState
         );
     }
+}
+
+
+function changeCobBrightness(
+    value
+) {
+
+    document.getElementById(
+        "cob_br_value"
+    ).textContent =
+        value + "%";
+
+    debounce(
+        "cob_br",
+        () =>
+            setParam(
+                "cob_br",
+                value
+            )
+    );
 }
 
 
@@ -1740,29 +1688,6 @@ function changeCobSpeed(
         () =>
             setParam(
                 "cob_spd",
-                value
-            )
-    );
-}
-
-
-function changeCobBrightness(
-    index,
-    value
-) {
-
-    document.getElementById(
-        "cob" +
-        index +
-        "_value"
-    ).textContent =
-        value + "%";
-
-    debounce(
-        "cob" + index,
-        () =>
-            setParam(
-                "cob" + index,
                 value
             )
     );
@@ -1821,14 +1746,14 @@ async function toggleMic() {
         newState
     );
 
-    const ok =
+    const result =
         await setParam(
             "mic_on",
             newState,
             false
         );
 
-    if (!ok) {
+    if (!result) {
 
         applyToggle(
             "mic_on",
@@ -1891,12 +1816,12 @@ async function loadSD() {
     } finally {
 
         sdRequest = false;
+
     }
 }
 
 
 function filterFiles() {
-
     renderFiles();
 }
 
@@ -1999,6 +1924,7 @@ function renderFiles() {
 function formatSize(bytes) {
 
     if (bytes < 1024) {
+
         return bytes + " B";
     }
 
@@ -2018,7 +1944,7 @@ function formatSize(bytes) {
         1024 /
         1024
     ).toFixed(1) +
-        " MB";
+    " MB";
 }
 
 
@@ -2135,7 +2061,7 @@ function renderAudioFiles() {
 
 async function playSound(
     path,
-    stream = "media"
+    stream = 0
 ) {
 
     selectedSound =
@@ -2156,18 +2082,17 @@ async function playSound(
                 body:
                     JSON.stringify({
 
-                        path,
+                        path: path,
 
-                        stream,
+                        stream: stream,
 
-                        volume: 100,
+                        localPercent: 100,
 
-                        fade_in: 0,
+                        fadeInMs: 0,
 
-                        fade_out: 0,
+                        fadeOutMs: 0,
 
-                        curve: "linear"
-
+                        curve: 0
                     })
             },
             1200
@@ -2175,7 +2100,7 @@ async function playSound(
 
         setConnection(true);
 
-        updatePlayerStatus();
+        await updatePlayerStatus();
 
         showMessage(
             "Playing"
@@ -2239,7 +2164,7 @@ async function pauseSound() {
             1000
         );
 
-        updatePlayerStatus();
+        await updatePlayerStatus();
 
         showMessage(
             "Paused"
@@ -2266,7 +2191,7 @@ async function resumeSound() {
             1000
         );
 
-        updatePlayerStatus();
+        await updatePlayerStatus();
 
         showMessage(
             "Resumed"
@@ -2297,13 +2222,13 @@ async function stopSound() {
 
                 body:
                     JSON.stringify({
-                        fade_out: 0
+                        fadeOutMs: 0
                     })
             },
             1000
         );
 
-        updatePlayerStatus();
+        await updatePlayerStatus();
 
         showMessage(
             "Playback stopped"
@@ -2367,6 +2292,11 @@ async function updatePlayerStatus() {
         const s =
             await response.json();
 
+
+        /* ----------------------------------------------------
+           TRACK
+           ---------------------------------------------------- */
+
         document.getElementById(
             "playerTrack"
         ).textContent =
@@ -2375,16 +2305,26 @@ async function updatePlayerStatus() {
                 ? s.path
                 : "—";
 
+
+        /* ----------------------------------------------------
+           TIME
+           ---------------------------------------------------- */
+
         document.getElementById(
             "playerTime"
         ).textContent =
             formatTime(
-                s.position
+                s.positionMs
             ) +
             " / " +
             formatTime(
-                s.duration
+                s.durationMs
             );
+
+
+        /* ----------------------------------------------------
+           STATE
+           ---------------------------------------------------- */
 
         const state =
             s.state ||
@@ -2414,95 +2354,6 @@ async function updatePlayerStatus() {
 
 
 /* ============================================================
-   RECORDING
-   ============================================================ */
-
-async function startRecording() {
-
-    try {
-
-        await apiFetch(
-            "/api/audio/record/start",
-            {
-                method: "POST"
-            },
-            1000
-        );
-
-        document
-            .getElementById(
-                "recordStatus"
-            )
-            .classList.add(
-                "recording"
-            );
-
-        document
-            .getElementById(
-                "recordText"
-            )
-            .textContent =
-            "Recording";
-
-        showMessage(
-            "Recording started"
-        );
-
-    } catch (e) {
-
-        showMessage(
-            "Microphone error"
-        );
-    }
-}
-
-
-async function stopRecording() {
-
-    try {
-
-        await apiFetch(
-            "/api/audio/record/stop",
-            {
-                method: "POST"
-            },
-            1200
-        );
-
-        document
-            .getElementById(
-                "recordStatus"
-            )
-            .classList.remove(
-                "recording"
-            );
-
-        document
-            .getElementById(
-                "recordText"
-            )
-            .textContent =
-            "Ready";
-
-        showMessage(
-            "Recording saved"
-        );
-
-        setTimeout(
-            loadSD,
-            300
-        );
-
-    } catch (e) {
-
-        showMessage(
-            "Recording error"
-        );
-    }
-}
-
-
-/* ============================================================
    INIT
    ============================================================ */
 
@@ -2511,15 +2362,15 @@ renderTimezone();
 (async function init() {
 
     /*
-     * Загружаем параметры.
-     * Здесь находится UTC.
+     * Сначала загружаем реальные
+     * настройки из SettingsManager.
      */
 
     await loadParams();
 
     /*
-     * После этого загружаем
-     * SD и статус аудио.
+     * Затем загружаем SD
+     * и состояние аудио.
      */
 
     await Promise.all([
@@ -2530,13 +2381,9 @@ renderTimezone();
 })();
 
 
-/*
- * Статус плеера обновляется раз
- * в секунду.
- *
- * Кнопки play/pause/resume/stop
- * обновляют его сразу после действия.
- */
+/* ============================================================
+   PLAYER POLLING
+   ============================================================ */
 
 setInterval(
     updatePlayerStatus,
@@ -2546,4 +2393,5 @@ setInterval(
 </script>
 
 </body>
+
 </html>
