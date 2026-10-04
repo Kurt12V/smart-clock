@@ -1,16 +1,11 @@
+
+// ============================================================
+// CobLed.cpp
+// ============================================================
+
 #include "CobLed.h"
 
 #include <math.h>
-
-
-// ============================================================
-// Static
-// ============================================================
-
-uint8_t CobLed::_gammaTable[256];
-
-bool CobLed::_gammaReady = false;
-
 
 // ============================================================
 // Constructor
@@ -31,44 +26,12 @@ CobLed::CobLed(
 
 
 // ============================================================
-// Gamma
-// ============================================================
-
-void CobLed::buildGamma()
-{
-    if (_gammaReady)
-        return;
-
-    for (int i = 0; i < 256; i++)
-    {
-        float x =
-            i / 255.0f;
-
-        float value =
-            powf(
-                x,
-                2.2f
-            ) * 255.0f;
-
-        _gammaTable[i] =
-            (uint8_t)(
-                value + 0.5f
-            );
-    }
-
-    _gammaReady = true;
-}
-
-
-// ============================================================
 // Begin
 // ============================================================
 
 bool CobLed::begin()
 {
-    buildGamma();
-
-    uint8_t result =
+    const uint8_t result =
         ledcSetup(
             _channel,
             _frequency,
@@ -77,15 +40,7 @@ bool CobLed::begin()
 
     if (result == 0)
     {
-        Serial0.printf(
-            "CobLed: LEDC setup FAILED "
-            "GPIO=%u CH=%u\n",
-            _pin,
-            _channel
-        );
-
         _initialized = false;
-
         return false;
     }
 
@@ -97,9 +52,7 @@ bool CobLed::begin()
     _initialized = true;
 
     _brightness = 0;
-
     _isOn = false;
-
     _fading = false;
 
     ledcWrite(
@@ -107,25 +60,54 @@ bool CobLed::begin()
         0
     );
 
-    Serial0.printf(
-        "CobLed: GPIO=%u CH=%u OK\n",
-        _pin,
-        _channel
-    );
-
     return true;
 }
 
 
 // ============================================================
-// Gamma
+// Brightness -> PWM
+//
+// Input:
+//     0..100
+//
+// Output:
+//     0..255
+//
+// Inverse gamma makes the control perceptually closer
+// to linear brightness.
+//
+// 30% -> approximately 148 PWM
+// 50% -> approximately 186 PWM
+// 100% -> 255 PWM
 // ============================================================
 
-uint8_t CobLed::gamma(
-    uint8_t value
+uint8_t CobLed::toPwm(
+    uint8_t brightness
 ) const
 {
-    return _gammaTable[value];
+    if (brightness == 0)
+        return 0;
+
+    if (brightness >= 100)
+        return 255;
+
+    const float normalized =
+        static_cast<float>(brightness) / 100.0f;
+
+    const float corrected =
+        powf(
+            normalized,
+            1.0f / 2.2f
+        );
+
+    const int pwm =
+        static_cast<int>(
+            corrected * 255.0f + 0.5f
+        );
+
+    return static_cast<uint8_t>(
+        constrain(pwm, 0, 255)
+    );
 }
 
 
@@ -138,19 +120,19 @@ void CobLed::apply()
     if (!_initialized)
         return;
 
-    uint8_t pwm = 0;
-
-    if (_isOn)
+    if (!_isOn)
     {
-        pwm =
-            gamma(
-                _brightness
-            );
+        ledcWrite(
+            _channel,
+            0
+        );
+
+        return;
     }
 
     ledcWrite(
         _channel,
-        pwm
+        toPwm(_brightness)
     );
 }
 
@@ -166,7 +148,11 @@ void CobLed::setBrightness(
     _fading = false;
 
     _brightness =
-        brightness;
+        constrain(
+            brightness,
+            0,
+            100
+        );
 
     if (_brightness == 0)
         _isOn = false;
@@ -195,6 +181,9 @@ void CobLed::on()
 {
     _fading = false;
 
+    if (_brightness == 0)
+        _brightness = 100;
+
     _isOn = true;
 
     apply();
@@ -208,7 +197,6 @@ void CobLed::on()
 void CobLed::off()
 {
     _fading = false;
-
     _isOn = false;
 
     apply();
@@ -247,14 +235,14 @@ void CobLed::increase(
 )
 {
     uint16_t value =
-        (uint16_t)_brightness +
+        static_cast<uint16_t>(_brightness) +
         step;
 
-    if (value > 255)
-        value = 255;
+    if (value > 100)
+        value = 100;
 
     setBrightness(
-        (uint8_t)value
+        static_cast<uint8_t>(value)
     );
 }
 
@@ -268,14 +256,14 @@ void CobLed::decrease(
 )
 {
     int value =
-        (int)_brightness -
+        static_cast<int>(_brightness) -
         step;
 
     if (value < 0)
         value = 0;
 
     setBrightness(
-        (uint8_t)value
+        static_cast<uint8_t>(value)
     );
 }
 
@@ -291,6 +279,13 @@ void CobLed::fadeTo(
 {
     if (!_initialized)
         return;
+
+    target =
+        constrain(
+            target,
+            0,
+            100
+        );
 
     if (_brightness == target)
         return;
@@ -321,7 +316,7 @@ void CobLed::fadeTo(
 
 
 // ============================================================
-// Update fade
+// Update
 // ============================================================
 
 void CobLed::update()
@@ -329,7 +324,7 @@ void CobLed::update()
     if (!_fading)
         return;
 
-    uint32_t elapsed =
+    const uint32_t elapsed =
         millis() -
         _fadeStartTime;
 
@@ -350,25 +345,23 @@ void CobLed::update()
         return;
     }
 
-    float progress =
-        (float)elapsed /
-        (float)_fadeDuration;
+    const float progress =
+        static_cast<float>(elapsed) /
+        static_cast<float>(_fadeDuration);
 
-    int value =
-        (int)_fadeStart +
-        (
-            (int)_fadeTarget -
-            (int)_fadeStart
-        ) * progress;
-
-    if (value < 0)
-        value = 0;
-
-    if (value > 255)
-        value = 255;
+    const int value =
+        static_cast<int>(
+            _fadeStart +
+            (
+                static_cast<int>(_fadeTarget) -
+                static_cast<int>(_fadeStart)
+            ) * progress
+        );
 
     _brightness =
-        (uint8_t)value;
+        static_cast<uint8_t>(
+            constrain(value, 0, 100)
+        );
 
     apply();
 }
@@ -382,3 +375,4 @@ bool CobLed::isFading() const
 {
     return _fading;
 }
+

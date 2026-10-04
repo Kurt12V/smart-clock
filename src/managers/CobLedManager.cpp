@@ -15,8 +15,12 @@ CobLedManager::CobLedManager(
       _cob2(cob2),
       _cob3(cob3),
       _cob4(cob4),
-      _effect(0),
-      _speed(50)
+      _effects(
+          _cob1,
+          _cob2,
+          _cob3,
+          _cob4
+      )
 {
 }
 
@@ -32,6 +36,8 @@ void CobLedManager::begin()
     _cob3.begin();
     _cob4.begin();
 
+    _effects.begin();
+
     offAll();
 }
 
@@ -42,6 +48,8 @@ void CobLedManager::begin()
 
 void CobLedManager::update()
 {
+    _effects.update();
+
     _cob1.update();
     _cob2.update();
     _cob3.update();
@@ -59,17 +67,10 @@ CobLed& CobLedManager::getCob(
 {
     switch (cob)
     {
-        case 1:
-            return _cob1;
-
-        case 2:
-            return _cob2;
-
-        case 3:
-            return _cob3;
-
-        case 4:
-            return _cob4;
+        case 1: return _cob1;
+        case 2: return _cob2;
+        case 3: return _cob3;
+        case 4: return _cob4;
 
         default:
             return _cob1;
@@ -83,17 +84,10 @@ const CobLed& CobLedManager::getCob(
 {
     switch (cob)
     {
-        case 1:
-            return _cob1;
-
-        case 2:
-            return _cob2;
-
-        case 3:
-            return _cob3;
-
-        case 4:
-            return _cob4;
+        case 1: return _cob1;
+        case 2: return _cob2;
+        case 3: return _cob3;
+        case 4: return _cob4;
 
         default:
             return _cob1;
@@ -137,9 +131,7 @@ void CobLedManager::increase(
     uint8_t value
 )
 {
-    getCob(cob).increase(
-        value
-    );
+    getCob(cob).increase(value);
 }
 
 
@@ -152,9 +144,7 @@ void CobLedManager::decrease(
     uint8_t value
 )
 {
-    getCob(cob).decrease(
-        value
-    );
+    getCob(cob).decrease(value);
 }
 
 
@@ -224,39 +214,37 @@ bool CobLedManager::isOn(
 
 
 // ============================================================
-// Set All
+// Set all
 // ============================================================
 
 void CobLedManager::setAll(
     uint8_t brightness
 )
 {
-    _cob1.setBrightness(brightness);
-    _cob2.setBrightness(brightness);
-    _cob3.setBrightness(brightness);
-    _cob4.setBrightness(brightness);
+    _effects.setAllBrightness(
+        brightness
+    );
 }
 
 
 // ============================================================
-// ON All
+// ON all
 // ============================================================
 
 void CobLedManager::onAll()
 {
-    _cob1.on();
-    _cob2.on();
-    _cob3.on();
-    _cob4.on();
+    _effects.setEnabled(true);
 }
 
 
 // ============================================================
-// OFF All
+// OFF all
 // ============================================================
 
 void CobLedManager::offAll()
 {
+    _effects.setEnabled(false);
+
     _cob1.off();
     _cob2.off();
     _cob3.off();
@@ -272,13 +260,17 @@ void CobLedManager::setEffect(
     uint8_t effect
 )
 {
-    _effect = effect;
+    _effects.setEffect(
+        static_cast<CobEffectType>(effect)
+    );
 }
 
 
 uint8_t CobLedManager::effect() const
 {
-    return _effect;
+    return static_cast<uint8_t>(
+        _effects.effect()
+    );
 }
 
 
@@ -290,11 +282,37 @@ void CobLedManager::setSpeed(
     uint8_t speed
 )
 {
-    _speed = speed;
+    _effects.setSpeed(speed);
 }
 
 
 uint8_t CobLedManager::speed() const
 {
-    return _speed;
+    return _effects.speed();
+}
+
+
+// ============================================================
+// Enabled
+// ============================================================
+
+void CobLedManager::setEnabled(
+    bool enabled
+)
+{
+    _effects.setEnabled(enabled);
+
+    if (!enabled)
+    {
+        _cob1.off();
+        _cob2.off();
+        _cob3.off();
+        _cob4.off();
+    }
+}
+
+
+bool CobLedManager::isEnabled() const
+{
+    return _effects.isEnabled();
 }

@@ -1,3 +1,8 @@
+
+// ============================================================
+// CobLed.h
+// ============================================================
+
 #pragma once
 
 #include <Arduino.h>
@@ -16,12 +21,16 @@ public:
     bool begin();
 
     // ========================================================
-    // Яркость
+    // BRIGHTNESS
     // ========================================================
 
     void setBrightness(uint8_t brightness);
 
     uint8_t getBrightness() const;
+
+    void increase(uint8_t step = 5);
+
+    void decrease(uint8_t step = 5);
 
     // ========================================================
     // ON / OFF
@@ -36,15 +45,7 @@ public:
     bool isOn() const;
 
     // ========================================================
-    // Изменение яркости
-    // ========================================================
-
-    void increase(uint8_t step = 5);
-
-    void decrease(uint8_t step = 5);
-
-    // ========================================================
-    // Fade
+    // FADE
     // ========================================================
 
     void fadeTo(
@@ -59,45 +60,33 @@ public:
 private:
 
     uint8_t _pin;
-
     uint8_t _channel;
 
     uint32_t _frequency;
-
     uint8_t _resolution;
 
+    // 0..100
     uint8_t _brightness = 0;
 
     bool _isOn = false;
-
     bool _initialized = false;
 
     // ========================================================
-    // Fade
+    // FADE
     // ========================================================
 
     bool _fading = false;
 
     uint8_t _fadeStart = 0;
-
     uint8_t _fadeTarget = 0;
 
     uint32_t _fadeStartTime = 0;
-
     uint32_t _fadeDuration = 0;
 
-    // ========================================================
-    // Gamma
-    // ========================================================
+private:
 
-    static uint8_t _gammaTable[256];
-
-    static bool _gammaReady;
-
-    static void buildGamma();
-
-    uint8_t gamma(
-        uint8_t value
+    uint8_t toPwm(
+        uint8_t brightness
     ) const;
 
     void apply();

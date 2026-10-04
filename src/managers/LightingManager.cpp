@@ -1,4 +1,3 @@
-
 #include "LightingManager.h"
 
 #include "Pins.h"
@@ -49,7 +48,12 @@ LightingManager::LightingManager(
           _cob4
       ),
 
-      _initialized(false)
+      _initialized(false),
+      _firstApply(true),
+      _brightness(0),
+      _effect(0),
+      _speed(0),
+      _enabled(false)
 {
 }
 
@@ -79,9 +83,11 @@ void LightingManager::update()
     if (!_initialized)
         return;
 
-    _cob.update();
-
+    // Только проверяет изменения настроек.
+    // Сам эффект продолжает работать внутри CobLedManager.
     apply();
+
+    _cob.update();
 }
 
 
@@ -121,39 +127,80 @@ void LightingManager::apply()
         ) != 0;
 
 
-    // --------------------------------------------------------
-    // Brightness
-    // --------------------------------------------------------
+    // ========================================================
+    // First apply
+    // ========================================================
 
-    _cob.setAll(
-        brightness
-    );
+    if (_firstApply)
+    {
+        _brightness = brightness;
+        _effect = effect;
+        _speed = speed;
+        _enabled = enabled;
 
+        _cob.setAll(_brightness);
+        _cob.setEffect(_effect);
+        _cob.setSpeed(_speed);
+        _cob.setEnabled(_enabled);
 
-    // --------------------------------------------------------
-    // Effect
-    // --------------------------------------------------------
+        _firstApply = false;
 
-    _cob.setEffect(
-        effect
-    );
-
-
-    // --------------------------------------------------------
-    // Speed
-    // --------------------------------------------------------
-
-    _cob.setSpeed(
-        speed
-    );
+        return;
+    }
 
 
-    // --------------------------------------------------------
-    // Enabled
-    // --------------------------------------------------------
+    // ========================================================
+    // Brightness changed
+    // ========================================================
 
-    if (enabled)
-        _cob.onAll();
-    else
-        _cob.offAll();
+    if (_brightness != brightness)
+    {
+        _brightness = brightness;
+
+        _cob.setAll(
+            _brightness
+        );
+    }
+
+
+    // ========================================================
+    // Effect changed
+    // ========================================================
+
+    if (_effect != effect)
+    {
+        _effect = effect;
+
+        _cob.setEffect(
+            _effect
+        );
+    }
+
+
+    // ========================================================
+    // Speed changed
+    // ========================================================
+
+    if (_speed != speed)
+    {
+        _speed = speed;
+
+        _cob.setSpeed(
+            _speed
+        );
+    }
+
+
+    // ========================================================
+    // Enabled changed
+    // ========================================================
+
+    if (_enabled != enabled)
+    {
+        _enabled = enabled;
+
+        _cob.setEnabled(
+            _enabled
+        );
+    }
 }

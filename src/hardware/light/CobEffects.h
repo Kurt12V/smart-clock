@@ -1,12 +1,10 @@
+
 #pragma once
 
 #include <Arduino.h>
 
-#include "./managers/CobLedManager.h"
+#include "./hardware/light/CobLed.h"
 
-// ============================================================
-// EFFECT TYPE
-// ============================================================
 
 enum class CobEffectType : uint8_t
 {
@@ -18,24 +16,15 @@ enum class CobEffectType : uint8_t
 };
 
 
-// ============================================================
-// COB EFFECTS
-//
-// Управляет четырьмя COB через CobLedManager.
-//
-// Внешний диапазон яркости:
-//     0..100
-//
-// В CobLedManager:
-//     0..255
-// ============================================================
-
 class CobEffects
 {
 public:
 
-    explicit CobEffects(
-        CobLedManager& manager
+    CobEffects(
+        CobLed& cob1,
+        CobLed& cob2,
+        CobLed& cob3,
+        CobLed& cob4
     );
 
     void begin();
@@ -100,9 +89,12 @@ public:
 
 private:
 
-    static const uint8_t LED_COUNT = 4;
+    static constexpr uint8_t LED_COUNT = 4;
 
-    CobLedManager& _manager;
+    CobLed& _cob1;
+    CobLed& _cob2;
+    CobLed& _cob3;
+    CobLed& _cob4;
 
     CobEffectType _effect;
 
@@ -116,6 +108,14 @@ private:
     uint32_t _phase;
 
 private:
+
+    CobLed& led(
+        uint8_t index
+    );
+
+    const CobLed& led(
+        uint8_t index
+    ) const;
 
     void apply(
         uint8_t index,
