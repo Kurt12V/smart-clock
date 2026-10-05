@@ -4,6 +4,90 @@
 
 
 // ============================================================
+// ALARM PATH HELPERS
+// ============================================================
+
+namespace
+{
+    bool isAlarmCollectionPath(const String& uri)
+    {
+        return uri == "/api/alarms";
+    }
+
+    bool isAlarmItemPath(const String& uri)
+    {
+        static constexpr const char* PREFIX = "/api/alarms/";
+
+        if (!uri.startsWith(PREFIX))
+            return false;
+
+        const String tail = uri.substring(
+            strlen(PREFIX)
+        );
+
+        return !tail.isEmpty() &&
+               tail.indexOf('/') < 0;
+    }
+
+    bool isAlarmEnabledPath(const String& uri)
+    {
+        static constexpr const char* PREFIX = "/api/alarms/";
+        static constexpr const char* SUFFIX = "/enabled";
+
+        if (!uri.startsWith(PREFIX))
+            return false;
+
+        if (!uri.endsWith(SUFFIX))
+            return false;
+
+        const size_t prefixLength =
+            strlen(PREFIX);
+
+        const size_t suffixLength =
+            strlen(SUFFIX);
+
+        if (uri.length() <=
+            prefixLength + suffixLength)
+        {
+            return false;
+        }
+
+        const String id = uri.substring(
+            prefixLength,
+            uri.length() - suffixLength
+        );
+
+        return !id.isEmpty() &&
+               id.indexOf('/') < 0;
+    }
+
+    String alarmIdFromUri(const String& uri)
+    {
+        static constexpr const char* PREFIX = "/api/alarms/";
+
+        if (!isAlarmItemPath(uri))
+            return String();
+
+        return uri.substring(strlen(PREFIX));
+    }
+
+    String alarmIdFromEnabledUri(const String& uri)
+    {
+        static constexpr const char* PREFIX = "/api/alarms/";
+        static constexpr const char* SUFFIX = "/enabled";
+
+        if (!isAlarmEnabledPath(uri))
+            return String();
+
+        return uri.substring(
+            strlen(PREFIX),
+            uri.length() - strlen(SUFFIX)
+        );
+    }
+}
+
+
+// ============================================================
 // CONSTRUCTOR
 // ============================================================
 
@@ -315,6 +399,15 @@ void WebServerManager::setupRoutes()
     );
 
     _server.on(
+        "/api/alarms",
+        HTTP_POST,
+        [this]()
+        {
+            handleCreateAlarm();
+        }
+    );
+
+    _server.on(
         "/api/alarm",
         HTTP_GET,
         [this]()
@@ -458,6 +551,103 @@ void WebServerManager::handleRoot()
 
 void WebServerManager::handleNotFound()
 {
+    const String uri = _server.uri();
+
+    // --------------------------------------------------------
+    // REST alarm API
+    //
+    // The frontend uses:
+    //   GET    /api/alarms/<id>
+    //   PUT    /api/alarms/<id>
+    //   DELETE /api/alarms/<id>
+    //   POST   /api/alarms/<id>/enabled
+    //
+    // The existing API below remains unchanged.
+    // --------------------------------------------------------
+
+    if (isAlarmItemPath(uri))
+    {
+        const String id = alarmIdFromUri(uri);
+
+        if (!id.isEmpty())
+        {
+            if (_server.method() == HTTP_GET)
+            {
+                handleGetAlarm();
+                return;
+            }
+
+            if (_server.method() == HTTP_PUT)
+            {
+                handleUpdateAlarm();
+                return;
+            }
+
+            if (_server.method() == HTTP_DELETE)
+            {
+                handleDeleteAlarm();
+                return;
+            }
+        }
+    }
+
+    if (isAlarmEnabledPath(uri) &&
+        _server.method() == HTTP_POST)
+    {
+        if (!_alarmManager)
+        {
+            sendError(
+                503,
+                "alarm manager not initialized"
+            );
+            return;
+        }
+
+        const String id =
+            alarmIdFromEnabledUri(uri);
+
+        if (id.isEmpty())
+        {
+            sendError(
+                400,
+                "missing id"
+            );
+            return;
+        }
+
+        JsonDocument doc;
+
+        if (!parseJson(doc))
+            return;
+
+        if (doc["enabled"].isNull())
+        {
+            sendError(
+                400,
+                "missing enabled"
+            );
+            return;
+        }
+
+        const bool enabled =
+            doc["enabled"].as<bool>();
+
+        if (!_alarmManager->setEnabled(
+                id,
+                enabled
+            ))
+        {
+            sendError(
+                404,
+                "alarm not found"
+            );
+            return;
+        }
+
+        sendOk();
+        return;
+    }
+
     _server.send(
         404,
         "text/plain",
@@ -1312,8 +1502,10 @@ void WebServerManager::handleGetAlarm()
         return;
     }
 
-    const String id =
-        _server.arg("id");
+    String id = _server.arg("id");
+
+    if (id.isEmpty())
+        id = alarmIdFromUri(_server.uri());
 
     if (id.isEmpty())
     {
@@ -1382,14 +1574,15 @@ void WebServerManager::handleCreateAlarm()
         return;
     }
 
+    // New alarms from the frontend intentionally have no id.
+    // Generate it here before passing the alarm to AlarmManager.
+    // Existing alarms keep their original id.
     if (alarm.id.isEmpty())
     {
-        sendError(
-            400,
-            "missing id"
-        );
-
-        return;
+        alarm.id =
+            String("alarm_") +
+            String(millis(), HEX) +
+            String(random(0x10000000, 0x7FFFFFFF), HEX);
     }
 
     if (!_alarmManager->create(
@@ -1462,6 +1655,15 @@ void WebServerManager::handleUpdateAlarm()
 
     if (alarm.id.isEmpty())
     {
+        const String pathId =
+            alarmIdFromUri(_server.uri());
+
+        if (!pathId.isEmpty())
+            alarm.id = pathId;
+    }
+
+    if (alarm.id.isEmpty())
+    {
         sendError(
             400,
             "missing id"
@@ -1530,8 +1732,10 @@ void WebServerManager::handleDeleteAlarm()
         return;
     }
 
-    const String id =
-        _server.arg("id");
+    String id = _server.arg("id");
+
+    if (id.isEmpty())
+        id = alarmIdFromUri(_server.uri());
 
     if (id.isEmpty())
     {
