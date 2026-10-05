@@ -217,6 +217,10 @@ void WebServerManager::setAlarmManager(
 {
     _alarmManager =
         &alarmManager;
+
+    Serial0.println(
+        "[WEB][ALARM] AlarmManager attached"
+    );
 }
 
 
@@ -230,6 +234,10 @@ void WebServerManager::setAlarmController(
 {
     _alarmController =
         &alarmController;
+
+    Serial0.println(
+        "[WEB][ALARM] AlarmController attached"
+    );
 }
 
 
@@ -553,58 +561,115 @@ void WebServerManager::handleNotFound()
 {
     const String uri = _server.uri();
 
+    Serial0.println();
+    Serial0.println(
+        "[WEB][404] Request"
+    );
+
+    Serial0.print(
+        "[WEB][404] URI: "
+    );
+
+    Serial0.println(uri);
+
+    Serial0.print(
+        "[WEB][404] Method: "
+    );
+
+    Serial0.println(
+        static_cast<int>(
+            _server.method()
+        )
+    );
+
     // --------------------------------------------------------
     // REST alarm API
     //
-    // The frontend uses:
-    //   GET    /api/alarms/<id>
-    //   PUT    /api/alarms/<id>
-    //   DELETE /api/alarms/<id>
-    //   POST   /api/alarms/<id>/enabled
-    //
-    // The existing API below remains unchanged.
+    // GET    /api/alarms/<id>
+    // PUT    /api/alarms/<id>
+    // DELETE /api/alarms/<id>
+    // POST   /api/alarms/<id>/enabled
     // --------------------------------------------------------
 
     if (isAlarmItemPath(uri))
     {
-        const String id = alarmIdFromUri(uri);
+        const String id =
+            alarmIdFromUri(uri);
+
+        Serial0.print(
+            "[WEB][ALARM] REST item ID: "
+        );
+
+        Serial0.println(id);
 
         if (!id.isEmpty())
         {
             if (_server.method() == HTTP_GET)
             {
+                Serial0.println(
+                    "[WEB][ALARM] -> GET alarm"
+                );
+
                 handleGetAlarm();
+
                 return;
             }
 
             if (_server.method() == HTTP_PUT)
             {
+                Serial0.println(
+                    "[WEB][ALARM] -> PUT alarm"
+                );
+
                 handleUpdateAlarm();
+
                 return;
             }
 
             if (_server.method() == HTTP_DELETE)
             {
+                Serial0.println(
+                    "[WEB][ALARM] -> DELETE alarm"
+                );
+
                 handleDeleteAlarm();
+
                 return;
             }
         }
     }
 
-    if (isAlarmEnabledPath(uri) &&
-        _server.method() == HTTP_POST)
+    if (
+        isAlarmEnabledPath(uri) &&
+        _server.method() == HTTP_POST
+    )
     {
+        Serial0.println(
+            "[WEB][ALARM] -> POST enabled"
+        );
+
         if (!_alarmManager)
         {
+            Serial0.println(
+                "[WEB][ALARM][ERROR] AlarmManager is null"
+            );
+
             sendError(
                 503,
                 "alarm manager not initialized"
             );
+
             return;
         }
 
         const String id =
             alarmIdFromEnabledUri(uri);
+
+        Serial0.print(
+            "[WEB][ALARM] Enabled ID: "
+        );
+
+        Serial0.println(id);
 
         if (id.isEmpty())
         {
@@ -612,6 +677,7 @@ void WebServerManager::handleNotFound()
                 400,
                 "missing id"
             );
+
             return;
         }
 
@@ -622,31 +688,60 @@ void WebServerManager::handleNotFound()
 
         if (doc["enabled"].isNull())
         {
+            Serial0.println(
+                "[WEB][ALARM][ERROR] enabled missing"
+            );
+
             sendError(
                 400,
                 "missing enabled"
             );
+
             return;
         }
 
         const bool enabled =
             doc["enabled"].as<bool>();
 
+        Serial0.print(
+            "[WEB][ALARM] Set enabled = "
+        );
+
+        Serial0.println(
+            enabled
+                ? "true"
+                : "false"
+        );
+
         if (!_alarmManager->setEnabled(
                 id,
                 enabled
             ))
         {
+            Serial0.println(
+                "[WEB][ALARM][ERROR] setEnabled() failed"
+            );
+
             sendError(
                 404,
                 "alarm not found"
             );
+
             return;
         }
 
+        Serial0.println(
+            "[WEB][ALARM] setEnabled() OK"
+        );
+
         sendOk();
+
         return;
     }
+
+    Serial0.println(
+        "[WEB][404] Not found"
+    );
 
     _server.send(
         404,
@@ -694,8 +789,10 @@ void WebServerManager::handleGetParam()
             name.c_str()
         );
 
-    if (param ==
-        SettingsManager::Param::COUNT)
+    if (
+        param ==
+        SettingsManager::Param::COUNT
+    )
     {
         sendError(
             400,
@@ -754,19 +851,22 @@ void WebServerManager::handleSetParam()
     if (!parseJson(doc))
         return;
 
-
     const char* name =
         doc["param"];
 
-    if (!name ||
-        name[0] == '\0')
+    if (
+        !name ||
+        name[0] == '\0'
+    )
     {
         name =
             doc["name"];
     }
 
-    if (!name ||
-        name[0] == '\0')
+    if (
+        !name ||
+        name[0] == '\0'
+    )
     {
         sendError(
             400,
@@ -775,7 +875,6 @@ void WebServerManager::handleSetParam()
 
         return;
     }
-
 
     if (doc["value"].isNull())
     {
@@ -787,18 +886,18 @@ void WebServerManager::handleSetParam()
         return;
     }
 
-
     const int requestedValue =
         doc["value"].as<int>();
-
 
     const SettingsManager::Param param =
         _settings->paramFromName(
             name
         );
 
-    if (param ==
-        SettingsManager::Param::COUNT)
+    if (
+        param ==
+        SettingsManager::Param::COUNT
+    )
     {
         sendError(
             400,
@@ -808,12 +907,10 @@ void WebServerManager::handleSetParam()
         return;
     }
 
-
     const uint8_t oldValue =
         _settings->get(
             param
         );
-
 
     const uint8_t value =
         static_cast<uint8_t>(
@@ -824,18 +921,15 @@ void WebServerManager::handleSetParam()
             )
         );
 
-
     _settings->set(
         param,
         value
     );
 
-
     const uint8_t actualValue =
         _settings->get(
             param
         );
-
 
     JsonDocument response;
 
@@ -851,7 +945,6 @@ void WebServerManager::handleSetParam()
 
     response["changed"] =
         actualValue != oldValue;
-
 
     String body;
 
@@ -903,8 +996,10 @@ void WebServerManager::handleGetAllParams()
                 param
             );
 
-        if (!name ||
-            name[0] == '\0')
+        if (
+            !name ||
+            name[0] == '\0'
+        )
         {
             continue;
         }
@@ -1074,12 +1169,13 @@ void WebServerManager::handleAudioPlay()
     if (!parseJson(doc))
         return;
 
-
     const char* path =
         doc["path"];
 
-    if (!path ||
-        path[0] == '\0')
+    if (
+        !path ||
+        path[0] == '\0'
+    )
     {
         sendError(
             400,
@@ -1088,7 +1184,6 @@ void WebServerManager::handleAudioPlay()
 
         return;
     }
-
 
     if (
         !_sd ||
@@ -1103,7 +1198,6 @@ void WebServerManager::handleAudioPlay()
         return;
     }
 
-
     if (!_sd->card().exists(path))
     {
         sendError(
@@ -1114,17 +1208,17 @@ void WebServerManager::handleAudioPlay()
         return;
     }
 
-
     SoundManager::PlayOptions options;
-
 
     const char* stream =
         doc["stream"] | "media";
 
-    if (strcmp(
+    if (
+        strcmp(
             stream,
             "alarm"
-        ) == 0)
+        ) == 0
+    )
     {
         options.stream =
             SoundManager::AudioStream::Alarm;
@@ -1144,7 +1238,6 @@ void WebServerManager::handleAudioPlay()
         options.stream =
             SoundManager::AudioStream::Media;
     }
-
 
     int volume = 100;
 
@@ -1171,7 +1264,6 @@ void WebServerManager::handleAudioPlay()
             volume
         );
 
-
     if (!doc["fadeInMs"].isNull())
     {
         options.fadeInMs =
@@ -1182,7 +1274,6 @@ void WebServerManager::handleAudioPlay()
         options.fadeInMs =
             doc["fade_in"] | 0;
     }
-
 
     if (!doc["fadeOutMs"].isNull())
     {
@@ -1195,14 +1286,15 @@ void WebServerManager::handleAudioPlay()
             doc["fade_out"] | 0;
     }
 
-
     const char* curve =
         doc["curve"] | "linear";
 
-    if (strcmp(
+    if (
+        strcmp(
             curve,
             "exp"
-        ) == 0)
+        ) == 0
+    )
     {
         options.curve =
             SoundManager::FadeCurve::Exponential;
@@ -1222,7 +1314,6 @@ void WebServerManager::handleAudioPlay()
         options.curve =
             SoundManager::FadeCurve::Linear;
     }
-
 
     if (!_sound->play(
             path,
@@ -1461,8 +1552,16 @@ void WebServerManager::handleAudioStatus()
 
 void WebServerManager::handleGetAlarms()
 {
+    Serial0.println(
+        "[WEB][ALARM] GET /api/alarms"
+    );
+
     if (!_alarmManager)
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] AlarmManager is null"
+        );
+
         sendError(
             503,
             "alarm manager not initialized"
@@ -1471,9 +1570,15 @@ void WebServerManager::handleGetAlarms()
         return;
     }
 
-    if (!_sd ||
-        !_sd->isReady())
+    if (
+        !_sd ||
+        !_sd->isReady()
+    )
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] SD not available"
+        );
+
         sendError(
             503,
             "SD not available"
@@ -1492,8 +1597,16 @@ void WebServerManager::handleGetAlarms()
 
 void WebServerManager::handleGetAlarm()
 {
+    Serial0.println(
+        "[WEB][ALARM] GET alarm"
+    );
+
     if (!_alarmManager)
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] AlarmManager is null"
+        );
+
         sendError(
             503,
             "alarm manager not initialized"
@@ -1502,13 +1615,29 @@ void WebServerManager::handleGetAlarm()
         return;
     }
 
-    String id = _server.arg("id");
-
-    if (id.isEmpty())
-        id = alarmIdFromUri(_server.uri());
+    String id =
+        _server.arg("id");
 
     if (id.isEmpty())
     {
+        id =
+            alarmIdFromUri(
+                _server.uri()
+            );
+    }
+
+    Serial0.print(
+        "[WEB][ALARM] ID: "
+    );
+
+    Serial0.println(id);
+
+    if (id.isEmpty())
+    {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] missing id"
+        );
+
         sendError(
             400,
             "missing id"
@@ -1524,6 +1653,10 @@ void WebServerManager::handleGetAlarm()
             alarm
         ))
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] get() failed"
+        );
+
         sendError(
             404,
             "alarm not found"
@@ -1531,6 +1664,10 @@ void WebServerManager::handleGetAlarm()
 
         return;
     }
+
+    Serial0.println(
+        "[WEB][ALARM] get() OK"
+    );
 
     sendAlarm(
         alarm
@@ -1544,8 +1681,52 @@ void WebServerManager::handleGetAlarm()
 
 void WebServerManager::handleCreateAlarm()
 {
+    Serial0.println();
+    Serial0.println(
+        "========== ALARM CREATE =========="
+    );
+
+    Serial0.print(
+        "[WEB][ALARM] URI: "
+    );
+
+    Serial0.println(
+        _server.uri()
+    );
+
+    Serial0.print(
+        "[WEB][ALARM] Method: "
+    );
+
+    Serial0.println(
+        static_cast<int>(
+            _server.method()
+        )
+    );
+
+    Serial0.println(
+        "[WEB][ALARM] Incoming JSON:"
+    );
+
+    if (_server.hasArg("plain"))
+    {
+        Serial0.println(
+            _server.arg("plain")
+        );
+    }
+    else
+    {
+        Serial0.println(
+            "<NO BODY>"
+        );
+    }
+
     if (!_alarmManager)
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] AlarmManager is null"
+        );
+
         sendError(
             503,
             "alarm manager not initialized"
@@ -1554,9 +1735,15 @@ void WebServerManager::handleCreateAlarm()
         return;
     }
 
-    if (!_sd ||
-        !_sd->isReady())
+    if (
+        !_sd ||
+        !_sd->isReady()
+    )
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] SD not available"
+        );
+
         sendError(
             503,
             "SD not available"
@@ -1567,28 +1754,356 @@ void WebServerManager::handleCreateAlarm()
 
     Alarm alarm;
 
+    Serial0.println(
+        "[WEB][ALARM] parseAlarmFromRequest()..."
+    );
+
     if (!parseAlarmFromRequest(
             alarm
         ))
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] parseAlarmFromRequest() FAILED"
+        );
+
         return;
     }
 
-    // New alarms from the frontend intentionally have no id.
-    // Generate it here before passing the alarm to AlarmManager.
-    // Existing alarms keep their original id.
+    Serial0.println(
+        "[WEB][ALARM] deserialize OK"
+    );
+
+    Serial0.print(
+        "[WEB][ALARM] ID: "
+    );
+
+    Serial0.println(
+        alarm.id
+    );
+
+    Serial0.print(
+        "[WEB][ALARM] Name: "
+    );
+
+    Serial0.println(
+        alarm.name
+    );
+
+    Serial0.print(
+        "[WEB][ALARM] Enabled: "
+    );
+
+    Serial0.println(
+        alarm.enabled
+            ? "true"
+            : "false"
+    );
+
+    Serial0.print(
+        "[WEB][ALARM] Time: "
+    );
+
+    Serial0.print(
+        alarm.time.hour
+    );
+
+    Serial0.print(":");
+
+    Serial0.print(
+        alarm.time.minute
+    );
+
+    Serial0.print(":");
+
+    Serial0.println(
+        alarm.time.second
+    );
+
+    Serial0.print(
+        "[WEB][ALARM] Repeat mask: "
+    );
+
+    Serial0.println(
+        alarm.repeatMask
+    );
+
+    Serial0.print(
+        "[WEB][ALARM] Phase count: "
+    );
+
+    Serial0.println(
+        alarm.phaseCount
+    );
+
+
+    // --------------------------------------------------------
+    // PHASE DEBUG
+    // --------------------------------------------------------
+
+    for (
+        uint8_t i = 0;
+        i < alarm.phaseCount &&
+        i < AlarmConfig::MAX_PHASES;
+        ++i
+    )
+    {
+        const AlarmPhase& phase =
+            alarm.phases[i];
+
+        Serial0.print(
+            "[WEB][ALARM] Phase "
+        );
+
+        Serial0.print(i);
+
+        Serial0.print(
+            ": offset="
+        );
+
+        Serial0.print(
+            phase.startOffsetMs
+        );
+
+        Serial0.print(
+            " duration="
+        );
+
+        Serial0.print(
+            phase.durationMs
+        );
+
+        Serial0.print(
+            " condition="
+        );
+
+        Serial0.println(
+            static_cast<uint8_t>(
+                phase.condition
+            )
+        );
+
+        Serial0.print(
+            "  matrix enabled="
+        );
+
+        Serial0.print(
+            phase.matrix.enabled
+                ? "true"
+                : "false"
+        );
+
+        Serial0.print(
+            " effect="
+        );
+
+        Serial0.print(
+            phase.matrix.effectId
+        );
+
+        Serial0.print(
+            " start="
+        );
+
+        Serial0.print(
+            phase.matrix.start
+        );
+
+        Serial0.print(
+            " end="
+        );
+
+        Serial0.print(
+            phase.matrix.end
+        );
+
+        Serial0.print(
+            " speedMs="
+        );
+
+        Serial0.print(
+            phase.matrix.speedMs
+        );
+
+        Serial0.print(
+            " durationMs="
+        );
+
+        Serial0.println(
+            phase.matrix.durationMs
+        );
+
+        Serial0.print(
+            "  audio enabled="
+        );
+
+        Serial0.print(
+            phase.audio.enabled
+                ? "true"
+                : "false"
+        );
+
+        Serial0.print(
+            " effect="
+        );
+
+        Serial0.print(
+            phase.audio.effectId
+        );
+
+        Serial0.print(
+            " start="
+        );
+
+        Serial0.print(
+            phase.audio.start
+        );
+
+        Serial0.print(
+            " end="
+        );
+
+        Serial0.print(
+            phase.audio.end
+        );
+
+        Serial0.print(
+            " speedMs="
+        );
+
+        Serial0.print(
+            phase.audio.speedMs
+        );
+
+        Serial0.print(
+            " durationMs="
+        );
+
+        Serial0.print(
+            phase.audio.durationMs
+        );
+
+        Serial0.print(
+            " loop="
+        );
+
+        Serial0.println(
+            phase.audio.loop
+                ? "true"
+                : "false"
+        );
+
+        Serial0.print(
+            "  cob enabled="
+        );
+
+        Serial0.print(
+            phase.cob.enabled
+                ? "true"
+                : "false"
+        );
+
+        Serial0.print(
+            " effect="
+        );
+
+        Serial0.print(
+            phase.cob.effectId
+        );
+
+        Serial0.print(
+            " start="
+        );
+
+        Serial0.print(
+            phase.cob.start
+        );
+
+        Serial0.print(
+            " end="
+        );
+
+        Serial0.print(
+            phase.cob.end
+        );
+
+        Serial0.print(
+            " speedMs="
+        );
+
+        Serial0.print(
+            phase.cob.speedMs
+        );
+
+        Serial0.print(
+            " durationMs="
+        );
+
+        Serial0.print(
+            phase.cob.durationMs
+        );
+
+        Serial0.print(
+            " maxDurationMs="
+        );
+
+        Serial0.println(
+            phase.cob.maxDurationMs
+        );
+    }
+
+
+    // --------------------------------------------------------
+    // GENERATE ID
+    // --------------------------------------------------------
+
     if (alarm.id.isEmpty())
     {
         alarm.id =
             String("alarm_") +
-            String(millis(), HEX) +
-            String(random(0x10000000, 0x7FFFFFFF), HEX);
+            String(
+                millis(),
+                HEX
+            ) +
+            String(
+                random(
+                    0x10000000,
+                    0x7FFFFFFF
+                ),
+                HEX
+            );
+
+        Serial0.print(
+            "[WEB][ALARM] Generated ID: "
+        );
+
+        Serial0.println(
+            alarm.id
+        );
     }
+    else
+    {
+        Serial0.println(
+            "[WEB][ALARM] Existing ID preserved"
+        );
+    }
+
+
+    // --------------------------------------------------------
+    // CREATE
+    // --------------------------------------------------------
+
+    Serial0.println(
+        "[WEB][ALARM] Calling AlarmManager::create()..."
+    );
 
     if (!_alarmManager->create(
             alarm
         ))
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] AlarmManager::create() FAILED"
+        );
+
         sendError(
             409,
             "failed to create alarm"
@@ -1597,13 +2112,30 @@ void WebServerManager::handleCreateAlarm()
         return;
     }
 
+    Serial0.println(
+        "[WEB][ALARM] AlarmManager::create() OK"
+    );
+
+
+    // --------------------------------------------------------
+    // READ AFTER CREATE
+    // --------------------------------------------------------
+
     Alarm saved;
+
+    Serial0.println(
+        "[WEB][ALARM] Calling AlarmManager::get()..."
+    );
 
     if (!_alarmManager->get(
             alarm.id,
             saved
         ))
     {
+        Serial0.println(
+            "[WEB][ALARM][WARNING] get() after create FAILED"
+        );
+
         sendAlarm(
             alarm
         );
@@ -1611,8 +2143,16 @@ void WebServerManager::handleCreateAlarm()
         return;
     }
 
+    Serial0.println(
+        "[WEB][ALARM] Alarm saved and loaded successfully"
+    );
+
     sendAlarm(
         saved
+    );
+
+    Serial0.println(
+        "========== ALARM CREATE END =========="
     );
 }
 
@@ -1623,8 +2163,52 @@ void WebServerManager::handleCreateAlarm()
 
 void WebServerManager::handleUpdateAlarm()
 {
+    Serial0.println();
+    Serial0.println(
+        "========== ALARM UPDATE =========="
+    );
+
+    Serial0.print(
+        "[WEB][ALARM] URI: "
+    );
+
+    Serial0.println(
+        _server.uri()
+    );
+
+    Serial0.print(
+        "[WEB][ALARM] Method: "
+    );
+
+    Serial0.println(
+        static_cast<int>(
+            _server.method()
+        )
+    );
+
+    Serial0.println(
+        "[WEB][ALARM] Incoming JSON:"
+    );
+
+    if (_server.hasArg("plain"))
+    {
+        Serial0.println(
+            _server.arg("plain")
+        );
+    }
+    else
+    {
+        Serial0.println(
+            "<NO BODY>"
+        );
+    }
+
     if (!_alarmManager)
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] AlarmManager is null"
+        );
+
         sendError(
             503,
             "alarm manager not initialized"
@@ -1633,9 +2217,15 @@ void WebServerManager::handleUpdateAlarm()
         return;
     }
 
-    if (!_sd ||
-        !_sd->isReady())
+    if (
+        !_sd ||
+        !_sd->isReady()
+    )
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] SD not available"
+        );
+
         sendError(
             503,
             "SD not available"
@@ -1646,24 +2236,61 @@ void WebServerManager::handleUpdateAlarm()
 
     Alarm alarm;
 
+    Serial0.println(
+        "[WEB][ALARM] parseAlarmFromRequest()..."
+    );
+
     if (!parseAlarmFromRequest(
             alarm
         ))
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] parseAlarmFromRequest() FAILED"
+        );
+
         return;
     }
+
+    Serial0.println(
+        "[WEB][ALARM] JSON deserialized"
+    );
 
     if (alarm.id.isEmpty())
     {
         const String pathId =
-            alarmIdFromUri(_server.uri());
+            alarmIdFromUri(
+                _server.uri()
+            );
 
         if (!pathId.isEmpty())
-            alarm.id = pathId;
+        {
+            alarm.id =
+                pathId;
+
+            Serial0.print(
+                "[WEB][ALARM] ID taken from URI: "
+            );
+
+            Serial0.println(
+                alarm.id
+            );
+        }
     }
+
+    Serial0.print(
+        "[WEB][ALARM] Final ID: "
+    );
+
+    Serial0.println(
+        alarm.id
+    );
 
     if (alarm.id.isEmpty())
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] Missing ID"
+        );
+
         sendError(
             400,
             "missing id"
@@ -1672,10 +2299,18 @@ void WebServerManager::handleUpdateAlarm()
         return;
     }
 
+    Serial0.println(
+        "[WEB][ALARM] Checking exists()..."
+    );
+
     if (!_alarmManager->exists(
             alarm.id
         ))
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] Alarm does not exist"
+        );
+
         sendError(
             404,
             "alarm not found"
@@ -1684,10 +2319,22 @@ void WebServerManager::handleUpdateAlarm()
         return;
     }
 
+    Serial0.println(
+        "[WEB][ALARM] Alarm exists"
+    );
+
+    Serial0.println(
+        "[WEB][ALARM] Calling AlarmManager::update()..."
+    );
+
     if (!_alarmManager->update(
             alarm
         ))
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] AlarmManager::update() FAILED"
+        );
+
         sendError(
             409,
             "failed to update alarm"
@@ -1696,22 +2343,46 @@ void WebServerManager::handleUpdateAlarm()
         return;
     }
 
+    Serial0.println(
+        "[WEB][ALARM] AlarmManager::update() OK"
+    );
+
     Alarm saved;
+
+    Serial0.println(
+        "[WEB][ALARM] Calling AlarmManager::get()..."
+    );
 
     if (_alarmManager->get(
             alarm.id,
             saved
         ))
     {
+        Serial0.println(
+            "[WEB][ALARM] Updated alarm read successfully"
+        );
+
         sendAlarm(
             saved
+        );
+
+        Serial0.println(
+            "========== ALARM UPDATE END =========="
         );
 
         return;
     }
 
+    Serial0.println(
+        "[WEB][ALARM][WARNING] get() after update FAILED"
+    );
+
     sendAlarm(
         alarm
+    );
+
+    Serial0.println(
+        "========== ALARM UPDATE END =========="
     );
 }
 
@@ -1722,8 +2393,17 @@ void WebServerManager::handleUpdateAlarm()
 
 void WebServerManager::handleDeleteAlarm()
 {
+    Serial0.println();
+    Serial0.println(
+        "========== ALARM DELETE =========="
+    );
+
     if (!_alarmManager)
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] AlarmManager is null"
+        );
+
         sendError(
             503,
             "alarm manager not initialized"
@@ -1732,10 +2412,22 @@ void WebServerManager::handleDeleteAlarm()
         return;
     }
 
-    String id = _server.arg("id");
+    String id =
+        _server.arg("id");
 
     if (id.isEmpty())
-        id = alarmIdFromUri(_server.uri());
+    {
+        id =
+            alarmIdFromUri(
+                _server.uri()
+            );
+    }
+
+    Serial0.print(
+        "[WEB][ALARM] Delete ID: "
+    );
+
+    Serial0.println(id);
 
     if (id.isEmpty())
     {
@@ -1747,10 +2439,18 @@ void WebServerManager::handleDeleteAlarm()
         return;
     }
 
+    Serial0.println(
+        "[WEB][ALARM] Calling AlarmManager::remove()..."
+    );
+
     if (!_alarmManager->remove(
             id
         ))
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] remove() FAILED"
+        );
+
         sendError(
             404,
             "alarm not found"
@@ -1759,7 +2459,15 @@ void WebServerManager::handleDeleteAlarm()
         return;
     }
 
+    Serial0.println(
+        "[WEB][ALARM] remove() OK"
+    );
+
     sendOk();
+
+    Serial0.println(
+        "========== ALARM DELETE END =========="
+    );
 }
 
 
@@ -1769,8 +2477,16 @@ void WebServerManager::handleDeleteAlarm()
 
 void WebServerManager::handleEnableAlarm()
 {
+    Serial0.println(
+        "[WEB][ALARM] ENABLE"
+    );
+
     if (!_alarmManager)
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] AlarmManager is null"
+        );
+
         sendError(
             503,
             "alarm manager not initialized"
@@ -1781,6 +2497,12 @@ void WebServerManager::handleEnableAlarm()
 
     const String id =
         _server.arg("id");
+
+    Serial0.print(
+        "[WEB][ALARM] Enable ID: "
+    );
+
+    Serial0.println(id);
 
     if (id.isEmpty())
     {
@@ -1796,6 +2518,10 @@ void WebServerManager::handleEnableAlarm()
             id
         ))
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] enable() FAILED"
+        );
+
         sendError(
             404,
             "alarm not found"
@@ -1803,6 +2529,10 @@ void WebServerManager::handleEnableAlarm()
 
         return;
     }
+
+    Serial0.println(
+        "[WEB][ALARM] enable() OK"
+    );
 
     sendOk();
 }
@@ -1814,8 +2544,16 @@ void WebServerManager::handleEnableAlarm()
 
 void WebServerManager::handleDisableAlarm()
 {
+    Serial0.println(
+        "[WEB][ALARM] DISABLE"
+    );
+
     if (!_alarmManager)
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] AlarmManager is null"
+        );
+
         sendError(
             503,
             "alarm manager not initialized"
@@ -1826,6 +2564,12 @@ void WebServerManager::handleDisableAlarm()
 
     const String id =
         _server.arg("id");
+
+    Serial0.print(
+        "[WEB][ALARM] Disable ID: "
+    );
+
+    Serial0.println(id);
 
     if (id.isEmpty())
     {
@@ -1841,6 +2585,10 @@ void WebServerManager::handleDisableAlarm()
             id
         ))
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] disable() FAILED"
+        );
+
         sendError(
             404,
             "alarm not found"
@@ -1848,6 +2596,10 @@ void WebServerManager::handleDisableAlarm()
 
         return;
     }
+
+    Serial0.println(
+        "[WEB][ALARM] disable() OK"
+    );
 
     sendOk();
 }
@@ -1859,8 +2611,16 @@ void WebServerManager::handleDisableAlarm()
 
 void WebServerManager::handleAlarmRuntime()
 {
+    Serial0.println(
+        "[WEB][ALARM] GET runtime"
+    );
+
     if (!_alarmManager)
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] AlarmManager is null"
+        );
+
         sendError(
             503,
             "alarm manager not initialized"
@@ -1874,7 +2634,6 @@ void WebServerManager::handleAlarmRuntime()
     doc["active"] =
         _alarmManager->isRunning();
 
-
     if (_alarmManager->isRunning())
     {
         const Alarm* alarm =
@@ -1882,7 +2641,6 @@ void WebServerManager::handleAlarmRuntime()
 
         const AlarmPhase* phase =
             _alarmManager->currentPhase();
-
 
         if (alarm)
         {
@@ -1923,8 +2681,16 @@ void WebServerManager::handleAlarmRuntime()
 
 void WebServerManager::handleAlarmDismiss()
 {
+    Serial0.println(
+        "[WEB][ALARM] DISMISS"
+    );
+
     if (!_alarmManager)
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] AlarmManager is null"
+        );
+
         sendError(
             503,
             "alarm manager not initialized"
@@ -1935,6 +2701,10 @@ void WebServerManager::handleAlarmDismiss()
 
     if (!_alarmManager->isRunning())
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] No active alarm"
+        );
+
         sendError(
             409,
             "no active alarm"
@@ -1945,6 +2715,10 @@ void WebServerManager::handleAlarmDismiss()
 
     if (!_alarmManager->dismiss())
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] dismiss() FAILED"
+        );
+
         sendError(
             409,
             "dismiss failed"
@@ -1952,6 +2726,10 @@ void WebServerManager::handleAlarmDismiss()
 
         return;
     }
+
+    Serial0.println(
+        "[WEB][ALARM] dismiss() OK"
+    );
 
     sendOk();
 }
@@ -1963,8 +2741,16 @@ void WebServerManager::handleAlarmDismiss()
 
 void WebServerManager::handleAlarmSnooze()
 {
+    Serial0.println(
+        "[WEB][ALARM] SNOOZE"
+    );
+
     if (!_alarmManager)
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] AlarmManager is null"
+        );
+
         sendError(
             503,
             "alarm manager not initialized"
@@ -1975,6 +2761,10 @@ void WebServerManager::handleAlarmSnooze()
 
     if (!_alarmManager->isRunning())
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] No active alarm"
+        );
+
         sendError(
             409,
             "no active alarm"
@@ -1987,7 +2777,6 @@ void WebServerManager::handleAlarmSnooze()
 
     if (!parseJson(doc))
         return;
-
 
     uint32_t durationMs = 0;
 
@@ -2002,6 +2791,13 @@ void WebServerManager::handleAlarmSnooze()
             doc["duration"].as<uint32_t>();
     }
 
+    Serial0.print(
+        "[WEB][ALARM] Snooze duration: "
+    );
+
+    Serial0.println(
+        durationMs
+    );
 
     if (durationMs == 0)
     {
@@ -2013,11 +2809,14 @@ void WebServerManager::handleAlarmSnooze()
         return;
     }
 
-
     if (!_alarmManager->snooze(
             durationMs
         ))
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] snooze() FAILED"
+        );
+
         sendError(
             409,
             "snooze failed"
@@ -2025,6 +2824,10 @@ void WebServerManager::handleAlarmSnooze()
 
         return;
     }
+
+    Serial0.println(
+        "[WEB][ALARM] snooze() OK"
+    );
 
     sendOk();
 }
@@ -2038,17 +2841,27 @@ bool WebServerManager::parseAlarmFromRequest(
     Alarm& alarm
 )
 {
+    Serial0.println(
+        "[WEB][ALARM] Parsing alarm JSON..."
+    );
+
     JsonDocument doc;
 
-    if (!parseJson(
-            doc
-        ))
+    if (!parseJson(doc))
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] parseJson() FAILED"
+        );
+
         return false;
     }
 
     if (!_alarmManager)
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] AlarmManager is null"
+        );
+
         sendError(
             503,
             "alarm manager not initialized"
@@ -2057,11 +2870,19 @@ bool WebServerManager::parseAlarmFromRequest(
         return false;
     }
 
+    Serial0.println(
+        "[WEB][ALARM] Calling AlarmManager::deserialize()..."
+    );
+
     if (!_alarmManager->deserialize(
             doc,
             alarm
         ))
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] AlarmManager::deserialize() FAILED"
+        );
+
         sendError(
             400,
             "invalid alarm"
@@ -2069,6 +2890,10 @@ bool WebServerManager::parseAlarmFromRequest(
 
         return false;
     }
+
+    Serial0.println(
+        "[WEB][ALARM] AlarmManager::deserialize() OK"
+    );
 
     return true;
 }
@@ -2082,8 +2907,16 @@ void WebServerManager::sendAlarm(
     const Alarm& alarm
 )
 {
+    Serial0.println(
+        "[WEB][ALARM] Sending alarm response..."
+    );
+
     if (!_alarmManager)
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] AlarmManager is null"
+        );
+
         sendError(
             503,
             "alarm manager not initialized"
@@ -2099,6 +2932,10 @@ void WebServerManager::sendAlarm(
             doc
         ))
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] serialize() FAILED"
+        );
+
         sendError(
             500,
             "failed to serialize alarm"
@@ -2116,6 +2953,14 @@ void WebServerManager::sendAlarm(
         body
     );
 
+    Serial0.print(
+        "[WEB][ALARM] Response JSON: "
+    );
+
+    Serial0.println(
+        body
+    );
+
     sendJson(
         200,
         body
@@ -2129,6 +2974,10 @@ void WebServerManager::sendAlarm(
 
 void WebServerManager::sendAlarmList()
 {
+    Serial0.println(
+        "[WEB][ALARM] Loading alarm list..."
+    );
+
     static constexpr uint8_t MAX_ALARMS =
         AlarmConfig::MAX_ALARMS;
 
@@ -2142,6 +2991,10 @@ void WebServerManager::sendAlarmList()
             count
         ))
     {
+        Serial0.println(
+            "[WEB][ALARM][ERROR] loadAll() FAILED"
+        );
+
         sendError(
             500,
             "failed to load alarms"
@@ -2150,6 +3003,13 @@ void WebServerManager::sendAlarmList()
         return;
     }
 
+    Serial0.print(
+        "[WEB][ALARM] Loaded alarms: "
+    );
+
+    Serial0.println(
+        count
+    );
 
     JsonDocument doc;
 
@@ -2157,7 +3017,6 @@ void WebServerManager::sendAlarmList()
 
     JsonArray array =
         doc["alarms"].to<JsonArray>();
-
 
     for (
         uint8_t i = 0;
@@ -2175,23 +3034,53 @@ void WebServerManager::sendAlarmList()
                 alarmDoc
             ))
         {
+            Serial0.print(
+                "[WEB][ALARM][ERROR] serialize alarm #"
+            );
+
+            Serial0.println(
+                i
+            );
+
             continue;
         }
 
         item.set(
             alarmDoc.as<JsonObject>()
         );
-    }
 
+        Serial0.print(
+            "[WEB][ALARM] Alarm #"
+        );
+
+        Serial0.print(
+            i
+        );
+
+        Serial0.print(
+            " ID="
+        );
+
+        Serial0.println(
+            alarms[i].id
+        );
+    }
 
     doc["count"] =
         array.size();
-
 
     String body;
 
     serializeJson(
         doc,
+        body
+    );
+
+    Serial0.print(
+        "[WEB][ALARM] Alarm list response: "
+    );
+
+    Serial0.println(
         body
     );
 
@@ -2212,6 +3101,10 @@ bool WebServerManager::parseJson(
 {
     if (!_server.hasArg("plain"))
     {
+        Serial0.println(
+            "[WEB][JSON][ERROR] Body missing"
+        );
+
         sendError(
             400,
             "body missing"
@@ -2220,14 +3113,41 @@ bool WebServerManager::parseJson(
         return false;
     }
 
+    const String raw =
+        _server.arg("plain");
+
+    Serial0.print(
+        "[WEB][JSON] Body size: "
+    );
+
+    Serial0.println(
+        raw.length()
+    );
+
+    Serial0.println(
+        "[WEB][JSON] Body:"
+    );
+
+    Serial0.println(
+        raw
+    );
+
     const DeserializationError error =
         deserializeJson(
             doc,
-            _server.arg("plain")
+            raw
         );
 
     if (error)
     {
+        Serial0.print(
+            "[WEB][JSON][ERROR] deserializeJson: "
+        );
+
+        Serial0.println(
+            error.c_str()
+        );
+
         sendError(
             400,
             "invalid JSON"
@@ -2235,6 +3155,10 @@ bool WebServerManager::parseJson(
 
         return false;
     }
+
+    Serial0.println(
+        "[WEB][JSON] JSON OK"
+    );
 
     return true;
 }
@@ -2249,6 +3173,22 @@ void WebServerManager::sendJson(
     const String& body
 )
 {
+    Serial0.print(
+        "[WEB][RESPONSE] HTTP "
+    );
+
+    Serial0.print(
+        code
+    );
+
+    Serial0.print(
+        " body: "
+    );
+
+    Serial0.println(
+        body
+    );
+
     _server.send(
         code,
         "application/json",
@@ -2263,6 +3203,10 @@ void WebServerManager::sendJson(
 
 void WebServerManager::sendOk()
 {
+    Serial0.println(
+        "[WEB][RESPONSE] OK"
+    );
+
     sendJson(
         200,
         "{\"ok\":true}"
@@ -2279,6 +3223,24 @@ void WebServerManager::sendError(
     const char* message
 )
 {
+    Serial0.print(
+        "[WEB][RESPONSE][ERROR] HTTP "
+    );
+
+    Serial0.print(
+        code
+    );
+
+    Serial0.print(
+        ": "
+    );
+
+    Serial0.println(
+        message
+            ? message
+            : "unknown error"
+    );
+
     JsonDocument doc;
 
     doc["ok"] = false;
