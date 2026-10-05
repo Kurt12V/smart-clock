@@ -1,16 +1,20 @@
 <!DOCTYPE html>
-
 <html lang="ru">
 
 <head>
 
 <meta charset="UTF-8">
 
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0">
 
 <title>SmartClock</title>
 
 <style>
+
+/* ============================================================
+   GLOBAL
+   ============================================================ */
 
 * {
     box-sizing: border-box;
@@ -36,6 +40,7 @@ body {
     margin: 0 auto;
     padding: 20px 20px 50px;
 }
+
 
 /* ============================================================
    HEADER
@@ -74,6 +79,44 @@ body {
     background: #54d88a;
 }
 
+
+/* ============================================================
+   TABS
+   ============================================================ */
+
+.tabs {
+    display: flex;
+    gap: 6px;
+    padding: 15px 0;
+    border-bottom: 1px solid #242424;
+    overflow-x: auto;
+}
+
+.tab {
+    height: 34px;
+    padding: 0 16px;
+}
+
+.tab.active {
+    background: #eee;
+    border-color: #eee;
+    color: #080808;
+}
+
+
+/* ============================================================
+   TAB CONTENT
+   ============================================================ */
+
+.tab-content {
+    display: block;
+}
+
+.tab-content.hidden {
+    display: none;
+}
+
+
 /* ============================================================
    SECTIONS
    ============================================================ */
@@ -92,6 +135,7 @@ body {
     text-transform: uppercase;
 }
 
+
 /* ============================================================
    TIMEZONE
    ============================================================ */
@@ -109,6 +153,7 @@ body {
     font-size: 16px;
     color: #bbb;
 }
+
 
 /* ============================================================
    BUTTONS
@@ -160,6 +205,7 @@ button.toggle.on {
     border-color: #2c5a37;
     color: #7fe0a3;
 }
+
 
 /* ============================================================
    RANGE
@@ -224,6 +270,7 @@ input[type="range"]::-moz-range-thumb {
     cursor: pointer;
 }
 
+
 /* ============================================================
    SELECT
    ============================================================ */
@@ -245,6 +292,63 @@ select:hover {
     border-color: #444;
 }
 
+
+/* ============================================================
+   TEXT INPUT
+   ============================================================ */
+
+input[type="text"],
+input[type="number"],
+input[type="time"] {
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid #303030;
+    border-radius: 5px;
+    outline: none;
+    background: #111;
+    color: #eee;
+    font-size: 12px;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="time"]:focus {
+    border-color: #555;
+}
+
+
+/* ============================================================
+   ALARM TIME INPUT
+   ============================================================ */
+
+.time-input {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.time-input input {
+    width: 55px;
+    flex: none !important;
+    padding: 0 6px;
+    text-align: center;
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
+}
+
+.time-input span {
+    color: #666;
+    font-size: 18px;
+    line-height: 36px;
+    user-select: none;
+}
+
+.time-input input::selection {
+    background: #eee;
+    color: #080808;
+}
+
+
 /* ============================================================
    SWITCH
    ============================================================ */
@@ -261,6 +365,7 @@ select:hover {
     font-size: 12px;
 }
 
+
 /* ============================================================
    SD
    ============================================================ */
@@ -271,20 +376,8 @@ select:hover {
     margin-bottom: 15px;
 }
 
-input[type="text"] {
+.sd-search input[type="text"] {
     flex: 1;
-    height: 36px;
-    padding: 0 12px;
-    border: 1px solid #303030;
-    border-radius: 5px;
-    outline: none;
-    background: #111;
-    color: #eee;
-    font-size: 12px;
-}
-
-input[type="text"]:focus {
-    border-color: #555;
 }
 
 .file-list {
@@ -318,6 +411,7 @@ input[type="text"]:focus {
     color: #444;
     font-size: 10px;
 }
+
 
 /* ============================================================
    SOUND
@@ -381,6 +475,7 @@ input[type="text"]:focus {
     padding: 0;
 }
 
+
 /* ============================================================
    PLAYER
    ============================================================ */
@@ -442,6 +537,7 @@ input[type="text"]:focus {
     background: #141414;
 }
 
+
 /* ============================================================
    EMPTY
    ============================================================ */
@@ -451,6 +547,7 @@ input[type="text"]:focus {
     color: #444;
     font-size: 12px;
 }
+
 
 /* ============================================================
    MESSAGE
@@ -480,6 +577,240 @@ input[type="text"]:focus {
     transform: translate(-50%, 0);
 }
 
+
+/* ============================================================
+   ALARMS
+   ============================================================ */
+
+.alarm-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.alarm-title {
+    color: #aaa;
+    font-size: 13px;
+}
+
+.alarm-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.alarm-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    min-height: 70px;
+    padding: 10px 0;
+    border-bottom: 1px solid #181818;
+    cursor: pointer;
+}
+
+.alarm-item:hover {
+    background: #0d0d0d;
+}
+
+.alarm-time {
+    width: 100px;
+    flex-shrink: 0;
+    color: #eee;
+    font-size: 24px;
+    font-variant-numeric: tabular-nums;
+}
+
+.alarm-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.alarm-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #aaa;
+    font-size: 13px;
+}
+
+.alarm-days {
+    margin-top: 5px;
+    color: #555;
+    font-size: 10px;
+}
+
+.alarm-item .toggle {
+    flex-shrink: 0;
+}
+
+
+/* ============================================================
+   ALARM EDITOR
+   ============================================================ */
+
+.alarm-editor-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.alarm-editor-header .section-title {
+    margin: 0;
+}
+
+.alarm-form {
+    margin-top: 20px;
+}
+
+.form-row {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 18px;
+}
+
+.form-row > label {
+    width: 90px;
+    flex-shrink: 0;
+    color: #aaa;
+    font-size: 12px;
+}
+
+.form-row input[type="text"],
+.form-row input[type="time"] {
+    flex: 1;
+}
+
+.days {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.days button {
+    min-width: 42px;
+    padding: 0 8px;
+}
+
+.days button.selected {
+    background: #eee;
+    border-color: #eee;
+    color: #080808;
+}
+
+
+/* ============================================================
+   ALARM PHASE
+   ============================================================ */
+
+.phase {
+    margin-bottom: 15px;
+    padding: 15px;
+    border: 1px solid #222;
+    border-radius: 6px;
+    background: #0c0c0c;
+}
+
+.phase-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.phase-title {
+    color: #aaa;
+    font-size: 12px;
+}
+
+.phase-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.phase-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.phase-field label {
+    color: #555;
+    font-size: 10px;
+}
+
+.phase-field small {
+    color: #444;
+    font-size: 9px;
+}
+
+.phase-field input,
+.phase-field select {
+    width: 100%;
+}
+
+
+/* ============================================================
+   DEVICE BLOCK
+   ============================================================ */
+
+.device-block {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #1c1c1c;
+}
+
+.device-title {
+    margin-bottom: 10px;
+    color: #777;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.device-row {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.device-row:last-child {
+    margin-bottom: 0;
+}
+
+.device-row label {
+    color: #666;
+    font-size: 10px;
+}
+
+.device-row input,
+.device-row select {
+    width: 100%;
+}
+
+.device-row .toggle {
+    width: 60px;
+}
+
+
+/* ============================================================
+   ALARM SAVE
+   ============================================================ */
+
+.alarm-save {
+    padding: 20px 0 40px;
+    text-align: right;
+}
+
+
 /* ============================================================
    MOBILE
    ============================================================ */
@@ -498,15 +829,51 @@ input[type="text"]:focus {
     .timezone-value {
         flex: 1;
     }
+
+    .alarm-item {
+        gap: 8px;
+    }
+
+    .alarm-time {
+        width: 75px;
+        font-size: 20px;
+    }
+
+    .phase-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .device-row {
+        grid-template-columns: 80px 1fr;
+    }
+
+    .alarm-header {
+        align-items: flex-start;
+    }
+
+    .alarm-header .primary {
+        white-space: nowrap;
+    }
+
+    .time-input {
+        gap: 4px;
+    }
+
+    .time-input input {
+        width: 50px;
+    }
+
 }
 
 </style>
 
 </head>
 
+
 <body>
 
 <div class="page">
+
 
 <!-- ============================================================
      HEADER
@@ -532,6 +899,38 @@ input[type="text"]:focus {
     </div>
 
 </header>
+
+
+<!-- ============================================================
+     TABS
+     ============================================================ -->
+
+<nav class="tabs">
+
+    <button
+        id="tabMain"
+        class="tab active"
+        onclick="openTab('main')"
+    >
+        Main
+    </button>
+
+    <button
+        id="tabAlarms"
+        class="tab"
+        onclick="openTab('alarms')"
+    >
+        Alarms
+    </button>
+
+</nav>
+
+
+<!-- ============================================================
+     MAIN TAB
+     ============================================================ -->
+
+<div id="mainTab">
 
 
 <!-- ============================================================
@@ -664,49 +1063,17 @@ input[type="text"]:focus {
             onchange="changeMatrixEffect(this.value)"
         >
 
-            <option value="0">
-                None
-            </option>
-
-            <option value="1">
-                Rainbow
-            </option>
-
-            <option value="2">
-                Rainbow Wave
-            </option>
-
-            <option value="3">
-                Fire
-            </option>
-
-            <option value="4">
-                Fireplace
-            </option>
-
-            <option value="5">
-                Plasma
-            </option>
-
-            <option value="6">
-                Aurora
-            </option>
-
-            <option value="7">
-                Ocean
-            </option>
-
-            <option value="8">
-                Twinkle
-            </option>
-
-            <option value="9">
-                Meteor
-            </option>
-
-            <option value="10">
-                Matrix
-            </option>
+            <option value="0">None</option>
+            <option value="1">Rainbow</option>
+            <option value="2">Rainbow Wave</option>
+            <option value="3">Fire</option>
+            <option value="4">Fireplace</option>
+            <option value="5">Plasma</option>
+            <option value="6">Aurora</option>
+            <option value="7">Ocean</option>
+            <option value="8">Twinkle</option>
+            <option value="9">Meteor</option>
+            <option value="10">Matrix</option>
 
         </select>
 
@@ -737,8 +1104,6 @@ input[type="text"]:focus {
     </div>
 
 </section>
-
-
 
 
 <!-- ============================================================
@@ -802,21 +1167,10 @@ input[type="text"]:focus {
             onchange="changeCobEffect(this.value)"
         >
 
-            <option value="0">
-                Static
-            </option>
-
-            <option value="1">
-                Breath
-            </option>
-
-            <option value="2">
-                Strobe
-            </option>
-
-            <option value="3">
-                Wave
-            </option>
+            <option value="0">Static</option>
+            <option value="1">Breath</option>
+            <option value="2">Strobe</option>
+            <option value="3">Wave</option>
 
         </select>
 
@@ -1079,6 +1433,254 @@ input[type="text"]:focus {
 
 
 <!-- ============================================================
+     ALARMS TAB
+     ============================================================ -->
+
+<div
+    id="alarmsTab"
+    class="tab-content"
+    style="display:none;"
+>
+
+    <section class="section">
+
+        <div class="alarm-header">
+
+            <div class="alarm-title">
+                Alarm clock
+            </div>
+
+            <button
+                class="primary"
+                onclick="createAlarm()"
+            >
+                + Add alarm
+            </button>
+
+        </div>
+
+        <div
+            id="alarmList"
+            class="alarm-list"
+        >
+
+            <div class="empty">
+                Loading...
+            </div>
+
+        </div>
+
+    </section>
+
+</div>
+
+
+<!-- ============================================================
+     ALARM EDITOR
+     ============================================================ -->
+
+<div
+    id="alarmEditor"
+    style="display:none;"
+>
+
+    <section class="section">
+
+        <div class="alarm-editor-header">
+
+            <button onclick="closeAlarmEditor()">
+                ← Back
+            </button>
+
+            <div class="section-title">
+                Alarm
+            </div>
+
+            <button
+                class="danger"
+                onclick="deleteCurrentAlarm()"
+            >
+                Delete
+            </button>
+
+        </div>
+
+
+        <div class="alarm-form">
+
+
+            <!-- NAME -->
+
+            <div class="form-row">
+
+                <label>
+                    Name
+                </label>
+
+                <input
+                    id="alarm_name"
+                    type="text"
+                    placeholder="Alarm"
+                >
+
+            </div>
+
+
+            <!-- TIME -->
+
+            <div class="form-row">
+
+                <label>
+                    Time
+                </label>
+
+                <div class="time-input">
+
+                    <input
+                        id="alarm_hour"
+                        type="text"
+                        inputmode="numeric"
+                        maxlength="2"
+                        value="07"
+                        aria-label="Hours"
+                        autocomplete="off"
+                    >
+
+                    <span>:</span>
+
+                    <input
+                        id="alarm_minute"
+                        type="text"
+                        inputmode="numeric"
+                        maxlength="2"
+                        value="30"
+                        aria-label="Minutes"
+                        autocomplete="off"
+                    >
+
+                    <span>:</span>
+
+                    <input
+                        id="alarm_second"
+                        type="text"
+                        inputmode="numeric"
+                        maxlength="2"
+                        value="00"
+                        aria-label="Seconds"
+                        autocomplete="off"
+                    >
+
+                </div>
+
+            </div>
+
+
+            <!-- ENABLE -->
+
+            <div class="form-row">
+
+                <label>
+                    Enabled
+                </label>
+
+                <button
+                    id="alarm_enabled"
+                    class="toggle"
+                    onclick="toggleAlarmEnabled()"
+                >
+                    OFF
+                </button>
+
+            </div>
+
+
+            <!-- DAYS -->
+
+            <div class="form-row">
+
+                <label>
+                    Repeat
+                </label>
+
+                <div class="days">
+
+                    <button data-day="0">
+                        Mon
+                    </button>
+
+                    <button data-day="1">
+                        Tue
+                    </button>
+
+                    <button data-day="2">
+                        Wed
+                    </button>
+
+                    <button data-day="3">
+                        Thu
+                    </button>
+
+                    <button data-day="4">
+                        Fri
+                    </button>
+
+                    <button data-day="5">
+                        Sat
+                    </button>
+
+                    <button data-day="6">
+                        Sun
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- ========================================================
+         PHASES
+         ======================================================== -->
+
+    <section class="section">
+
+        <div class="section-title">
+            Alarm scenario
+        </div>
+
+        <div id="alarmPhases"></div>
+
+        <button onclick="addAlarmPhase()">
+            + Add phase
+        </button>
+
+    </section>
+
+
+    <!-- ========================================================
+         SAVE
+         ======================================================== -->
+
+    <div class="alarm-save">
+
+        <button
+            class="primary"
+            onclick="saveCurrentAlarm()"
+        >
+            Save alarm
+        </button>
+
+    </div>
+
+</div>
+
+</div>
+
+
+<!-- ============================================================
      MESSAGE
      ============================================================ -->
 
@@ -1111,6 +1713,25 @@ let paramsRequest = false;
 let sdRequest = false;
 
 const debounceTimers = {};
+
+
+/* ============================================================
+   ALARM STATE
+   ============================================================ */
+
+let alarms = [];
+
+let currentAlarm = null;
+
+const DAY_NAMES = [
+    "Mon",
+    "Tue",
+    "Wed",
+    "Thu",
+    "Fri",
+    "Sat",
+    "Sun"
+];
 
 
 /* ============================================================
@@ -1212,6 +1833,7 @@ async function apiFetch(
                 "HTTP " +
                 response.status
             );
+
         }
 
         return response;
@@ -1276,6 +1898,7 @@ async function setParam(
                                 Number(value)
                         })
                 },
+
                 1000
             );
 
@@ -1288,6 +1911,7 @@ async function setParam(
                 result.error ||
                 "Parameter error"
             );
+
         }
 
         setConnection(true);
@@ -1303,9 +1927,11 @@ async function setParam(
             showMessage(
                 "Error: " + name
             );
+
         }
 
         return null;
+
     }
 }
 
@@ -1335,9 +1961,7 @@ async function loadParams() {
             await response.json();
 
 
-        /* ----------------------------------------------------
-           DISPLAY
-           ---------------------------------------------------- */
+        /* DISPLAY */
 
         setRange(
             "brightness",
@@ -1346,9 +1970,7 @@ async function loadParams() {
         );
 
 
-        /* ----------------------------------------------------
-           MATRIX
-           ---------------------------------------------------- */
+        /* MATRIX */
 
         applyToggle(
             "mx_on",
@@ -1373,6 +1995,7 @@ async function loadParams() {
 
             matrixEffect.value =
                 p.mx_eff;
+
         }
 
         setRange(
@@ -1382,10 +2005,7 @@ async function loadParams() {
         );
 
 
-
-        /* ----------------------------------------------------
-           COB
-           ---------------------------------------------------- */
+        /* COB */
 
         applyToggle(
             "cob_on",
@@ -1410,6 +2030,7 @@ async function loadParams() {
 
             effect.value =
                 p.cob_eff;
+
         }
 
         setRange(
@@ -1419,9 +2040,7 @@ async function loadParams() {
         );
 
 
-        /* ----------------------------------------------------
-           VOLUME
-           ---------------------------------------------------- */
+        /* VOLUME */
 
         setRange(
             "vol_media",
@@ -1442,9 +2061,7 @@ async function loadParams() {
         );
 
 
-        /* ----------------------------------------------------
-           MICROPHONE
-           ---------------------------------------------------- */
+        /* MICROPHONE */
 
         applyToggle(
             "mic_on",
@@ -1452,9 +2069,7 @@ async function loadParams() {
         );
 
 
-        /* ----------------------------------------------------
-           TIMEZONE
-           ---------------------------------------------------- */
+        /* TIMEZONE */
 
         if (
             p.utc !== undefined
@@ -1464,8 +2079,8 @@ async function loadParams() {
                 Number(p.utc);
 
             renderTimezone();
-        }
 
+        }
 
         setConnection(true);
 
@@ -1499,7 +2114,9 @@ function setRange(
         value === undefined ||
         value === null
     ) {
+
         return;
+
     }
 
     el.value = value;
@@ -1515,7 +2132,9 @@ function setRange(
 
             valueEl.textContent =
                 value + "%";
+
         }
+
     }
 }
 
@@ -1550,6 +2169,82 @@ function applyToggle(
         on
             ? "ON"
             : "OFF";
+}
+
+
+/* ============================================================
+   TABS
+   ============================================================ */
+
+function openTab(tab) {
+
+    const main =
+        document.getElementById(
+            "mainTab"
+        );
+
+    const alarmsTab =
+        document.getElementById(
+            "alarmsTab"
+        );
+
+    const editor =
+        document.getElementById(
+            "alarmEditor"
+        );
+
+    const mainButton =
+        document.getElementById(
+            "tabMain"
+        );
+
+    const alarmButton =
+        document.getElementById(
+            "tabAlarms"
+        );
+
+
+    if (tab === "alarms") {
+
+        main.style.display =
+            "none";
+
+        alarmsTab.style.display =
+            "block";
+
+        editor.style.display =
+            "none";
+
+        mainButton.classList.remove(
+            "active"
+        );
+
+        alarmButton.classList.add(
+            "active"
+        );
+
+        loadAlarms();
+
+    } else {
+
+        main.style.display =
+            "block";
+
+        alarmsTab.style.display =
+            "none";
+
+        editor.style.display =
+            "none";
+
+        mainButton.classList.add(
+            "active"
+        );
+
+        alarmButton.classList.remove(
+            "active"
+        );
+
+    }
 }
 
 
@@ -1613,6 +2308,7 @@ async function changeTimezone(delta) {
         );
 
         return;
+
     }
 
     showMessage(
@@ -1682,6 +2378,7 @@ async function toggleMatrix() {
             "mx_on",
             oldState
         );
+
     }
 }
 
@@ -1704,6 +2401,7 @@ function changeMatrixBrightness(
             )
     );
 }
+
 
 function changeMatrixEffect(
     value
@@ -1775,6 +2473,7 @@ async function toggleCob() {
             "cob_on",
             oldState
         );
+
     }
 }
 
@@ -1895,6 +2594,7 @@ async function toggleMic() {
             "mic_on",
             oldState
         );
+
     }
 }
 
@@ -1958,7 +2658,9 @@ async function loadSD() {
 
 
 function filterFiles() {
+
     renderFiles();
+
 }
 
 
@@ -1993,6 +2695,7 @@ function renderFiles() {
             '<div class="empty">No files</div>';
 
         return;
+
     }
 
     const fragment =
@@ -2048,6 +2751,7 @@ function renderFiles() {
             fragment.appendChild(
                 row
             );
+
         }
     );
 
@@ -2062,6 +2766,7 @@ function formatSize(bytes) {
     if (bytes < 1024) {
 
         return bytes + " B";
+
     }
 
     if (
@@ -2073,6 +2778,7 @@ function formatSize(bytes) {
             bytes / 1024
         ).toFixed(1) +
         " KB";
+
     }
 
     return (
@@ -2102,7 +2808,9 @@ function renderAudioFiles() {
                 if (
                     f.type === "dir"
                 ) {
+
                     return false;
+
                 }
 
                 const path =
@@ -2118,6 +2826,7 @@ function renderAudioFiles() {
                         ".mp3"
                     )
                 );
+
             }
         );
 
@@ -2127,6 +2836,7 @@ function renderAudioFiles() {
             '<div class="empty">No sounds</div>';
 
         return;
+
     }
 
     const fragment =
@@ -2182,6 +2892,7 @@ function renderAudioFiles() {
             fragment.appendChild(
                 row
             );
+
         }
     );
 
@@ -2208,6 +2919,7 @@ async function playSound(
         await apiFetch(
             "/api/audio/play",
             {
+
                 method: "POST",
 
                 headers: {
@@ -2229,8 +2941,11 @@ async function playSound(
                         fadeOutMs: 0,
 
                         curve: 0
+
                     })
+
             },
+
             1200
         );
 
@@ -2247,6 +2962,7 @@ async function playSound(
         showMessage(
             "Playback error"
         );
+
     }
 }
 
@@ -2260,6 +2976,7 @@ async function playSelectedSound() {
         );
 
         return;
+
     }
 
     const wav =
@@ -2269,8 +2986,8 @@ async function playSelectedSound() {
                 String(
                     f.path
                 )
-                .toLowerCase()
-                .endsWith(".wav")
+                    .toLowerCase()
+                    .endsWith(".wav")
         );
 
     if (!wav) {
@@ -2280,6 +2997,7 @@ async function playSelectedSound() {
         );
 
         return;
+
     }
 
     await playSound(
@@ -2311,6 +3029,7 @@ async function pauseSound() {
         showMessage(
             "Pause error"
         );
+
     }
 }
 
@@ -2338,6 +3057,7 @@ async function resumeSound() {
         showMessage(
             "Resume error"
         );
+
     }
 }
 
@@ -2349,6 +3069,7 @@ async function stopSound() {
         await apiFetch(
             "/api/audio/stop",
             {
+
                 method: "POST",
 
                 headers: {
@@ -2360,6 +3081,7 @@ async function stopSound() {
                     JSON.stringify({
                         fadeOutMs: 0
                     })
+
             },
             1000
         );
@@ -2375,6 +3097,7 @@ async function stopSound() {
         showMessage(
             "Stop error"
         );
+
     }
 }
 
@@ -2397,7 +3120,8 @@ function formatTime(ms) {
         );
 
     const seconds =
-        total % 60;
+        total %
+        60;
 
     return (
         minutes +
@@ -2429,10 +3153,6 @@ async function updatePlayerStatus() {
             await response.json();
 
 
-        /* ----------------------------------------------------
-           TRACK
-           ---------------------------------------------------- */
-
         document.getElementById(
             "playerTrack"
         ).textContent =
@@ -2441,10 +3161,6 @@ async function updatePlayerStatus() {
                 ? s.path
                 : "—";
 
-
-        /* ----------------------------------------------------
-           TIME
-           ---------------------------------------------------- */
 
         document.getElementById(
             "playerTime"
@@ -2457,10 +3173,6 @@ async function updatePlayerStatus() {
                 s.durationMs
             );
 
-
-        /* ----------------------------------------------------
-           STATE
-           ---------------------------------------------------- */
 
         const state =
             s.state ||
@@ -2485,7 +3197,2374 @@ async function updatePlayerStatus() {
     } finally {
 
         playerRequest = false;
+
     }
+}
+
+
+/* ============================================================
+   ALARM API
+   ============================================================ */
+
+async function loadAlarms() {
+
+    const list =
+        document.getElementById(
+            "alarmList"
+        );
+
+    list.innerHTML =
+        '<div class="empty">Loading...</div>';
+
+    try {
+
+        const response =
+            await apiFetch(
+                "/api/alarms",
+                {},
+                2000
+            );
+
+        const data =
+            await response.json();
+
+        alarms =
+            Array.isArray(data.alarms)
+                ? data.alarms
+                : [];
+
+        renderAlarmList();
+
+        setConnection(true);
+
+    } catch (e) {
+
+        list.innerHTML =
+            '<div class="empty">Unable to load alarms</div>';
+
+    }
+}
+
+
+/* ============================================================
+   ALARM LIST
+   ============================================================ */
+
+function renderAlarmList() {
+
+    const list =
+        document.getElementById(
+            "alarmList"
+        );
+
+    list.replaceChildren();
+
+    if (!alarms.length) {
+
+        list.innerHTML =
+            '<div class="empty">No alarms</div>';
+
+        return;
+
+    }
+
+
+    alarms.forEach(
+        alarm => {
+
+            const row =
+                document.createElement(
+                    "div"
+                );
+
+            row.className =
+                "alarm-item";
+
+            row.onclick =
+                () =>
+                    openAlarmEditor(
+                        alarm.id
+                    );
+
+
+            const time =
+                document.createElement(
+                    "div"
+                );
+
+            time.className =
+                "alarm-time";
+
+            time.textContent =
+                formatAlarmTime(
+                    alarm.time
+                );
+
+
+            const info =
+                document.createElement(
+                    "div"
+                );
+
+            info.className =
+                "alarm-info";
+
+
+            const name =
+                document.createElement(
+                    "div"
+                );
+
+            name.className =
+                "alarm-name";
+
+            name.textContent =
+                alarm.name ||
+                "Alarm";
+
+
+            const days =
+                document.createElement(
+                    "div"
+                );
+
+            days.className =
+                "alarm-days";
+
+            days.textContent =
+                formatAlarmDays(
+                    alarm.repeatMask
+                );
+
+
+            info.appendChild(
+                name
+            );
+
+            info.appendChild(
+                days
+            );
+
+
+            const toggle =
+                document.createElement(
+                    "button"
+                );
+
+            toggle.className =
+                "toggle";
+
+            const enabled =
+                Boolean(
+                    alarm.enabled
+                );
+
+            toggle.textContent =
+                enabled
+                    ? "ON"
+                    : "OFF";
+
+            toggle.classList.toggle(
+                "on",
+                enabled
+            );
+
+
+            toggle.onclick =
+                async event => {
+
+                    event.stopPropagation();
+
+                    await setAlarmEnabled(
+                        alarm.id,
+                        !enabled
+                    );
+
+                };
+
+
+            row.appendChild(
+                time
+            );
+
+            row.appendChild(
+                info
+            );
+
+            row.appendChild(
+                toggle
+            );
+
+            list.appendChild(
+                row
+            );
+
+        }
+    );
+}
+
+
+/* ============================================================
+   ALARM TIME
+   ============================================================ */
+
+function formatAlarmTime(time) {
+
+    if (!time) {
+        return "--:--";
+    }
+
+    const hour =
+        Math.max(
+            0,
+            Math.min(
+                23,
+                Number(
+                    time.hour || 0
+                )
+            )
+        );
+
+    const minute =
+        Math.max(
+            0,
+            Math.min(
+                59,
+                Number(
+                    time.minute || 0
+                )
+            )
+        );
+
+    return (
+        String(hour).padStart(
+            2,
+            "0"
+        ) +
+        ":" +
+        String(minute).padStart(
+            2,
+            "0"
+        )
+    );
+}
+
+
+function formatAlarmTimeWithSeconds(time) {
+
+    if (!time) {
+        return "00:00:00";
+    }
+
+    const hour =
+        Math.max(
+            0,
+            Math.min(
+                23,
+                Number(
+                    time.hour || 0
+                )
+            )
+        );
+
+    const minute =
+        Math.max(
+            0,
+            Math.min(
+                59,
+                Number(
+                    time.minute || 0
+                )
+            )
+        );
+
+    const second =
+        Math.max(
+            0,
+            Math.min(
+                59,
+                Number(
+                    time.second || 0
+                )
+            )
+        );
+
+    return (
+        String(hour).padStart(
+            2,
+            "0"
+        ) +
+        ":" +
+        String(minute).padStart(
+            2,
+            "0"
+        ) +
+        ":" +
+        String(second).padStart(
+            2,
+            "0"
+        )
+    );
+}
+
+
+/* ============================================================
+   ALARM TIME INPUT
+   ============================================================ */
+
+function padAlarmTimePart(
+    value
+) {
+
+    return String(
+        Math.max(
+            0,
+            Number(
+                value || 0
+            )
+        )
+    ).padStart(
+        2,
+        "0"
+    );
+}
+
+
+function clampAlarmTimePart(
+    value,
+    min,
+    max
+) {
+
+    const digits =
+        String(
+            value || ""
+        )
+            .replace(
+                /\D/g,
+                ""
+            )
+            .slice(
+                0,
+                2
+            );
+
+    if (!digits) {
+        return "";
+    }
+
+    const number =
+        Math.min(
+            max,
+            Math.max(
+                min,
+                Number(digits)
+            )
+        );
+
+    return padAlarmTimePart(
+        number
+    );
+}
+
+
+function setupAlarmTimeInput(
+    id,
+    min,
+    max,
+    nextId,
+    prevId
+) {
+
+    const input =
+        document.getElementById(
+            id
+        );
+
+    if (!input) {
+        return;
+    }
+
+
+    input.addEventListener(
+        "focus",
+        () => {
+
+            input.select();
+
+        }
+    );
+
+
+    input.addEventListener(
+        "input",
+        () => {
+
+            let value =
+                input.value
+                    .replace(
+                        /\D/g,
+                        ""
+                    )
+                    .slice(
+                        0,
+                        2
+                    );
+
+            input.value =
+                value;
+
+
+            if (
+                value.length === 2
+            ) {
+
+                const number =
+                    Number(value);
+
+                input.value =
+                    padAlarmTimePart(
+                        Math.min(
+                            max,
+                            Math.max(
+                                min,
+                                number
+                            )
+                        )
+                    );
+
+
+                if (nextId) {
+
+                    document.getElementById(
+                        nextId
+                    ).focus();
+
+                }
+
+            }
+
+        }
+    );
+
+
+    input.addEventListener(
+        "blur",
+        () => {
+
+            if (
+                input.value === ""
+            ) {
+
+                input.value =
+                    padAlarmTimePart(
+                        min
+                    );
+
+                return;
+
+            }
+
+            input.value =
+                clampAlarmTimePart(
+                    input.value,
+                    min,
+                    max
+                );
+
+        }
+    );
+
+
+    input.addEventListener(
+        "keydown",
+        event => {
+
+            /* UP / DOWN */
+
+            if (
+                event.key === "ArrowUp" ||
+                event.key === "ArrowDown"
+            ) {
+
+                event.preventDefault();
+
+                let value =
+                    Number(
+                        input.value || min
+                    );
+
+                value +=
+                    event.key === "ArrowUp"
+                        ? 1
+                        : -1;
+
+
+                if (
+                    value > max
+                ) {
+
+                    value = min;
+
+                }
+
+                if (
+                    value < min
+                ) {
+
+                    value = max;
+
+                }
+
+
+                input.value =
+                    padAlarmTimePart(
+                        value
+                    );
+
+                return;
+
+            }
+
+
+            /* ENTER */
+
+            if (
+                event.key === "Enter"
+            ) {
+
+                event.preventDefault();
+
+                if (nextId) {
+
+                    document.getElementById(
+                        nextId
+                    ).focus();
+
+                }
+
+                return;
+
+            }
+
+
+            /* BACKSPACE */
+
+            if (
+                event.key === "Backspace" &&
+                input.value === "" &&
+                prevId
+            ) {
+
+                document.getElementById(
+                    prevId
+                ).focus();
+
+            }
+
+        }
+    );
+
+}
+
+
+setupAlarmTimeInput(
+    "alarm_hour",
+    0,
+    23,
+    "alarm_minute",
+    null
+);
+
+setupAlarmTimeInput(
+    "alarm_minute",
+    0,
+    59,
+    "alarm_second",
+    "alarm_hour"
+);
+
+setupAlarmTimeInput(
+    "alarm_second",
+    0,
+    59,
+    null,
+    "alarm_minute"
+);
+
+
+function getAlarmTime() {
+
+    const hour =
+        Number(
+            document.getElementById(
+                "alarm_hour"
+            ).value
+        );
+
+    const minute =
+        Number(
+            document.getElementById(
+                "alarm_minute"
+            ).value
+        );
+
+    const second =
+        Number(
+            document.getElementById(
+                "alarm_second"
+            ).value
+        );
+
+
+    if (
+        !Number.isInteger(hour) ||
+        hour < 0 ||
+        hour > 23 ||
+
+        !Number.isInteger(minute) ||
+        minute < 0 ||
+        minute > 59 ||
+
+        !Number.isInteger(second) ||
+        second < 0 ||
+        second > 59
+    ) {
+
+        return null;
+
+    }
+
+
+    return {
+
+        hour,
+
+        minute,
+
+        second
+
+    };
+
+}
+
+
+/* ============================================================
+   ALARM DAYS
+   ============================================================ */
+
+function formatAlarmDays(mask) {
+
+    mask =
+        Number(mask || 0);
+
+    if (mask === 0) {
+        return "Once";
+    }
+
+    if (mask === 127) {
+        return "Every day";
+    }
+
+    if (mask === 31) {
+        return "Mon – Fri";
+    }
+
+    const result = [];
+
+    for (
+        let i = 0;
+        i < 7;
+        ++i
+    ) {
+
+        if (
+            mask &
+            (1 << i)
+        ) {
+
+            result.push(
+                DAY_NAMES[i]
+            );
+
+        }
+
+    }
+
+    return result.join(
+        " · "
+    );
+}
+
+
+/* ============================================================
+   TIME CONVERSION
+   ============================================================ */
+
+function minutesToMs(value) {
+
+    return Math.round(
+        Number(value || 0) *
+        60000
+    );
+}
+
+
+function secondsToMs(value) {
+
+    return Math.round(
+        Number(value || 0) *
+        1000
+    );
+}
+
+
+function msToMinutes(value) {
+
+    return Number(
+        Number(value || 0) /
+        60000
+    ).toFixed(2);
+}
+
+
+function msToSeconds(value) {
+
+    return Number(
+        Number(value || 0) /
+        1000
+    ).toFixed(2);
+}
+
+
+/* ============================================================
+   REPEAT MASK
+   ============================================================ */
+
+function daysToMask() {
+
+    let mask = 0;
+
+    document
+        .querySelectorAll(
+            ".days button.selected"
+        )
+        .forEach(
+            button => {
+
+                const day =
+                    Number(
+                        button.dataset.day
+                    );
+
+                mask |=
+                    1 << day;
+
+            }
+        );
+
+    return mask;
+}
+
+
+function maskToDays(mask) {
+
+    document
+        .querySelectorAll(
+            ".days button"
+        )
+        .forEach(
+            button => {
+
+                const day =
+                    Number(
+                        button.dataset.day
+                    );
+
+                button.classList.toggle(
+                    "selected",
+                    (
+                        mask &
+                        (1 << day)
+                    ) !== 0
+                );
+
+            }
+        );
+}
+
+
+/* ============================================================
+   DAY BUTTONS
+   ============================================================ */
+
+document
+    .querySelectorAll(
+        ".days button"
+    )
+    .forEach(
+        button => {
+
+            button.onclick =
+                () => {
+
+                    button.classList.toggle(
+                        "selected"
+                    );
+
+                };
+
+        }
+    );
+
+
+/* ============================================================
+   CREATE ALARM
+   ============================================================ */
+
+function createAlarm() {
+
+    currentAlarm = {
+
+        schemaVersion: 1,
+
+        id: null,
+
+        name:
+            "New alarm",
+
+        enabled:
+            false,
+
+        time: {
+
+            hour:
+                7,
+
+            minute:
+                30,
+
+            second:
+                0
+
+        },
+
+        repeatMask:
+            31,
+
+        phases: [
+
+            {
+
+                startOffsetMs:
+                    0,
+
+                durationMs:
+                    30000,
+
+                condition:
+                    "always",
+
+                matrix: {
+
+                    enabled:
+                        true,
+
+                    effectId:
+                        "static",
+
+                    start:
+                        0,
+
+                    end:
+                        100,
+
+                    speedMs:
+                        0,
+
+                    durationMs:
+                        30000
+
+                },
+
+                audio: {
+
+                    enabled:
+                        false,
+
+                    effectId:
+                        "melody",
+
+                    start:
+                        0,
+
+                    end:
+                        100,
+
+                    speedMs:
+                        0,
+
+                    durationMs:
+                        30000,
+
+                    loop:
+                        false
+
+                },
+
+                cob: {
+
+                    enabled:
+                        false,
+
+                    effectId:
+                        "static",
+
+                    start:
+                        0,
+
+                    end:
+                        100,
+
+                    speedMs:
+                        0,
+
+                    durationMs:
+                        30000,
+
+                    maxDurationMs:
+                        0
+
+                }
+
+            }
+
+        ]
+
+    };
+
+    showAlarmEditor();
+
+}
+
+
+/* ============================================================
+   OPEN ALARM
+   ============================================================ */
+
+async function openAlarmEditor(id) {
+
+    try {
+
+        const response =
+            await apiFetch(
+                "/api/alarms/" +
+                encodeURIComponent(
+                    id
+                ),
+                {},
+                1500
+            );
+
+        currentAlarm =
+            await response.json();
+
+        showAlarmEditor();
+
+    } catch (e) {
+
+        showMessage(
+            "Unable to load alarm"
+        );
+
+    }
+}
+
+
+/* ============================================================
+   SHOW ALARM EDITOR
+   ============================================================ */
+
+function showAlarmEditor() {
+
+    document.getElementById(
+        "alarmsTab"
+    ).style.display =
+        "none";
+
+    document.getElementById(
+        "alarmEditor"
+    ).style.display =
+        "block";
+
+
+    document.getElementById(
+        "alarm_name"
+    ).value =
+        currentAlarm.name ||
+        "";
+
+
+    const time =
+        currentAlarm.time || {
+
+            hour: 0,
+
+            minute: 0,
+
+            second: 0
+
+        };
+
+
+    document.getElementById(
+        "alarm_hour"
+    ).value =
+        padAlarmTimePart(
+            Math.max(
+                0,
+                Math.min(
+                    23,
+                    Number(
+                        time.hour || 0
+                    )
+                )
+            )
+        );
+
+
+    document.getElementById(
+        "alarm_minute"
+    ).value =
+        padAlarmTimePart(
+            Math.max(
+                0,
+                Math.min(
+                    59,
+                    Number(
+                        time.minute || 0
+                    )
+                )
+            )
+        );
+
+
+    document.getElementById(
+        "alarm_second"
+    ).value =
+        padAlarmTimePart(
+            Math.max(
+                0,
+                Math.min(
+                    59,
+                    Number(
+                        time.second || 0
+                    )
+                )
+            )
+        );
+
+
+    applyAlarmToggle(
+        currentAlarm.enabled
+    );
+
+
+    maskToDays(
+        currentAlarm.repeatMask
+    );
+
+
+    renderAlarmPhases();
+
+}
+
+
+/* ============================================================
+   ALARM ENABLE
+   ============================================================ */
+
+function applyAlarmToggle(
+    value
+) {
+
+    const button =
+        document.getElementById(
+            "alarm_enabled"
+        );
+
+    const enabled =
+        Boolean(value);
+
+    button.classList.toggle(
+        "on",
+        enabled
+    );
+
+    button.textContent =
+        enabled
+            ? "ON"
+            : "OFF";
+}
+
+
+function toggleAlarmEnabled() {
+
+    currentAlarm.enabled =
+        !currentAlarm.enabled;
+
+    applyAlarmToggle(
+        currentAlarm.enabled
+    );
+}
+
+
+/* ============================================================
+   RENDER PHASES
+   ============================================================ */
+
+function renderAlarmPhases() {
+
+    const container =
+        document.getElementById(
+            "alarmPhases"
+        );
+
+    container.replaceChildren();
+
+    currentAlarm.phases =
+        currentAlarm.phases ||
+        [];
+
+
+    currentAlarm.phases.forEach(
+        (
+            phase,
+            index
+        ) => {
+
+            renderPhase(
+                container,
+                phase,
+                index
+            );
+
+        }
+    );
+}
+
+
+/* ============================================================
+   RENDER PHASE
+   ============================================================ */
+
+function renderPhase(
+    container,
+    phase,
+    index
+) {
+
+    const element =
+        document.createElement(
+            "div"
+        );
+
+    element.className =
+        "phase";
+
+
+    element.innerHTML = `
+
+        <div class="phase-header">
+
+            <div class="phase-title">
+                Phase ${index + 1}
+            </div>
+
+            <button
+                class="danger"
+                onclick="removeAlarmPhase(${index})"
+            >
+                Remove
+            </button>
+
+        </div>
+
+
+        <div class="phase-grid">
+
+
+            <div class="phase-field">
+
+                <label>
+                    Start offset
+                </label>
+
+                <input
+                    id="phase_${index}_offset"
+                    type="number"
+                    step="0.1"
+                    value="${msToMinutes(
+                        phase.startOffsetMs
+                    )}"
+                >
+
+                <small>
+                    minutes from alarm time
+                </small>
+
+            </div>
+
+
+            <div class="phase-field">
+
+                <label>
+                    Duration
+                </label>
+
+                <input
+                    id="phase_${index}_duration"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value="${
+                        phase.durationMs === 0
+                            ? ""
+                            : msToMinutes(
+                                phase.durationMs
+                            )
+                    }"
+                    placeholder="Until stopped"
+                >
+
+                <small>
+                    empty = until stopped
+                </small>
+
+            </div>
+
+
+            <div class="phase-field">
+
+                <label>
+                    Condition
+                </label>
+
+                <select
+                    id="phase_${index}_condition"
+                >
+
+                    <option value="always">
+                        Always
+                    </option>
+
+                    <option value="if_not_dismissed">
+                        If not dismissed
+                    </option>
+
+                    <option value="if_not_snoozed">
+                        If not snoozed
+                    </option>
+
+                    <option value="if_no_motion">
+                        If no motion
+                    </option>
+
+                </select>
+
+            </div>
+
+        </div>
+
+
+        <div class="device-block">
+
+            <div class="device-title">
+                Matrix
+            </div>
+
+            ${renderMatrixFields(
+                phase,
+                index
+            )}
+
+        </div>
+
+
+        <div class="device-block">
+
+            <div class="device-title">
+                Audio
+            </div>
+
+            ${renderAudioFields(
+                phase,
+                index
+            )}
+
+        </div>
+
+
+        <div class="device-block">
+
+            <div class="device-title">
+                COB
+            </div>
+
+            ${renderCobFields(
+                phase,
+                index
+            )}
+
+        </div>
+
+    `;
+
+
+    container.appendChild(
+        element
+    );
+
+
+    document.getElementById(
+        `phase_${index}_condition`
+    ).value =
+        phase.condition ||
+        "always";
+
+
+    document.getElementById(
+        `matrix_${index}_effect`
+    ).value =
+        phase.matrix?.effectId ||
+        "static";
+
+
+    document.getElementById(
+        `audio_${index}_effect`
+    ).value =
+        phase.audio?.effectId ||
+        "melody";
+
+
+    document.getElementById(
+        `cob_${index}_effect`
+    ).value =
+        phase.cob?.effectId ||
+        "static";
+}
+
+
+/* ============================================================
+   MATRIX FIELDS
+   ============================================================ */
+
+function renderMatrixFields(
+    phase,
+    index
+) {
+
+    const m =
+        phase.matrix || {};
+
+    return `
+
+        <div class="device-row">
+
+            <label>
+                Enabled
+            </label>
+
+            <button
+                id="matrix_${index}_enabled"
+                class="toggle ${
+                    m.enabled
+                        ? "on"
+                        : ""
+                }"
+                onclick="
+                    togglePhaseDevice(
+                        ${index},
+                        'matrix'
+                    )
+                "
+            >
+                ${
+                    m.enabled
+                        ? "ON"
+                        : "OFF"
+                }
+            </button>
+
+        </div>
+
+
+        <div class="device-row">
+
+            <label>
+                Effect
+            </label>
+
+            <select
+                id="matrix_${index}_effect"
+            >
+
+                <option value="static">
+                    Static
+                </option>
+
+                <option value="fade">
+                    Fade
+                </option>
+
+                <option value="pulse">
+                    Pulse
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <div class="device-row">
+
+            <label>
+                Start
+            </label>
+
+            <input
+                id="matrix_${index}_start"
+                type="number"
+                min="0"
+                max="100"
+                value="${m.start ?? 0}"
+            >
+
+        </div>
+
+
+        <div class="device-row">
+
+            <label>
+                End
+            </label>
+
+            <input
+                id="matrix_${index}_end"
+                type="number"
+                min="0"
+                max="100"
+                value="${m.end ?? 100}"
+            >
+
+        </div>
+
+
+        <div class="device-row">
+
+            <label>
+                Speed
+            </label>
+
+            <input
+                id="matrix_${index}_speed"
+                type="number"
+                min="0"
+                step="0.1"
+                value="${
+                    msToSeconds(
+                        m.speedMs
+                    )
+                }"
+            >
+
+        </div>
+
+    `;
+}
+
+
+/* ============================================================
+   AUDIO FIELDS
+   ============================================================ */
+
+function renderAudioFields(
+    phase,
+    index
+) {
+
+    const a =
+        phase.audio || {};
+
+    return `
+
+        <div class="device-row">
+
+            <label>
+                Enabled
+            </label>
+
+            <button
+                id="audio_${index}_enabled"
+                class="toggle ${
+                    a.enabled
+                        ? "on"
+                        : ""
+                }"
+                onclick="
+                    togglePhaseDevice(
+                        ${index},
+                        'audio'
+                    )
+                "
+            >
+                ${
+                    a.enabled
+                        ? "ON"
+                        : "OFF"
+                }
+            </button>
+
+        </div>
+
+
+        <div class="device-row">
+
+            <label>
+                Effect
+            </label>
+
+            <select
+                id="audio_${index}_effect"
+            >
+
+                <option value="melody">
+                    Melody
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <div class="device-row">
+
+            <label>
+                Start
+            </label>
+
+            <input
+                id="audio_${index}_start"
+                type="number"
+                min="0"
+                max="100"
+                value="${a.start ?? 0}"
+            >
+
+        </div>
+
+
+        <div class="device-row">
+
+            <label>
+                End
+            </label>
+
+            <input
+                id="audio_${index}_end"
+                type="number"
+                min="0"
+                max="100"
+                value="${a.end ?? 100}"
+            >
+
+        </div>
+
+
+        <div class="device-row">
+
+            <label>
+                Loop
+            </label>
+
+            <button
+                id="audio_${index}_loop"
+                class="toggle ${
+                    a.loop
+                        ? "on"
+                        : ""
+                }"
+                onclick="
+                    togglePhaseLoop(
+                        ${index}
+                    )
+                "
+            >
+                ${
+                    a.loop
+                        ? "ON"
+                        : "OFF"
+                }
+            </button>
+
+        </div>
+
+    `;
+}
+
+
+/* ============================================================
+   COB FIELDS
+   ============================================================ */
+
+function renderCobFields(
+    phase,
+    index
+) {
+
+    const c =
+        phase.cob || {};
+
+    return `
+
+        <div class="device-row">
+
+            <label>
+                Enabled
+            </label>
+
+            <button
+                id="cob_${index}_enabled"
+                class="toggle ${
+                    c.enabled
+                        ? "on"
+                        : ""
+                }"
+                onclick="
+                    togglePhaseDevice(
+                        ${index},
+                        'cob'
+                    )
+                "
+            >
+                ${
+                    c.enabled
+                        ? "ON"
+                        : "OFF"
+                }
+            </button>
+
+        </div>
+
+
+        <div class="device-row">
+
+            <label>
+                Effect
+            </label>
+
+            <select
+                id="cob_${index}_effect"
+            >
+
+                <option value="static">
+                    Static
+                </option>
+
+                <option value="blink">
+                    Blink
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <div class="device-row">
+
+            <label>
+                Start
+            </label>
+
+            <input
+                id="cob_${index}_start"
+                type="number"
+                min="0"
+                max="100"
+                value="${c.start ?? 0}"
+            >
+
+        </div>
+
+
+        <div class="device-row">
+
+            <label>
+                End
+            </label>
+
+            <input
+                id="cob_${index}_end"
+                type="number"
+                min="0"
+                max="100"
+                value="${c.end ?? 100}"
+            >
+
+        </div>
+
+
+        <div class="device-row">
+
+            <label>
+                Max duration
+            </label>
+
+            <input
+                id="cob_${index}_maxDuration"
+                type="number"
+                min="0"
+                step="0.1"
+                value="${
+                    c.maxDurationMs
+                        ? msToMinutes(
+                            c.maxDurationMs
+                        )
+                        : ""
+                }"
+                placeholder="Unlimited"
+            >
+
+        </div>
+
+    `;
+}
+
+
+/* ============================================================
+   PHASE DEVICE TOGGLE
+   ============================================================ */
+
+function togglePhaseDevice(
+    index,
+    device
+) {
+
+    const phase =
+        currentAlarm.phases[index];
+
+    phase[device] =
+        phase[device] || {};
+
+    phase[device].enabled =
+        !phase[device].enabled;
+
+    renderAlarmPhases();
+}
+
+
+function togglePhaseLoop(
+    index
+) {
+
+    const phase =
+        currentAlarm.phases[index];
+
+    phase.audio =
+        phase.audio || {};
+
+    phase.audio.loop =
+        !phase.audio.loop;
+
+    renderAlarmPhases();
+}
+
+
+/* ============================================================
+   ADD PHASE
+   ============================================================ */
+
+function addAlarmPhase() {
+
+    currentAlarm.phases.push({
+
+        startOffsetMs:
+            0,
+
+        durationMs:
+            30000,
+
+        condition:
+            "if_not_dismissed",
+
+        matrix: {
+
+            enabled:
+                false,
+
+            effectId:
+                "static",
+
+            start:
+                0,
+
+            end:
+                100,
+
+            speedMs:
+                0,
+
+            durationMs:
+                30000
+
+        },
+
+        audio: {
+
+            enabled:
+                false,
+
+            effectId:
+                "melody",
+
+            start:
+                0,
+
+            end:
+                100,
+
+            speedMs:
+                0,
+
+            durationMs:
+                30000,
+
+            loop:
+                false
+
+        },
+
+        cob: {
+
+            enabled:
+                false,
+
+            effectId:
+                "static",
+
+            start:
+                0,
+
+            end:
+                100,
+
+            speedMs:
+                0,
+
+            durationMs:
+                30000,
+
+            maxDurationMs:
+                0
+
+        }
+
+    });
+
+    renderAlarmPhases();
+}
+
+
+/* ============================================================
+   REMOVE PHASE
+   ============================================================ */
+
+function removeAlarmPhase(
+    index
+) {
+
+    currentAlarm.phases.splice(
+        index,
+        1
+    );
+
+    renderAlarmPhases();
+}
+
+
+/* ============================================================
+   READ PHASE
+   ============================================================ */
+
+function readPhase(
+    phase,
+    index
+) {
+
+    phase.startOffsetMs =
+        minutesToMs(
+            document.getElementById(
+                `phase_${index}_offset`
+            ).value
+        );
+
+
+    const duration =
+        document.getElementById(
+            `phase_${index}_duration`
+        ).value;
+
+
+    phase.durationMs =
+        duration === ""
+            ? 0
+            : minutesToMs(
+                duration
+            );
+
+
+    phase.condition =
+        document.getElementById(
+            `phase_${index}_condition`
+        ).value;
+
+
+    /* MATRIX */
+
+    phase.matrix =
+        phase.matrix || {};
+
+    phase.matrix.enabled =
+        document.getElementById(
+            `matrix_${index}_enabled`
+        ).classList.contains(
+            "on"
+        );
+
+    phase.matrix.effectId =
+        document.getElementById(
+            `matrix_${index}_effect`
+        ).value;
+
+    phase.matrix.start =
+        Number(
+            document.getElementById(
+                `matrix_${index}_start`
+            ).value
+        );
+
+    phase.matrix.end =
+        Number(
+            document.getElementById(
+                `matrix_${index}_end`
+            ).value
+        );
+
+    phase.matrix.speedMs =
+        secondsToMs(
+            document.getElementById(
+                `matrix_${index}_speed`
+            ).value
+        );
+
+    phase.matrix.durationMs =
+        phase.durationMs;
+
+
+    /* AUDIO */
+
+    phase.audio =
+        phase.audio || {};
+
+    phase.audio.enabled =
+        document.getElementById(
+            `audio_${index}_enabled`
+        ).classList.contains(
+            "on"
+        );
+
+    phase.audio.effectId =
+        document.getElementById(
+            `audio_${index}_effect`
+        ).value;
+
+    phase.audio.start =
+        Number(
+            document.getElementById(
+                `audio_${index}_start`
+            ).value
+        );
+
+    phase.audio.end =
+        Number(
+            document.getElementById(
+                `audio_${index}_end`
+            ).value
+        );
+
+    phase.audio.loop =
+        document.getElementById(
+            `audio_${index}_loop`
+        ).classList.contains(
+            "on"
+        );
+
+    phase.audio.speedMs =
+        0;
+
+    phase.audio.durationMs =
+        phase.durationMs;
+
+
+    /* COB */
+
+    phase.cob =
+        phase.cob || {};
+
+    phase.cob.enabled =
+        document.getElementById(
+            `cob_${index}_enabled`
+        ).classList.contains(
+            "on"
+        );
+
+    phase.cob.effectId =
+        document.getElementById(
+            `cob_${index}_effect`
+        ).value;
+
+    phase.cob.start =
+        Number(
+            document.getElementById(
+                `cob_${index}_start`
+            ).value
+        );
+
+    phase.cob.end =
+        Number(
+            document.getElementById(
+                `cob_${index}_end`
+            ).value
+        );
+
+
+    const maxDuration =
+        document.getElementById(
+            `cob_${index}_maxDuration`
+        ).value;
+
+
+    phase.cob.maxDurationMs =
+        maxDuration === ""
+            ? 0
+            : minutesToMs(
+                maxDuration
+            );
+
+}
+
+
+/* ============================================================
+   SAVE ALARM
+   ============================================================ */
+
+async function saveCurrentAlarm() {
+
+    if (!currentAlarm) {
+        return;
+    }
+
+
+    currentAlarm.name =
+        document.getElementById(
+            "alarm_name"
+        ).value.trim();
+
+
+    if (!currentAlarm.name) {
+
+        showMessage(
+            "Enter alarm name"
+        );
+
+        return;
+
+    }
+
+
+    const parsedTime =
+        getAlarmTime();
+
+
+    if (!parsedTime) {
+
+        showMessage(
+            "Invalid time"
+        );
+
+        document.getElementById(
+            "alarm_hour"
+        ).focus();
+
+        return;
+
+    }
+
+
+    currentAlarm.time =
+        parsedTime;
+
+
+    currentAlarm.repeatMask =
+        daysToMask();
+
+
+    currentAlarm.phases.forEach(
+        (
+            phase,
+            index
+        ) => {
+
+            readPhase(
+                phase,
+                index
+            );
+
+        }
+    );
+
+
+    try {
+
+        const method =
+            currentAlarm.id
+                ? "PUT"
+                : "POST";
+
+
+        const url =
+            currentAlarm.id
+                ? "/api/alarms/" +
+                  encodeURIComponent(
+                      currentAlarm.id
+                  )
+                : "/api/alarms";
+
+
+        const response =
+            await apiFetch(
+                url,
+                {
+
+                    method,
+
+                    headers: {
+
+                        "Content-Type":
+                            "application/json"
+
+                    },
+
+                    body:
+                        JSON.stringify(
+                            currentAlarm
+                        )
+
+                },
+
+                2000
+            );
+
+
+        const result =
+            await response.json();
+
+
+        if (!result.ok) {
+
+            throw new Error(
+                result.error ||
+                "Save failed"
+            );
+
+        }
+
+
+        showMessage(
+            "Alarm saved"
+        );
+
+
+        closeAlarmEditor();
+
+
+        await loadAlarms();
+
+
+    } catch (e) {
+
+        showMessage(
+            "Alarm save error"
+        );
+
+    }
+}
+
+
+/* ============================================================
+   ENABLE / DISABLE ALARM
+   ============================================================ */
+
+async function setAlarmEnabled(
+    id,
+    enabled
+) {
+
+    try {
+
+        const response =
+            await apiFetch(
+                "/api/alarms/" +
+                encodeURIComponent(
+                    id
+                ) +
+                "/enabled",
+                {
+
+                    method: "POST",
+
+                    headers: {
+
+                        "Content-Type":
+                            "application/json"
+
+                    },
+
+                    body:
+                        JSON.stringify({
+                            enabled
+                        })
+
+                },
+
+                1200
+            );
+
+
+        const result =
+            await response.json();
+
+
+        if (!result.ok) {
+
+            throw new Error();
+
+        }
+
+
+        await loadAlarms();
+
+
+    } catch (e) {
+
+        showMessage(
+            "Unable to change alarm"
+        );
+
+    }
+}
+
+
+/* ============================================================
+   DELETE ALARM
+   ============================================================ */
+
+async function deleteCurrentAlarm() {
+
+    if (!currentAlarm) {
+        return;
+    }
+
+
+    if (
+        !confirm(
+            "Delete this alarm?"
+        )
+    ) {
+
+        return;
+
+    }
+
+
+    try {
+
+        const response =
+            await apiFetch(
+                "/api/alarms/" +
+                encodeURIComponent(
+                    currentAlarm.id
+                ),
+                {
+
+                    method:
+                        "DELETE"
+
+                },
+
+                1500
+            );
+
+
+        const result =
+            await response.json();
+
+
+        if (!result.ok) {
+
+            throw new Error();
+
+        }
+
+
+        showMessage(
+            "Alarm deleted"
+        );
+
+
+        closeAlarmEditor();
+
+
+        await loadAlarms();
+
+
+    } catch (e) {
+
+        showMessage(
+            "Delete error"
+        );
+
+    }
+}
+
+
+/* ============================================================
+   CLOSE ALARM EDITOR
+   ============================================================ */
+
+function closeAlarmEditor() {
+
+    currentAlarm = null;
+
+    document.getElementById(
+        "alarmEditor"
+    ).style.display =
+        "none";
+
+    document.getElementById(
+        "alarmsTab"
+    ).style.display =
+        "block";
 }
 
 
@@ -2495,23 +5574,17 @@ async function updatePlayerStatus() {
 
 renderTimezone();
 
-(async function init() {
 
-    /*
-     * Сначала загружаем реальные
-     * настройки из SettingsManager.
-     */
+(async function init() {
 
     await loadParams();
 
-    /*
-     * Затем загружаем SD
-     * и состояние аудио.
-     */
-
     await Promise.all([
+
         loadSD(),
+
         updatePlayerStatus()
+
     ]);
 
 })();

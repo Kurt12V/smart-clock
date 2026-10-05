@@ -1,14 +1,16 @@
 #pragma once
 
 #include <Arduino.h>
-#include <WiFi.h>
 #include <WebServer.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
+#include <WiFi.h>
 
 #include "SettingsManager.h"
 #include "SDManager.h"
 #include "SoundManager.h"
+#include "AlarmManager.h"
+#include "AlarmController.h"
 
 
 class WebServerManager
@@ -28,10 +30,23 @@ public:
 
     bool begin(
         SettingsManager& settings,
-        SDManager&       sd,
-        SoundManager&    sound,
-        const char*      ssid,
-        const char*      password
+        SDManager& sd,
+        SoundManager& sound,
+        const char* ssid,
+        const char* password
+    );
+
+
+    // ========================================================
+    // ALARM CONNECTION
+    // ========================================================
+
+    void setAlarmManager(
+        AlarmManager& alarmManager
+    );
+
+    void setAlarmController(
+        AlarmController& alarmController
     );
 
 
@@ -43,7 +58,7 @@ public:
 
 
     // ========================================================
-    // STATUS
+    // STATE
     // ========================================================
 
     bool isConnected() const;
@@ -54,29 +69,6 @@ public:
 private:
 
     // ========================================================
-    // SERVER
-    // ========================================================
-
-    WebServer _server;
-
-
-    // ========================================================
-    // MANAGERS
-    // ========================================================
-
-    SettingsManager* _settings;
-    SDManager*       _sd;
-    SoundManager*    _sound;
-
-
-    // ========================================================
-    // STATE
-    // ========================================================
-
-    bool _initialized;
-
-
-    // ========================================================
     // ROUTES
     // ========================================================
 
@@ -84,20 +76,24 @@ private:
 
 
     // ========================================================
-    // GENERAL
+    // ROOT
     // ========================================================
 
     void handleRoot();
+
     void handleNotFound();
 
 
     // ========================================================
-    // SETTINGS API
+    // SETTINGS
     // ========================================================
 
     void handleGetParam();
+
     void handleSetParam();
+
     void handleGetAllParams();
+
     void handleReset();
 
 
@@ -120,10 +116,54 @@ private:
     // ========================================================
 
     void handleAudioPlay();
+
     void handleAudioPause();
+
     void handleAudioResume();
+
     void handleAudioStop();
+
     void handleAudioStatus();
+
+
+    // ========================================================
+    // ALARMS
+    // ========================================================
+
+    void handleGetAlarms();
+
+    void handleGetAlarm();
+
+    void handleCreateAlarm();
+
+    void handleUpdateAlarm();
+
+    void handleDeleteAlarm();
+
+    void handleEnableAlarm();
+
+    void handleDisableAlarm();
+
+    void handleAlarmRuntime();
+
+    void handleAlarmDismiss();
+
+    void handleAlarmSnooze();
+
+
+    // ========================================================
+    // ALARM JSON
+    // ========================================================
+
+    bool parseAlarmFromRequest(
+        Alarm& alarm
+    );
+
+    void sendAlarm(
+        const Alarm& alarm
+    );
+
+    void sendAlarmList();
 
 
     // ========================================================
@@ -134,22 +174,46 @@ private:
         JsonDocument& doc
     );
 
-
-    // ========================================================
-    // RESPONSE
-    // ========================================================
-
     void sendJson(
         int code,
         const String& body
     );
 
-
     void sendOk();
-
 
     void sendError(
         int code,
         const char* message
     );
+
+
+private:
+
+    // ========================================================
+    // SERVER
+    // ========================================================
+
+    WebServer _server;
+
+
+    // ========================================================
+    // MANAGERS
+    // ========================================================
+
+    SettingsManager* _settings;
+
+    SDManager* _sd;
+
+    SoundManager* _sound;
+
+    AlarmManager* _alarmManager;
+
+    AlarmController* _alarmController;
+
+
+    // ========================================================
+    // STATE
+    // ========================================================
+
+    bool _initialized;
 };

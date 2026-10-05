@@ -1,7 +1,5 @@
 #include "SDManager.h"
-#include "./utils/Logger.h"
 
-#include <cstring>
 
 // ============================================================
 // CONSTRUCTOR
@@ -12,46 +10,25 @@ SDManager::SDManager()
 {
 }
 
+
 // ============================================================
 // BEGIN
 // ============================================================
 
-bool SDManager::begin(uint8_t csPin)
+bool SDManager::begin(
+    uint8_t csPin
+)
 {
-    if (_initialized)
-        return true;
-
-    Logger::info("SD", "Initializing SD card...");
+    _initialized = false;
 
     if (!_card.begin(csPin))
-    {
-        Logger::error("SD", "Failed to initialize SD card");
-
-        _initialized = false;
         return false;
-    }
 
     _initialized = true;
 
-    SDCardInfo info = _card.getInfo();
-
-    Logger::info("SD", "SD card initialized");
-    Logger::info("SD", "Total: %s", info.totalSize.c_str());
-    Logger::info(
-        "SD",
-        "Used: %s (%.1f%%)",
-        info.usedSize.c_str(),
-        info.usedPercent
-    );
-    Logger::info(
-        "SD",
-        "Free: %s (%.1f%%)",
-        info.freeSize.c_str(),
-        info.freePercent
-    );
-
     return true;
 }
+
 
 // ============================================================
 // END
@@ -65,9 +42,8 @@ void SDManager::end()
     _card.end();
 
     _initialized = false;
-
-    Logger::info("SD", "SD card unmounted");
 }
+
 
 // ============================================================
 // IS READY
@@ -75,8 +51,12 @@ void SDManager::end()
 
 bool SDManager::isReady() const
 {
-    return _initialized && _card.isMounted();
+    return (
+        _initialized &&
+        _card.isMounted()
+    );
 }
+
 
 // ============================================================
 // CARD
@@ -87,19 +67,25 @@ SDCard& SDManager::card()
     return _card;
 }
 
+
 const SDCard& SDManager::card() const
 {
     return _card;
 }
 
+
 // ============================================================
-// GET INFO
+// INFO
 // ============================================================
 
 SDCardInfo SDManager::getInfo() const
 {
+    if (!_initialized)
+        return SDCardInfo{};
+
     return _card.getInfo();
 }
+
 
 // ============================================================
 // LIST FILES
@@ -107,91 +93,328 @@ SDCardInfo SDManager::getInfo() const
 
 size_t SDManager::listFiles(
     SDFileEntry* out,
-    size_t       maxFiles,
-    uint8_t      maxDepth,
-    const char*  root
+    size_t maxFiles,
+    uint8_t maxDepth,
+    const char* root
 ) const
 {
-    if (!isReady())    return 0;
-    if (!out)          return 0;
-    if (maxFiles == 0) return 0;
+    if (out == nullptr)
+        return 0;
 
-    if (!root)
+    if (maxFiles == 0)
+        return 0;
+
+    if (!_initialized)
+        return 0;
+
+    if (!_card.isMounted())
+        return 0;
+
+    if (root == nullptr)
         root = "/";
 
-    return listDir(root, out, maxFiles, 0, 0, maxDepth);
+    return listDir(
+        root,
+        out,
+        maxFiles,
+        0,
+        0,
+        maxDepth
+    );
 }
 
+
 // ============================================================
-// LIST DIR (recursive)
+// LIST DIRECTORY
 // ============================================================
 
 size_t SDManager::listDir(
-    const char*  dirname,
+    const char* dirname,
     SDFileEntry* out,
-    size_t       maxFiles,
-    size_t       count,
-    uint8_t      depth,
-    uint8_t      maxDepth
+    size_t maxFiles,
+    size_t count,
+    uint8_t depth,
+    uint8_t maxDepth
 ) const
 {
+    if (dirname == nullptr)
+        return count;
+
+    if (out == nullptr)
+        return count;
+
     if (count >= maxFiles)
         return count;
 
-    File dir = SD.open(dirname);
 
-    if (!dir || !dir.isDirectory())
+    // --------------------------------------------------------
+    // Открываем директорию.
+    //
+    // Здесь используется существующий SD API,
+    // как и в твоей исходной реализации.
+    // --------------------------------------------------------
+
+    File dir =
+        SD.open(dirname);
+
+    if (!dir)
+        return count;
+
+    if (!dir.isDirectory())
     {
-        if (dir) dir.close();
+        dir.close();
         return count;
     }
 
-    File entry = dir.openNextFile();
 
-    while (entry && count < maxFiles)
+    // --------------------------------------------------------
+    // Перебираем содержимое
+    // --------------------------------------------------------
+
+    while (true)
     {
-        const char* name = entry.name();
+        if (count >= maxFiles)
+            break;
 
-        bool skip =
-            name == nullptr ||
-            name[0] == '.' ||
-            strcmp(name, "System Volume Information") == 0;
 
-        if (!skip)
-        {
-            String fullPath = entry.path();
+        File file =
+            dir.openNextFile();
 
-            if (!fullPath.startsWith("/"))
-                fullPath = "/" + fullPath;
+        if (!file)
+            break;
 
-            bool isDir = entry.isDirectory();
 
-            out[count].path  = fullPath;
-            out[count].size  = isDir
+        const bool isDirectory =
+            file.isDirectory();
+
+
+        const String path =
+            file.path();
+
+
+        const uint64_t size =
+            isDirectory
                 ? 0
-                : static_cast<uint64_t>(entry.size());
-            out[count].isDir = isDir;
+                : static_cast<uint64_t>(
+                    file.size()
+                );
 
-            ++count;
 
-            if (isDir && depth < maxDepth)
-            {
-                count = listDir(
-                    fullPath.c_str(),
+        // ----------------------------------------------------
+        // Добавляем запись
+        // ----------------------------------------------------
+
+        out[count].path =
+            path;
+
+        out[count].size =
+            size;
+
+        out[count].isDir =
+            isDirectory;
+
+
+        ++count;
+
+
+        // ----------------------------------------------------
+        // Рекурсивный обход
+        // ----------------------------------------------------
+
+        if (
+            isDirectory &&
+            depth < maxDepth &&
+            count < maxFiles
+        )
+        {
+            count =
+                listDir(
+                    path.c_str(),
                     out,
                     maxFiles,
                     count,
                     depth + 1,
                     maxDepth
                 );
-            }
         }
 
-        entry.close();
-        entry = dir.openNextFile();
+
+        file.close();
     }
+
 
     dir.close();
 
     return count;
+}
+
+
+// ============================================================
+// CREATE DIRECTORY
+// ============================================================
+
+bool SDManager::createDirectory(
+    const String& path
+)
+{
+    if (!_initialized)
+        return false;
+
+    if (!_card.isMounted())
+        return false;
+
+    if (path.isEmpty())
+        return false;
+
+
+    // Уже существует
+
+    if (
+        _card.exists(
+            path.c_str()
+        )
+    )
+    {
+        return true;
+    }
+
+
+    return _card.fs().mkdir(
+        path.c_str()
+    );
+}
+
+
+// ============================================================
+// FILE EXISTS
+// ============================================================
+
+bool SDManager::fileExists(
+    const String& path
+) const
+{
+    if (!_initialized)
+        return false;
+
+    if (!_card.isMounted())
+        return false;
+
+    if (path.isEmpty())
+        return false;
+
+
+    return _card.exists(
+        path.c_str()
+    );
+}
+
+
+// ============================================================
+// READ FILE
+// ============================================================
+
+bool SDManager::readFile(
+    const String& path,
+    String& content
+)
+{
+    content = "";
+
+    if (!_initialized)
+        return false;
+
+    if (!_card.isMounted())
+        return false;
+
+    if (path.isEmpty())
+        return false;
+
+
+    File file =
+        _card.fs().open(
+            path.c_str(),
+            FILE_READ
+        );
+
+
+    if (!file)
+        return false;
+
+
+    content =
+        file.readString();
+
+
+    file.close();
+
+
+    return true;
+}
+
+
+// ============================================================
+// WRITE FILE
+// ============================================================
+
+bool SDManager::writeFile(
+    const String& path,
+    const String& content
+)
+{
+    if (!_initialized)
+        return false;
+
+    if (!_card.isMounted())
+        return false;
+
+    if (path.isEmpty())
+        return false;
+
+
+    File file =
+        _card.fs().open(
+            path.c_str(),
+            FILE_WRITE
+        );
+
+
+    if (!file)
+        return false;
+
+
+    const size_t written =
+        file.print(content);
+
+
+    file.close();
+
+
+    return (
+        written ==
+        content.length()
+    );
+}
+
+
+// ============================================================
+// DELETE FILE
+// ============================================================
+
+bool SDManager::deleteFile(
+    const String& path
+)
+{
+    if (!_initialized)
+        return false;
+
+    if (!_card.isMounted())
+        return false;
+
+    if (path.isEmpty())
+        return false;
+
+
+    return _card.fs().remove(
+        path.c_str()
+    );
 }

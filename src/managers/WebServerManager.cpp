@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+
 // ============================================================
 // CONSTRUCTOR
 // ============================================================
@@ -11,6 +12,8 @@ WebServerManager::WebServerManager()
       _settings(nullptr),
       _sd(nullptr),
       _sound(nullptr),
+      _alarmManager(nullptr),
+      _alarmController(nullptr),
       _initialized(false)
 {
 }
@@ -37,13 +40,21 @@ bool WebServerManager::begin(
     // --------------------------------------------------------
 
     WiFi.mode(WIFI_STA);
-    WiFi.disconnect(true, true);
+
+    WiFi.disconnect(
+        true,
+        true
+    );
 
     delay(300);
 
-    WiFi.begin(ssid, password);
+    WiFi.begin(
+        ssid,
+        password
+    );
 
-    const uint32_t startTime = millis();
+    const uint32_t startTime =
+        millis();
 
     while (
         WiFi.status() != WL_CONNECTED &&
@@ -55,12 +66,21 @@ bool WebServerManager::begin(
 
     if (WiFi.status() != WL_CONNECTED)
     {
-        Serial0.println("[WEB] WiFi connection failed");
+        Serial0.println(
+            "[WEB] WiFi connection failed"
+        );
+
         return false;
     }
 
-    Serial0.print("[WEB] WiFi connected: ");
-    Serial0.println(WiFi.localIP());
+    Serial0.print(
+        "[WEB] WiFi connected: "
+    );
+
+    Serial0.println(
+        WiFi.localIP()
+    );
+
 
     // --------------------------------------------------------
     // LittleFS
@@ -68,15 +88,20 @@ bool WebServerManager::begin(
 
     if (!LittleFS.begin(true))
     {
-        Serial0.println("[WEB] LittleFS mount failed");
+        Serial0.println(
+            "[WEB] LittleFS mount failed"
+        );
+
         return false;
     }
+
 
     // --------------------------------------------------------
     // Routes
     // --------------------------------------------------------
 
     setupRoutes();
+
 
     // --------------------------------------------------------
     // Server
@@ -86,10 +111,41 @@ bool WebServerManager::begin(
 
     _initialized = true;
 
-    Serial0.print("[WEB] Server: http://");
-    Serial0.println(WiFi.localIP());
+    Serial0.print(
+        "[WEB] Server: http://"
+    );
+
+    Serial0.println(
+        WiFi.localIP()
+    );
 
     return true;
+}
+
+
+// ============================================================
+// SET ALARM MANAGER
+// ============================================================
+
+void WebServerManager::setAlarmManager(
+    AlarmManager& alarmManager
+)
+{
+    _alarmManager =
+        &alarmManager;
+}
+
+
+// ============================================================
+// SET ALARM CONTROLLER
+// ============================================================
+
+void WebServerManager::setAlarmController(
+    AlarmController& alarmController
+)
+{
+    _alarmController =
+        &alarmController;
 }
 
 
@@ -124,6 +180,7 @@ void WebServerManager::setupRoutes()
             handleRoot();
         }
     );
+
 
     // ========================================================
     // SETTINGS
@@ -165,6 +222,7 @@ void WebServerManager::setupRoutes()
         }
     );
 
+
     // ========================================================
     // SENSORS
     // ========================================================
@@ -178,6 +236,7 @@ void WebServerManager::setupRoutes()
         }
     );
 
+
     // ========================================================
     // SD
     // ========================================================
@@ -190,6 +249,7 @@ void WebServerManager::setupRoutes()
             handleSD();
         }
     );
+
 
     // ========================================================
     // AUDIO
@@ -240,6 +300,102 @@ void WebServerManager::setupRoutes()
         }
     );
 
+
+    // ========================================================
+    // ALARMS
+    // ========================================================
+
+    _server.on(
+        "/api/alarms",
+        HTTP_GET,
+        [this]()
+        {
+            handleGetAlarms();
+        }
+    );
+
+    _server.on(
+        "/api/alarm",
+        HTTP_GET,
+        [this]()
+        {
+            handleGetAlarm();
+        }
+    );
+
+    _server.on(
+        "/api/alarm",
+        HTTP_POST,
+        [this]()
+        {
+            handleCreateAlarm();
+        }
+    );
+
+    _server.on(
+        "/api/alarm",
+        HTTP_PUT,
+        [this]()
+        {
+            handleUpdateAlarm();
+        }
+    );
+
+    _server.on(
+        "/api/alarm",
+        HTTP_DELETE,
+        [this]()
+        {
+            handleDeleteAlarm();
+        }
+    );
+
+    _server.on(
+        "/api/alarm/enable",
+        HTTP_POST,
+        [this]()
+        {
+            handleEnableAlarm();
+        }
+    );
+
+    _server.on(
+        "/api/alarm/disable",
+        HTTP_POST,
+        [this]()
+        {
+            handleDisableAlarm();
+        }
+    );
+
+    _server.on(
+        "/api/alarm/runtime",
+        HTTP_GET,
+        [this]()
+        {
+            handleAlarmRuntime();
+        }
+    );
+
+    _server.on(
+        "/api/alarm/dismiss",
+        HTTP_POST,
+        [this]()
+        {
+            handleAlarmDismiss();
+        }
+    );
+
+    _server.on(
+        "/api/alarm/snooze",
+        HTTP_POST,
+        [this]()
+        {
+            handleAlarmSnooze();
+        }
+    );
+
+
     // ========================================================
     // 404
     // ========================================================
@@ -270,10 +426,11 @@ void WebServerManager::handleRoot()
         return;
     }
 
-    File file = LittleFS.open(
-        "/index.html",
-        "r"
-    );
+    File file =
+        LittleFS.open(
+            "/index.html",
+            "r"
+        );
 
     if (!file)
     {
@@ -312,11 +469,6 @@ void WebServerManager::handleNotFound()
 // ============================================================
 // GET /api/param
 // ============================================================
-//
-// /api/param?name=brightness
-// /api/param?param=brightness
-//
-// ============================================================
 
 void WebServerManager::handleGetParam()
 {
@@ -330,10 +482,12 @@ void WebServerManager::handleGetParam()
         return;
     }
 
-    String name = _server.arg("name");
+    String name =
+        _server.arg("name");
 
     if (name.isEmpty())
-        name = _server.arg("param");
+        name =
+            _server.arg("param");
 
     if (name.isEmpty())
     {
@@ -350,7 +504,8 @@ void WebServerManager::handleGetParam()
             name.c_str()
         );
 
-    if (param == SettingsManager::Param::COUNT)
+    if (param ==
+        SettingsManager::Param::COUNT)
     {
         sendError(
             400,
@@ -363,8 +518,16 @@ void WebServerManager::handleGetParam()
     JsonDocument doc;
 
     doc["ok"] = true;
-    doc["param"] = _settings->paramName(param);
-    doc["value"] = _settings->get(param);
+
+    doc["param"] =
+        _settings->paramName(
+            param
+        );
+
+    doc["value"] =
+        _settings->get(
+            param
+        );
 
     String body;
 
@@ -382,22 +545,6 @@ void WebServerManager::handleGetParam()
 
 // ============================================================
 // POST /api/param
-// ============================================================
-//
-// Frontend:
-//
-// {
-//     "param": "mx_br",
-//     "value": 50
-// }
-//
-// Также поддерживается:
-//
-// {
-//     "name": "mx_br",
-//     "value": 50
-// }
-//
 // ============================================================
 
 void WebServerManager::handleSetParam()
@@ -417,16 +564,19 @@ void WebServerManager::handleSetParam()
     if (!parseJson(doc))
         return;
 
-    // --------------------------------------------------------
-    // NAME
-    // --------------------------------------------------------
 
-    const char* name = doc["param"];
+    const char* name =
+        doc["param"];
 
-    if (!name || name[0] == '\0')
-        name = doc["name"];
+    if (!name ||
+        name[0] == '\0')
+    {
+        name =
+            doc["name"];
+    }
 
-    if (!name || name[0] == '\0')
+    if (!name ||
+        name[0] == '\0')
     {
         sendError(
             400,
@@ -436,9 +586,6 @@ void WebServerManager::handleSetParam()
         return;
     }
 
-    // --------------------------------------------------------
-    // VALUE
-    // --------------------------------------------------------
 
     if (doc["value"].isNull())
     {
@@ -450,17 +597,18 @@ void WebServerManager::handleSetParam()
         return;
     }
 
+
     const int requestedValue =
         doc["value"].as<int>();
 
-    // --------------------------------------------------------
-    // PARAM
-    // --------------------------------------------------------
 
     const SettingsManager::Param param =
-        _settings->paramFromName(name);
+        _settings->paramFromName(
+            name
+        );
 
-    if (param == SettingsManager::Param::COUNT)
+    if (param ==
+        SettingsManager::Param::COUNT)
     {
         sendError(
             400,
@@ -470,34 +618,12 @@ void WebServerManager::handleSetParam()
         return;
     }
 
-    // --------------------------------------------------------
-    // CURRENT VALUE
-    // --------------------------------------------------------
 
     const uint8_t oldValue =
-        _settings->get(param);
+        _settings->get(
+            param
+        );
 
-    // --------------------------------------------------------
-    // VALUE LIMIT
-    // --------------------------------------------------------
-    //
-    // Большинство параметров:
-    //
-    // brightness
-    // mx_br
-    // mx_eff
-    // mx_spd
-    // cob_br
-    // cob_eff
-    // cob_spd
-    // volumes
-    //
-    // используют 0..255 на уровне SettingsManager.
-    //
-    // Реальные диапазоны дополнительно контролируются
-    // SettingsManager.
-    //
-    // --------------------------------------------------------
 
     const uint8_t value =
         static_cast<uint8_t>(
@@ -508,29 +634,34 @@ void WebServerManager::handleSetParam()
             )
         );
 
+
     _settings->set(
         param,
         value
     );
 
-    const uint8_t actualValue =
-        _settings->get(param);
 
-    // --------------------------------------------------------
-    // RESPONSE
-    // --------------------------------------------------------
+    const uint8_t actualValue =
+        _settings->get(
+            param
+        );
+
 
     JsonDocument response;
 
     response["ok"] = true;
+
     response["param"] =
-        _settings->paramName(param);
+        _settings->paramName(
+            param
+        );
 
     response["value"] =
         actualValue;
 
     response["changed"] =
         actualValue != oldValue;
+
 
     String body;
 
@@ -573,16 +704,25 @@ void WebServerManager::handleGetAllParams()
     )
     {
         const SettingsManager::Param param =
-            static_cast<SettingsManager::Param>(i);
+            static_cast<SettingsManager::Param>(
+                i
+            );
 
         const char* name =
-            _settings->paramName(param);
+            _settings->paramName(
+                param
+            );
 
-        if (!name || name[0] == '\0')
+        if (!name ||
+            name[0] == '\0')
+        {
             continue;
+        }
 
         doc[name] =
-            _settings->get(param);
+            _settings->get(
+                param
+            );
     }
 
     String body;
@@ -744,14 +884,12 @@ void WebServerManager::handleAudioPlay()
     if (!parseJson(doc))
         return;
 
-    // --------------------------------------------------------
-    // PATH
-    // --------------------------------------------------------
 
     const char* path =
         doc["path"];
 
-    if (!path || path[0] == '\0')
+    if (!path ||
+        path[0] == '\0')
     {
         sendError(
             400,
@@ -761,9 +899,6 @@ void WebServerManager::handleAudioPlay()
         return;
     }
 
-    // --------------------------------------------------------
-    // SD
-    // --------------------------------------------------------
 
     if (
         !_sd ||
@@ -778,6 +913,7 @@ void WebServerManager::handleAudioPlay()
         return;
     }
 
+
     if (!_sd->card().exists(path))
     {
         sendError(
@@ -788,25 +924,27 @@ void WebServerManager::handleAudioPlay()
         return;
     }
 
-    // --------------------------------------------------------
-    // OPTIONS
-    // --------------------------------------------------------
 
     SoundManager::PlayOptions options;
 
-    // --------------------------------------------------------
-    // STREAM
-    // --------------------------------------------------------
 
     const char* stream =
         doc["stream"] | "media";
 
-    if (strcmp(stream, "alarm") == 0)
+    if (strcmp(
+            stream,
+            "alarm"
+        ) == 0)
     {
         options.stream =
             SoundManager::AudioStream::Alarm;
     }
-    else if (strcmp(stream, "system") == 0)
+    else if (
+        strcmp(
+            stream,
+            "system"
+        ) == 0
+    )
     {
         options.stream =
             SoundManager::AudioStream::System;
@@ -817,18 +955,6 @@ void WebServerManager::handleAudioPlay()
             SoundManager::AudioStream::Media;
     }
 
-    // --------------------------------------------------------
-    // VOLUME
-    // --------------------------------------------------------
-    //
-    // Поддерживаем:
-    //
-    // localPercent
-    // volume
-    //
-    // Фронтенд использует localPercent.
-    //
-    // --------------------------------------------------------
 
     int volume = 100;
 
@@ -851,11 +977,10 @@ void WebServerManager::handleAudioPlay()
         );
 
     options.localPercent =
-        static_cast<uint8_t>(volume);
+        static_cast<uint8_t>(
+            volume
+        );
 
-    // --------------------------------------------------------
-    // FADE IN
-    // --------------------------------------------------------
 
     if (!doc["fadeInMs"].isNull())
     {
@@ -868,9 +993,6 @@ void WebServerManager::handleAudioPlay()
             doc["fade_in"] | 0;
     }
 
-    // --------------------------------------------------------
-    // FADE OUT
-    // --------------------------------------------------------
 
     if (!doc["fadeOutMs"].isNull())
     {
@@ -883,19 +1005,24 @@ void WebServerManager::handleAudioPlay()
             doc["fade_out"] | 0;
     }
 
-    // --------------------------------------------------------
-    // CURVE
-    // --------------------------------------------------------
 
     const char* curve =
         doc["curve"] | "linear";
 
-    if (strcmp(curve, "exp") == 0)
+    if (strcmp(
+            curve,
+            "exp"
+        ) == 0)
     {
         options.curve =
             SoundManager::FadeCurve::Exponential;
     }
-    else if (strcmp(curve, "log") == 0)
+    else if (
+        strcmp(
+            curve,
+            "log"
+        ) == 0
+    )
     {
         options.curve =
             SoundManager::FadeCurve::Logarithmic;
@@ -906,11 +1033,11 @@ void WebServerManager::handleAudioPlay()
             SoundManager::FadeCurve::Linear;
     }
 
-    // --------------------------------------------------------
-    // PLAY
-    // --------------------------------------------------------
 
-    if (!_sound->play(path, options))
+    if (!_sound->play(
+            path,
+            options
+        ))
     {
         sendError(
             500,
@@ -1043,13 +1170,11 @@ void WebServerManager::handleAudioStop()
 
         if (!error)
         {
-            // Новый frontend
             if (!doc["fadeOutMs"].isNull())
             {
                 fadeOut =
                     doc["fadeOutMs"].as<uint32_t>();
             }
-            // Старое имя
             else
             {
                 fadeOut =
@@ -1060,7 +1185,9 @@ void WebServerManager::handleAudioStop()
 
     if (fadeOut > 0)
     {
-        _sound->stop(fadeOut);
+        _sound->stop(
+            fadeOut
+        );
     }
     else
     {
@@ -1092,66 +1219,770 @@ void WebServerManager::handleAudioStatus()
 
     JsonDocument doc;
 
-    // --------------------------------------------------------
-    // STATE
-    // --------------------------------------------------------
-
     doc["state"] =
         _sound->getStateString();
 
-    // --------------------------------------------------------
-    // PATH
-    // --------------------------------------------------------
-
     doc["path"] =
         _sound->getCurrentPath();
-
-    // --------------------------------------------------------
-    // STREAM
-    // --------------------------------------------------------
 
     doc["stream"] =
         static_cast<uint8_t>(
             _sound->getCurrentStream()
         );
 
-    // --------------------------------------------------------
-    // POSITION
-    // --------------------------------------------------------
-    //
-    // Frontend ожидает positionMs.
-    //
-    // Старое имя position оставляем
-    // для совместимости.
-    //
-    // --------------------------------------------------------
-
     const uint32_t position =
         _sound->getPositionMs();
 
-    doc["positionMs"] = position;
-    doc["position"]   = position;
+    doc["positionMs"] =
+        position;
 
-    // --------------------------------------------------------
-    // DURATION
-    // --------------------------------------------------------
+    doc["position"] =
+        position;
 
     const uint32_t duration =
         _sound->getDurationMs();
 
-    doc["durationMs"] = duration;
-    doc["duration"]   = duration;
+    doc["durationMs"] =
+        duration;
 
-    // --------------------------------------------------------
-    // VOLUME
-    // --------------------------------------------------------
+    doc["duration"] =
+        duration;
 
     doc["volume"] =
         _sound->getEffectiveVolume();
 
-    // --------------------------------------------------------
-    // RESPONSE
-    // --------------------------------------------------------
+    String body;
+
+    serializeJson(
+        doc,
+        body
+    );
+
+    sendJson(
+        200,
+        body
+    );
+}
+
+
+// ============================================================
+// GET /api/alarms
+// ============================================================
+
+void WebServerManager::handleGetAlarms()
+{
+    if (!_alarmManager)
+    {
+        sendError(
+            503,
+            "alarm manager not initialized"
+        );
+
+        return;
+    }
+
+    if (!_sd ||
+        !_sd->isReady())
+    {
+        sendError(
+            503,
+            "SD not available"
+        );
+
+        return;
+    }
+
+    sendAlarmList();
+}
+
+
+// ============================================================
+// GET /api/alarm?id=...
+// ============================================================
+
+void WebServerManager::handleGetAlarm()
+{
+    if (!_alarmManager)
+    {
+        sendError(
+            503,
+            "alarm manager not initialized"
+        );
+
+        return;
+    }
+
+    const String id =
+        _server.arg("id");
+
+    if (id.isEmpty())
+    {
+        sendError(
+            400,
+            "missing id"
+        );
+
+        return;
+    }
+
+    Alarm alarm;
+
+    if (!_alarmManager->get(
+            id,
+            alarm
+        ))
+    {
+        sendError(
+            404,
+            "alarm not found"
+        );
+
+        return;
+    }
+
+    sendAlarm(
+        alarm
+    );
+}
+
+
+// ============================================================
+// POST /api/alarm
+// ============================================================
+
+void WebServerManager::handleCreateAlarm()
+{
+    if (!_alarmManager)
+    {
+        sendError(
+            503,
+            "alarm manager not initialized"
+        );
+
+        return;
+    }
+
+    if (!_sd ||
+        !_sd->isReady())
+    {
+        sendError(
+            503,
+            "SD not available"
+        );
+
+        return;
+    }
+
+    Alarm alarm;
+
+    if (!parseAlarmFromRequest(
+            alarm
+        ))
+    {
+        return;
+    }
+
+    if (alarm.id.isEmpty())
+    {
+        sendError(
+            400,
+            "missing id"
+        );
+
+        return;
+    }
+
+    if (!_alarmManager->create(
+            alarm
+        ))
+    {
+        sendError(
+            409,
+            "failed to create alarm"
+        );
+
+        return;
+    }
+
+    Alarm saved;
+
+    if (!_alarmManager->get(
+            alarm.id,
+            saved
+        ))
+    {
+        sendAlarm(
+            alarm
+        );
+
+        return;
+    }
+
+    sendAlarm(
+        saved
+    );
+}
+
+
+// ============================================================
+// PUT /api/alarm
+// ============================================================
+
+void WebServerManager::handleUpdateAlarm()
+{
+    if (!_alarmManager)
+    {
+        sendError(
+            503,
+            "alarm manager not initialized"
+        );
+
+        return;
+    }
+
+    if (!_sd ||
+        !_sd->isReady())
+    {
+        sendError(
+            503,
+            "SD not available"
+        );
+
+        return;
+    }
+
+    Alarm alarm;
+
+    if (!parseAlarmFromRequest(
+            alarm
+        ))
+    {
+        return;
+    }
+
+    if (alarm.id.isEmpty())
+    {
+        sendError(
+            400,
+            "missing id"
+        );
+
+        return;
+    }
+
+    if (!_alarmManager->exists(
+            alarm.id
+        ))
+    {
+        sendError(
+            404,
+            "alarm not found"
+        );
+
+        return;
+    }
+
+    if (!_alarmManager->update(
+            alarm
+        ))
+    {
+        sendError(
+            409,
+            "failed to update alarm"
+        );
+
+        return;
+    }
+
+    Alarm saved;
+
+    if (_alarmManager->get(
+            alarm.id,
+            saved
+        ))
+    {
+        sendAlarm(
+            saved
+        );
+
+        return;
+    }
+
+    sendAlarm(
+        alarm
+    );
+}
+
+
+// ============================================================
+// DELETE /api/alarm?id=...
+// ============================================================
+
+void WebServerManager::handleDeleteAlarm()
+{
+    if (!_alarmManager)
+    {
+        sendError(
+            503,
+            "alarm manager not initialized"
+        );
+
+        return;
+    }
+
+    const String id =
+        _server.arg("id");
+
+    if (id.isEmpty())
+    {
+        sendError(
+            400,
+            "missing id"
+        );
+
+        return;
+    }
+
+    if (!_alarmManager->remove(
+            id
+        ))
+    {
+        sendError(
+            404,
+            "alarm not found"
+        );
+
+        return;
+    }
+
+    sendOk();
+}
+
+
+// ============================================================
+// POST /api/alarm/enable?id=...
+// ============================================================
+
+void WebServerManager::handleEnableAlarm()
+{
+    if (!_alarmManager)
+    {
+        sendError(
+            503,
+            "alarm manager not initialized"
+        );
+
+        return;
+    }
+
+    const String id =
+        _server.arg("id");
+
+    if (id.isEmpty())
+    {
+        sendError(
+            400,
+            "missing id"
+        );
+
+        return;
+    }
+
+    if (!_alarmManager->enable(
+            id
+        ))
+    {
+        sendError(
+            404,
+            "alarm not found"
+        );
+
+        return;
+    }
+
+    sendOk();
+}
+
+
+// ============================================================
+// POST /api/alarm/disable?id=...
+// ============================================================
+
+void WebServerManager::handleDisableAlarm()
+{
+    if (!_alarmManager)
+    {
+        sendError(
+            503,
+            "alarm manager not initialized"
+        );
+
+        return;
+    }
+
+    const String id =
+        _server.arg("id");
+
+    if (id.isEmpty())
+    {
+        sendError(
+            400,
+            "missing id"
+        );
+
+        return;
+    }
+
+    if (!_alarmManager->disable(
+            id
+        ))
+    {
+        sendError(
+            404,
+            "alarm not found"
+        );
+
+        return;
+    }
+
+    sendOk();
+}
+
+
+// ============================================================
+// GET /api/alarm/runtime
+// ============================================================
+
+void WebServerManager::handleAlarmRuntime()
+{
+    if (!_alarmManager)
+    {
+        sendError(
+            503,
+            "alarm manager not initialized"
+        );
+
+        return;
+    }
+
+    JsonDocument doc;
+
+    doc["active"] =
+        _alarmManager->isRunning();
+
+
+    if (_alarmManager->isRunning())
+    {
+        const Alarm* alarm =
+            _alarmManager->currentAlarm();
+
+        const AlarmPhase* phase =
+            _alarmManager->currentPhase();
+
+
+        if (alarm)
+        {
+            doc["id"] =
+                alarm->id;
+
+            doc["name"] =
+                alarm->name;
+        }
+
+        doc["phase"] =
+            _alarmManager->currentPhaseIndex();
+
+        doc["elapsedMs"] =
+            _alarmManager->elapsedMs();
+
+        doc["phaseActive"] =
+            phase != nullptr;
+    }
+
+    String body;
+
+    serializeJson(
+        doc,
+        body
+    );
+
+    sendJson(
+        200,
+        body
+    );
+}
+
+
+// ============================================================
+// POST /api/alarm/dismiss
+// ============================================================
+
+void WebServerManager::handleAlarmDismiss()
+{
+    if (!_alarmManager)
+    {
+        sendError(
+            503,
+            "alarm manager not initialized"
+        );
+
+        return;
+    }
+
+    if (!_alarmManager->isRunning())
+    {
+        sendError(
+            409,
+            "no active alarm"
+        );
+
+        return;
+    }
+
+    if (!_alarmManager->dismiss())
+    {
+        sendError(
+            409,
+            "dismiss failed"
+        );
+
+        return;
+    }
+
+    sendOk();
+}
+
+
+// ============================================================
+// POST /api/alarm/snooze
+// ============================================================
+
+void WebServerManager::handleAlarmSnooze()
+{
+    if (!_alarmManager)
+    {
+        sendError(
+            503,
+            "alarm manager not initialized"
+        );
+
+        return;
+    }
+
+    if (!_alarmManager->isRunning())
+    {
+        sendError(
+            409,
+            "no active alarm"
+        );
+
+        return;
+    }
+
+    JsonDocument doc;
+
+    if (!parseJson(doc))
+        return;
+
+
+    uint32_t durationMs = 0;
+
+    if (!doc["durationMs"].isNull())
+    {
+        durationMs =
+            doc["durationMs"].as<uint32_t>();
+    }
+    else if (!doc["duration"].isNull())
+    {
+        durationMs =
+            doc["duration"].as<uint32_t>();
+    }
+
+
+    if (durationMs == 0)
+    {
+        sendError(
+            400,
+            "missing durationMs"
+        );
+
+        return;
+    }
+
+
+    if (!_alarmManager->snooze(
+            durationMs
+        ))
+    {
+        sendError(
+            409,
+            "snooze failed"
+        );
+
+        return;
+    }
+
+    sendOk();
+}
+
+
+// ============================================================
+// PARSE ALARM
+// ============================================================
+
+bool WebServerManager::parseAlarmFromRequest(
+    Alarm& alarm
+)
+{
+    JsonDocument doc;
+
+    if (!parseJson(
+            doc
+        ))
+    {
+        return false;
+    }
+
+    if (!_alarmManager)
+    {
+        sendError(
+            503,
+            "alarm manager not initialized"
+        );
+
+        return false;
+    }
+
+    if (!_alarmManager->deserialize(
+            doc,
+            alarm
+        ))
+    {
+        sendError(
+            400,
+            "invalid alarm"
+        );
+
+        return false;
+    }
+
+    return true;
+}
+
+
+// ============================================================
+// SEND ALARM
+// ============================================================
+
+void WebServerManager::sendAlarm(
+    const Alarm& alarm
+)
+{
+    if (!_alarmManager)
+    {
+        sendError(
+            503,
+            "alarm manager not initialized"
+        );
+
+        return;
+    }
+
+    JsonDocument doc;
+
+    if (!_alarmManager->serialize(
+            alarm,
+            doc
+        ))
+    {
+        sendError(
+            500,
+            "failed to serialize alarm"
+        );
+
+        return;
+    }
+
+    doc["ok"] = true;
+
+    String body;
+
+    serializeJson(
+        doc,
+        body
+    );
+
+    sendJson(
+        200,
+        body
+    );
+}
+
+
+// ============================================================
+// SEND ALARM LIST
+// ============================================================
+
+void WebServerManager::sendAlarmList()
+{
+    static constexpr uint8_t MAX_ALARMS =
+        AlarmConfig::MAX_ALARMS;
+
+    Alarm alarms[MAX_ALARMS];
+
+    uint8_t count = 0;
+
+    if (!_alarmManager->loadAll(
+            alarms,
+            MAX_ALARMS,
+            count
+        ))
+    {
+        sendError(
+            500,
+            "failed to load alarms"
+        );
+
+        return;
+    }
+
+
+    JsonDocument doc;
+
+    doc["ok"] = true;
+
+    JsonArray array =
+        doc["alarms"].to<JsonArray>();
+
+
+    for (
+        uint8_t i = 0;
+        i < count;
+        ++i
+    )
+    {
+        JsonObject item =
+            array.add<JsonObject>();
+
+        JsonDocument alarmDoc;
+
+        if (!_alarmManager->serialize(
+                alarms[i],
+                alarmDoc
+            ))
+        {
+            continue;
+        }
+
+        item.set(
+            alarmDoc.as<JsonObject>()
+        );
+    }
+
+
+    doc["count"] =
+        array.size();
+
 
     String body;
 
@@ -1273,7 +2104,8 @@ void WebServerManager::sendError(
 
 bool WebServerManager::isConnected() const
 {
-    return WiFi.status() == WL_CONNECTED;
+    return WiFi.status() ==
+        WL_CONNECTED;
 }
 
 
