@@ -51,7 +51,14 @@ App::App()
           _clockSystem,
           _sensorManager
       ),
+      _alarmManager(
+          _sdManager,
+          _clockSystem
+      ),
 
+      _alarmController(
+          _alarmManager
+      ),
       _webServer(),
 
       _initialized(false)
@@ -91,7 +98,8 @@ bool App::begin()
 
     if (!initDisplay())
         return false;
-
+    if (!initAlarm())
+        return false;
     if (!initWebServer())
         return false;
 
@@ -121,6 +129,9 @@ void App::update()
     _displaySystem.update();
 
     _soundManager.update();
+        _alarmManager.update();
+
+    _alarmController.update();
 
     _webServer.update();
 }
@@ -218,12 +229,31 @@ bool App::initDisplay()
 }
 
 
+
+bool App::initAlarm()
+{
+    if (!_alarmManager.begin())
+        return false;
+
+    _alarmController.begin();
+
+    return true;
+}
+
 // ============================================================
 // WEB SERVER
 // ============================================================
 
 bool App::initWebServer()
 {
+    _webServer.setAlarmManager(
+        _alarmManager
+    );
+
+    _webServer.setAlarmController(
+        _alarmController
+    );
+
     return _webServer.begin(
         _settings,
         _sdManager,

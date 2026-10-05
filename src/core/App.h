@@ -13,6 +13,8 @@
 
 #include "./core/ClockSystem.h"
 #include "./core/DisplaySystem.h"
+#include "./managers/AlarmManager.h"
+#include "./managers/AlarmController.h"
 
 
 class App
@@ -33,6 +35,7 @@ private:
     bool initSensors();
     bool initLighting();
     bool initDisplay();
+        bool initAlarm();
     bool initWebServer();
 
 private:
@@ -43,6 +46,7 @@ private:
     I2SManager _i2sManager;
 
     SDManager _sdManager;
+    
 
     SoundManager _soundManager;
 
@@ -53,7 +57,8 @@ private:
     LightingManager _lighting;
 
     DisplaySystem _displaySystem;
-
+AlarmManager _alarmManager;
+AlarmController _alarmController;
     WebServerManager _webServer;
 
     bool _initialized;
