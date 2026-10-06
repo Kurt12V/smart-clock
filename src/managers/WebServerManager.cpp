@@ -9,6 +9,79 @@ namespace
 {
 
 // ============================================================
+// SERIAL LOG HELPERS
+// ============================================================
+
+void serialLog(const char* message)
+{
+    Serial0.print("[WebServerManager] ");
+    Serial0.println(message);
+}
+
+void serialLogKV(const char* key, const String& value)
+{
+    Serial0.print("[WebServerManager] ");
+    Serial0.print(key);
+    Serial0.print(": ");
+    Serial0.println(value);
+}
+
+void serialLogCStr(const char* key, const char* value)
+{
+    Serial0.print("[WebServerManager] ");
+    Serial0.print(key);
+    Serial0.print(": ");
+    Serial0.println(value != nullptr ? value : "(null)");
+}
+
+void serialLogUInt(const char* key, uint32_t value)
+{
+    Serial0.print("[WebServerManager] ");
+    Serial0.print(key);
+    Serial0.print(": ");
+    Serial0.println(value);
+}
+
+void serialLogInt(const char* key, long value)
+{
+    Serial0.print("[WebServerManager] ");
+    Serial0.print(key);
+    Serial0.print(": ");
+    Serial0.println(value);
+}
+
+void serialLogBool(const char* key, bool value)
+{
+    Serial0.print("[WebServerManager] ");
+    Serial0.print(key);
+    Serial0.print(": ");
+    Serial0.println(value ? "true" : "false");
+}
+
+void serialLogError(int code, const char* message)
+{
+    Serial0.print("[WebServerManager] ERROR ");
+    Serial0.print(code);
+    Serial0.print(": ");
+    Serial0.println(message != nullptr ? message : "unknown error");
+}
+
+const char* httpMethodName(HTTPMethod method)
+{
+    switch (method)
+    {
+        case HTTP_GET:     return "GET";
+        case HTTP_POST:    return "POST";
+        case HTTP_PUT:     return "PUT";
+        case HTTP_DELETE:  return "DELETE";
+        case HTTP_PATCH:   return "PATCH";
+        case HTTP_OPTIONS: return "OPTIONS";
+        default:           return "OTHER";
+    }
+}
+
+
+// ============================================================
 // HTTP CODES
 // ============================================================
 
@@ -181,6 +254,7 @@ WebServerManager::WebServerManager()
       _alarmController(nullptr),
       _initialized(false)
 {
+    serialLog("constructor");
 }
 
 
@@ -196,15 +270,28 @@ bool WebServerManager::begin(
     const char* password
 )
 {
+    Serial0.begin(115200);
+    delay(50);
+
+    serialLog("begin()");
+
     if (_initialized)
+    {
+        serialLog("already initialized");
         return true;
+    }
 
     if (ssid == nullptr)
+    {
+        serialLog("ssid is null");
         return false;
+    }
 
     _settings = &settings;
     _sd       = &sd;
     _sound    = &sound;
+
+    serialLogCStr("ssid", ssid);
 
     WiFi.mode(WIFI_STA);
 
@@ -216,6 +303,8 @@ bool WebServerManager::begin(
         ssid,
         password
     );
+
+    serialLog("WiFi connecting...");
 
     const uint32_t startTime =
         millis();
@@ -229,16 +318,29 @@ bool WebServerManager::begin(
     }
 
     if (WiFi.status() != WL_CONNECTED)
+    {
+        serialLog("WiFi connection timeout");
         return false;
+    }
+
+    serialLog("WiFi connected");
+    serialLogKV("IP", WiFi.localIP().toString());
 
     if (!LittleFS.begin(true))
+    {
+        serialLog("LittleFS mount failed");
         return false;
+    }
+
+    serialLog("LittleFS mounted");
 
     setupRoutes();
 
     _server.begin();
 
     _initialized = true;
+
+    serialLog("HTTP server started on port 80");
 
     return true;
 }
@@ -252,6 +354,8 @@ void WebServerManager::setAlarmManager(
     AlarmManager& alarmManager
 )
 {
+    serialLog("setAlarmManager()");
+
     _alarmManager =
         &alarmManager;
 }
@@ -265,6 +369,8 @@ void WebServerManager::setAlarmController(
     AlarmController& alarmController
 )
 {
+    serialLog("setAlarmController()");
+
     _alarmController =
         &alarmController;
 }
@@ -314,6 +420,8 @@ String WebServerManager::getIP() const
 
 void WebServerManager::setupRoutes()
 {
+    serialLog("setupRoutes()");
+
     // ========================================================
     // ROOT
     // ========================================================
@@ -571,6 +679,8 @@ void WebServerManager::setupRoutes()
             handleNotFound();
         }
     );
+
+    serialLog("setupRoutes() done");
 }
 
 
@@ -580,8 +690,12 @@ void WebServerManager::setupRoutes()
 
 void WebServerManager::handleRoot()
 {
+    serialLog("handleRoot()");
+
     if (!LittleFS.exists("/index.html"))
     {
+        serialLog("index.html not found");
+
         sendError(
             HTTP_NOT_FOUND_CODE,
             "index.html not found"
@@ -598,6 +712,8 @@ void WebServerManager::handleRoot()
 
     if (!file)
     {
+        serialLog("failed to open index.html");
+
         sendError(
             HTTP_INTERNAL_ERROR_CODE,
             "failed to open index.html"
@@ -626,6 +742,11 @@ void WebServerManager::handleNotFound()
 
     const HTTPMethod method =
         _server.method();
+
+    Serial0.print("[WebServerManager] handleNotFound uri=");
+    Serial0.print(uri);
+    Serial0.print(" method=");
+    Serial0.println(httpMethodName(method));
 
 
     // ========================================================
@@ -684,6 +805,8 @@ void WebServerManager::handleNotFound()
 
         if (!isValidAlarmId(id))
         {
+            serialLog("invalid alarm id");
+
             sendError(
                 HTTP_BAD_REQUEST_CODE,
                 "invalid alarm id"
@@ -694,6 +817,8 @@ void WebServerManager::handleNotFound()
 
         if (_alarmManager == nullptr)
         {
+            serialLog("alarm manager unavailable");
+
             sendError(
                 HTTP_SERVICE_UNAVAILABLE_CODE,
                 "alarm manager unavailable"
@@ -720,6 +845,8 @@ void WebServerManager::handleNotFound()
             )
         )
         {
+            serialLog("enabled must be boolean");
+
             sendError(
                 HTTP_BAD_REQUEST_CODE,
                 "enabled must be boolean"
@@ -728,6 +855,9 @@ void WebServerManager::handleNotFound()
             return;
         }
 
+        serialLogKV("setEnabled id", id);
+        serialLogBool("setEnabled value", enabled);
+
         if (
             !_alarmManager->setEnabled(
                 id,
@@ -735,6 +865,8 @@ void WebServerManager::handleNotFound()
             )
         )
         {
+            serialLog("failed to change alarm state");
+
             sendError(
                 HTTP_BAD_REQUEST_CODE,
                 "failed to change alarm state"
@@ -753,6 +885,8 @@ void WebServerManager::handleNotFound()
     // UNKNOWN ROUTE
     // ========================================================
 
+    serialLog("route not found");
+
     sendError(
         HTTP_NOT_FOUND_CODE,
         "route not found"
@@ -766,8 +900,12 @@ void WebServerManager::handleNotFound()
 
 void WebServerManager::handleGetParam()
 {
+    serialLog("handleGetParam()");
+
     if (_settings == nullptr)
     {
+        serialLog("settings unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "settings unavailable"
@@ -784,6 +922,8 @@ void WebServerManager::handleGetParam()
 
     if (name.isEmpty())
     {
+        serialLog("missing parameter name");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "missing parameter name"
@@ -791,6 +931,8 @@ void WebServerManager::handleGetParam()
 
         return;
     }
+
+    serialLogKV("param name", name);
 
     const SettingsManager::Param param =
         _settings->paramFromName(
@@ -801,6 +943,8 @@ void WebServerManager::handleGetParam()
         param >= SettingsManager::Param::COUNT
     )
     {
+        serialLog("unknown parameter");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "unknown parameter"
@@ -851,8 +995,12 @@ void WebServerManager::handleGetParam()
 
 void WebServerManager::handleSetParam()
 {
+    serialLog("handleSetParam()");
+
     if (_settings == nullptr)
     {
+        serialLog("settings unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "settings unavailable"
@@ -888,6 +1036,8 @@ void WebServerManager::handleSetParam()
         *name == '\0'
     )
     {
+        serialLog("missing parameter name");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "missing parameter name"
@@ -901,6 +1051,8 @@ void WebServerManager::handleSetParam()
         !root["value"].is<float>() &&
         !root["value"].is<double>())
     {
+        serialLog("invalid parameter value");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "invalid parameter value"
@@ -916,6 +1068,8 @@ void WebServerManager::handleSetParam()
         param >= SettingsManager::Param::COUNT
     )
     {
+        serialLog("unknown parameter");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "unknown parameter"
@@ -946,6 +1100,8 @@ void WebServerManager::handleSetParam()
         )
     )
     {
+        serialLog("failed to set parameter");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "failed to set parameter"
@@ -956,6 +1112,10 @@ void WebServerManager::handleSetParam()
 
     const int actualValue =
         _settings->get(param);
+
+    serialLogCStr("set param name", name);
+    serialLogInt("set param old", oldValue);
+    serialLogInt("set param new", actualValue);
 
     JsonDocument response;
 
@@ -993,8 +1153,12 @@ void WebServerManager::handleSetParam()
 
 void WebServerManager::handleGetAllParams()
 {
+    serialLog("handleGetAllParams()");
+
     if (_settings == nullptr)
     {
+        serialLog("settings unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "settings unavailable"
@@ -1056,8 +1220,12 @@ void WebServerManager::handleGetAllParams()
 
 void WebServerManager::handleReset()
 {
+    serialLog("handleReset()");
+
     if (_settings == nullptr)
     {
+        serialLog("settings unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "settings unavailable"
@@ -1078,6 +1246,8 @@ void WebServerManager::handleReset()
 
 void WebServerManager::handleSensors()
 {
+    serialLog("handleSensors()");
+
     /*
      * Здесь намеренно нет фиктивных значений.
      *
@@ -1121,8 +1291,12 @@ void WebServerManager::handleSensors()
 
 void WebServerManager::handleSD()
 {
+    serialLog("handleSD()");
+
     if (_sd == nullptr)
     {
+        serialLog("sd unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "sd unavailable"
@@ -1133,6 +1307,8 @@ void WebServerManager::handleSD()
 
     if (!_sd->isReady())
     {
+        serialLog("sd card not ready");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "sd card not ready"
@@ -1147,6 +1323,8 @@ void WebServerManager::handleSD()
 
     if (!entries)
     {
+        serialLog("not enough memory for sd file list");
+
         sendError(
             HTTP_INTERNAL_ERROR_CODE,
             "not enough memory for sd file list"
@@ -1162,6 +1340,8 @@ void WebServerManager::handleSD()
             3,
             "/"
         );
+
+    serialLogUInt("sd file count", static_cast<uint32_t>(count));
 
     JsonDocument doc;
 
@@ -1214,8 +1394,12 @@ void WebServerManager::handleSD()
 
 void WebServerManager::handleAudioPlay()
 {
+    serialLog("handleAudioPlay()");
+
     if (_sound == nullptr)
     {
+        serialLog("sound manager unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "sound manager unavailable"
@@ -1226,6 +1410,8 @@ void WebServerManager::handleAudioPlay()
 
     if (_sd == nullptr || !_sd->isReady())
     {
+        serialLog("sd card not ready");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "sd card not ready"
@@ -1261,6 +1447,8 @@ void WebServerManager::handleAudioPlay()
         *path == '\0'
     )
     {
+        serialLog("missing audio path");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "missing audio path"
@@ -1269,8 +1457,12 @@ void WebServerManager::handleAudioPlay()
         return;
     }
 
+    serialLogCStr("audio path", path);
+
     if (!_sd->fileExists(path))
     {
+        serialLog("audio file not found");
+
         sendError(
             HTTP_NOT_FOUND_CODE,
             "audio file not found"
@@ -1313,6 +1505,8 @@ void WebServerManager::handleAudioPlay()
             SoundManager::AudioStream::Media;
     }
 
+    serialLogCStr("audio stream", streamName);
+
 
     // --------------------------------------------------------
     // LOCAL VOLUME
@@ -1331,6 +1525,8 @@ void WebServerManager::handleAudioPlay()
                     100
                 )
             );
+
+        serialLogInt("audio volume", volume);
     }
 
 
@@ -1428,6 +1624,8 @@ void WebServerManager::handleAudioPlay()
         )
     )
     {
+        serialLog("failed to play audio");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "failed to play audio"
@@ -1446,8 +1644,12 @@ void WebServerManager::handleAudioPlay()
 
 void WebServerManager::handleAudioPause()
 {
+    serialLog("handleAudioPause()");
+
     if (_sound == nullptr)
     {
+        serialLog("sound manager unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "sound manager unavailable"
@@ -1458,6 +1660,8 @@ void WebServerManager::handleAudioPause()
 
     if (!_sound->isPlaying())
     {
+        serialLog("audio is not playing");
+
         sendError(
             HTTP_CONFLICT_CODE,
             "audio is not playing"
@@ -1468,6 +1672,8 @@ void WebServerManager::handleAudioPause()
 
     if (!_sound->pause())
     {
+        serialLog("failed to pause audio");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "failed to pause audio"
@@ -1486,8 +1692,12 @@ void WebServerManager::handleAudioPause()
 
 void WebServerManager::handleAudioResume()
 {
+    serialLog("handleAudioResume()");
+
     if (_sound == nullptr)
     {
+        serialLog("sound manager unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "sound manager unavailable"
@@ -1498,6 +1708,8 @@ void WebServerManager::handleAudioResume()
 
     if (!_sound->isPaused())
     {
+        serialLog("audio is not paused");
+
         sendError(
             HTTP_CONFLICT_CODE,
             "audio is not paused"
@@ -1508,6 +1720,8 @@ void WebServerManager::handleAudioResume()
 
     if (!_sound->resume())
     {
+        serialLog("failed to resume audio");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "failed to resume audio"
@@ -1526,8 +1740,12 @@ void WebServerManager::handleAudioResume()
 
 void WebServerManager::handleAudioStop()
 {
+    serialLog("handleAudioStop()");
+
     if (_sound == nullptr)
     {
+        serialLog("sound manager unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "sound manager unavailable"
@@ -1567,6 +1785,8 @@ void WebServerManager::handleAudioStop()
         }
     }
 
+    serialLogUInt("audio stop fadeOutMs", fadeOutMs);
+
     if (fadeOutMs > 0)
         _sound->stop(fadeOutMs);
     else
@@ -1582,8 +1802,12 @@ void WebServerManager::handleAudioStop()
 
 void WebServerManager::handleAudioStatus()
 {
+    serialLog("handleAudioStatus()");
+
     if (_sound == nullptr)
     {
+        serialLog("sound manager unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "sound manager unavailable"
@@ -1664,8 +1888,12 @@ void WebServerManager::handleAudioStatus()
 
 void WebServerManager::handleGetAlarms()
 {
+    serialLog("handleGetAlarms()");
+
     if (_alarmManager == nullptr)
     {
+        serialLog("alarm manager unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "alarm manager unavailable"
@@ -1684,8 +1912,12 @@ void WebServerManager::handleGetAlarms()
 
 void WebServerManager::handleGetAlarm()
 {
+    serialLog("handleGetAlarm()");
+
     if (_alarmManager == nullptr)
     {
+        serialLog("alarm manager unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "alarm manager unavailable"
@@ -1699,6 +1931,8 @@ void WebServerManager::handleGetAlarm()
 
     if (!isValidAlarmId(id))
     {
+        serialLog("invalid alarm id");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "invalid alarm id"
@@ -1706,6 +1940,8 @@ void WebServerManager::handleGetAlarm()
 
         return;
     }
+
+    serialLogKV("get alarm id", id);
 
     // Alarm contains a fixed array of rich phases. Request handlers execute
     // inside loopTask, so allocate the transient object outside its stack.
@@ -1715,6 +1951,8 @@ void WebServerManager::handleGetAlarm()
 
     if (!alarm)
     {
+        serialLog("not enough memory for alarm");
+
         sendError(
             HTTP_INTERNAL_ERROR_CODE,
             "not enough memory for alarm"
@@ -1730,6 +1968,8 @@ void WebServerManager::handleGetAlarm()
         )
     )
     {
+        serialLog("alarm not found");
+
         sendError(
             HTTP_NOT_FOUND_CODE,
             "alarm not found"
@@ -1748,8 +1988,12 @@ void WebServerManager::handleGetAlarm()
 
 void WebServerManager::handleCreateAlarm()
 {
+    serialLog("handleCreateAlarm()");
+
     if (_alarmManager == nullptr)
     {
+        serialLog("alarm manager unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "alarm manager unavailable"
@@ -1790,6 +2034,8 @@ void WebServerManager::handleCreateAlarm()
 
     if (!isValidAlarmId(id))
     {
+        serialLog("invalid alarm id");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "invalid alarm id"
@@ -1797,6 +2043,8 @@ void WebServerManager::handleCreateAlarm()
 
         return;
     }
+
+    serialLogKV("create alarm id", id);
 
 
     // ========================================================
@@ -1809,6 +2057,8 @@ void WebServerManager::handleCreateAlarm()
 
     if (!alarm)
     {
+        serialLog("not enough memory for alarm");
+
         sendError(
             HTTP_INTERNAL_ERROR_CODE,
             "not enough memory for alarm"
@@ -1824,6 +2074,8 @@ void WebServerManager::handleCreateAlarm()
         )
     )
     {
+        serialLog("invalid alarm data");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "invalid alarm data"
@@ -1845,6 +2097,8 @@ void WebServerManager::handleCreateAlarm()
         )
     )
     {
+        serialLog("failed to create alarm");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "failed to create alarm"
@@ -1852,6 +2106,8 @@ void WebServerManager::handleCreateAlarm()
 
         return;
     }
+
+    serialLog("alarm created");
 
     sendAlarm(*alarm);
 }
@@ -1863,8 +2119,12 @@ void WebServerManager::handleCreateAlarm()
 
 void WebServerManager::handleUpdateAlarm()
 {
+    serialLog("handleUpdateAlarm()");
+
     if (_alarmManager == nullptr)
     {
+        serialLog("alarm manager unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "alarm manager unavailable"
@@ -1895,6 +2155,8 @@ void WebServerManager::handleUpdateAlarm()
 
     if (!isValidAlarmId(id))
     {
+        serialLog("invalid alarm id");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "invalid alarm id"
@@ -1905,6 +2167,8 @@ void WebServerManager::handleUpdateAlarm()
 
     if (!_alarmManager->exists(id))
     {
+        serialLog("alarm not found");
+
         sendError(
             HTTP_NOT_FOUND_CODE,
             "alarm not found"
@@ -1912,6 +2176,8 @@ void WebServerManager::handleUpdateAlarm()
 
         return;
     }
+
+    serialLogKV("update alarm id", id);
 
     doc["id"] = id;
 
@@ -1921,6 +2187,8 @@ void WebServerManager::handleUpdateAlarm()
 
     if (!alarm)
     {
+        serialLog("not enough memory for alarm");
+
         sendError(
             HTTP_INTERNAL_ERROR_CODE,
             "not enough memory for alarm"
@@ -1936,6 +2204,8 @@ void WebServerManager::handleUpdateAlarm()
         )
     )
     {
+        serialLog("invalid alarm data");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "invalid alarm data"
@@ -1952,6 +2222,8 @@ void WebServerManager::handleUpdateAlarm()
         )
     )
     {
+        serialLog("failed to update alarm");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "failed to update alarm"
@@ -1959,6 +2231,8 @@ void WebServerManager::handleUpdateAlarm()
 
         return;
     }
+
+    serialLog("alarm updated");
 
     sendAlarm(*alarm);
 }
@@ -1970,8 +2244,12 @@ void WebServerManager::handleUpdateAlarm()
 
 void WebServerManager::handleDeleteAlarm()
 {
+    serialLog("handleDeleteAlarm()");
+
     if (_alarmManager == nullptr)
     {
+        serialLog("alarm manager unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "alarm manager unavailable"
@@ -1985,6 +2263,8 @@ void WebServerManager::handleDeleteAlarm()
 
     if (!isValidAlarmId(id))
     {
+        serialLog("invalid alarm id");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "invalid alarm id"
@@ -1993,10 +2273,14 @@ void WebServerManager::handleDeleteAlarm()
         return;
     }
 
+    serialLogKV("delete alarm id", id);
+
     if (
         !_alarmManager->remove(id)
     )
     {
+        serialLog("failed to delete alarm");
+
         sendError(
             HTTP_NOT_FOUND_CODE,
             "failed to delete alarm"
@@ -2015,8 +2299,12 @@ void WebServerManager::handleDeleteAlarm()
 
 void WebServerManager::handleEnableAlarm()
 {
+    serialLog("handleEnableAlarm()");
+
     if (_alarmManager == nullptr)
     {
+        serialLog("alarm manager unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "alarm manager unavailable"
@@ -2030,6 +2318,8 @@ void WebServerManager::handleEnableAlarm()
 
     if (id.isEmpty())
     {
+        serialLog("missing alarm id");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "missing alarm id"
@@ -2040,6 +2330,8 @@ void WebServerManager::handleEnableAlarm()
 
     if (!isValidAlarmId(id))
     {
+        serialLog("invalid alarm id");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "invalid alarm id"
@@ -2048,6 +2340,8 @@ void WebServerManager::handleEnableAlarm()
         return;
     }
 
+    serialLogKV("enable alarm id", id);
+
     if (
         !_alarmManager->setEnabled(
             id,
@@ -2055,6 +2349,8 @@ void WebServerManager::handleEnableAlarm()
         )
     )
     {
+        serialLog("failed to enable alarm");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "failed to enable alarm"
@@ -2073,8 +2369,12 @@ void WebServerManager::handleEnableAlarm()
 
 void WebServerManager::handleDisableAlarm()
 {
+    serialLog("handleDisableAlarm()");
+
     if (_alarmManager == nullptr)
     {
+        serialLog("alarm manager unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "alarm manager unavailable"
@@ -2088,6 +2388,8 @@ void WebServerManager::handleDisableAlarm()
 
     if (id.isEmpty())
     {
+        serialLog("missing alarm id");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "missing alarm id"
@@ -2098,6 +2400,8 @@ void WebServerManager::handleDisableAlarm()
 
     if (!isValidAlarmId(id))
     {
+        serialLog("invalid alarm id");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "invalid alarm id"
@@ -2106,6 +2410,8 @@ void WebServerManager::handleDisableAlarm()
         return;
     }
 
+    serialLogKV("disable alarm id", id);
+
     if (
         !_alarmManager->setEnabled(
             id,
@@ -2113,6 +2419,8 @@ void WebServerManager::handleDisableAlarm()
         )
     )
     {
+        serialLog("failed to disable alarm");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "failed to disable alarm"
@@ -2131,8 +2439,12 @@ void WebServerManager::handleDisableAlarm()
 
 void WebServerManager::handleAlarmRuntime()
 {
+    serialLog("handleAlarmRuntime()");
+
     if (_alarmManager == nullptr)
     {
+        serialLog("alarm manager unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "alarm manager unavailable"
@@ -2203,8 +2515,12 @@ void WebServerManager::handleAlarmRuntime()
 
 void WebServerManager::handleAlarmDismiss()
 {
+    serialLog("handleAlarmDismiss()");
+
     if (_alarmManager == nullptr)
     {
+        serialLog("alarm manager unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "alarm manager unavailable"
@@ -2215,6 +2531,8 @@ void WebServerManager::handleAlarmDismiss()
 
     if (!_alarmManager->isRunning())
     {
+        serialLog("no active alarm");
+
         sendError(
             HTTP_CONFLICT_CODE,
             "no active alarm"
@@ -2232,6 +2550,8 @@ void WebServerManager::handleAlarmDismiss()
 
     if (!result)
     {
+        serialLog("failed to dismiss alarm");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "failed to dismiss alarm"
@@ -2250,8 +2570,12 @@ void WebServerManager::handleAlarmDismiss()
 
 void WebServerManager::handleAlarmSnooze()
 {
+    serialLog("handleAlarmSnooze()");
+
     if (_alarmManager == nullptr)
     {
+        serialLog("alarm manager unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "alarm manager unavailable"
@@ -2262,6 +2586,8 @@ void WebServerManager::handleAlarmSnooze()
 
     if (!_alarmManager->isRunning())
     {
+        serialLog("no active alarm");
+
         sendError(
             HTTP_CONFLICT_CODE,
             "no active alarm"
@@ -2297,6 +2623,8 @@ void WebServerManager::handleAlarmSnooze()
 
     if (durationMs == 0)
     {
+        serialLog("invalid snooze duration");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "invalid snooze duration"
@@ -2307,6 +2635,8 @@ void WebServerManager::handleAlarmSnooze()
 
     if (durationMs > MAX_SNOOZE_MS)
     {
+        serialLog("snooze duration is too large");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "snooze duration is too large"
@@ -2314,6 +2644,8 @@ void WebServerManager::handleAlarmSnooze()
 
         return;
     }
+
+    serialLogUInt("snooze durationMs", durationMs);
 
     bool result = false;
 
@@ -2334,6 +2666,8 @@ void WebServerManager::handleAlarmSnooze()
 
     if (!result)
     {
+        serialLog("failed to snooze alarm");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "failed to snooze alarm"
@@ -2354,6 +2688,8 @@ bool WebServerManager::parseAlarmFromRequest(
     Alarm& alarm
 )
 {
+    serialLog("parseAlarmFromRequest()");
+
     if (_alarmManager == nullptr)
         return false;
 
@@ -2369,6 +2705,8 @@ bool WebServerManager::parseAlarmFromRequest(
         )
     )
     {
+        serialLog("invalid alarm data");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "invalid alarm data"
@@ -2389,8 +2727,12 @@ void WebServerManager::sendAlarm(
     const Alarm& alarm
 )
 {
+    serialLog("sendAlarm()");
+
     if (_alarmManager == nullptr)
     {
+        serialLog("alarm manager unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "alarm manager unavailable"
@@ -2408,6 +2750,8 @@ void WebServerManager::sendAlarm(
         )
     )
     {
+        serialLog("failed to serialize alarm");
+
         sendError(
             HTTP_INTERNAL_ERROR_CODE,
             "failed to serialize alarm"
@@ -2438,8 +2782,12 @@ void WebServerManager::sendAlarm(
 
 void WebServerManager::sendAlarmList()
 {
+    serialLog("sendAlarmList()");
+
     if (_alarmManager == nullptr)
     {
+        serialLog("alarm manager unavailable");
+
         sendError(
             HTTP_SERVICE_UNAVAILABLE_CODE,
             "alarm manager unavailable"
@@ -2461,6 +2809,8 @@ void WebServerManager::sendAlarmList()
 
     if (!alarms)
     {
+        serialLog("not enough memory for alarm list");
+
         sendError(
             HTTP_INTERNAL_ERROR_CODE,
             "not enough memory for alarm list"
@@ -2479,6 +2829,8 @@ void WebServerManager::sendAlarmList()
         )
     )
     {
+        serialLog("failed to load alarms");
+
         sendError(
             HTTP_INTERNAL_ERROR_CODE,
             "failed to load alarms"
@@ -2486,6 +2838,8 @@ void WebServerManager::sendAlarmList()
 
         return;
     }
+
+    serialLogUInt("alarm count", count);
 
     JsonDocument doc;
 
@@ -2549,6 +2903,8 @@ bool WebServerManager::parseJson(
 {
     if (!_server.hasArg("plain"))
     {
+        serialLog("request body is required");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "request body is required"
@@ -2562,6 +2918,8 @@ bool WebServerManager::parseJson(
 
     if (body.isEmpty())
     {
+        serialLog("request body is empty");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "request body is empty"
@@ -2578,6 +2936,9 @@ bool WebServerManager::parseJson(
 
     if (error)
     {
+        Serial0.print("[WebServerManager] invalid JSON: ");
+        Serial0.println(error.c_str());
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "invalid JSON"
@@ -2588,6 +2949,8 @@ bool WebServerManager::parseJson(
 
     if (!document.is<JsonObject>())
     {
+        serialLog("JSON object required");
+
         sendError(
             HTTP_BAD_REQUEST_CODE,
             "JSON object required"
@@ -2609,6 +2972,11 @@ void WebServerManager::sendJson(
     const String& body
 )
 {
+    Serial0.print("[WebServerManager] sendJson code=");
+    Serial0.print(code);
+    Serial0.print(" length=");
+    Serial0.println(body.length());
+
     _server.send(
         code,
         "application/json; charset=utf-8",
@@ -2639,6 +3007,8 @@ void WebServerManager::sendError(
     const char* message
 )
 {
+    serialLogError(code, message);
+
     JsonDocument doc;
 
     doc["ok"] = false;
