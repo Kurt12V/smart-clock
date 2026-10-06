@@ -12,21 +12,11 @@
 #include "AlarmManager.h"
 #include "AlarmController.h"
 
-
 class WebServerManager
 {
 public:
 
-    // ========================================================
-    // CONSTRUCTOR
-    // ========================================================
-
     WebServerManager();
-
-
-    // ========================================================
-    // BEGIN
-    // ========================================================
 
     bool begin(
         SettingsManager& settings,
@@ -36,11 +26,6 @@ public:
         const char* password
     );
 
-
-    // ========================================================
-    // ALARM CONNECTION
-    // ========================================================
-
     void setAlarmManager(
         AlarmManager& alarmManager
     );
@@ -49,17 +34,7 @@ public:
         AlarmController& alarmController
     );
 
-
-    // ========================================================
-    // UPDATE
-    // ========================================================
-
     void update();
-
-
-    // ========================================================
-    // STATE
-    // ========================================================
 
     bool isConnected() const;
 
@@ -73,11 +48,6 @@ private:
     // ========================================================
 
     void setupRoutes();
-
-
-    // ========================================================
-    // ROOT
-    // ========================================================
 
     void handleRoot();
 
@@ -152,7 +122,7 @@ private:
 
 
     // ========================================================
-    // ALARM JSON
+    // ALARM HELPERS
     // ========================================================
 
     bool parseAlarmFromRequest(
@@ -171,7 +141,7 @@ private:
     // ========================================================
 
     bool parseJson(
-        JsonDocument& doc
+        JsonDocument& document
     );
 
     void sendJson(
@@ -187,18 +157,32 @@ private:
     );
 
 
+    // ========================================================
+    // REQUEST HELPERS
+    // ========================================================
+
+    bool isValidAlarmId(
+        const String& id
+    ) const;
+
+    String getAlarmIdFromRequest();
+
+    bool getBoolean(
+        JsonObjectConst object,
+        const char* key,
+        bool& value
+    ) const;
+
+    bool getUnsigned32(
+        JsonObjectConst object,
+        const char* key,
+        uint32_t& value
+    ) const;
+
+
 private:
 
-    // ========================================================
-    // SERVER
-    // ========================================================
-
     WebServer _server;
-
-
-    // ========================================================
-    // MANAGERS
-    // ========================================================
 
     SettingsManager* _settings;
 
@@ -209,11 +193,6 @@ private:
     AlarmManager* _alarmManager;
 
     AlarmController* _alarmController;
-
-
-    // ========================================================
-    // STATE
-    // ========================================================
 
     bool _initialized;
 };

@@ -1,0 +1,861 @@
+============================================================
+ESP32-S3 MEMORY REPORT
+============================================================
+Project: smart-clock
+Environment: esp32-s3
+ELF: .pio\build\esp32-s3\firmware.elf
+Generated: 10/05/2026 17:29:10
+============================================================
+
+==================== ELF SECTIONS ====================
+.pio\build\esp32-s3\firmware.elf  :
+section                                                                                                                                                                                                                         size         addr
+.rtc.text                                                                                                                                                                                                                          0   1611653120
+.rtc.dummy                                                                                                                                                                                                                         0   1611653120
+.rtc.force_fast                                                                                                                                                                                                                    0   1611653120
+.rtc_noinit                                                                                                                                                                                                                       16   1342177280
+.rtc.force_slow                                                                                                                                                                                                                    0   1342177296
+.iram0.vectors                                                                                                                                                                                                                  1027   1077362688
+.iram0.text                                                                                                                                                                                                                    67735   1077363716
+.dram0.dummy                                                                                                                                                                                                                   52380   1070104576
+.dram0.data                                                                                                                                                                                                                    22732   1070156960
+.noinit                                                                                                                                                                                                                            0   1070179692
+.dram0.bss                                                                                                                                                                                                                    178040   1070179696
+.flash.text                                                                                                                                                                                                                   962363   1107296288
+.flash_rodata_dummy                                                                                                                                                                                                           983040   1006632992
+.flash.appdesc                                                                                                                                                                                                                   256   1007616032
+.flash.rodata                                                                                                                                                                                                                 530252   1007616288
+.flash.rodata_noload                                                                                                                                                                                                           15968   1008146540
+.iram0.text_end                                                                                                                                                                                                                    0   1077431451
+.iram0.data                                                                                                                                                                                                                        1   1077431451
+.iram0.bss                                                                                                                                                                                                                         0   1077431452
+.dram0.heap_start                                                                                                                                                                                                                  0   1070357736
+.xt.prop                                                                                                                                                                                                                      735396            0
+.xt.lit                                                                                                                                                                                                                        21896            0
+.xtensa.info                                                                                                                                                                                                                      56            0
+.comment                                                                                                                                                                                                                         140            0
+.xt.lit._ZN12AlarmManagerD5Ev                                                                                                                                                                                                      8            0
+.xt.lit._ZN2fs4FileD5Ev                                                                                                                                                                                                            8            0
+.xt.prop._ZN12AlarmManagerD5Ev                                                                                                                                                                                                    12            0
+.xt.prop._ZN2fs4FileD5Ev                                                                                                                                                                                                          12            0
+.xt.prop._ZNSt14_Function_baseD2Ev                                                                                                                                                                                                36            0
+.xt.prop._ZN12AlarmManagerD2Ev                                                                                                                                                                                                    84            0
+.xt.prop._ZN2fs4FileD2Ev                                                                                                                                                                                                          60            0
+.xt.prop._ZN2fs4FileD0Ev                                                                                                                                                                                                          36            0
+.xt.prop._ZNSt14__shared_countILN9__gnu_cxx12_Lock_policyE2EED2Ev                                                                                                                                                                 60            0
+.xt.lit._ZNK11SHT45Sensor7getNameEv                                                                                                                                                                                                8            0
+.xt.lit._ZN11SHT45SensorD5Ev                                                                                                                                                                                                       0            0
+.xt.prop._ZNK11SHT45Sensor7getNameEv                                                                                                                                                                                              48            0
+.xt.prop._ZN11SHT45SensorD5Ev                                                                                                                                                                                                      0            0
+.xt.prop._ZNK11SHT45Sensor13isInitializedEv                                                                                                                                                                                       36            0
+.xt.prop._ZN11SHT45SensorD2Ev                                                                                                                                                                                                     36            0
+.xt.prop._ZN11SHT45SensorD0Ev                                                                                                                                                                                                     36            0
+.xt.prop._ZTV11SHT45Sensor                                                                                                                                                                                                        12            0
+.xt.lit._ZNK14VEML7700Sensor7getNameEv                                                                                                                                                                                             8            0
+.xt.lit._ZN14VEML7700SensorD5Ev                                                                                                                                                                                                    0            0
+.xt.prop._ZNK14VEML7700Sensor7getNameEv                                                                                                                                                                                           48            0
+.xt.prop._ZN14VEML7700SensorD5Ev                                                                                                                                                                                                   0            0
+.xt.prop._ZNK14VEML7700Sensor13isInitializedEv                                                                                                                                                                                    36            0
+.xt.prop._ZN14VEML7700SensorD2Ev                                                                                                                                                                                                  36            0
+.xt.prop._ZN14VEML7700SensorD0Ev                                                                                                                                                                                                  36            0
+.xt.prop._ZTV14VEML7700Sensor                                                                                                                                                                                                     12            0
+.xt.lit._ZN3AppD5Ev                                                                                                                                                                                                                0            0
+.xt.prop._ZN3AppD5Ev                                                                                                                                                                                                               0            0
+.xt.prop._ZN3AppD2Ev                                                                                                                                                                                                              36            0
+.xt.lit._ZSt4swapISt9_Any_dataENSt9enable_ifIXsrSt6__and_IJSt6__not_ISt15__is_tuple_likeIT_EESt21is_move_constructibleIS5_ESt18is_move_assignableIS5_EEE5valueEvE4typeERS5_SF_                                                     0            0
+.xt.prop._ZSt4swapISt9_Any_dataENSt9enable_ifIXsrSt6__and_IJSt6__not_ISt15__is_tuple_likeIT_EESt21is_move_constructibleIS5_ESt18is_move_assignableIS5_EEE5valueEvE4typeERS5_SF_                                                   48            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail16DefaultAllocator10reallocateEPvj                                                                                                                                                         8            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail16DefaultAllocator10deallocateEPv                                                                                                                                                          8            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail16DefaultAllocator8allocateEj                                                                                                                                                              8            0
+.xt.lit._ZNK6String7isEmptyEv                                                                                                                                                                                                      8            0
+.xt.lit._ZNK6String8endsWithEPKc                                                                                                                                                                                                   0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail10StringNode6createEjPNS0_9AllocatorE                                                                                                                                                      8            0
+.xt.lit._ZN11ArduinoJson8V743PB2210JsonStringC5EPKcb                                                                                                                                                                               8            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail11VariantData8asStringEv                                                                                                                                                                  0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail15ResourceManager12resizeStringEPNS1_10StringNodeEj                                                                                                                                        0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail6WriterI6StringvE5flushEv                                                                                                                                                                  0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail6WriterI6StringvE5writeEh                                                                                                                                                                  0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail13StringBuilderD5Ev                                                                                                                                                                        8            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail13StringBuilder11startStringEv                                                                                                                                                             0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail13StringBuilder6appendEc                                                                                                                                                                   0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail11parseNumberEPKc                                                                                                                                                                          8            0
+.xt.lit._ZN12AlarmManager11ActiveAlarmC5Ev                                                                                                                                                                                         8            0
+.xt.lit._ZN10AlarmPhaseD5Ev                                                                                                                                                                                                        0            0
+.xt.lit._ZN5AlarmC5Ev                                                                                                                                                                                                              0            0
+.xt.lit._ZN5AlarmD5Ev                                                                                                                                                                                                              0            0
+.xt.lit._ZN12AlarmManager7RuntimeC5Ev                                                                                                                                                                                              0            0
+.xt.lit._ZN12AlarmManager7RuntimeD5Ev                                                                                                                                                                                              0            0
+.xt.lit._ZN5AlarmaSEOS_                                                                                                                                                                                                            0            0
+.xt.lit._ZN12AlarmManager7RuntimeaSEOS0_                                                                                                                                                                                           0            0
+.xt.lit._ZN5AlarmaSERKS_                                                                                                                                                                                                           0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail15ResourceManagerD5Ev                                                                                                                                                                      8            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail15ResourceManager5clearEv                                                                                                                                                                  0            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail14MemoryPoolListINS1_15ResourceManager8SlotDataEE7getSlotEt                                                                                                                               0            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail11VariantData12getExtensionEPKNS1_15ResourceManagerE                                                                                                                                      0            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail11VariantData9asBooleanEPKNS1_15ResourceManagerE                                                                                                                                          8            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail18CollectionIterator4nextEPKNS1_15ResourceManagerE                                                                                                                                         0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail11VariantData5clearEPNS1_15ResourceManagerE                                                                                                                                                0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail13StringBuilder4saveEPNS1_11VariantDataE                                                                                                                                                   8            0
+.xt.lit._ZN11ArduinoJson8V743PB226detailorERKNS0_16JsonVariantConstEPKc                                                                                                                                                            0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detailorIbLi0EEET_RKNS0_16JsonVariantConstERKS3_                                                                                                                                                 0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail14MemoryPoolListINS1_15ResourceManager8SlotDataEE9allocSlotEPNS0_9AllocatorE                                                                                                               8            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail15ResourceManager12allocVariantEv                                                                                                                                                          0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail9ArrayData10addElementEPNS1_15ResourceManagerE                                                                                                                                             0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail15ResourceManager14allocExtensionEv                                                                                                                                                        0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail11VariantData9setStringINS1_9RamStringEEEbT_PNS1_15ResourceManagerE                                                                                                                        0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail11VariantData9setStringINS1_9RamStringEEEvPS2_T_PNS1_15ResourceManagerE                                                                                                                    0            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail10ObjectData9getMemberINS1_9RamStringEEEPNS1_11VariantDataET_PKNS1_15ResourceManagerE                                                                                                     0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail10ObjectData9getMemberINS1_9RamStringEEEPNS1_11VariantDataEPKS2_T_PKNS1_15ResourceManagerE                                                                                                 0            0
+.xt.lit._ZNK11ArduinoJson8V743PB2215JsonObjectConstixIA7_cLi0EEENS0_16JsonVariantConstERKT_                                                                                                                                        0            0
+.xt.lit._ZNK11ArduinoJson8V743PB2215JsonObjectConstixIA5_cLi0EEENS0_16JsonVariantConstERKT_                                                                                                                                        0            0
+.xt.lit._ZNK11ArduinoJson8V743PB2215JsonObjectConstixIA9_cLi0EEENS0_16JsonVariantConstERKT_                                                                                                                                        0            0
+.xt.lit._ZNK11ArduinoJson8V743PB2215JsonObjectConstixIA6_cLi0EEENS0_16JsonVariantConstERKT_                                                                                                                                        0            0
+.xt.lit._ZNK11ArduinoJson8V743PB2215JsonObjectConstixIA4_cLi0EEENS0_16JsonVariantConstERKT_                                                                                                                                        0            0
+.xt.lit._ZNK11ArduinoJson8V743PB2215JsonObjectConstixIA8_cLi0EEENS0_16JsonVariantConstERKT_                                                                                                                                        0            0
+.xt.lit._ZNK11ArduinoJson8V743PB2215JsonObjectConstixIA11_cLi0EEENS0_16JsonVariantConstERKT_                                                                                                                                       0            0
+.xt.lit._ZNK11ArduinoJson8V743PB2215JsonObjectConstixIA14_cLi0EEENS0_16JsonVariantConstERKT_                                                                                                                                       0            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail11VariantData9isIntegerIiEEbPKNS1_15ResourceManagerE                                                                                                                                      8            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail11parseNumberIiEET_PKc                                                                                                                                                                     8            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail11VariantData10asIntegralIiEET_PKNS1_15ResourceManagerE                                                                                                                                   8            0
+.xt.lit._ZN11ArduinoJson8V743PB226detailorIiLi0EEET_RKNS0_16JsonVariantConstERKS3_                                                                                                                                                 0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderI6StringvEEE11skipKeywordEPKc                                                                                                                                0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderI6StringvEEE17parseNumericValueERNS1_11VariantDataE                                                                                                          8            0
+.xt.lit._ZN11ArduinoJson8V743PB2213convertToJsonI6StringEENS0_6detail9enable_ifIXsrNS3_8IsStringIT_vEE5valueEvE4typeERKS6_NS0_11JsonVariantE                                                                                       0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail10ObjectData14getOrAddMemberINS1_9RamStringEEEPNS1_11VariantDataET_PNS1_15ResourceManagerE                                                                                                 0            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail11MemberProxyINS0_10JsonObjectENS1_9RamStringEE15getOrCreateDataEv                                                                                                                        0            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail14VariantRefBaseINS1_11MemberProxyINS0_10JsonObjectENS1_9RamStringEEEE18getOrCreateVariantEv                                                                                              0            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail14VariantRefBaseINS1_11MemberProxyINS0_10JsonObjectENS1_9RamStringEEEE2toIS4_Li0EEES4_v                                                                                                   0            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEE15getOrCreateDataEv                                                                                                                     0            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail14VariantRefBaseINS1_11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEEEE18getOrCreateVariantEv                                                                                           0            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail14VariantRefBaseINS1_11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEEEE3setI6StringEEbRKT_                                                                                              0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail17CountingDecoratorINS1_6WriterI6StringvEEE5writeEPKhj                                                                                                                                     0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail13TextFormatterINS1_6WriterI6StringvEEE8writeRawEPKc                                                                                                                                       0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail13TextFormatterINS1_6WriterI6StringvEEE12writeIntegerIyEENS1_9enable_ifIXsrNS1_11is_unsignedIT_EE5valueEvE4typeESA_                                                                        8            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderI6StringvEEE3eatEc                                                                                                                                           0            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEE7getDataEv                                                                                                                              0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detailorIiLi0EEET_RKNS1_11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEEERKS3_                                                                                                                 0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detailorERKNS1_11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEEEPKc                                                                                                                            0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail4Utf815encodeCodepointINS1_13StringBuilderEEEvjRT_                                                                                                                                         0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderI6StringvEEE17parseQuotedStringEv                                                                                                                            8            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail17CountingDecoratorINS1_6WriterI6StringvEEE5writeEh                                                                                                                                        0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail13TextFormatterINS1_6WriterI6StringvEEE11writeStringEPKcj                                                                                                                                  8            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail13TextFormatterINS1_6WriterI6StringvEEE12writeIntegerIxEENS1_9enable_ifIXsrNS1_9is_signedIT_EE5valueEvE4typeESA_                                                                           0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail13TextFormatterINS1_6WriterI6StringvEEE10writeFloatEda                                                                                                                                     8            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail11VariantData6acceptINS1_14JsonSerializerINS1_6WriterI6StringvEEEEEENT_11result_typeERS9_PKNS1_15ResourceManagerE                                                                         8            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail9serializeINS1_14JsonSerializerE6StringEEjNS0_16JsonVariantConstERT0_                                                                                                                      0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderI6StringvEEE11parseObjectINS1_14AllowAllFilterEEENS0_20DeserializationError4CodeERNS1_10ObjectDataET_NS0_21DeserializationOption12NestingLimitE              8            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderI6StringvEEE12parseVariantINS1_14AllowAllFilterEEENS0_20DeserializationError4CodeERNS1_11VariantDataET_NS0_21DeserializationOption12NestingLimitE            0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail11deserializeINS1_16JsonDeserializerERNS0_12JsonDocumentER6StringJELi0EEENS0_20DeserializationErrorEOT0_OT1_DpT2_                                                                          0            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail16DefaultAllocator10reallocateEPvj                                                                                                                                                       48            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail16DefaultAllocator10deallocateEPv                                                                                                                                                        48            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail16DefaultAllocator8allocateEj                                                                                                                                                            48            0
+.xt.prop._ZNK6String7isEmptyEv                                                                                                                                                                                                    48            0
+.xt.prop._ZNK6String8endsWithEPKc                                                                                                                                                                                                 60            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail10StringNode6createEjPNS0_9AllocatorE                                                                                                                                                    60            0
+.xt.prop._ZN11ArduinoJson8V743PB2210JsonStringC5EPKcb                                                                                                                                                                             12            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail11VariantData8asStringEv                                                                                                                                                               108            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail15ResourceManager12resizeStringEPNS1_10StringNodeEj                                                                                                                                      60            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail6WriterI6StringvE5flushEv                                                                                                                                                                48            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail6WriterI6StringvE5writeEh                                                                                                                                                                72            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail13StringBuilderD5Ev                                                                                                                                                                      12            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail13StringBuilder11startStringEv                                                                                                                                                           48            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail13StringBuilder6appendEc                                                                                                                                                                 60            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail11parseNumberEPKc                                                                                                                                                                       624            0
+.xt.prop._ZN12AlarmManager11ActiveAlarmC5Ev                                                                                                                                                                                       12            0
+.xt.prop._ZN10AlarmPhaseD5Ev                                                                                                                                                                                                       0            0
+.xt.prop._ZN5AlarmC5Ev                                                                                                                                                                                                             0            0
+.xt.prop._ZN5AlarmD5Ev                                                                                                                                                                                                             0            0
+.xt.prop._ZN12AlarmManager7RuntimeC5Ev                                                                                                                                                                                             0            0
+.xt.prop._ZN12AlarmManager7RuntimeD5Ev                                                                                                                                                                                             0            0
+.xt.prop._ZN5AlarmaSEOS_                                                                                                                                                                                                          48            0
+.xt.prop._ZN12AlarmManager7RuntimeaSEOS0_                                                                                                                                                                                         36            0
+.xt.prop._ZN5AlarmaSERKS_                                                                                                                                                                                                         48            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail15ResourceManagerD5Ev                                                                                                                                                                    12            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail15ResourceManager5clearEv                                                                                                                                                                60            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail14MemoryPoolListINS1_15ResourceManager8SlotDataEE7getSlotEt                                                                                                                             36            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail11VariantData12getExtensionEPKNS1_15ResourceManagerE                                                                                                                                    36            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail11VariantData9asBooleanEPKNS1_15ResourceManagerE                                                                                                                                       204            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail18CollectionIterator4nextEPKNS1_15ResourceManagerE                                                                                                                                       48            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail11VariantData5clearEPNS1_15ResourceManagerE                                                                                                                                             108            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail13StringBuilder4saveEPNS1_11VariantDataE                                                                                                                                                120            0
+.xt.prop._ZN11ArduinoJson8V743PB226detailorERKNS0_16JsonVariantConstEPKc                                                                                                                                                          48            0
+.xt.prop._ZN11ArduinoJson8V743PB226detailorIbLi0EEET_RKNS0_16JsonVariantConstERKS3_                                                                                                                                               60            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail14MemoryPoolListINS1_15ResourceManager8SlotDataEE9allocSlotEPNS0_9AllocatorE                                                                                                            132            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail15ResourceManager12allocVariantEv                                                                                                                                                        60            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail9ArrayData10addElementEPNS1_15ResourceManagerE                                                                                                                                           60            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail15ResourceManager14allocExtensionEv                                                                                                                                                      60            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail11VariantData9setStringINS1_9RamStringEEEbT_PNS1_15ResourceManagerE                                                                                                                     180            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail11VariantData9setStringINS1_9RamStringEEEvPS2_T_PNS1_15ResourceManagerE                                                                                                                  48            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail10ObjectData9getMemberINS1_9RamStringEEEPNS1_11VariantDataET_PKNS1_15ResourceManagerE                                                                                                  132            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail10ObjectData9getMemberINS1_9RamStringEEEPNS1_11VariantDataEPKS2_T_PKNS1_15ResourceManagerE                                                                                               48            0
+.xt.prop._ZNK11ArduinoJson8V743PB2215JsonObjectConstixIA7_cLi0EEENS0_16JsonVariantConstERKT_                                                                                                                                      36            0
+.xt.prop._ZNK11ArduinoJson8V743PB2215JsonObjectConstixIA5_cLi0EEENS0_16JsonVariantConstERKT_                                                                                                                                      36            0
+.xt.prop._ZNK11ArduinoJson8V743PB2215JsonObjectConstixIA9_cLi0EEENS0_16JsonVariantConstERKT_                                                                                                                                      36            0
+.xt.prop._ZNK11ArduinoJson8V743PB2215JsonObjectConstixIA6_cLi0EEENS0_16JsonVariantConstERKT_                                                                                                                                      36            0
+.xt.prop._ZNK11ArduinoJson8V743PB2215JsonObjectConstixIA4_cLi0EEENS0_16JsonVariantConstERKT_                                                                                                                                      36            0
+.xt.prop._ZNK11ArduinoJson8V743PB2215JsonObjectConstixIA8_cLi0EEENS0_16JsonVariantConstERKT_                                                                                                                                      36            0
+.xt.prop._ZNK11ArduinoJson8V743PB2215JsonObjectConstixIA11_cLi0EEENS0_16JsonVariantConstERKT_                                                                                                                                     36            0
+.xt.prop._ZNK11ArduinoJson8V743PB2215JsonObjectConstixIA14_cLi0EEENS0_16JsonVariantConstERKT_                                                                                                                                     36            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail11VariantData9isIntegerIiEEbPKNS1_15ResourceManagerE                                                                                                                                   168            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail11parseNumberIiEET_PKc                                                                                                                                                                  180            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail11VariantData10asIntegralIiEET_PKNS1_15ResourceManagerE                                                                                                                                312            0
+.xt.prop._ZN11ArduinoJson8V743PB226detailorIiLi0EEET_RKNS0_16JsonVariantConstERKS3_                                                                                                                                               60            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderI6StringvEEE11skipKeywordEPKc                                                                                                                             108            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderI6StringvEEE17parseNumericValueERNS1_11VariantDataE                                                                                                       312            0
+.xt.prop._ZN11ArduinoJson8V743PB2213convertToJsonI6StringEENS0_6detail9enable_ifIXsrNS3_8IsStringIT_vEE5valueEvE4typeERKS6_NS0_11JsonVariantE                                                                                     60            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail10ObjectData14getOrAddMemberINS1_9RamStringEEEPNS1_11VariantDataET_PNS1_15ResourceManagerE                                                                                              108            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail11MemberProxyINS0_10JsonObjectENS1_9RamStringEE15getOrCreateDataEv                                                                                                                      84            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail14VariantRefBaseINS1_11MemberProxyINS0_10JsonObjectENS1_9RamStringEEEE18getOrCreateVariantEv                                                                                            36            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail14VariantRefBaseINS1_11MemberProxyINS0_10JsonObjectENS1_9RamStringEEEE2toIS4_Li0EEES4_v                                                                                                 36            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEE15getOrCreateDataEv                                                                                                                   84            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail14VariantRefBaseINS1_11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEEEE18getOrCreateVariantEv                                                                                         36            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail14VariantRefBaseINS1_11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEEEE3setI6StringEEbRKT_                                                                                            36            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail17CountingDecoratorINS1_6WriterI6StringvEEE5writeEPKhj                                                                                                                                   60            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail13TextFormatterINS1_6WriterI6StringvEEE8writeRawEPKc                                                                                                                                     36            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail13TextFormatterINS1_6WriterI6StringvEEE12writeIntegerIyEENS1_9enable_ifIXsrNS1_11is_unsignedIT_EE5valueEvE4typeESA_                                                                      84            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderI6StringvEEE3eatEc                                                                                                                                         48            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEE7getDataEv                                                                                                                            36            0
+.xt.prop._ZN11ArduinoJson8V743PB226detailorIiLi0EEET_RKNS1_11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEEERKS3_                                                                                                               84            0
+.xt.prop._ZN11ArduinoJson8V743PB226detailorERKNS1_11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEEEPKc                                                                                                                          48            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail4Utf815encodeCodepointINS1_13StringBuilderEEEvjRT_                                                                                                                                      120            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderI6StringvEEE17parseQuotedStringEv                                                                                                                         240            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail17CountingDecoratorINS1_6WriterI6StringvEEE5writeEh                                                                                                                                      36            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail13TextFormatterINS1_6WriterI6StringvEEE11writeStringEPKcj                                                                                                                               120            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail13TextFormatterINS1_6WriterI6StringvEEE12writeIntegerIxEENS1_9enable_ifIXsrNS1_9is_signedIT_EE5valueEvE4typeESA_                                                                         48            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail13TextFormatterINS1_6WriterI6StringvEEE10writeFloatEda                                                                                                                                  348            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail11VariantData6acceptINS1_14JsonSerializerINS1_6WriterI6StringvEEEEEENT_11result_typeERS9_PKNS1_15ResourceManagerE                                                                      432            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail9serializeINS1_14JsonSerializerE6StringEEjNS0_16JsonVariantConstERT0_                                                                                                                    84            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderI6StringvEEE11parseObjectINS1_14AllowAllFilterEEENS0_20DeserializationError4CodeERNS1_10ObjectDataET_NS0_21DeserializationOption12NestingLimitE           240            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderI6StringvEEE12parseVariantINS1_14AllowAllFilterEEENS0_20DeserializationError4CodeERNS1_11VariantDataET_NS0_21DeserializationOption12NestingLimitE         252            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail11deserializeINS1_16JsonDeserializerERNS0_12JsonDocumentER6StringJELi0EEENS0_20DeserializationErrorEOT0_OT1_DpT2_                                                                       108            0
+.xt.prop._ZNK6String6lengthEv                                                                                                                                                                                                     72            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail10StringNode7destroyEPS2_PNS0_9AllocatorE                                                                                                                                                36            0
+.xt.prop._ZN11ArduinoJson8V743PB2210JsonStringC2EPKcb                                                                                                                                                                             36            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail13StringBuilderD2Ev                                                                                                                                                                      36            0
+.xt.prop._ZN12AlarmManager11ActiveAlarmC2Ev                                                                                                                                                                                       36            0
+.xt.prop._ZN10AlarmPhaseD2Ev                                                                                                                                                                                                      36            0
+.xt.prop._ZN5AlarmC2Ev                                                                                                                                                                                                           156            0
+.xt.prop._ZN5AlarmD2Ev                                                                                                                                                                                                            60            0
+.xt.prop._ZN12AlarmManager7RuntimeC2Ev                                                                                                                                                                                            60            0
+.xt.prop._ZN12AlarmManager7RuntimeD2Ev                                                                                                                                                                                            36            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail14MemoryPoolListINS1_15ResourceManager8SlotDataEE5clearEPNS0_9AllocatorE                                                                                                                 72            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail15ResourceManagerD2Ev                                                                                                                                                                    60            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail11VariantData13setTinyStringINS1_9RamStringEEEvRKT_                                                                                                                                      60            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail14MemoryPoolListINS1_15ResourceManager8SlotDataEE17allocFromLastPoolEv                                                                                                                   60            0
+.xt.prop._ZNK11ArduinoJson8V743PB2216JsonVariantConst2asINS0_15JsonObjectConstELi0EEET_v                                                                                                                                          36            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderI6StringvEEE7currentEv                                                                                                                                     36            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderI6StringvEEE22canBeInNonQuotedStringEc                                                                                                                     48            0
+.xt.prop._ZTVN11ArduinoJson8V743PB226detail16DefaultAllocatorE                                                                                                                                                                    12            0
+.xt.prop._ZZN11ArduinoJson8V743PB226detail11FloatTraitsIfLj4EE25negativeBinaryPowersOfTenEvE7factors                                                                                                                              12            0
+.xt.prop._ZZN11ArduinoJson8V743PB226detail11FloatTraitsIfLj4EE25positiveBinaryPowersOfTenEvE7factors                                                                                                                              12            0
+.xt.prop._ZZN11ArduinoJson8V743PB226detail11FloatTraitsIdLj8EE25negativeBinaryPowersOfTenEvE7factors                                                                                                                              12            0
+.xt.prop._ZZN11ArduinoJson8V743PB226detail11FloatTraitsIdLj8EE25positiveBinaryPowersOfTenEvE7factors                                                                                                                              12            0
+.xt.prop._ZZN11ArduinoJson8V743PB226detail16DefaultAllocator8instanceEvE9allocator                                                                                                                                                12            0
+.xt.lit._ZN3Uri9canHandleERK6StringRSt6vectorIS0_SaIS0_EE                                                                                                                                                                          0            0
+.xt.lit._ZNK3Uri5cloneEv                                                                                                                                                                                                           8            0
+.xt.lit._ZN3UriD5Ev                                                                                                                                                                                                                0            0
+.xt.lit._ZNK6String10startsWithEPKc                                                                                                                                                                                                0            0
+.xt.lit._ZN3UriC5EPKc                                                                                                                                                                                                              0            0
+.xt.lit._ZN11ArduinoJson8V743PB2212JsonDocumentC5EPNS0_9AllocatorE                                                                                                                                                                 0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail5Utf169Codepoint6appendEt                                                                                                                                                                  0            0
+.xt.lit._ZN5AlarmC5ERKS_                                                                                                                                                                                                           0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail14CollectionData5clearEPNS1_15ResourceManagerE                                                                                                                                             0            0
+.xt.lit._ZNK11ArduinoJson8V743PB229JsonArray3addINS0_10JsonObjectELi0EEET_v                                                                                                                                                        0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail10ObjectData7addPairEPPNS1_11VariantDataEPNS1_15ResourceManagerE                                                                                                                           0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail10StringPool3addINS1_9RamStringEEEPNS1_10StringNodeET_PNS0_9AllocatorE                                                                                                                     8            0
+.xt.lit._ZN11ArduinoJson8V743PB229ConverterIPKcvE6toJsonES3_NS0_11JsonVariantE                                                                                                                                                     0            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail11VariantData6acceptINS1_14VisitorAdapterINS1_17JsonVariantCopierEEEEENT_11result_typeERS7_PKNS1_15ResourceManagerE                                                                       0            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail14VariantRefBaseINS1_11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEEEE2asIbEET_v                                                                                                       0            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail14VariantRefBaseINS1_11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEEEE6isNullEv                                                                                                        0            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail14VariantRefBaseINS1_11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEEEE2asIPKcEET_v                                                                                                     0            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail14VariantRefBaseINS1_11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEEEE2asIiEET_v                                                                                                       0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail11parseNumberIjEET_PKc                                                                                                                                                                     8            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail11VariantData10asIntegralIjEET_PKNS1_15ResourceManagerE                                                                                                                                   0            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail14VariantRefBaseINS1_11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEEEE2asIjEET_v                                                                                                       0            0
+.xt.lit._ZNK11ArduinoJson8V743PB226detail14VariantRefBaseINS1_11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEEEE2toINS0_9JsonArrayELi0EEESA_v                                                                                    0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail11VariantData10setIntegerIyEENS1_9enable_ifIXsrNS1_11is_unsignedIT_EE5valueEbE4typeES6_PNS1_15ResourceManagerE                                                                             0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderIK6StringvEEE11skipKeywordEPKc                                                                                                                               0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail11VariantData10setIntegerIxEENS1_9enable_ifIXsrNS1_9is_signedIT_EE5valueEbE4typeES6_PNS1_15ResourceManagerE                                                                                8            0
+.xt.lit._ZNK11ArduinoJson8V743PB229JsonArray3setENS0_14JsonArrayConstE                                                                                                                                                             0            0
+.xt.lit._ZN11ArduinoJson8V743PB2210JsonObject3setENS0_15JsonObjectConstE                                                                                                                                                           0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail14VisitorAdapterINS1_17JsonVariantCopierEE5visitERKNS1_10ObjectDataE                                                                                                                       0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail11VariantData8setFloatIdEENS1_9enable_ifIXeqstT_Li8EEbE4typeES5_PNS1_15ResourceManagerE                                                                                                    0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderIK6StringvEEE17parseNumericValueERNS1_11VariantDataE                                                                                                         8            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderIK6StringvEEE3eatEc                                                                                                                                          0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderIK6StringvEEE17parseQuotedStringEv                                                                                                                           8            0
+.xt.lit._ZN11ArduinoJson8V743PB2213serializeJsonI6StringLi0EEEjNS0_16JsonVariantConstERT_                                                                                                                                          8            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail11deserializeINS1_16JsonDeserializerERNS0_12JsonDocumentE6StringJELi0EEENS0_20DeserializationErrorEOT0_OT1_DpT2_                                                                           8            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderIK6StringvEEE22canBeInNonQuotedStringEc                                                                                                                      8            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderIK6StringvEEE11parseObjectINS1_14AllowAllFilterEEENS0_20DeserializationError4CodeERNS1_10ObjectDataET_NS0_21DeserializationOption12NestingLimitE             0            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderIK6StringvEEE12parseVariantINS1_14AllowAllFilterEEENS0_20DeserializationError4CodeERNS1_11VariantDataET_NS0_21DeserializationOption12NestingLimitE           8            0
+.xt.lit._ZN11ArduinoJson8V743PB226detail11deserializeINS1_16JsonDeserializerERNS0_12JsonDocumentERK6StringJELi0EEENS0_20DeserializationErrorEOT0_OT1_DpT2_                                                                         0            0
+.xt.prop._ZN3Uri9canHandleERK6StringRSt6vectorIS0_SaIS0_EE                                                                                                                                                                        36            0
+.xt.prop._ZNK3Uri5cloneEv                                                                                                                                                                                                         96            0
+.xt.prop._ZN3UriD5Ev                                                                                                                                                                                                               0            0
+.xt.prop._ZNK6String10startsWithEPKc                                                                                                                                                                                              60            0
+.xt.prop._ZN3UriC5EPKc                                                                                                                                                                                                             0            0
+.xt.prop._ZN11ArduinoJson8V743PB2212JsonDocumentC5EPNS0_9AllocatorE                                                                                                                                                                0            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail5Utf169Codepoint6appendEt                                                                                                                                                                72            0
+.xt.prop._ZN5AlarmC5ERKS_                                                                                                                                                                                                          0            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail14CollectionData5clearEPNS1_15ResourceManagerE                                                                                                                                           60            0
+.xt.prop._ZNK11ArduinoJson8V743PB229JsonArray3addINS0_10JsonObjectELi0EEET_v                                                                                                                                                      36            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail10ObjectData7addPairEPPNS1_11VariantDataEPNS1_15ResourceManagerE                                                                                                                         96            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail10StringPool3addINS1_9RamStringEEEPNS1_10StringNodeET_PNS0_9AllocatorE                                                                                                                  108            0
+.xt.prop._ZN11ArduinoJson8V743PB229ConverterIPKcvE6toJsonES3_NS0_11JsonVariantE                                                                                                                                                   36            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail11VariantData6acceptINS1_14VisitorAdapterINS1_17JsonVariantCopierEEEEENT_11result_typeERS7_PKNS1_15ResourceManagerE                                                                    432            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail14VariantRefBaseINS1_11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEEEE2asIbEET_v                                                                                                    192            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail14VariantRefBaseINS1_11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEEEE6isNullEv                                                                                                      36            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail14VariantRefBaseINS1_11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEEEE2asIPKcEET_v                                                                                                   48            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail14VariantRefBaseINS1_11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEEEE2asIiEET_v                                                                                                     36            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail11parseNumberIjEET_PKc                                                                                                                                                                  132            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail11VariantData10asIntegralIjEET_PKNS1_15ResourceManagerE                                                                                                                                252            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail14VariantRefBaseINS1_11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEEEE2asIjEET_v                                                                                                     36            0
+.xt.prop._ZNK11ArduinoJson8V743PB226detail14VariantRefBaseINS1_11MemberProxyIRNS0_12JsonDocumentENS1_9RamStringEEEE2toINS0_9JsonArrayELi0EEESA_v                                                                                  36            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail11VariantData10setIntegerIyEENS1_9enable_ifIXsrNS1_11is_unsignedIT_EE5valueEbE4typeES6_PNS1_15ResourceManagerE                                                                           84            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderIK6StringvEEE11skipKeywordEPKc                                                                                                                            108            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail11VariantData10setIntegerIxEENS1_9enable_ifIXsrNS1_9is_signedIT_EE5valueEbE4typeES6_PNS1_15ResourceManagerE                                                                             108            0
+.xt.prop._ZNK11ArduinoJson8V743PB229JsonArray3setENS0_14JsonArrayConstE                                                                                                                                                          120            0
+.xt.prop._ZN11ArduinoJson8V743PB2210JsonObject3setENS0_15JsonObjectConstE                                                                                                                                                        120            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail14VisitorAdapterINS1_17JsonVariantCopierEE5visitERKNS1_10ObjectDataE                                                                                                                     60            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail11VariantData8setFloatIdEENS1_9enable_ifIXeqstT_Li8EEbE4typeES5_PNS1_15ResourceManagerE                                                                                                  84            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderIK6StringvEEE17parseNumericValueERNS1_11VariantDataE                                                                                                      216            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderIK6StringvEEE3eatEc                                                                                                                                        48            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderIK6StringvEEE17parseQuotedStringEv                                                                                                                        228            0
+.xt.prop._ZN11ArduinoJson8V743PB2213serializeJsonI6StringLi0EEEjNS0_16JsonVariantConstERT_                                                                                                                                        96            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail11deserializeINS1_16JsonDeserializerERNS0_12JsonDocumentE6StringJELi0EEENS0_20DeserializationErrorEOT0_OT1_DpT2_                                                                        120            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderIK6StringvEEE22canBeInNonQuotedStringEc                                                                                                                    60            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderIK6StringvEEE11parseObjectINS1_14AllowAllFilterEEENS0_20DeserializationError4CodeERNS1_10ObjectDataET_NS0_21DeserializationOption12NestingLimitE          204            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderIK6StringvEEE12parseVariantINS1_14AllowAllFilterEEENS0_20DeserializationError4CodeERNS1_11VariantDataET_NS0_21DeserializationOption12NestingLimitE        264            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail11deserializeINS1_16JsonDeserializerERNS0_12JsonDocumentERK6StringJELi0EEENS0_20DeserializationErrorEOT0_OT1_DpT2_                                                                      108            0
+.xt.prop._ZN3Uri12initPathArgsERSt6vectorI6StringSaIS1_EE                                                                                                                                                                         36            0
+.xt.prop._ZN3UriD2Ev                                                                                                                                                                                                              36            0
+.xt.prop._ZN3UriD0Ev                                                                                                                                                                                                              36            0
+.xt.prop._ZN3UriC2EPKc                                                                                                                                                                                                            36            0
+.xt.prop._ZN11ArduinoJson8V743PB2212JsonDocumentC2EPNS0_9AllocatorE                                                                                                                                                               36            0
+.xt.prop._ZN5AlarmC2ERKS_                                                                                                                                                                                                        156            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail14MemoryPoolListINS1_15ResourceManager8SlotDataEE11shrinkToFitEPNS0_9AllocatorE                                                                                                          48            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail14VisitorAdapterINS1_17JsonVariantCopierEE5visitINS0_10JsonStringEEEbRKT_$isra$191                                                                                                       36            0
+.xt.prop._ZN11ArduinoJson8V743PB226detail16JsonDeserializerINS1_6ReaderIK6StringvEEE7currentEv                                                                                                                                    36            0
+.xt.prop._ZTV3Uri                                                                                                                                                                                                                 12            0
+.xt.prop._ZZNK11ArduinoJson8V743PB2220DeserializationError5c_strEvE8messages                                                                                                                                                      12            0
+.xt.prop._ZN5Print17availableForWriteEv                                                                                                                                                                                           36            0
+.xt.prop._ZN6Stream9readBytesEPhj                                                                                                                                                                                                 36            0
+.xt.prop._ZTV7TwoWire                                                                                                                                                                                                             12            0
+.xt.lit._ZN19Adafruit_SHT4x_TempD5Ev                                                                                                                                                                                               0            0
+.xt.lit._ZN23Adafruit_SHT4x_HumidityD5Ev                                                                                                                                                                                           0            0
+.xt.prop._ZN19Adafruit_SHT4x_TempD5Ev                                                                                                                                                                                              0            0
+.xt.prop._ZN23Adafruit_SHT4x_HumidityD5Ev                                                                                                                                                                                          0            0
+.xt.prop._ZN15Adafruit_Sensor15enableAutoRangeEb                                                                                                                                                                                  36            0
+.xt.prop._ZN19Adafruit_SHT4x_TempD2Ev                                                                                                                                                                                             36            0
+.xt.prop._ZN23Adafruit_SHT4x_HumidityD2Ev                                                                                                                                                                                         36            0
+.xt.prop._ZN19Adafruit_SHT4x_TempD0Ev                                                                                                                                                                                             36            0
+.xt.prop._ZN23Adafruit_SHT4x_HumidityD0Ev                                                                                                                                                                                         36            0
+.xt.prop._ZTV23Adafruit_SHT4x_Humidity                                                                                                                                                                                            12            0
+.xt.prop._ZTV19Adafruit_SHT4x_Temp                                                                                                                                                                                                12            0
+.xt.lit._ZN15Adafruit_SPITFT21SPI_BEGIN_TRANSACTIONEv                                                                                                                                                                              0            0
+.xt.lit._ZN15Adafruit_SPITFT19SPI_END_TRANSACTIONEv                                                                                                                                                                                0            0
+.xt.lit._ZN15Adafruit_SPITFT23writeFillRectPreclippedEsssst                                                                                                                                                                        0            0
+.xt.lit._ZN15Adafruit_SPITFT14writeFastHLineEssst                                                                                                                                                                                  0            0
+.xt.lit._ZN15Adafruit_SPITFT14writeFastVLineEssst                                                                                                                                                                                  0            0
+.xt.prop._ZN15Adafruit_SPITFT21SPI_BEGIN_TRANSACTIONEv                                                                                                                                                                            48            0
+.xt.prop._ZN15Adafruit_SPITFT19SPI_END_TRANSACTIONEv                                                                                                                                                                              48            0
+.xt.prop._ZN15Adafruit_SPITFT23writeFillRectPreclippedEsssst                                                                                                                                                                      36            0
+.xt.prop._ZN15Adafruit_SPITFT14writeFastHLineEssst                                                                                                                                                                                60            0
+.xt.prop._ZN15Adafruit_SPITFT14writeFastVLineEssst                                                                                                                                                                                60            0
+.xt.prop._ZN5Print5flushEv                                                                                                                                                                                                        36            0
+.xt.prop._ZTV15Adafruit_SPITFT                                                                                                                                                                                                    12            0
+.xt.prop._ZTV12Adafruit_GFX                                                                                                                                                                                                       12            0
+.xt.lit._ZN15Adafruit_ST7789D5Ev                                                                                                                                                                                                   0            0
+.xt.prop._ZN15Adafruit_ST7789D5Ev                                                                                                                                                                                                  0            0
+.xt.prop._ZN15Adafruit_ST7789D2Ev                                                                                                                                                                                                 36            0
+.xt.prop._ZN15Adafruit_ST7789D0Ev                                                                                                                                                                                                 36            0
+.xt.prop._ZTV15Adafruit_ST7789                                                                                                                                                                                                    12            0
+.xt.lit._ZN15Adafruit_ST77xxD5Ev                                                                                                                                                                                                   0            0
+.xt.prop._ZN15Adafruit_ST77xxD5Ev                                                                                                                                                                                                  0            0
+.xt.prop._ZN15Adafruit_ST77xxD2Ev                                                                                                                                                                                                 36            0
+.xt.prop._ZN15Adafruit_ST77xxD0Ev                                                                                                                                                                                                 36            0
+.xt.prop._ZTV15Adafruit_ST77xx                                                                                                                                                                                                    12            0
+.xt.lit._ZN8VL53L8CX7IO_ReadEtPhj                                                                                                                                                                                                  8            0
+.xt.lit._ZN8VL53L8CX8IO_WriteEtPhj                                                                                                                                                                                                 8            0
+.xt.prop._ZN8VL53L8CX7IO_ReadEtPhj                                                                                                                                                                                               228            0
+.xt.prop._ZN8VL53L8CX8IO_WriteEtPhj                                                                                                                                                                                              204            0
+.xt.prop._ZTV8VL53L8CX                                                                                                                                                                                                            12            0
+.xt.lit._ZN2fs4FileC5ESt10shared_ptrINS_8FileImplEE                                                                                                                                                                                0            0
+.xt.lit._ZN2fs4File9readBytesEPcj                                                                                                                                                                                                  0            0
+.xt.prop._ZN2fs4FileC5ESt10shared_ptrINS_8FileImplEE                                                                                                                                                                               0            0
+.xt.prop._ZN2fs4File9readBytesEPcj                                                                                                                                                                                                36            0
+.xt.prop._ZN2fs4FileC2ESt10shared_ptrINS_8FileImplEE                                                                                                                                                                              48            0
+.xt.prop._ZTVN2fs4FileE                                                                                                                                                                                                           12            0
+.xt.lit._ZN12LittleFSImplD5Ev                                                                                                                                                                                                      0            0
+.xt.lit._ZNSt15_Sp_counted_ptrIP12LittleFSImplLN9__gnu_cxx12_Lock_policyE2EED5Ev                                                                                                                                                   0            0
+.xt.lit._ZNSt15_Sp_counted_ptrIP12LittleFSImplLN9__gnu_cxx12_Lock_policyE2EE10_M_destroyEv                                                                                                                                         0            0
+.xt.prop._ZN12LittleFSImplD5Ev                                                                                                                                                                                                     0            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP12LittleFSImplLN9__gnu_cxx12_Lock_policyE2EED5Ev                                                                                                                                                  0            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP12LittleFSImplLN9__gnu_cxx12_Lock_policyE2EE10_M_destroyEv                                                                                                                                       36            0
+.xt.prop._ZN12LittleFSImplD2Ev                                                                                                                                                                                                    36            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP12LittleFSImplLN9__gnu_cxx12_Lock_policyE2EED2Ev                                                                                                                                                 36            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP12LittleFSImplLN9__gnu_cxx12_Lock_policyE2EE10_M_disposeEv                                                                                                                                       48            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP12LittleFSImplLN9__gnu_cxx12_Lock_policyE2EE14_M_get_deleterERKSt9type_info                                                                                                                      36            0
+.xt.prop._ZN12LittleFSImplD0Ev                                                                                                                                                                                                    36            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP12LittleFSImplLN9__gnu_cxx12_Lock_policyE2EED0Ev                                                                                                                                                 36            0
+.xt.prop._ZTV12LittleFSImpl                                                                                                                                                                                                       12            0
+.xt.prop._ZTVSt15_Sp_counted_ptrIP12LittleFSImplLN9__gnu_cxx12_Lock_policyE2EE                                                                                                                                                    12            0
+.xt.lit._ZNSt15_Sp_counted_ptrIP7VFSImplLN9__gnu_cxx12_Lock_policyE2EED5Ev                                                                                                                                                         0            0
+.xt.lit._ZNSt15_Sp_counted_ptrIP7VFSImplLN9__gnu_cxx12_Lock_policyE2EE10_M_destroyEv                                                                                                                                               0            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP7VFSImplLN9__gnu_cxx12_Lock_policyE2EED5Ev                                                                                                                                                        0            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP7VFSImplLN9__gnu_cxx12_Lock_policyE2EE10_M_destroyEv                                                                                                                                             36            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP7VFSImplLN9__gnu_cxx12_Lock_policyE2EED2Ev                                                                                                                                                       36            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP7VFSImplLN9__gnu_cxx12_Lock_policyE2EE10_M_disposeEv                                                                                                                                             48            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP7VFSImplLN9__gnu_cxx12_Lock_policyE2EE14_M_get_deleterERKSt9type_info                                                                                                                            36            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP7VFSImplLN9__gnu_cxx12_Lock_policyE2EED0Ev                                                                                                                                                       36            0
+.xt.prop._ZTVSt15_Sp_counted_ptrIP7VFSImplLN9__gnu_cxx12_Lock_policyE2EE                                                                                                                                                          12            0
+.xt.lit._ZNSt15_Sp_counted_ptrIP22WiFiClientSocketHandleLN9__gnu_cxx12_Lock_policyE2EED5Ev                                                                                                                                         8            0
+.xt.lit._ZNSt15_Sp_counted_ptrIP22WiFiClientSocketHandleLN9__gnu_cxx12_Lock_policyE2EE10_M_destroyEv                                                                                                                               0            0
+.xt.lit._ZNSt15_Sp_counted_ptrIP18WiFiClientRxBufferLN9__gnu_cxx12_Lock_policyE2EED5Ev                                                                                                                                             0            0
+.xt.lit._ZNSt15_Sp_counted_ptrIP18WiFiClientRxBufferLN9__gnu_cxx12_Lock_policyE2EE10_M_destroyEv                                                                                                                                   0            0
+.xt.lit._ZNSt15_Sp_counted_ptrIP18WiFiClientRxBufferLN9__gnu_cxx12_Lock_policyE2EE10_M_disposeEv                                                                                                                                   8            0
+.xt.lit._ZNSt15_Sp_counted_ptrIP22WiFiClientSocketHandleLN9__gnu_cxx12_Lock_policyE2EE10_M_disposeEv                                                                                                                               8            0
+.xt.lit._ZN18WiFiClientRxBuffer11r_availableEv                                                                                                                                                                                     8            0
+.xt.lit._ZN18WiFiClientRxBuffer10fillBufferEv                                                                                                                                                                                      8            0
+.xt.lit._ZN18WiFiClientRxBuffer4readEPhj                                                                                                                                                                                           8            0
+.xt.lit._ZNSt12__shared_ptrI22WiFiClientSocketHandleLN9__gnu_cxx12_Lock_policyE2EE5resetIS0_EENSt9enable_ifIXsrSt21__sp_is_constructibleIS0_T_E5valueEvE4typeEPS7_                                                                 8            0
+.xt.lit._ZNSt12__shared_ptrI18WiFiClientRxBufferLN9__gnu_cxx12_Lock_policyE2EE5resetIS0_EENSt9enable_ifIXsrSt21__sp_is_constructibleIS0_T_E5valueEvE4typeEPS7_                                                                     8            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP22WiFiClientSocketHandleLN9__gnu_cxx12_Lock_policyE2EED5Ev                                                                                                                                       12            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP22WiFiClientSocketHandleLN9__gnu_cxx12_Lock_policyE2EE10_M_destroyEv                                                                                                                             36            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP18WiFiClientRxBufferLN9__gnu_cxx12_Lock_policyE2EED5Ev                                                                                                                                            0            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP18WiFiClientRxBufferLN9__gnu_cxx12_Lock_policyE2EE10_M_destroyEv                                                                                                                                 36            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP18WiFiClientRxBufferLN9__gnu_cxx12_Lock_policyE2EE10_M_disposeEv                                                                                                                                 60            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP22WiFiClientSocketHandleLN9__gnu_cxx12_Lock_policyE2EE10_M_disposeEv                                                                                                                             60            0
+.xt.prop._ZN18WiFiClientRxBuffer11r_availableEv                                                                                                                                                                                   84            0
+.xt.prop._ZN18WiFiClientRxBuffer10fillBufferEv                                                                                                                                                                                   144            0
+.xt.prop._ZN18WiFiClientRxBuffer4readEPhj                                                                                                                                                                                        192            0
+.xt.prop._ZNSt12__shared_ptrI22WiFiClientSocketHandleLN9__gnu_cxx12_Lock_policyE2EE5resetIS0_EENSt9enable_ifIXsrSt21__sp_is_constructibleIS0_T_E5valueEvE4typeEPS7_                                                               96            0
+.xt.prop._ZNSt12__shared_ptrI18WiFiClientRxBufferLN9__gnu_cxx12_Lock_policyE2EE5resetIS0_EENSt9enable_ifIXsrSt21__sp_is_constructibleIS0_T_E5valueEvE4typeEPS7_                                                                   96            0
+.xt.prop._ZN10WiFiClientcvbEv                                                                                                                                                                                                     36            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP18WiFiClientRxBufferLN9__gnu_cxx12_Lock_policyE2EED2Ev                                                                                                                                           36            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP22WiFiClientSocketHandleLN9__gnu_cxx12_Lock_policyE2EED2Ev                                                                                                                                       36            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP18WiFiClientRxBufferLN9__gnu_cxx12_Lock_policyE2EE14_M_get_deleterERKSt9type_info                                                                                                                36            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP22WiFiClientSocketHandleLN9__gnu_cxx12_Lock_policyE2EE14_M_get_deleterERKSt9type_info                                                                                                            36            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP22WiFiClientSocketHandleLN9__gnu_cxx12_Lock_policyE2EED0Ev                                                                                                                                       36            0
+.xt.prop._ZNSt15_Sp_counted_ptrIP18WiFiClientRxBufferLN9__gnu_cxx12_Lock_policyE2EED0Ev                                                                                                                                           36            0
+.xt.prop._ZNSt16_Sp_counted_baseILN9__gnu_cxx12_Lock_policyE2EE10_M_releaseEv                                                                                                                                                     60            0
+.xt.prop._ZTV10WiFiClient                                                                                                                                                                                                         12            0
+.xt.prop._ZTVSt15_Sp_counted_ptrIP22WiFiClientSocketHandleLN9__gnu_cxx12_Lock_policyE2EE                                                                                                                                          12            0
+.xt.prop._ZTVSt15_Sp_counted_ptrIP18WiFiClientRxBufferLN9__gnu_cxx12_Lock_policyE2EE                                                                                                                                              12            0
+.xt.lit._ZNSt8functionIFv18arduino_event_id_t20arduino_event_info_tEEC5ERKS3_                                                                                                                                                      8            0
+.xt.lit._ZN15WiFiEventCbListC5ERKS_                                                                                                                                                                                                0            0
+.xt.prop._ZNSt8functionIFv18arduino_event_id_t20arduino_event_info_tEEC5ERKS3_                                                                                                                                                    12            0
+.xt.prop._ZN15WiFiEventCbListC5ERKS_                                                                                                                                                                                               0            0
+.xt.prop._ZNSt8functionIFv18arduino_event_id_t20arduino_event_info_tEEC2ERKS3_                                                                                                                                                    60            0
+.xt.prop._ZN15WiFiEventCbListC2ERKS_                                                                                                                                                                                              36            0
+.xt.lit._ZN22FunctionRequestHandler9canUploadE6String                                                                                                                                                                              0            0
+.xt.lit._ZN9WebServer21_currentClientWrite_PEPKcj                                                                                                                                                                                  8            0
+.xt.lit._ZN14RequestHandlerD5Ev                                                                                                                                                                                                    8            0
+.xt.lit._ZN9WebServer19_currentClientWriteEPKcj                                                                                                                                                                                    0            0
+.xt.lit._ZN9WebServer6clientEv                                                                                                                                                                                                     0            0
+.xt.lit._ZNK6StringneERKS_                                                                                                                                                                                                         0            0
+.xt.lit._ZNK6String9substringEj                                                                                                                                                                                                    0            0
+.xt.lit._ZN22FunctionRequestHandlerD5Ev                                                                                                                                                                                            8            0
+.xt.lit._ZNSt8functionIFvvEEC5ERKS1_                                                                                                                                                                                               0            0
+.xt.lit._ZNKSt8functionIFvvEEclEv                                                                                                                                                                                                  8            0
+.xt.lit._ZN22FunctionRequestHandler3rawER9WebServer6StringR7HTTPRaw                                                                                                                                                                0            0
+.xt.lit._ZN22FunctionRequestHandler6uploadER9WebServer6StringR10HTTPUpload                                                                                                                                                         0            0
+.xt.lit._ZN22FunctionRequestHandler6handleER9WebServer11http_method6String                                                                                                                                                         0            0
+.xt.lit._ZNSt10unique_ptrI10HTTPUploadSt14default_deleteIS0_EED5Ev                                                                                                                                                                 0            0
+.xt.lit._ZNSt10unique_ptrI7HTTPRawSt14default_deleteIS0_EED5Ev                                                                                                                                                                     0            0
+.xt.lit._ZNSt8functionIFvvEEaSERKS1_                                                                                                                                                                                               0            0
+.xt.prop._ZN22FunctionRequestHandler9canUploadE6String                                                                                                                                                                            96            0
+.xt.prop._ZN9WebServer21_currentClientWrite_PEPKcj                                                                                                                                                                                48            0
+.xt.prop._ZN14RequestHandlerD5Ev                                                                                                                                                                                                  12            0
+.xt.prop._ZN9WebServer19_currentClientWriteEPKcj                                                                                                                                                                                  36            0
+.xt.prop._ZN9WebServer6clientEv                                                                                                                                                                                                   60            0
+.xt.prop._ZNK6StringneERKS_                                                                                                                                                                                                       36            0
+.xt.prop._ZNK6String9substringEj                                                                                                                                                                                                  60            0
+.xt.prop._ZN22FunctionRequestHandlerD5Ev                                                                                                                                                                                          12            0
+.xt.prop._ZNSt8functionIFvvEEC5ERKS1_                                                                                                                                                                                              0            0
+.xt.prop._ZNKSt8functionIFvvEEclEv                                                                                                                                                                                                60            0
+.xt.prop._ZN22FunctionRequestHandler3rawER9WebServer6StringR7HTTPRaw                                                                                                                                                              72            0
+.xt.prop._ZN22FunctionRequestHandler6uploadER9WebServer6StringR10HTTPUpload                                                                                                                                                       72            0
+.xt.prop._ZN22FunctionRequestHandler6handleER9WebServer11http_method6String                                                                                                                                                       72            0
+.xt.prop._ZNSt10unique_ptrI10HTTPUploadSt14default_deleteIS0_EED5Ev                                                                                                                                                                0            0
+.xt.prop._ZNSt10unique_ptrI7HTTPRawSt14default_deleteIS0_EED5Ev                                                                                                                                                                    0            0
+.xt.prop._ZNSt8functionIFvvEEaSERKS1_                                                                                                                                                                                             48            0
+.xt.prop._ZN14RequestHandler9canHandleE11http_method6String                                                                                                                                                                       36            0
+.xt.prop._ZN14RequestHandler9canUploadE6String                                                                                                                                                                                    36            0
+.xt.prop._ZN14RequestHandler6canRawE6String                                                                                                                                                                                       36            0
+.xt.prop._ZN14RequestHandler6handleER9WebServer11http_method6String                                                                                                                                                               36            0
+.xt.prop._ZN14RequestHandler6uploadER9WebServer6StringR10HTTPUpload                                                                                                                                                               36            0
+.xt.prop._ZN14RequestHandler3rawER9WebServer6StringR7HTTPRaw                                                                                                                                                                      36            0
+.xt.prop._ZN22FunctionRequestHandler6canRawE6String                                                                                                                                                                               48            0
+.xt.prop._ZN22FunctionRequestHandler9canHandleE11http_method6String                                                                                                                                                               36            0
+.xt.prop._ZN14RequestHandlerD2Ev                                                                                                                                                                                                  60            0
+.xt.prop._ZN14RequestHandlerD0Ev                                                                                                                                                                                                  36            0
+.xt.prop._ZN22FunctionRequestHandlerD2Ev                                                                                                                                                                                          36            0
+.xt.prop._ZN22FunctionRequestHandlerD0Ev                                                                                                                                                                                          36            0
+.xt.prop._ZNSt8functionIFvvEEC2ERKS1_                                                                                                                                                                                             60            0
+.xt.prop._ZNSt10unique_ptrI10HTTPUploadSt14default_deleteIS0_EED2Ev                                                                                                                                                               36            0
+.xt.prop._ZNSt10unique_ptrI7HTTPRawSt14default_deleteIS0_EED2Ev                                                                                                                                                                   36            0
+.xt.prop._ZTV14RequestHandler                                                                                                                                                                                                     12            0
+.xt.prop._ZTV22FunctionRequestHandler                                                                                                                                                                                             12            0
+.xt.prop._ZTV9WebServer                                                                                                                                                                                                           12            0
+.xt.lit._ZN9WebServer15RequestArgumentD5Ev                                                                                                                                                                                         0            0
+.xt.lit._ZN9WebServer15RequestArgumentC5Ev                                                                                                                                                                                         8            0
+.xt.prop._ZN9WebServer15RequestArgumentD5Ev                                                                                                                                                                                        0            0
+.xt.prop._ZN9WebServer15RequestArgumentC5Ev                                                                                                                                                                                       12            0
+.xt.prop._ZN9WebServer15RequestArgumentD2Ev                                                                                                                                                                                       36            0
+.xt.prop._ZN9WebServer15RequestArgumentC2Ev                                                                                                                                                                                       84            0
+.xt.prop._ZN14HardwareSerial9readBytesEPcj                                                                                                                                                                                        36            0
+.xt.prop._ZTV14HardwareSerial                                                                                                                                                                                                     12            0
+.xt.lit._ZN9IPAddressD5Ev                                                                                                                                                                                                          0            0
+.xt.prop._ZN9IPAddressD5Ev                                                                                                                                                                                                         0            0
+.xt.prop._ZN9IPAddressD2Ev                                                                                                                                                                                                        36            0
+.xt.prop._ZN9IPAddressD0Ev                                                                                                                                                                                                        36            0
+.xt.prop._ZTV9IPAddress                                                                                                                                                                                                           12            0
+.xt.lit._ZN5Print5writeEPKc                                                                                                                                                                                                        0            0
+.xt.prop._ZN5Print5writeEPKc                                                                                                                                                                                                      48            0
+.xt.lit._ZN6String4initEv                                                                                                                                                                                                          8            0
+.xt.prop._ZN6String4initEv                                                                                                                                                                                                        48            0
+.xt.prop._ZNK6String3lenEv                                                                                                                                                                                                        60            0
+.xt.prop._ZN6String6setLenEi                                                                                                                                                                                                      72            0
+.xt.prop._ZTV5HWCDC                                                                                                                                                                                                               12            0
+.xt.lit._ZN3nvs4Lock4initEv                                                                                                                                                                                                        0            0
+.xt.prop._ZN3nvs4Lock4initEv                                                                                                                                                                                                      72            0
+.xt.prop._ZN14intrusive_listI14NVSHandleEntryE5eraseENS1_8iteratorE                                                                                                                                                               84            0
+.xt.lit._ZN14intrusive_listIN3nvs7Storage14NamespaceEntryEE17clearAndFreeNodesEv                                                                                                                                                   0            0
+.xt.prop._ZN14intrusive_listIN3nvs7Storage14NamespaceEntryEE17clearAndFreeNodesEv                                                                                                                                                108            0
+.xt.prop._ZN14intrusive_listIN3nvs7Storage14NamespaceEntryEE9push_backEPS2_                                                                                                                                                       60            0
+.xt.prop._ZTVN3nvs15NVSHandleSimpleE                                                                                                                                                                                              12            0
+.xt.lit._ZN3nvs12NVSPartitionD5Ev                                                                                                                                                                                                  0            0
+.xt.prop._ZN3nvs12NVSPartitionD5Ev                                                                                                                                                                                                 0            0
+.xt.prop._ZN3nvs12NVSPartitionD2Ev                                                                                                                                                                                                36            0
+.xt.prop._ZN3nvs12NVSPartitionD0Ev                                                                                                                                                                                                36            0
+.xt.prop._ZTVN3nvs12NVSPartitionE                                                                                                                                                                                                 12            0
+.xt.lit._ZN3nvs19NVSPartitionManagerD5Ev                                                                                                                                                                                           0            0
+.xt.prop._ZN3nvs19NVSPartitionManagerD5Ev                                                                                                                                                                                          0            0
+.xt.prop._ZN3nvs19NVSPartitionManagerD2Ev                                                                                                                                                                                         36            0
+.xt.prop._ZN3nvs19NVSPartitionManagerD0Ev                                                                                                                                                                                         36            0
+.xt.prop._ZN14intrusive_listIN3nvs12NVSPartitionEE5eraseENS2_8iteratorE                                                                                                                                                           84            0
+.xt.prop._ZN14intrusive_listIN3nvs15NVSHandleSimpleEE5eraseENS2_8iteratorE                                                                                                                                                        84            0
+.xt.prop._ZTVN3nvs19NVSPartitionManagerE                                                                                                                                                                                          12            0
+.xt.prop._ZN14intrusive_listIN3nvs8HashList13HashListBlockEE5eraseENS3_8iteratorE                                                                                                                                                 84            0
+.xt.lit._ZN3nvs4ItemC5EhNS_8ItemTypeEhPKch                                                                                                                                                                                         0            0
+.xt.prop._ZN3nvs4ItemC5EhNS_8ItemTypeEhPKch                                                                                                                                                                                        0            0
+.xt.prop._ZN3nvs20isVariableLengthTypeENS_8ItemTypeE                                                                                                                                                                              48            0
+.xt.prop._ZN3nvs4ItemC2EhNS_8ItemTypeEhPKch                                                                                                                                                                                       60            0
+.xt.prop._ZNK19CompressedEnumTableIN3nvs4Page10EntryStateELj2ELj126EE3getEjPS2_                                                                                                                                                   48            0
+.xt.lit._ZN14intrusive_listIN3nvs4PageEE5clearEv                                                                                                                                                                                   8            0
+.xt.prop._ZN14intrusive_listIN3nvs4PageEE5clearEv                                                                                                                                                                                 72            0
+.xt.prop._ZN14intrusive_listIN3nvs4PageEE9push_backEPS1_                                                                                                                                                                          60            0
+.xt.prop._ZN14intrusive_listIN3nvs4PageEE5eraseENS2_8iteratorE                                                                                                                                                                    84            0
+.xt.prop._ZTISt9exception                                                                                                                                                                                                         12            0
+.xt.prop._ZTISt9bad_alloc                                                                                                                                                                                                         12            0
+.xt.lit._ZNK9__gnu_cxx24__concurrence_lock_error4whatEv                                                                                                                                                                            8            0
+.xt.lit._ZNK9__gnu_cxx26__concurrence_unlock_error4whatEv                                                                                                                                                                          8            0
+.xt.lit._ZN9__gnu_cxx24__concurrence_lock_errorD5Ev                                                                                                                                                                                8            0
+.xt.lit._ZN9__gnu_cxx26__concurrence_unlock_errorD5Ev                                                                                                                                                                              8            0
+.xt.lit._ZN9__gnu_cxx7__mutex4lockEv                                                                                                                                                                                               8            0
+.xt.lit._ZN9__gnu_cxx13__scoped_lockD5Ev                                                                                                                                                                                           8            0
+.xt.prop._ZNK9__gnu_cxx24__concurrence_lock_error4whatEv                                                                                                                                                                          48            0
+.xt.prop._ZNK9__gnu_cxx26__concurrence_unlock_error4whatEv                                                                                                                                                                        48            0
+.xt.prop._ZN9__gnu_cxx24__concurrence_lock_errorD5Ev                                                                                                                                                                              12            0
+.xt.prop._ZN9__gnu_cxx26__concurrence_unlock_errorD5Ev                                                                                                                                                                            12            0
+.xt.prop._ZN9__gnu_cxx7__mutex4lockEv                                                                                                                                                                                             48            0
+.xt.prop._ZN9__gnu_cxx13__scoped_lockD5Ev                                                                                                                                                                                         12            0
+.xt.prop._ZN9__gnu_cxx24__concurrence_lock_errorD2Ev                                                                                                                                                                              36            0
+.xt.prop._ZN9__gnu_cxx26__concurrence_unlock_errorD2Ev                                                                                                                                                                            36            0
+.xt.prop._ZN9__gnu_cxx24__concurrence_lock_errorD0Ev                                                                                                                                                                              36            0
+.xt.prop._ZN9__gnu_cxx26__concurrence_unlock_errorD0Ev                                                                                                                                                                            36            0
+.xt.prop._ZN9__gnu_cxx13__scoped_lockD2Ev                                                                                                                                                                                         72            0
+.xt.prop._ZTIN9__gnu_cxx24__concurrence_lock_errorE                                                                                                                                                                               12            0
+.xt.prop._ZTIN9__gnu_cxx26__concurrence_unlock_errorE                                                                                                                                                                             12            0
+.xt.prop._ZTVN9__gnu_cxx24__concurrence_lock_errorE                                                                                                                                                                               12            0
+.xt.prop._ZTVN9__gnu_cxx26__concurrence_unlock_errorE                                                                                                                                                                             12            0
+.xt.prop._ZTVN10__cxxabiv117__class_type_infoE                                                                                                                                                                                    12            0
+.xt.prop._ZTISt17bad_function_call                                                                                                                                                                                                12            0
+.xt.prop._ZTVSt17bad_function_call                                                                                                                                                                                                12            0
+.xt.prop._ZTVN10__cxxabiv120__si_class_type_infoE                                                                                                                                                                                 12            0
+.xt.prop._ZTVSt9bad_alloc                                                                                                                                                                                                         12            0
+.xt.lit._ZNSt23_Sp_counted_ptr_inplaceI11VFSFileImplSaIS0_ELN9__gnu_cxx12_Lock_policyE2EE14_M_get_deleterERKSt9type_info                                                                                                           8            0
+.xt.lit._ZN7VFSImplD5Ev                                                                                                                                                                                                            0            0
+.xt.lit._ZNSt23_Sp_counted_ptr_inplaceI11VFSFileImplSaIS0_ELN9__gnu_cxx12_Lock_policyE2EED5Ev                                                                                                                                      0            0
+.xt.lit._ZNSt15__allocated_ptrISaISt23_Sp_counted_ptr_inplaceI11VFSFileImplSaIS1_ELN9__gnu_cxx12_Lock_policyE2EEEED5Ev                                                                                                             0            0
+.xt.lit._ZSt11make_sharedI11VFSFileImplJP7VFSImplRPKcS5_EESt10shared_ptrIT_EDpOT0_                                                                                                                                                 8            0
+.xt.lit._ZNSt23_Sp_counted_ptr_inplaceI11VFSFileImplSaIS0_ELN9__gnu_cxx12_Lock_policyE2EE10_M_destroyEv                                                                                                                            0            0
+.xt.prop._ZNSt23_Sp_counted_ptr_inplaceI11VFSFileImplSaIS0_ELN9__gnu_cxx12_Lock_policyE2EE14_M_get_deleterERKSt9type_info                                                                                                         48            0
+.xt.prop._ZN7VFSImplD5Ev                                                                                                                                                                                                           0            0
+.xt.prop._ZNSt23_Sp_counted_ptr_inplaceI11VFSFileImplSaIS0_ELN9__gnu_cxx12_Lock_policyE2EED5Ev                                                                                                                                     0            0
+.xt.prop._ZNSt15__allocated_ptrISaISt23_Sp_counted_ptr_inplaceI11VFSFileImplSaIS1_ELN9__gnu_cxx12_Lock_policyE2EEEED5Ev                                                                                                            0            0
+.xt.prop._ZSt11make_sharedI11VFSFileImplJP7VFSImplRPKcS5_EESt10shared_ptrIT_EDpOT0_                                                                                                                                               72            0
+.xt.prop._ZNSt23_Sp_counted_ptr_inplaceI11VFSFileImplSaIS0_ELN9__gnu_cxx12_Lock_policyE2EE10_M_destroyEv                                                                                                                          36            0
+.xt.prop._ZN7VFSImplD2Ev                                                                                                                                                                                                          36            0
+.xt.prop._ZNSt23_Sp_counted_ptr_inplaceI11VFSFileImplSaIS0_ELN9__gnu_cxx12_Lock_policyE2EED2Ev                                                                                                                                    36            0
+.xt.prop._ZN7VFSImplD0Ev                                                                                                                                                                                                          36            0
+.xt.prop._ZNSt23_Sp_counted_ptr_inplaceI11VFSFileImplSaIS0_ELN9__gnu_cxx12_Lock_policyE2EED0Ev                                                                                                                                    36            0
+.xt.prop._ZNSt23_Sp_counted_ptr_inplaceI11VFSFileImplSaIS0_ELN9__gnu_cxx12_Lock_policyE2EE10_M_disposeEv                                                                                                                          36            0
+.xt.prop._ZNSt15__allocated_ptrISaISt23_Sp_counted_ptr_inplaceI11VFSFileImplSaIS1_ELN9__gnu_cxx12_Lock_policyE2EEEED2Ev                                                                                                           36            0
+.xt.prop._ZTV7VFSImpl                                                                                                                                                                                                             12            0
+.xt.prop._ZTV11VFSFileImpl                                                                                                                                                                                                        12            0
+.xt.prop._ZTVSt23_Sp_counted_ptr_inplaceI11VFSFileImplSaIS0_ELN9__gnu_cxx12_Lock_policyE2EE                                                                                                                                       12            0
+.xt.prop._ZZNSt19_Sp_make_shared_tag5_S_tiEvE5__tag                                                                                                                                                                               12            0
+.xt.lit._ZN10WiFiServerD5Ev                                                                                                                                                                                                        8            0
+.xt.prop._ZN10WiFiServerD5Ev                                                                                                                                                                                                      12            0
+.xt.prop._ZN10WiFiServer5writeEh                                                                                                                                                                                                  36            0
+.xt.prop._ZN10WiFiServerD2Ev                                                                                                                                                                                                      36            0
+.xt.prop._ZN10WiFiServerD0Ev                                                                                                                                                                                                      36            0
+.xt.prop._ZTV10WiFiServer                                                                                                                                                                                                         12            0
+.debug_frame                                                                                                                                                                                                                  237568            0
+.debug_info                                                                                                                                                                                                                 11150278            0
+.debug_abbrev                                                                                                                                                                                                                 821471            0
+.debug_loc                                                                                                                                                                                                                   1964867            0
+.debug_aranges                                                                                                                                                                                                                 90376            0
+.debug_ranges                                                                                                                                                                                                                 280728            0
+.debug_line                                                                                                                                                                                                                  4638346            0
+.debug_str                                                                                                                                                                                                                    940182            0
+Total                                                                                                                                                                                                                       23716050
+
+
+
+==================== TOP SYMBOLS ====================
+4202f8e0 000002ea t scale_get_tick_points
+40382614 000002ea T tlsf_malloc
+420a7710 000002f2 T ieee80211_update_channel
+42059c98 000002f7 T i2c_driver_install
+42073a04 000002fb T lwip_select
+4207a050 00000302 T tcp_write
+42088bd0 00000304 t find_volume
+3c127dc8 00000308 D VL53L8CX_DEFAULT_XTALK
+42011b18 0000030b T Adafruit_GFX::drawChar(short, short, unsigned char, unsigned short, unsigned short, unsigned char, unsigned char)
+420ce6e0 0000030d T _fseeko_r
+420914f0 0000030d t lfs_dir_orphaningcommit
+4209a858 0000030e T mbedtls_mpi_div_mpi
+420ab5fc 0000030f T wifi_set_config_process
+4204eea0 00000316 T WiFiSTAClass::begin(char const*, char const*, int, unsigned char const*, bool)
+3c163020 00000318 d two_over_pi
+42080c04 0000031a T ip6_output_if_src
+4201bba0 0000031d T lv_obj_redraw
+4204ea58 0000032a T WiFiGenericClass::_eventCallback(arduino_event_t*)
+4202ba50 0000032a t draw_main
+420ad9a8 00000338 T ieee80211_assoc_req_construct
+4206f0a4 0000033b T wpa_gen_wpa_ie
+420c5ce4 00000340 T pbus_rx_dco_cal
+42065234 00000342 T nvs::Page::mLoadEntryTable()
+420658b0 00000343 T nvs::PageManager::load(nvs::Partition*, unsigned int, unsigned int)
+42030c00 00000345 t lv_slider_event
+420ccdd8 00000348 T VFSImpl::open(char const*, char const*, bool)
+42095be8 0000034a T __wpa_send_eapol
+3fcc53c8 0000034c B gWpaSm
+42029d34 0000034d t draw_series_line
+4200656c 0000034f W ArduinoJson::V743PB22::detail::TextFormatter<ArduinoJson::V743PB22::detail::Writer<String, void> >::writeFloat(double, signed char)
+420967d8 0000035f T wpa_receive
+4204da24 00000364 T tcpipInit()
+4202ec04 0000036a t lv_roller_event
+420441d8 00000372 T lv_draw_sw_blend_color_to_argb8888_premultiplied
+42042140 00000372 t rgb888_image_blend
+420475ec 00000377 t rgb888_image_blend
+42033470 0000037c t lv_textarea_event
+420cf62c 00000382 T mktime
+420e7cbc 00000382 T ppRxFragmentProc
+42097d10 0000038b t sae_derive_pwe_ecc
+4200cec0 0000038c T WebServerManager::sendAlarmList()
+42089c40 0000038d t follow_path
+40382900 00000395 T tlsf_realloc
+420cb350 00000396 t search_object
+4209eb1c 00000399 t esp_aes_process_dma
+4204fea0 0000039a T WebServer::_prepareHeader(String&, int, char const*, unsigned int)
+42040414 0000039a T lv_draw_sw_blend
+420d3ba4 000003a8 T _tzset_unlocked_r
+42043e2c 000003a9 t rgb888_image_blend
+42096390 000003ae t wpa_sm_step
+4201f62c 000003b5 t lv_draw_mask_line
+42087290 000003bf T esp_intr_alloc_intrstatus
+3fc9759c 000003c0 D TxRxCxt
+3c1280d0 000003cc D VL53L8CX_DEFAULT_CONFIGURATION
+420492e0 000003d3 t rgb888_image_blend
+4209d440 000003d4 t ecp_mod_p256
+42099168 000003d4 T sae_parse_commit
+42033e50 000003d7 T lv_draw_arc_get_area
+42074d78 000003d8 T dns_gethostbyname_addrtype
+42069918 000003d9 T esp_vfs_select
+42069918 000003d9 T select
+420830e0 000003db T nd6_get_next_hop_addr_or_queue
+4209dc10 000003e2 T mbedtls_ecp_group_load
+42060d40 000003e6 T gdma_new_channel
+42077d2c 000003f0 T tcp_slowtmr
+4200f1e4 000003f6 T ClockScreen::createUI()
+420200fc 000003f7 T lv_draw_sw_mask_radius_init
+4208c610 00000408 t wifi_prov_mgr_event_handler_internal
+42028480 00000409 t draw_main
+420726f8 0000040b t lwip_getsockopt_callback
+4203a168 00000414 T lv_draw_sw_triangle
+42018618 00000417 T lv_obj_align_to
+4201b788 00000417 T lv_obj_refr
+4200e5f8 00000418 T WebServerManager::handleUpdateAlarm()
+4204d13c 00000424 T WiFiClient::connect(IPAddress, unsigned short, int)
+42036fe4 00000428 t recolor
+4202c7e4 00000433 t lv_label_event
+420910b8 00000437 t lfs_dir_relocatingcommit
+42016404 00000439 T lv_obj_init_draw_rect_dsc
+4209c1ec 0000043a t ecp_mul_comb
+420942f4 00000440 T esp_core_dump_get_task_regs_dump
+4202d8a4 00000444 t lv_led_event
+3c14d525 00000450 D mime::mimeTable
+4209c898 00000450 T mbedtls_ecp_mul_restartable
+420a37d0 00000454 T ftm_initiator_new_state
+420369f0 00000454 T lv_draw_sw_fill
+420e6750 0000045f T ieee80211_encap_esfbuf
+4208ff28 00000463 t lfs_dir_fetchmatch
+3fcc1c74 00000464 b s_coredump_stack
+42074844 0000048d t dns_recv
+3fcc35a4 0000049c B s_wifi_nvs
+3fcc0db0 000004a0 b dns_table
+420843b0 000004aa t handle_dhcp
+42015ad0 000004b0 t lv_obj_event
+4202f42c 000004b2 t scale_draw_main
+4207c6a4 000004b3 t dhcp_recv
+420d05e0 000004c0 t get_arg$isra$0
+420d94dc 000004c0 t get_arg$isra$0
+420d3f60 000004c0 t get_arg$isra$0
+420ddd44 000004c0 t get_arg$isra$0
+420e7694 000004cc T sta_input
+3c15a084 000004d0 D rtc_io_desc
+42028edc 000004d3 t lv_buttonmatrix_event
+420bfde0 000004d7 T wdev_funcs_init
+42057ac8 000004e4 T uartBegin
+42034678 000004eb T lv_draw_sw_arc
+3c14228c 000004f0 d glyph_dsc
+3c13ed38 000004f0 d glyph_dsc
+4202d180 000004f0 t update_layout_completed_cb
+42015478 000004fe t lv_obj_draw
+3c127738 00000500 d font
+4207a91c 0000050d T tcp_output
+4201ed94 00000517 T lv_draw_rect
+420ac1b8 00000519 T wifi_nvs_cfg_init
+42093adc 00000523 t esp_core_dump_do_write_elf_pass$constprop$3
+420b35d8 00000524 T sta_recv_assoc
+420a8f1c 0000052a T ieee80211_parse_rsn
+420cd764 0000052f T __kernel_rem_pio2f
+4209cf0c 00000534 t ecp_mod_p384
+42031984 00000541 t draw_main
+42040954 0000055a T lv_draw_sw_blend_image_to_a8
+420a873c 00000565 T ieee80211_parse_beacon
+420c607c 00000566 T pbus_rx_dco_cal_1step
+420c38a4 0000057c T freq_i2c_write_set
+4205bc08 00000584 T i2s_driver_install
+42080680 00000584 T ip6_input
+420a5a48 000005a6 T hostap_input
+4201c248 000005a9 T lv_display_refr_timer
+420275f0 000005bb t lv_arc_event$part$1
+4200a548 000005c2 T WebServerManager::setupRoutes()
+420aa15c 000005d1 T wifi_softap_set_config
+42027d7c 000005dc t draw_indic
+4203fe38 000005dc t lv_image_event
+42035550 000005e9 T lv_draw_sw_border
+4208ce98 00000608 t diag_log_add
+4205b258 0000060b T i2s_set_clk
+4205d9b8 00000619 T rmt_config
+4208ae7c 00000627 T f_mkfs
+42097414 0000062e t sswu
+4202fdc0 0000064b t scale_draw_indicator
+420238bc 0000066b t lv_vsnprintf_inner
+4203863c 00000675 T lv_draw_sw_line
+4200535c 00000685 T AlarmManager::serialize(Alarm const&, ArduinoJson::V743PB22::JsonDocument&) const
+40375a84 0000069b t rmt_driver_isr_default
+3c15c144 000006b8 d esp_err_msg_table
+42012eb8 000006c1 T vl53l8cx_init
+4205ec54 000006cb t uart_rx_intr_handler_default
+42072b04 000006e1 t lwip_setsockopt_callback
+420bd25c 000006e2 T ppTxFragmentProc
+4203aaa8 000006e8 t flex_update
+4201939c 0000070d T lv_obj_get_scrollbar_area
+420e9fd4 0000073d T rtc_init
+4204e2c0 00000742 T set_esp_interface_ip(esp_interface_t, IPAddress, IPAddress, IPAddress, IPAddress)
+4201e4b0 00000781 T lv_draw_label_iterate_characters
+420b1918 0000079c T scan_parse_beacon
+42005b50 000007eb T AlarmManager::deserialize(ArduinoJson::V743PB22::JsonDocument&, Alarm&) const
+4200ddd4 0000080a T WebServerManager::handleCreateAlarm()
+420a50a8 00000890 T hostap_recv_mgmt
+4206e014 000008c3 T wpa_sm_rx_eapol
+42034c84 000008cb T lv_draw_sw_blur
+420b4184 000008cb T sta_recv_mgmt
+4204454c 0000091d T lv_draw_sw_blend_image_to_argb8888_premultiplied
+4203b214 00000a2c t grid_update
+3fcc2938 00000ad8 B ftm_initiator
+420783d0 00000ade t tcp_receive
+420b22d8 00000b01 T ieee80211_sta_new_state
+42041378 00000b41 T lv_draw_sw_blend_image_to_al88
+3c1414f4 00000bad d kern_class_values
+3c13dfa0 00000bad d kern_class_values
+42046994 00000c55 T lv_draw_sw_blend_image_to_l8
+420d783c 00000c80 T _dtoa_r
+42052050 00000cab T WebServer::_parseRequest(WiFiClient&)
+42035cd0 00000d1f T lv_draw_sw_box_shadow
+42024528 00000d47 t theme_apply
+420512ec 00000d62 T WebServer::_parseForm(WiFiClient&, String, unsigned int)
+4202a418 00000d82 t lv_chart_event
+42081fdc 00000e06 T nd6_input
+4203740c 00000e10 t img_draw_core
+420392e4 00000e84 T lv_draw_sw_transform
+42078eb0 00000e85 T tcp_input
+4204b86c 00000ea9 T lv_draw_sw_blend_image_to_rgb888
+3fcc3cf0 00000ed8 B g_cnxMgr
+42045498 0000111d T lv_draw_sw_blend_image_to_i1
+42042728 00001450 T lv_draw_sw_blend_image_to_argb8888
+42047bfc 000016e3 T lv_draw_sw_blend_image_to_rgb565
+42049964 00001a25 T lv_draw_sw_blend_image_to_rgb565_swapped
+4202530c 00001ad4 T lv_theme_default_init
+420dbbdc 00001f8d T __ssvfiscanf_r
+420d9aa8 00001fc2 T _svfiprintf_r
+420de228 000020a2 T _vfiprintf_r
+3c13f228 00002280 d glyph_bitmap
+3fcadb00 00002580 b WebServerManager::handleSD()::entries
+420d0aa0 00002ecb T _svfprintf_r
+420d4420 00002fda T _vfprintf_r
+3c14277c 00007ee4 d glyph_bitmap
+3c0f3558 0000a59a d glyph_bitmap
+3fcb01ac 00010000 b work_mem_int$8259
+3fc9a570 00013588 B app
+3c12849c 00015000 D VL53L8CX_FIRMWARE
+3c0fdba0 000294fd d glyph_bitmap
+
+==================== PLATFORMIO SIZE ====================
+Processing esp32-s3 (platform: espressif32; board: esp32-s3-devkitc-1; framework: arduino)
+--------------------------------------------------------------------------------
+Verbose mode can be enabled via `-v, --verbose` option
+CONFIGURATION: https://docs.platformio.org/page/boards/espressif32/esp32-s3-devkitc-1.html
+PLATFORM: Espressif 32 (7.1.2) > Espressif ESP32-S3-DevKitC-1-N8 (8 MB QD, No PSRAM)
+HARDWARE: ESP32S3 240MHz, 320KB RAM, 8MB Flash
+DEBUG: Current (esp-builtin) On-board (esp-builtin) External (cmsis-dap, esp-bridge, esp-prog, iot-bus-jtag, jlink, minimodule, olimex-arm-usb-ocd, olimex-arm-usb-ocd-h, olimex-arm-usb-tiny-h, olimex-jtag-tiny, tumpa)
+PACKAGES: 
+ - framework-arduinoespressif32 @ 4.20017.260907+sha.dcc1105b 
+ - tool-esptoolpy @ 2.41100.260830 (4.11.0) 
+ - toolchain-riscv32-esp @ 8.4.0+2021r2-patch5 
+ - toolchain-xtensa-esp32s3 @ 8.4.0+2021r2-patch5
+LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf
+LDF Modes: Finder ~ chain, Compatibility ~ soft
+Found 47 compatible libraries
+Scanning dependencies...
+Dependency Graph
+|-- Adafruit SHT4x Library @ 1.0.5
+|-- Adafruit VEML7700 Library @ 2.1.6
+|-- Adafruit BusIO @ 1.17.4
+|-- Adafruit Unified Sensor @ 1.1.15
+|-- RTClib @ 2.1.4
+|-- ArduinoJson @ 7.4.3
+|-- Adafruit ST7735 and ST7789 Library @ 1.11.0
+|-- Adafruit GFX Library @ 1.12.6
+|-- STM32duino VL53L8CX @ 2.1.0
+|-- Adafruit NeoPixel @ 1.15.5
+|-- lvgl @ 9.5.0
+|-- WiFi @ 2.0.0
+|-- Wire @ 2.0.0
+|-- FS @ 2.0.0
+|-- SD @ 2.0.0
+|-- SPI @ 2.0.0
+|-- Preferences @ 2.0.0
+|-- LittleFS @ 2.0.0
+|-- WebServer @ 2.0.0
+Building in release mode
+Calculating size .pio\build\esp32-s3\firmware.elf
+   text	   data	    bss	    dec	    hex	filename
+1047349	 552984	1213477	2813810	 2aef72	.pio\build\esp32-s3\firmware.elf
+========================= [SUCCESS] Took 11.38 seconds =========================

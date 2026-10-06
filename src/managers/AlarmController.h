@@ -6,30 +6,32 @@
 #include "managers/AlarmManager.h"
 
 
+// ============================================================
+// ALARM CONTROLLER
+// ============================================================
+
 class AlarmController
 {
 public:
 
-    // ========================================================
-    // CALLBACK TYPES
-    // ========================================================
-
     using MatrixCallback =
-        std::function<void(const AlarmMatrix& matrix)>;
+        std::function<void(
+            const AlarmMatrix& matrix
+        )>;
 
     using AudioCallback =
-        std::function<void(const AlarmAudio& audio)>;
+        std::function<void(
+            const AlarmAudio& audio
+        )>;
 
     using CobCallback =
-        std::function<void(const AlarmCob& cob)>;
+        std::function<void(
+            const AlarmCob& cob
+        )>;
 
     using StopCallback =
         std::function<void()>;
 
-
-    // ========================================================
-    // CONSTRUCTOR
-    // ========================================================
 
     explicit AlarmController(
         AlarmManager& alarmManager
@@ -41,6 +43,7 @@ public:
     // ========================================================
 
     void begin();
+
     void update();
 
 
@@ -111,17 +114,12 @@ private:
 
 
     // ========================================================
-    // PHASE
+    // OUTPUT
     // ========================================================
 
     void executePhase(
         const AlarmPhase& phase
     );
-
-
-    // ========================================================
-    // OUTPUT CONTROL
-    // ========================================================
 
     void stopOutputs();
 
@@ -131,19 +129,14 @@ private:
     AlarmManager& _alarmManager;
 
 
-    // ========================================================
-    // CALLBACKS
-    // ========================================================
-
     MatrixCallback _matrixCallback;
-    AudioCallback  _audioCallback;
-    CobCallback    _cobCallback;
-    StopCallback   _stopCallback;
 
+    AudioCallback _audioCallback;
 
-    // ========================================================
-    // RUNTIME STATE
-    // ========================================================
+    CobCallback _cobCallback;
+
+    StopCallback _stopCallback;
+
 
     bool _active = false;
 

@@ -59,12 +59,18 @@ void AlarmController::begin()
 void AlarmController::update()
 {
     /*
-     * Время и переходы фаз контролирует AlarmManager.
+     * AlarmController не управляет временем.
      *
-     * AlarmController здесь ничего не вычисляет.
+     * Все переходы:
      *
-     * Метод оставлен для будущих задач:
-     * например, плавного управления эффектами.
+     *   alarm start
+     *   phase start
+     *   alarm finish
+     *
+     * выполняются AlarmManager.
+     *
+     * Метод оставлен для будущих controller-level
+     * эффектов и должен вызываться из main loop.
      */
 }
 
@@ -78,7 +84,7 @@ void AlarmController::setMatrixCallback(
 )
 {
     _matrixCallback =
-        callback;
+        std::move(callback);
 }
 
 
@@ -91,7 +97,7 @@ void AlarmController::setAudioCallback(
 )
 {
     _audioCallback =
-        callback;
+        std::move(callback);
 }
 
 
@@ -104,7 +110,7 @@ void AlarmController::setCobCallback(
 )
 {
     _cobCallback =
-        callback;
+        std::move(callback);
 }
 
 
@@ -117,7 +123,7 @@ void AlarmController::setStopCallback(
 )
 {
     _stopCallback =
-        callback;
+        std::move(callback);
 }
 
 
@@ -152,23 +158,26 @@ uint8_t AlarmController::phaseIndex() const
 
 
 // ============================================================
-// TRIGGERED
+// ON TRIGGERED
 // ============================================================
 
 void AlarmController::onTriggered(
     const Alarm& alarm
 )
 {
-    _active = true;
+    _active =
+        true;
 
-    _alarmId = alarm.id;
+    _alarmId =
+        alarm.id;
 
-    _phaseIndex = 0;
+    _phaseIndex =
+        0;
 }
 
 
 // ============================================================
-// PHASE CHANGED
+// ON PHASE CHANGED
 // ============================================================
 
 void AlarmController::onPhaseChanged(
@@ -177,24 +186,26 @@ void AlarmController::onPhaseChanged(
     const AlarmPhase& phase
 )
 {
-    // --------------------------------------------------------
-    // Проверяем, что это текущий будильник
-    // --------------------------------------------------------
-
-    if (alarm.id != _alarmId)
+    if (!_active)
         return;
 
 
-    _active = true;
+    if (
+        alarm.id !=
+        _alarmId
+    )
+    {
+        return;
+    }
 
-    _phaseIndex = phaseIndex;
+
+    _phaseIndex =
+        phaseIndex;
 
 
-    // --------------------------------------------------------
-    // Применяем временный override
-    // --------------------------------------------------------
-
-    executePhase(phase);
+    executePhase(
+        phase
+    );
 }
 
 
@@ -206,10 +217,6 @@ void AlarmController::executePhase(
     const AlarmPhase& phase
 )
 {
-    // ========================================================
-    // MATRIX
-    // ========================================================
-
     if (_matrixCallback)
     {
         _matrixCallback(
@@ -218,10 +225,6 @@ void AlarmController::executePhase(
     }
 
 
-    // ========================================================
-    // AUDIO
-    // ========================================================
-
     if (_audioCallback)
     {
         _audioCallback(
@@ -229,10 +232,6 @@ void AlarmController::executePhase(
         );
     }
 
-
-    // ========================================================
-    // COB
-    // ========================================================
 
     if (_cobCallback)
     {
@@ -244,33 +243,37 @@ void AlarmController::executePhase(
 
 
 // ============================================================
-// FINISHED
+// ON FINISHED
 // ============================================================
 
 void AlarmController::onFinished(
     const String& id
 )
 {
-    if (id != _alarmId)
+    if (!_active)
         return;
 
 
-    // --------------------------------------------------------
-    // Сначала убираем alarm override
-    // --------------------------------------------------------
+    if (
+        id !=
+        _alarmId
+    )
+    {
+        return;
+    }
+
 
     stopOutputs();
 
 
-    // --------------------------------------------------------
-    // Сбрасываем runtime Controller
-    // --------------------------------------------------------
+    _active =
+        false;
 
-    _active = false;
+    _alarmId =
+        String();
 
-    _alarmId = "";
-
-    _phaseIndex = 0;
+    _phaseIndex =
+        0;
 }
 
 
@@ -280,20 +283,22 @@ void AlarmController::onFinished(
 
 void AlarmController::stopOutputs()
 {
-    if (_stopCallback)
-    {
-        /*
-         * ВАЖНО:
-         *
-         * Здесь не изменяем SettingsManager.
-         *
-         * StopCallback должен убрать alarm override
-         * и вернуть Matrix / COB / Sound к обычному
-         * EffectiveState.
-         */
+    if (!_stopCallback)
+        return;
 
-        _stopCallback();
-    }
+
+    /*
+     * Controller не меняет SettingsManager.
+     *
+     * StopCallback должен:
+     *
+     * 1. удалить alarm override;
+     * 2. пересчитать EffectiveState;
+     * 3. вернуть Matrix / COB / Audio
+     *    к обычному состоянию.
+     */
+
+    _stopCallback();
 }
 
 
@@ -305,6 +310,7 @@ bool AlarmController::dismiss()
 {
     if (!_active)
         return false;
+
 
     return _alarmManager.dismiss();
 }
@@ -321,6 +327,11 @@ bool AlarmController::snooze(
     if (!_active)
         return false;
 
+
+    if (durationMs == 0)
+        return false;
+
+
     return _alarmManager.snooze(
         durationMs
     );
@@ -335,6 +346,7 @@ void AlarmController::stop()
 {
     if (!_active)
         return;
+
 
     _alarmManager.finish();
 }

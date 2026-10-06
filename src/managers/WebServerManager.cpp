@@ -1,90 +1,171 @@
 #include "WebServerManager.h"
 
 #include <cstring>
+#include <memory>
+#include <new>
 
-
-// ============================================================
-// ALARM PATH HELPERS
-// ============================================================
 
 namespace
 {
-    bool isAlarmCollectionPath(const String& uri)
-    {
-        return uri == "/api/alarms";
-    }
 
-    bool isAlarmItemPath(const String& uri)
-    {
-        static constexpr const char* PREFIX = "/api/alarms/";
+// ============================================================
+// HTTP CODES
+// ============================================================
 
-        if (!uri.startsWith(PREFIX))
-            return false;
+constexpr int HTTP_OK_CODE                  = 200;
+constexpr int HTTP_BAD_REQUEST_CODE        = 400;
+constexpr int HTTP_NOT_FOUND_CODE          = 404;
+constexpr int HTTP_CONFLICT_CODE           = 409;
+constexpr int HTTP_INTERNAL_ERROR_CODE     = 500;
+constexpr int HTTP_SERVICE_UNAVAILABLE_CODE = 503;
 
-        const String tail = uri.substring(
-            strlen(PREFIX)
-        );
 
-        return !tail.isEmpty() &&
-               tail.indexOf('/') < 0;
-    }
+// ============================================================
+// SERVER CONFIG
+// ============================================================
 
-    bool isAlarmEnabledPath(const String& uri)
-    {
-        static constexpr const char* PREFIX = "/api/alarms/";
-        static constexpr const char* SUFFIX = "/enabled";
+constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS =
+    20000UL;
 
-        if (!uri.startsWith(PREFIX))
-            return false;
+constexpr uint32_t MAX_SNOOZE_MS =
+    24UL * 60UL * 60UL * 1000UL;
 
-        if (!uri.endsWith(SUFFIX))
-            return false;
+constexpr size_t MAX_SD_FILES =
+    300;
 
-        const size_t prefixLength =
-            strlen(PREFIX);
 
-        const size_t suffixLength =
-            strlen(SUFFIX);
+// ============================================================
+// PATH HELPERS
+// ============================================================
 
-        if (uri.length() <=
-            prefixLength + suffixLength)
-        {
-            return false;
-        }
+bool isAlarmItemPath(
+    const String& uri
+)
+{
+    constexpr const char* PREFIX =
+        "/api/alarms/";
 
-        const String id = uri.substring(
-            prefixLength,
-            uri.length() - suffixLength
-        );
+    if (!uri.startsWith(PREFIX))
+        return false;
 
-        return !id.isEmpty() &&
-               id.indexOf('/') < 0;
-    }
+    const String id =
+        uri.substring(strlen(PREFIX));
 
-    String alarmIdFromUri(const String& uri)
-    {
-        static constexpr const char* PREFIX = "/api/alarms/";
+    if (id.isEmpty())
+        return false;
 
-        if (!isAlarmItemPath(uri))
-            return String();
+    if (id.indexOf('/') >= 0)
+        return false;
 
-        return uri.substring(strlen(PREFIX));
-    }
-
-    String alarmIdFromEnabledUri(const String& uri)
-    {
-        static constexpr const char* PREFIX = "/api/alarms/";
-        static constexpr const char* SUFFIX = "/enabled";
-
-        if (!isAlarmEnabledPath(uri))
-            return String();
-
-        return uri.substring(
-            strlen(PREFIX),
-            uri.length() - strlen(SUFFIX)
-        );
-    }
+    return true;
 }
+
+
+// ============================================================
+// ALARM ENABLE PATH
+// ============================================================
+
+bool isAlarmEnabledPath(
+    const String& uri
+)
+{
+    constexpr const char* PREFIX =
+        "/api/alarms/";
+
+    constexpr const char* SUFFIX =
+        "/enabled";
+
+    if (!uri.startsWith(PREFIX))
+        return false;
+
+    if (!uri.endsWith(SUFFIX))
+        return false;
+
+    const int start =
+        strlen(PREFIX);
+
+    const int end =
+        uri.length() - strlen(SUFFIX);
+
+    if (end <= start)
+        return false;
+
+    const String id =
+        uri.substring(start, end);
+
+    if (id.isEmpty())
+        return false;
+
+    if (id.indexOf('/') >= 0)
+        return false;
+
+    return true;
+}
+
+
+// ============================================================
+// ALARM ID FROM URI
+// ============================================================
+
+String alarmIdFromUri(
+    const String& uri
+)
+{
+    constexpr const char* PREFIX =
+        "/api/alarms/";
+
+    if (!uri.startsWith(PREFIX))
+        return String();
+
+    String id =
+        uri.substring(strlen(PREFIX));
+
+    const int slash =
+        id.indexOf('/');
+
+    if (slash >= 0)
+    {
+        id =
+            id.substring(0, slash);
+    }
+
+    return id;
+}
+
+
+// ============================================================
+// ALARM ID FROM ENABLE PATH
+// ============================================================
+
+String alarmIdFromEnabledUri(
+    const String& uri
+)
+{
+    constexpr const char* PREFIX =
+        "/api/alarms/";
+
+    constexpr const char* SUFFIX =
+        "/enabled";
+
+    if (!uri.startsWith(PREFIX))
+        return String();
+
+    if (!uri.endsWith(SUFFIX))
+        return String();
+
+    const int start =
+        strlen(PREFIX);
+
+    const int end =
+        uri.length() - strlen(SUFFIX);
+
+    if (end <= start)
+        return String();
+
+    return uri.substring(start, end);
+}
+
+} // namespace
 
 
 // ============================================================
@@ -115,22 +196,21 @@ bool WebServerManager::begin(
     const char* password
 )
 {
+    if (_initialized)
+        return true;
+
+    if (ssid == nullptr)
+        return false;
+
     _settings = &settings;
     _sd       = &sd;
     _sound    = &sound;
 
-    // --------------------------------------------------------
-    // WiFi
-    // --------------------------------------------------------
-
     WiFi.mode(WIFI_STA);
 
-    WiFi.disconnect(
-        true,
-        true
-    );
+    WiFi.disconnect(true);
 
-    delay(300);
+    delay(100);
 
     WiFi.begin(
         ssid,
@@ -142,66 +222,23 @@ bool WebServerManager::begin(
 
     while (
         WiFi.status() != WL_CONNECTED &&
-        millis() - startTime < 20000
+        millis() - startTime < WIFI_CONNECT_TIMEOUT_MS
     )
     {
-        delay(500);
+        delay(100);
     }
 
     if (WiFi.status() != WL_CONNECTED)
-    {
-        Serial0.println(
-            "[WEB] WiFi connection failed"
-        );
-
         return false;
-    }
-
-    Serial0.print(
-        "[WEB] WiFi connected: "
-    );
-
-    Serial0.println(
-        WiFi.localIP()
-    );
-
-
-    // --------------------------------------------------------
-    // LittleFS
-    // --------------------------------------------------------
 
     if (!LittleFS.begin(true))
-    {
-        Serial0.println(
-            "[WEB] LittleFS mount failed"
-        );
-
         return false;
-    }
-
-
-    // --------------------------------------------------------
-    // Routes
-    // --------------------------------------------------------
 
     setupRoutes();
-
-
-    // --------------------------------------------------------
-    // Server
-    // --------------------------------------------------------
 
     _server.begin();
 
     _initialized = true;
-
-    Serial0.print(
-        "[WEB] Server: http://"
-    );
-
-    Serial0.println(
-        WiFi.localIP()
-    );
 
     return true;
 }
@@ -217,10 +254,6 @@ void WebServerManager::setAlarmManager(
 {
     _alarmManager =
         &alarmManager;
-
-    Serial0.println(
-        "[WEB][ALARM] AlarmManager attached"
-    );
 }
 
 
@@ -234,10 +267,6 @@ void WebServerManager::setAlarmController(
 {
     _alarmController =
         &alarmController;
-
-    Serial0.println(
-        "[WEB][ALARM] AlarmController attached"
-    );
 }
 
 
@@ -255,13 +284,38 @@ void WebServerManager::update()
 
 
 // ============================================================
+// CONNECTION
+// ============================================================
+
+bool WebServerManager::isConnected() const
+{
+    return
+        _initialized &&
+        WiFi.status() == WL_CONNECTED;
+}
+
+
+// ============================================================
+// IP
+// ============================================================
+
+String WebServerManager::getIP() const
+{
+    if (WiFi.status() != WL_CONNECTED)
+        return String();
+
+    return WiFi.localIP().toString();
+}
+
+
+// ============================================================
 // ROUTES
 // ============================================================
 
 void WebServerManager::setupRoutes()
 {
     // ========================================================
-    // WEB UI
+    // ROOT
     // ========================================================
 
     _server.on(
@@ -415,6 +469,11 @@ void WebServerManager::setupRoutes()
         }
     );
 
+
+    // ========================================================
+    // LEGACY ALARM API
+    // ========================================================
+
     _server.on(
         "/api/alarm",
         HTTP_GET,
@@ -450,6 +509,11 @@ void WebServerManager::setupRoutes()
             handleDeleteAlarm();
         }
     );
+
+
+    // ========================================================
+    // LEGACY ALARM CONTROL
+    // ========================================================
 
     _server.on(
         "/api/alarm/enable",
@@ -498,7 +562,7 @@ void WebServerManager::setupRoutes()
 
 
     // ========================================================
-    // 404
+    // NOT FOUND / DYNAMIC ROUTES
     // ========================================================
 
     _server.onNotFound(
@@ -518,9 +582,8 @@ void WebServerManager::handleRoot()
 {
     if (!LittleFS.exists("/index.html"))
     {
-        _server.send(
-            404,
-            "text/plain",
+        sendError(
+            HTTP_NOT_FOUND_CODE,
             "index.html not found"
         );
 
@@ -530,14 +593,13 @@ void WebServerManager::handleRoot()
     File file =
         LittleFS.open(
             "/index.html",
-            "r"
+            FILE_READ
         );
 
     if (!file)
     {
-        _server.send(
-            500,
-            "text/plain",
+        sendError(
+            HTTP_INTERNAL_ERROR_CODE,
             "failed to open index.html"
         );
 
@@ -554,128 +616,87 @@ void WebServerManager::handleRoot()
 
 
 // ============================================================
-// 404
+// NOT FOUND
 // ============================================================
 
 void WebServerManager::handleNotFound()
 {
-    const String uri = _server.uri();
+    const String uri =
+        _server.uri();
 
-    Serial0.println();
-    Serial0.println(
-        "[WEB][404] Request"
-    );
+    const HTTPMethod method =
+        _server.method();
 
-    Serial0.print(
-        "[WEB][404] URI: "
-    );
 
-    Serial0.println(uri);
-
-    Serial0.print(
-        "[WEB][404] Method: "
-    );
-
-    Serial0.println(
-        static_cast<int>(
-            _server.method()
-        )
-    );
-
-    // --------------------------------------------------------
-    // REST alarm API
-    //
-    // GET    /api/alarms/<id>
-    // PUT    /api/alarms/<id>
-    // DELETE /api/alarms/<id>
-    // POST   /api/alarms/<id>/enabled
-    // --------------------------------------------------------
-
-    if (isAlarmItemPath(uri))
-    {
-        const String id =
-            alarmIdFromUri(uri);
-
-        Serial0.print(
-            "[WEB][ALARM] REST item ID: "
-        );
-
-        Serial0.println(id);
-
-        if (!id.isEmpty())
-        {
-            if (_server.method() == HTTP_GET)
-            {
-                Serial0.println(
-                    "[WEB][ALARM] -> GET alarm"
-                );
-
-                handleGetAlarm();
-
-                return;
-            }
-
-            if (_server.method() == HTTP_PUT)
-            {
-                Serial0.println(
-                    "[WEB][ALARM] -> PUT alarm"
-                );
-
-                handleUpdateAlarm();
-
-                return;
-            }
-
-            if (_server.method() == HTTP_DELETE)
-            {
-                Serial0.println(
-                    "[WEB][ALARM] -> DELETE alarm"
-                );
-
-                handleDeleteAlarm();
-
-                return;
-            }
-        }
-    }
+    // ========================================================
+    // GET /api/alarms/{id}
+    // ========================================================
 
     if (
-        isAlarmEnabledPath(uri) &&
-        _server.method() == HTTP_POST
+        method == HTTP_GET &&
+        isAlarmItemPath(uri)
     )
     {
-        Serial0.println(
-            "[WEB][ALARM] -> POST enabled"
-        );
+        handleGetAlarm();
+        return;
+    }
 
-        if (!_alarmManager)
+
+    // ========================================================
+    // PUT /api/alarms/{id}
+    // ========================================================
+
+    if (
+        method == HTTP_PUT &&
+        isAlarmItemPath(uri)
+    )
+    {
+        handleUpdateAlarm();
+        return;
+    }
+
+
+    // ========================================================
+    // DELETE /api/alarms/{id}
+    // ========================================================
+
+    if (
+        method == HTTP_DELETE &&
+        isAlarmItemPath(uri)
+    )
+    {
+        handleDeleteAlarm();
+        return;
+    }
+
+
+    // ========================================================
+    // POST /api/alarms/{id}/enabled
+    // ========================================================
+
+    if (
+        method == HTTP_POST &&
+        isAlarmEnabledPath(uri)
+    )
+    {
+        const String id =
+            alarmIdFromEnabledUri(uri);
+
+        if (!isValidAlarmId(id))
         {
-            Serial0.println(
-                "[WEB][ALARM][ERROR] AlarmManager is null"
-            );
-
             sendError(
-                503,
-                "alarm manager not initialized"
+                HTTP_BAD_REQUEST_CODE,
+                "invalid alarm id"
             );
 
             return;
         }
 
-        const String id =
-            alarmIdFromEnabledUri(uri);
-
-        Serial0.print(
-            "[WEB][ALARM] Enabled ID: "
-        );
-
-        Serial0.println(id);
-
-        if (id.isEmpty())
+        if (_alarmManager == nullptr)
         {
             sendError(
-                400,
-                "missing id"
+                HTTP_SERVICE_UNAVAILABLE_CODE,
+                "alarm manager unavailable"
             );
 
             return;
@@ -686,82 +707,70 @@ void WebServerManager::handleNotFound()
         if (!parseJson(doc))
             return;
 
-        if (doc["enabled"].isNull())
-        {
-            Serial0.println(
-                "[WEB][ALARM][ERROR] enabled missing"
-            );
+        JsonObjectConst root =
+            doc.as<JsonObjectConst>();
 
+        bool enabled = false;
+
+        if (
+            !getBoolean(
+                root,
+                "enabled",
+                enabled
+            )
+        )
+        {
             sendError(
-                400,
-                "missing enabled"
+                HTTP_BAD_REQUEST_CODE,
+                "enabled must be boolean"
             );
 
             return;
         }
 
-        const bool enabled =
-            doc["enabled"].as<bool>();
-
-        Serial0.print(
-            "[WEB][ALARM] Set enabled = "
-        );
-
-        Serial0.println(
-            enabled
-                ? "true"
-                : "false"
-        );
-
-        if (!_alarmManager->setEnabled(
+        if (
+            !_alarmManager->setEnabled(
                 id,
                 enabled
-            ))
+            )
+        )
         {
-            Serial0.println(
-                "[WEB][ALARM][ERROR] setEnabled() failed"
-            );
-
             sendError(
-                404,
-                "alarm not found"
+                HTTP_BAD_REQUEST_CODE,
+                "failed to change alarm state"
             );
 
             return;
         }
-
-        Serial0.println(
-            "[WEB][ALARM] setEnabled() OK"
-        );
 
         sendOk();
 
         return;
     }
 
-    Serial0.println(
-        "[WEB][404] Not found"
-    );
 
-    _server.send(
-        404,
-        "text/plain",
-        "404 - Not Found"
+    // ========================================================
+    // UNKNOWN ROUTE
+    // ========================================================
+
+    sendError(
+        HTTP_NOT_FOUND_CODE,
+        "route not found"
     );
 }
 
 
 // ============================================================
-// GET /api/param
+// GET PARAM
 // ============================================================
 
 void WebServerManager::handleGetParam()
 {
-    if (!_settings)
+    if (_settings == nullptr)
     {
         sendError(
-            500,
-            "settings not initialized"
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "settings unavailable"
         );
 
         return;
@@ -771,14 +780,13 @@ void WebServerManager::handleGetParam()
         _server.arg("name");
 
     if (name.isEmpty())
-        name =
-            _server.arg("param");
+        name = _server.arg("param");
 
     if (name.isEmpty())
     {
         sendError(
-            400,
-            "missing name"
+            HTTP_BAD_REQUEST_CODE,
+            "missing parameter name"
         );
 
         return;
@@ -790,13 +798,12 @@ void WebServerManager::handleGetParam()
         );
 
     if (
-        param ==
-        SettingsManager::Param::COUNT
+        param >= SettingsManager::Param::COUNT
     )
     {
         sendError(
-            400,
-            "unknown param"
+            HTTP_BAD_REQUEST_CODE,
+            "unknown parameter"
         );
 
         return;
@@ -807,14 +814,22 @@ void WebServerManager::handleGetParam()
     doc["ok"] = true;
 
     doc["param"] =
-        _settings->paramName(
-            param
-        );
+        _settings->paramName(param);
 
     doc["value"] =
-        _settings->get(
-            param
-        );
+        _settings->get(param);
+
+    const SettingsManager::ParamDesc& desc =
+        _settings->getDesc(param);
+
+    doc["min"] =
+        desc.minValue;
+
+    doc["max"] =
+        desc.maxValue;
+
+    doc["default"] =
+        desc.defaultValue;
 
     String body;
 
@@ -824,23 +839,23 @@ void WebServerManager::handleGetParam()
     );
 
     sendJson(
-        200,
+        HTTP_OK_CODE,
         body
     );
 }
 
 
 // ============================================================
-// POST /api/param
+// SET PARAM
 // ============================================================
 
 void WebServerManager::handleSetParam()
 {
-    if (!_settings)
+    if (_settings == nullptr)
     {
         sendError(
-            500,
-            "settings not initialized"
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "settings unavailable"
         );
 
         return;
@@ -851,100 +866,112 @@ void WebServerManager::handleSetParam()
     if (!parseJson(doc))
         return;
 
-    const char* name =
-        doc["param"];
+    JsonObjectConst root =
+        doc.as<JsonObjectConst>();
+
+    const char* name = nullptr;
+
+    if (root["param"].is<const char*>())
+        name = root["param"].as<const char*>();
 
     if (
-        !name ||
-        name[0] == '\0'
+        name == nullptr &&
+        root["name"].is<const char*>()
     )
     {
         name =
-            doc["name"];
+            root["name"].as<const char*>();
     }
 
     if (
-        !name ||
-        name[0] == '\0'
+        name == nullptr ||
+        *name == '\0'
     )
     {
         sendError(
-            400,
-            "missing param"
+            HTTP_BAD_REQUEST_CODE,
+            "missing parameter name"
         );
 
         return;
     }
 
-    if (doc["value"].isNull())
+    if (!root["value"].is<int>() &&
+        !root["value"].is<long>() &&
+        !root["value"].is<float>() &&
+        !root["value"].is<double>())
     {
         sendError(
-            400,
-            "missing value"
+            HTTP_BAD_REQUEST_CODE,
+            "invalid parameter value"
         );
 
         return;
     }
-
-    const int requestedValue =
-        doc["value"].as<int>();
 
     const SettingsManager::Param param =
-        _settings->paramFromName(
-            name
-        );
+        _settings->paramFromName(name);
 
     if (
-        param ==
-        SettingsManager::Param::COUNT
+        param >= SettingsManager::Param::COUNT
     )
     {
         sendError(
-            400,
-            "unknown param"
+            HTTP_BAD_REQUEST_CODE,
+            "unknown parameter"
         );
 
         return;
     }
 
-    const uint8_t oldValue =
-        _settings->get(
-            param
+    const SettingsManager::ParamDesc& desc =
+        _settings->getDesc(param);
+
+    long value =
+        root["value"].as<long>();
+
+    if (value < desc.minValue)
+        value = desc.minValue;
+
+    if (value > desc.maxValue)
+        value = desc.maxValue;
+
+    const int oldValue =
+        _settings->get(param);
+
+    if (
+        !_settings->set(
+            param,
+            static_cast<int>(value)
+        )
+    )
+    {
+        sendError(
+            HTTP_BAD_REQUEST_CODE,
+            "failed to set parameter"
         );
 
-    const uint8_t value =
-        static_cast<uint8_t>(
-            constrain(
-                requestedValue,
-                0,
-                255
-            )
-        );
+        return;
+    }
 
-    _settings->set(
-        param,
-        value
-    );
-
-    const uint8_t actualValue =
-        _settings->get(
-            param
-        );
+    const int actualValue =
+        _settings->get(param);
 
     JsonDocument response;
 
     response["ok"] = true;
 
     response["param"] =
-        _settings->paramName(
-            param
-        );
+        _settings->paramName(param);
 
     response["value"] =
         actualValue;
 
+    response["previous"] =
+        oldValue;
+
     response["changed"] =
-        actualValue != oldValue;
+        oldValue != actualValue;
 
     String body;
 
@@ -954,29 +981,34 @@ void WebServerManager::handleSetParam()
     );
 
     sendJson(
-        200,
+        HTTP_OK_CODE,
         body
     );
 }
 
 
 // ============================================================
-// GET /api/params
+// GET ALL PARAMS
 // ============================================================
 
 void WebServerManager::handleGetAllParams()
 {
-    if (!_settings)
+    if (_settings == nullptr)
     {
         sendError(
-            500,
-            "settings not initialized"
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "settings unavailable"
         );
 
         return;
     }
 
     JsonDocument doc;
+
+    doc["ok"] = true;
+
+    JsonObject params =
+        doc["params"].to<JsonObject>();
 
     for (
         uint8_t i = 0;
@@ -987,27 +1019,21 @@ void WebServerManager::handleGetAllParams()
     )
     {
         const SettingsManager::Param param =
-            static_cast<SettingsManager::Param>(
-                i
-            );
+            static_cast<SettingsManager::Param>(i);
 
         const char* name =
-            _settings->paramName(
-                param
-            );
+            _settings->paramName(param);
 
         if (
-            !name ||
-            name[0] == '\0'
+            name == nullptr ||
+            *name == '\0'
         )
         {
             continue;
         }
 
-        doc[name] =
-            _settings->get(
-                param
-            );
+        params[name] =
+            _settings->get(param);
     }
 
     String body;
@@ -1018,23 +1044,23 @@ void WebServerManager::handleGetAllParams()
     );
 
     sendJson(
-        200,
+        HTTP_OK_CODE,
         body
     );
 }
 
 
 // ============================================================
-// POST /api/reset
+// RESET
 // ============================================================
 
 void WebServerManager::handleReset()
 {
-    if (!_settings)
+    if (_settings == nullptr)
     {
         sendError(
-            500,
-            "settings not initialized"
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "settings unavailable"
         );
 
         return;
@@ -1047,17 +1073,33 @@ void WebServerManager::handleReset()
 
 
 // ============================================================
-// GET /api/sensors
+// SENSORS
 // ============================================================
 
 void WebServerManager::handleSensors()
 {
+    /*
+     * Здесь намеренно нет фиктивных значений.
+     *
+     * Реальные SHT45 / VEML7700 / VL53L8CX
+     * должны передаваться через соответствующий
+     * SensorManager.
+     *
+     * Пока SensorManager не подключён к этому классу,
+     * возвращаем состояние API.
+     */
+
     JsonDocument doc;
 
-    doc["temperature"] = 0;
-    doc["humidity"]    = 0;
-    doc["light"]       = 0;
-    doc["distance"]    = 0;
+    doc["ok"] = true;
+
+    JsonObject sensors =
+        doc["sensors"].to<JsonObject>();
+
+    sensors["temperature"] = nullptr;
+    sensors["humidity"] = nullptr;
+    sensors["light"] = nullptr;
+    sensors["distance"] = nullptr;
 
     String body;
 
@@ -1067,45 +1109,63 @@ void WebServerManager::handleSensors()
     );
 
     sendJson(
-        200,
+        HTTP_OK_CODE,
         body
     );
 }
 
 
 // ============================================================
-// GET /api/sd
+// SD
 // ============================================================
 
 void WebServerManager::handleSD()
 {
-    if (
-        !_sd ||
-        !_sd->isReady()
-    )
+    if (_sd == nullptr)
     {
         sendError(
-            503,
-            "SD not available"
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "sd unavailable"
         );
 
         return;
     }
 
-    static constexpr size_t MAX_FILES = 300;
-    static constexpr uint8_t MAX_DEPTH = 3;
+    if (!_sd->isReady())
+    {
+        sendError(
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "sd card not ready"
+        );
 
-    static SDFileEntry entries[MAX_FILES];
+        return;
+    }
+
+    std::unique_ptr<SDFileEntry[]> entries(
+        new (std::nothrow) SDFileEntry[MAX_SD_FILES]
+    );
+
+    if (!entries)
+    {
+        sendError(
+            HTTP_INTERNAL_ERROR_CODE,
+            "not enough memory for sd file list"
+        );
+
+        return;
+    }
 
     const size_t count =
         _sd->listFiles(
-            entries,
-            MAX_FILES,
-            MAX_DEPTH,
+            entries.get(),
+            MAX_SD_FILES,
+            3,
             "/"
         );
 
     JsonDocument doc;
+
+    doc["ok"] = true;
 
     JsonArray files =
         doc["files"].to<JsonArray>();
@@ -1127,9 +1187,12 @@ void WebServerManager::handleSD()
 
         item["type"] =
             entries[i].isDir
-                ? "dir"
+                ? "directory"
                 : "file";
     }
+
+    doc["count"] =
+        static_cast<uint32_t>(count);
 
     String body;
 
@@ -1139,26 +1202,33 @@ void WebServerManager::handleSD()
     );
 
     sendJson(
-        200,
+        HTTP_OK_CODE,
         body
     );
 }
 
 
 // ============================================================
-// POST /api/audio/play
+// AUDIO PLAY
 // ============================================================
 
 void WebServerManager::handleAudioPlay()
 {
-    if (
-        !_sound ||
-        !_sound->isInitialized()
-    )
+    if (_sound == nullptr)
     {
         sendError(
-            503,
-            "sound not ready"
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "sound manager unavailable"
+        );
+
+        return;
+    }
+
+    if (_sd == nullptr || !_sd->isReady())
+    {
+        sendError(
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "sd card not ready"
         );
 
         return;
@@ -1169,65 +1239,69 @@ void WebServerManager::handleAudioPlay()
     if (!parseJson(doc))
         return;
 
-    const char* path =
-        doc["path"];
+    JsonObjectConst root =
+        doc.as<JsonObjectConst>();
+
+    const char* path = nullptr;
+
+    if (root["path"].is<const char*>())
+        path = root["path"].as<const char*>();
 
     if (
-        !path ||
-        path[0] == '\0'
+        path == nullptr &&
+        root["file"].is<const char*>()
+    )
+    {
+        path =
+            root["file"].as<const char*>();
+    }
+
+    if (
+        path == nullptr ||
+        *path == '\0'
     )
     {
         sendError(
-            400,
-            "missing path"
+            HTTP_BAD_REQUEST_CODE,
+            "missing audio path"
         );
 
         return;
     }
 
-    if (
-        !_sd ||
-        !_sd->isReady()
-    )
+    if (!_sd->fileExists(path))
     {
         sendError(
-            503,
-            "SD not available"
+            HTTP_NOT_FOUND_CODE,
+            "audio file not found"
         );
 
         return;
     }
 
-    if (!_sd->card().exists(path))
-    {
-        sendError(
-            404,
-            "file not found"
-        );
 
-        return;
-    }
+    // ========================================================
+    // PLAY OPTIONS
+    // ========================================================
 
     SoundManager::PlayOptions options;
 
-    const char* stream =
-        doc["stream"] | "media";
 
-    if (
-        strcmp(
-            stream,
-            "alarm"
-        ) == 0
-    )
+    // --------------------------------------------------------
+    // STREAM
+    // --------------------------------------------------------
+
+    const char* streamName =
+        root["stream"] |
+        "media";
+
+    if (strcmp(streamName, "alarm") == 0)
     {
         options.stream =
             SoundManager::AudioStream::Alarm;
     }
     else if (
-        strcmp(
-            stream,
-            "system"
-        ) == 0
+        strcmp(streamName, "system") == 0
     )
     {
         options.stream =
@@ -1239,71 +1313,98 @@ void WebServerManager::handleAudioPlay()
             SoundManager::AudioStream::Media;
     }
 
-    int volume = 100;
 
-    if (!doc["localPercent"].isNull())
-    {
-        volume =
-            doc["localPercent"].as<int>();
-    }
-    else if (!doc["volume"].isNull())
-    {
-        volume =
-            doc["volume"].as<int>();
-    }
+    // --------------------------------------------------------
+    // LOCAL VOLUME
+    // --------------------------------------------------------
 
-    volume =
-        constrain(
-            volume,
-            0,
-            100
-        );
-
-    options.localPercent =
-        static_cast<uint8_t>(
-            volume
-        );
-
-    if (!doc["fadeInMs"].isNull())
+    if (root["volume"].is<int>())
     {
-        options.fadeInMs =
-            doc["fadeInMs"].as<uint32_t>();
-    }
-    else
-    {
-        options.fadeInMs =
-            doc["fade_in"] | 0;
+        const int volume =
+            root["volume"].as<int>();
+
+        options.localPercent =
+            static_cast<uint8_t>(
+                constrain(
+                    volume,
+                    0,
+                    100
+                )
+            );
     }
 
-    if (!doc["fadeOutMs"].isNull())
-    {
-        options.fadeOutMs =
-            doc["fadeOutMs"].as<uint32_t>();
-    }
-    else
-    {
-        options.fadeOutMs =
-            doc["fade_out"] | 0;
-    }
 
-    const char* curve =
-        doc["curve"] | "linear";
+    // --------------------------------------------------------
+    // FADE IN
+    // --------------------------------------------------------
+
+    uint32_t fadeInMs = 0;
 
     if (
-        strcmp(
-            curve,
-            "exp"
-        ) == 0
+        getUnsigned32(
+            root,
+            "fadeInMs",
+            fadeInMs
+        )
     )
+    {
+        options.fadeInMs =
+            fadeInMs;
+    }
+    else
+    {
+        getUnsigned32(
+            root,
+            "fade_in",
+            options.fadeInMs
+        );
+    }
+
+
+    // --------------------------------------------------------
+    // FADE OUT
+    // --------------------------------------------------------
+
+    uint32_t fadeOutMs = 0;
+
+    if (
+        getUnsigned32(
+            root,
+            "fadeOutMs",
+            fadeOutMs
+        )
+    )
+    {
+        options.fadeOutMs =
+            fadeOutMs;
+    }
+    else
+    {
+        getUnsigned32(
+            root,
+            "fade_out",
+            options.fadeOutMs
+        );
+    }
+
+
+    // --------------------------------------------------------
+    // FADE CURVE
+    // --------------------------------------------------------
+
+    const char* curve =
+        root["curve"] |
+        "linear";
+
+    if (strcmp(curve, "exp") == 0 ||
+        strcmp(curve, "exponential") == 0)
     {
         options.curve =
             SoundManager::FadeCurve::Exponential;
     }
     else if (
-        strcmp(
-            curve,
-            "log"
-        ) == 0
+        strcmp(curve, "log") == 0 ||
+        strcmp(curve, "logarithmic") == 0
     )
     {
         options.curve =
@@ -1315,14 +1416,21 @@ void WebServerManager::handleAudioPlay()
             SoundManager::FadeCurve::Linear;
     }
 
-    if (!_sound->play(
+
+    // ========================================================
+    // PLAY
+    // ========================================================
+
+    if (
+        !_sound->play(
             path,
             options
-        ))
+        )
+    )
     {
         sendError(
-            500,
-            "play failed"
+            HTTP_BAD_REQUEST_CODE,
+            "failed to play audio"
         );
 
         return;
@@ -1333,19 +1441,16 @@ void WebServerManager::handleAudioPlay()
 
 
 // ============================================================
-// POST /api/audio/pause
+// AUDIO PAUSE
 // ============================================================
 
 void WebServerManager::handleAudioPause()
 {
-    if (
-        !_sound ||
-        !_sound->isInitialized()
-    )
+    if (_sound == nullptr)
     {
         sendError(
-            503,
-            "sound not ready"
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "sound manager unavailable"
         );
 
         return;
@@ -1354,8 +1459,8 @@ void WebServerManager::handleAudioPause()
     if (!_sound->isPlaying())
     {
         sendError(
-            409,
-            "not playing"
+            HTTP_CONFLICT_CODE,
+            "audio is not playing"
         );
 
         return;
@@ -1364,8 +1469,8 @@ void WebServerManager::handleAudioPause()
     if (!_sound->pause())
     {
         sendError(
-            500,
-            "pause failed"
+            HTTP_BAD_REQUEST_CODE,
+            "failed to pause audio"
         );
 
         return;
@@ -1376,19 +1481,16 @@ void WebServerManager::handleAudioPause()
 
 
 // ============================================================
-// POST /api/audio/resume
+// AUDIO RESUME
 // ============================================================
 
 void WebServerManager::handleAudioResume()
 {
-    if (
-        !_sound ||
-        !_sound->isInitialized()
-    )
+    if (_sound == nullptr)
     {
         sendError(
-            503,
-            "sound not ready"
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "sound manager unavailable"
         );
 
         return;
@@ -1397,8 +1499,8 @@ void WebServerManager::handleAudioResume()
     if (!_sound->isPaused())
     {
         sendError(
-            409,
-            "not paused"
+            HTTP_CONFLICT_CODE,
+            "audio is not paused"
         );
 
         return;
@@ -1407,8 +1509,8 @@ void WebServerManager::handleAudioResume()
     if (!_sound->resume())
     {
         sendError(
-            500,
-            "resume failed"
+            HTTP_BAD_REQUEST_CODE,
+            "failed to resume audio"
         );
 
         return;
@@ -1419,80 +1521,72 @@ void WebServerManager::handleAudioResume()
 
 
 // ============================================================
-// POST /api/audio/stop
+// AUDIO STOP
 // ============================================================
 
 void WebServerManager::handleAudioStop()
 {
-    if (
-        !_sound ||
-        !_sound->isInitialized()
-    )
+    if (_sound == nullptr)
     {
         sendError(
-            503,
-            "sound not ready"
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "sound manager unavailable"
         );
 
         return;
     }
 
-    uint32_t fadeOut = 0;
+    uint32_t fadeOutMs = 0;
 
-    if (_server.hasArg("plain"))
+    if (
+        _server.hasArg("plain") &&
+        !_server.arg("plain").isEmpty()
+    )
     {
         JsonDocument doc;
 
-        const DeserializationError error =
-            deserializeJson(
-                doc,
-                _server.arg("plain")
-            );
+        if (!parseJson(doc))
+            return;
 
-        if (!error)
+        JsonObjectConst root =
+            doc.as<JsonObjectConst>();
+
+        if (
+            !getUnsigned32(
+                root,
+                "fadeOutMs",
+                fadeOutMs
+            )
+        )
         {
-            if (!doc["fadeOutMs"].isNull())
-            {
-                fadeOut =
-                    doc["fadeOutMs"].as<uint32_t>();
-            }
-            else
-            {
-                fadeOut =
-                    doc["fade_out"] | 0;
-            }
+            getUnsigned32(
+                root,
+                "fade_out",
+                fadeOutMs
+            );
         }
     }
 
-    if (fadeOut > 0)
-    {
-        _sound->stop(
-            fadeOut
-        );
-    }
+    if (fadeOutMs > 0)
+        _sound->stop(fadeOutMs);
     else
-    {
         _sound->stop();
-    }
 
     sendOk();
 }
 
 
 // ============================================================
-// GET /api/audio/status
+// AUDIO STATUS
 // ============================================================
 
 void WebServerManager::handleAudioStatus()
 {
-    if (
-        !_sound ||
-        !_sound->isInitialized()
-    )
+    if (_sound == nullptr)
     {
         sendError(
-            503,
-            "sound not ready"
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "sound manager unavailable"
         );
 
         return;
@@ -1500,37 +1594,55 @@ void WebServerManager::handleAudioStatus()
 
     JsonDocument doc;
 
+    doc["ok"] = true;
+
+    doc["initialized"] =
+        _sound->isInitialized();
+
+    doc["active"] =
+        _sound->isActive();
+
+    doc["playing"] =
+        _sound->isPlaying();
+
+    doc["paused"] =
+        _sound->isPaused();
+
     doc["state"] =
         _sound->getStateString();
 
     doc["path"] =
         _sound->getCurrentPath();
 
-    doc["stream"] =
-        static_cast<uint8_t>(
-            _sound->getCurrentStream()
-        );
-
-    const uint32_t position =
+    doc["positionMs"] =
         _sound->getPositionMs();
 
-    doc["positionMs"] =
-        position;
-
-    doc["position"] =
-        position;
-
-    const uint32_t duration =
+    doc["durationMs"] =
         _sound->getDurationMs();
 
-    doc["durationMs"] =
-        duration;
+    doc["localPercent"] =
+        _sound->getLocalPercent();
 
-    doc["duration"] =
-        duration;
-
-    doc["volume"] =
+    doc["effectiveVolume"] =
         _sound->getEffectiveVolume();
+
+    const SoundManager::AudioStream stream =
+        _sound->getCurrentStream();
+
+    switch (stream)
+    {
+        case SoundManager::AudioStream::Media:
+            doc["stream"] = "media";
+            break;
+
+        case SoundManager::AudioStream::Alarm:
+            doc["stream"] = "alarm";
+            break;
+
+        case SoundManager::AudioStream::System:
+            doc["stream"] = "system";
+            break;
+    }
 
     String body;
 
@@ -1540,48 +1652,23 @@ void WebServerManager::handleAudioStatus()
     );
 
     sendJson(
-        200,
+        HTTP_OK_CODE,
         body
     );
 }
 
 
 // ============================================================
-// GET /api/alarms
+// GET ALARMS
 // ============================================================
 
 void WebServerManager::handleGetAlarms()
 {
-    Serial0.println(
-        "[WEB][ALARM] GET /api/alarms"
-    );
-
-    if (!_alarmManager)
+    if (_alarmManager == nullptr)
     {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] AlarmManager is null"
-        );
-
         sendError(
-            503,
-            "alarm manager not initialized"
-        );
-
-        return;
-    }
-
-    if (
-        !_sd ||
-        !_sd->isReady()
-    )
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] SD not available"
-        );
-
-        sendError(
-            503,
-            "SD not available"
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "alarm manager unavailable"
         );
 
         return;
@@ -1592,55 +1679,29 @@ void WebServerManager::handleGetAlarms()
 
 
 // ============================================================
-// GET /api/alarm?id=...
+// GET ALARM
 // ============================================================
 
 void WebServerManager::handleGetAlarm()
 {
-    Serial0.println(
-        "[WEB][ALARM] GET alarm"
-    );
-
-    if (!_alarmManager)
+    if (_alarmManager == nullptr)
     {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] AlarmManager is null"
-        );
-
         sendError(
-            503,
-            "alarm manager not initialized"
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "alarm manager unavailable"
         );
 
         return;
     }
 
-    String id =
-        _server.arg("id");
+    const String id =
+        getAlarmIdFromRequest();
 
-    if (id.isEmpty())
+    if (!isValidAlarmId(id))
     {
-        id =
-            alarmIdFromUri(
-                _server.uri()
-            );
-    }
-
-    Serial0.print(
-        "[WEB][ALARM] ID: "
-    );
-
-    Serial0.println(id);
-
-    if (id.isEmpty())
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] missing id"
-        );
-
         sendError(
-            400,
-            "missing id"
+            HTTP_BAD_REQUEST_CODE,
+            "invalid alarm id"
         );
 
         return;
@@ -1648,982 +1709,36 @@ void WebServerManager::handleGetAlarm()
 
     Alarm alarm;
 
-    if (!_alarmManager->get(
+    if (
+        !_alarmManager->loadFromSD(
             id,
             alarm
-        ))
+        )
+    )
     {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] get() failed"
-        );
-
         sendError(
-            404,
+            HTTP_NOT_FOUND_CODE,
             "alarm not found"
         );
 
         return;
     }
 
-    Serial0.println(
-        "[WEB][ALARM] get() OK"
-    );
-
-    sendAlarm(
-        alarm
-    );
+    sendAlarm(alarm);
 }
 
 
 // ============================================================
-// POST /api/alarm
+// CREATE ALARM
 // ============================================================
 
 void WebServerManager::handleCreateAlarm()
 {
-    Serial0.println();
-    Serial0.println(
-        "========== ALARM CREATE =========="
-    );
-
-    Serial0.print(
-        "[WEB][ALARM] URI: "
-    );
-
-    Serial0.println(
-        _server.uri()
-    );
-
-    Serial0.print(
-        "[WEB][ALARM] Method: "
-    );
-
-    Serial0.println(
-        static_cast<int>(
-            _server.method()
-        )
-    );
-
-    Serial0.println(
-        "[WEB][ALARM] Incoming JSON:"
-    );
-
-    if (_server.hasArg("plain"))
-    {
-        Serial0.println(
-            _server.arg("plain")
-        );
-    }
-    else
-    {
-        Serial0.println(
-            "<NO BODY>"
-        );
-    }
-
-    if (!_alarmManager)
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] AlarmManager is null"
-        );
-
-        sendError(
-            503,
-            "alarm manager not initialized"
-        );
-
-        return;
-    }
-
-    if (
-        !_sd ||
-        !_sd->isReady()
-    )
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] SD not available"
-        );
-
-        sendError(
-            503,
-            "SD not available"
-        );
-
-        return;
-    }
-
-    Alarm alarm;
-
-    Serial0.println(
-        "[WEB][ALARM] parseAlarmFromRequest()..."
-    );
-
-    if (!parseAlarmFromRequest(
-            alarm
-        ))
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] parseAlarmFromRequest() FAILED"
-        );
-
-        return;
-    }
-
-    Serial0.println(
-        "[WEB][ALARM] deserialize OK"
-    );
-
-    Serial0.print(
-        "[WEB][ALARM] ID: "
-    );
-
-    Serial0.println(
-        alarm.id
-    );
-
-    Serial0.print(
-        "[WEB][ALARM] Name: "
-    );
-
-    Serial0.println(
-        alarm.name
-    );
-
-    Serial0.print(
-        "[WEB][ALARM] Enabled: "
-    );
-
-    Serial0.println(
-        alarm.enabled
-            ? "true"
-            : "false"
-    );
-
-    Serial0.print(
-        "[WEB][ALARM] Time: "
-    );
-
-    Serial0.print(
-        alarm.time.hour
-    );
-
-    Serial0.print(":");
-
-    Serial0.print(
-        alarm.time.minute
-    );
-
-    Serial0.print(":");
-
-    Serial0.println(
-        alarm.time.second
-    );
-
-    Serial0.print(
-        "[WEB][ALARM] Repeat mask: "
-    );
-
-    Serial0.println(
-        alarm.repeatMask
-    );
-
-    Serial0.print(
-        "[WEB][ALARM] Phase count: "
-    );
-
-    Serial0.println(
-        alarm.phaseCount
-    );
-
-
-    // --------------------------------------------------------
-    // PHASE DEBUG
-    // --------------------------------------------------------
-
-    for (
-        uint8_t i = 0;
-        i < alarm.phaseCount &&
-        i < AlarmConfig::MAX_PHASES;
-        ++i
-    )
-    {
-        const AlarmPhase& phase =
-            alarm.phases[i];
-
-        Serial0.print(
-            "[WEB][ALARM] Phase "
-        );
-
-        Serial0.print(i);
-
-        Serial0.print(
-            ": offset="
-        );
-
-        Serial0.print(
-            phase.startOffsetMs
-        );
-
-        Serial0.print(
-            " duration="
-        );
-
-        Serial0.print(
-            phase.durationMs
-        );
-
-        Serial0.print(
-            " condition="
-        );
-
-        Serial0.println(
-            static_cast<uint8_t>(
-                phase.condition
-            )
-        );
-
-        Serial0.print(
-            "  matrix enabled="
-        );
-
-        Serial0.print(
-            phase.matrix.enabled
-                ? "true"
-                : "false"
-        );
-
-        Serial0.print(
-            " effect="
-        );
-
-        Serial0.print(
-            phase.matrix.effectId
-        );
-
-        Serial0.print(
-            " start="
-        );
-
-        Serial0.print(
-            phase.matrix.start
-        );
-
-        Serial0.print(
-            " end="
-        );
-
-        Serial0.print(
-            phase.matrix.end
-        );
-
-        Serial0.print(
-            " speedMs="
-        );
-
-        Serial0.print(
-            phase.matrix.speedMs
-        );
-
-        Serial0.print(
-            " durationMs="
-        );
-
-        Serial0.println(
-            phase.matrix.durationMs
-        );
-
-        Serial0.print(
-            "  audio enabled="
-        );
-
-        Serial0.print(
-            phase.audio.enabled
-                ? "true"
-                : "false"
-        );
-
-        Serial0.print(
-            " effect="
-        );
-
-        Serial0.print(
-            phase.audio.effectId
-        );
-
-        Serial0.print(
-            " start="
-        );
-
-        Serial0.print(
-            phase.audio.start
-        );
-
-        Serial0.print(
-            " end="
-        );
-
-        Serial0.print(
-            phase.audio.end
-        );
-
-        Serial0.print(
-            " speedMs="
-        );
-
-        Serial0.print(
-            phase.audio.speedMs
-        );
-
-        Serial0.print(
-            " durationMs="
-        );
-
-        Serial0.print(
-            phase.audio.durationMs
-        );
-
-        Serial0.print(
-            " loop="
-        );
-
-        Serial0.println(
-            phase.audio.loop
-                ? "true"
-                : "false"
-        );
-
-        Serial0.print(
-            "  cob enabled="
-        );
-
-        Serial0.print(
-            phase.cob.enabled
-                ? "true"
-                : "false"
-        );
-
-        Serial0.print(
-            " effect="
-        );
-
-        Serial0.print(
-            phase.cob.effectId
-        );
-
-        Serial0.print(
-            " start="
-        );
-
-        Serial0.print(
-            phase.cob.start
-        );
-
-        Serial0.print(
-            " end="
-        );
-
-        Serial0.print(
-            phase.cob.end
-        );
-
-        Serial0.print(
-            " speedMs="
-        );
-
-        Serial0.print(
-            phase.cob.speedMs
-        );
-
-        Serial0.print(
-            " durationMs="
-        );
-
-        Serial0.print(
-            phase.cob.durationMs
-        );
-
-        Serial0.print(
-            " maxDurationMs="
-        );
-
-        Serial0.println(
-            phase.cob.maxDurationMs
-        );
-    }
-
-
-    // --------------------------------------------------------
-    // GENERATE ID
-    // --------------------------------------------------------
-
-    if (alarm.id.isEmpty())
-    {
-        alarm.id =
-            String("alarm_") +
-            String(
-                millis(),
-                HEX
-            ) +
-            String(
-                random(
-                    0x10000000,
-                    0x7FFFFFFF
-                ),
-                HEX
-            );
-
-        Serial0.print(
-            "[WEB][ALARM] Generated ID: "
-        );
-
-        Serial0.println(
-            alarm.id
-        );
-    }
-    else
-    {
-        Serial0.println(
-            "[WEB][ALARM] Existing ID preserved"
-        );
-    }
-
-
-    // --------------------------------------------------------
-    // CREATE
-    // --------------------------------------------------------
-
-    Serial0.println(
-        "[WEB][ALARM] Calling AlarmManager::create()..."
-    );
-
-    if (!_alarmManager->create(
-            alarm
-        ))
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] AlarmManager::create() FAILED"
-        );
-
-        sendError(
-            409,
-            "failed to create alarm"
-        );
-
-        return;
-    }
-
-    Serial0.println(
-        "[WEB][ALARM] AlarmManager::create() OK"
-    );
-
-
-    // --------------------------------------------------------
-    // READ AFTER CREATE
-    // --------------------------------------------------------
-
-    Alarm saved;
-
-    Serial0.println(
-        "[WEB][ALARM] Calling AlarmManager::get()..."
-    );
-
-    if (!_alarmManager->get(
-            alarm.id,
-            saved
-        ))
-    {
-        Serial0.println(
-            "[WEB][ALARM][WARNING] get() after create FAILED"
-        );
-
-        sendAlarm(
-            alarm
-        );
-
-        return;
-    }
-
-    Serial0.println(
-        "[WEB][ALARM] Alarm saved and loaded successfully"
-    );
-
-    sendAlarm(
-        saved
-    );
-
-    Serial0.println(
-        "========== ALARM CREATE END =========="
-    );
-}
-
-
-// ============================================================
-// PUT /api/alarm
-// ============================================================
-
-void WebServerManager::handleUpdateAlarm()
-{
-    Serial0.println();
-    Serial0.println(
-        "========== ALARM UPDATE =========="
-    );
-
-    Serial0.print(
-        "[WEB][ALARM] URI: "
-    );
-
-    Serial0.println(
-        _server.uri()
-    );
-
-    Serial0.print(
-        "[WEB][ALARM] Method: "
-    );
-
-    Serial0.println(
-        static_cast<int>(
-            _server.method()
-        )
-    );
-
-    Serial0.println(
-        "[WEB][ALARM] Incoming JSON:"
-    );
-
-    if (_server.hasArg("plain"))
-    {
-        Serial0.println(
-            _server.arg("plain")
-        );
-    }
-    else
-    {
-        Serial0.println(
-            "<NO BODY>"
-        );
-    }
-
-    if (!_alarmManager)
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] AlarmManager is null"
-        );
-
-        sendError(
-            503,
-            "alarm manager not initialized"
-        );
-
-        return;
-    }
-
-    if (
-        !_sd ||
-        !_sd->isReady()
-    )
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] SD not available"
-        );
-
-        sendError(
-            503,
-            "SD not available"
-        );
-
-        return;
-    }
-
-    Alarm alarm;
-
-    Serial0.println(
-        "[WEB][ALARM] parseAlarmFromRequest()..."
-    );
-
-    if (!parseAlarmFromRequest(
-            alarm
-        ))
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] parseAlarmFromRequest() FAILED"
-        );
-
-        return;
-    }
-
-    Serial0.println(
-        "[WEB][ALARM] JSON deserialized"
-    );
-
-    if (alarm.id.isEmpty())
-    {
-        const String pathId =
-            alarmIdFromUri(
-                _server.uri()
-            );
-
-        if (!pathId.isEmpty())
-        {
-            alarm.id =
-                pathId;
-
-            Serial0.print(
-                "[WEB][ALARM] ID taken from URI: "
-            );
-
-            Serial0.println(
-                alarm.id
-            );
-        }
-    }
-
-    Serial0.print(
-        "[WEB][ALARM] Final ID: "
-    );
-
-    Serial0.println(
-        alarm.id
-    );
-
-    if (alarm.id.isEmpty())
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] Missing ID"
-        );
-
-        sendError(
-            400,
-            "missing id"
-        );
-
-        return;
-    }
-
-    Serial0.println(
-        "[WEB][ALARM] Checking exists()..."
-    );
-
-    if (!_alarmManager->exists(
-            alarm.id
-        ))
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] Alarm does not exist"
-        );
-
-        sendError(
-            404,
-            "alarm not found"
-        );
-
-        return;
-    }
-
-    Serial0.println(
-        "[WEB][ALARM] Alarm exists"
-    );
-
-    Serial0.println(
-        "[WEB][ALARM] Calling AlarmManager::update()..."
-    );
-
-    if (!_alarmManager->update(
-            alarm
-        ))
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] AlarmManager::update() FAILED"
-        );
-
-        sendError(
-            409,
-            "failed to update alarm"
-        );
-
-        return;
-    }
-
-    Serial0.println(
-        "[WEB][ALARM] AlarmManager::update() OK"
-    );
-
-    Alarm saved;
-
-    Serial0.println(
-        "[WEB][ALARM] Calling AlarmManager::get()..."
-    );
-
-    if (_alarmManager->get(
-            alarm.id,
-            saved
-        ))
-    {
-        Serial0.println(
-            "[WEB][ALARM] Updated alarm read successfully"
-        );
-
-        sendAlarm(
-            saved
-        );
-
-        Serial0.println(
-            "========== ALARM UPDATE END =========="
-        );
-
-        return;
-    }
-
-    Serial0.println(
-        "[WEB][ALARM][WARNING] get() after update FAILED"
-    );
-
-    sendAlarm(
-        alarm
-    );
-
-    Serial0.println(
-        "========== ALARM UPDATE END =========="
-    );
-}
-
-
-// ============================================================
-// DELETE /api/alarm?id=...
-// ============================================================
-
-void WebServerManager::handleDeleteAlarm()
-{
-    Serial0.println();
-    Serial0.println(
-        "========== ALARM DELETE =========="
-    );
-
-    if (!_alarmManager)
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] AlarmManager is null"
-        );
-
-        sendError(
-            503,
-            "alarm manager not initialized"
-        );
-
-        return;
-    }
-
-    String id =
-        _server.arg("id");
-
-    if (id.isEmpty())
-    {
-        id =
-            alarmIdFromUri(
-                _server.uri()
-            );
-    }
-
-    Serial0.print(
-        "[WEB][ALARM] Delete ID: "
-    );
-
-    Serial0.println(id);
-
-    if (id.isEmpty())
+    if (_alarmManager == nullptr)
     {
         sendError(
-            400,
-            "missing id"
-        );
-
-        return;
-    }
-
-    Serial0.println(
-        "[WEB][ALARM] Calling AlarmManager::remove()..."
-    );
-
-    if (!_alarmManager->remove(
-            id
-        ))
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] remove() FAILED"
-        );
-
-        sendError(
-            404,
-            "alarm not found"
-        );
-
-        return;
-    }
-
-    Serial0.println(
-        "[WEB][ALARM] remove() OK"
-    );
-
-    sendOk();
-
-    Serial0.println(
-        "========== ALARM DELETE END =========="
-    );
-}
-
-
-// ============================================================
-// POST /api/alarm/enable?id=...
-// ============================================================
-
-void WebServerManager::handleEnableAlarm()
-{
-    Serial0.println(
-        "[WEB][ALARM] ENABLE"
-    );
-
-    if (!_alarmManager)
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] AlarmManager is null"
-        );
-
-        sendError(
-            503,
-            "alarm manager not initialized"
-        );
-
-        return;
-    }
-
-    const String id =
-        _server.arg("id");
-
-    Serial0.print(
-        "[WEB][ALARM] Enable ID: "
-    );
-
-    Serial0.println(id);
-
-    if (id.isEmpty())
-    {
-        sendError(
-            400,
-            "missing id"
-        );
-
-        return;
-    }
-
-    if (!_alarmManager->enable(
-            id
-        ))
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] enable() FAILED"
-        );
-
-        sendError(
-            404,
-            "alarm not found"
-        );
-
-        return;
-    }
-
-    Serial0.println(
-        "[WEB][ALARM] enable() OK"
-    );
-
-    sendOk();
-}
-
-
-// ============================================================
-// POST /api/alarm/disable?id=...
-// ============================================================
-
-void WebServerManager::handleDisableAlarm()
-{
-    Serial0.println(
-        "[WEB][ALARM] DISABLE"
-    );
-
-    if (!_alarmManager)
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] AlarmManager is null"
-        );
-
-        sendError(
-            503,
-            "alarm manager not initialized"
-        );
-
-        return;
-    }
-
-    const String id =
-        _server.arg("id");
-
-    Serial0.print(
-        "[WEB][ALARM] Disable ID: "
-    );
-
-    Serial0.println(id);
-
-    if (id.isEmpty())
-    {
-        sendError(
-            400,
-            "missing id"
-        );
-
-        return;
-    }
-
-    if (!_alarmManager->disable(
-            id
-        ))
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] disable() FAILED"
-        );
-
-        sendError(
-            404,
-            "alarm not found"
-        );
-
-        return;
-    }
-
-    Serial0.println(
-        "[WEB][ALARM] disable() OK"
-    );
-
-    sendOk();
-}
-
-
-// ============================================================
-// GET /api/alarm/runtime
-// ============================================================
-
-void WebServerManager::handleAlarmRuntime()
-{
-    Serial0.println(
-        "[WEB][ALARM] GET runtime"
-    );
-
-    if (!_alarmManager)
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] AlarmManager is null"
-        );
-
-        sendError(
-            503,
-            "alarm manager not initialized"
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "alarm manager unavailable"
         );
 
         return;
@@ -2631,8 +1746,408 @@ void WebServerManager::handleAlarmRuntime()
 
     JsonDocument doc;
 
+    if (!parseJson(doc))
+        return;
+
+
+    // ========================================================
+    // ID
+    // ========================================================
+
+    String id;
+
+    if (doc["id"].is<const char*>())
+    {
+        id =
+            doc["id"].as<String>();
+    }
+
+    if (id.isEmpty())
+    {
+        id =
+            "alarm_" +
+            String(millis(), HEX) +
+            "_" +
+            String(random(0x10000), HEX);
+
+        doc["id"] =
+            id;
+    }
+
+    if (!isValidAlarmId(id))
+    {
+        sendError(
+            HTTP_BAD_REQUEST_CODE,
+            "invalid alarm id"
+        );
+
+        return;
+    }
+
+
+    // ========================================================
+    // DESERIALIZE
+    // ========================================================
+
+    Alarm alarm;
+
+    if (
+        !_alarmManager->deserialize(
+            doc,
+            alarm
+        )
+    )
+    {
+        sendError(
+            HTTP_BAD_REQUEST_CODE,
+            "invalid alarm data"
+        );
+
+        return;
+    }
+
+    alarm.id = id;
+
+
+    // ========================================================
+    // CREATE
+    // ========================================================
+
+    if (
+        !_alarmManager->create(
+            alarm
+        )
+    )
+    {
+        sendError(
+            HTTP_BAD_REQUEST_CODE,
+            "failed to create alarm"
+        );
+
+        return;
+    }
+
+    Alarm created;
+
+    if (
+        _alarmManager->loadFromSD(
+            id,
+            created
+        )
+    )
+    {
+        sendAlarm(created);
+        return;
+    }
+
+    sendAlarm(alarm);
+}
+
+
+// ============================================================
+// UPDATE ALARM
+// ============================================================
+
+void WebServerManager::handleUpdateAlarm()
+{
+    if (_alarmManager == nullptr)
+    {
+        sendError(
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "alarm manager unavailable"
+        );
+
+        return;
+    }
+
+    JsonDocument doc;
+
+    if (!parseJson(doc))
+        return;
+
+    const String uriId =
+        alarmIdFromUri(
+            _server.uri()
+        );
+
+    String id =
+        uriId;
+
+    if (id.isEmpty() &&
+        doc["id"].is<const char*>())
+    {
+        id =
+            doc["id"].as<String>();
+    }
+
+    if (!isValidAlarmId(id))
+    {
+        sendError(
+            HTTP_BAD_REQUEST_CODE,
+            "invalid alarm id"
+        );
+
+        return;
+    }
+
+    Alarm existing;
+
+    if (
+        !_alarmManager->loadFromSD(
+            id,
+            existing
+        )
+    )
+    {
+        sendError(
+            HTTP_NOT_FOUND_CODE,
+            "alarm not found"
+        );
+
+        return;
+    }
+
+    doc["id"] = id;
+
+    Alarm alarm;
+
+    if (
+        !_alarmManager->deserialize(
+            doc,
+            alarm
+        )
+    )
+    {
+        sendError(
+            HTTP_BAD_REQUEST_CODE,
+            "invalid alarm data"
+        );
+
+        return;
+    }
+
+    alarm.id = id;
+
+    if (
+        !_alarmManager->update(
+            alarm
+        )
+    )
+    {
+        sendError(
+            HTTP_BAD_REQUEST_CODE,
+            "failed to update alarm"
+        );
+
+        return;
+    }
+
+    Alarm updated;
+
+    if (
+        _alarmManager->loadFromSD(
+            id,
+            updated
+        )
+    )
+    {
+        sendAlarm(updated);
+        return;
+    }
+
+    sendAlarm(alarm);
+}
+
+
+// ============================================================
+// DELETE ALARM
+// ============================================================
+
+void WebServerManager::handleDeleteAlarm()
+{
+    if (_alarmManager == nullptr)
+    {
+        sendError(
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "alarm manager unavailable"
+        );
+
+        return;
+    }
+
+    const String id =
+        getAlarmIdFromRequest();
+
+    if (!isValidAlarmId(id))
+    {
+        sendError(
+            HTTP_BAD_REQUEST_CODE,
+            "invalid alarm id"
+        );
+
+        return;
+    }
+
+    if (
+        !_alarmManager->remove(id)
+    )
+    {
+        sendError(
+            HTTP_NOT_FOUND_CODE,
+            "failed to delete alarm"
+        );
+
+        return;
+    }
+
+    sendOk();
+}
+
+
+// ============================================================
+// ENABLE ALARM
+// ============================================================
+
+void WebServerManager::handleEnableAlarm()
+{
+    if (_alarmManager == nullptr)
+    {
+        sendError(
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "alarm manager unavailable"
+        );
+
+        return;
+    }
+
+    String id =
+        _server.arg("id");
+
+    if (id.isEmpty())
+    {
+        sendError(
+            HTTP_BAD_REQUEST_CODE,
+            "missing alarm id"
+        );
+
+        return;
+    }
+
+    if (!isValidAlarmId(id))
+    {
+        sendError(
+            HTTP_BAD_REQUEST_CODE,
+            "invalid alarm id"
+        );
+
+        return;
+    }
+
+    if (
+        !_alarmManager->setEnabled(
+            id,
+            true
+        )
+    )
+    {
+        sendError(
+            HTTP_BAD_REQUEST_CODE,
+            "failed to enable alarm"
+        );
+
+        return;
+    }
+
+    sendOk();
+}
+
+
+// ============================================================
+// DISABLE ALARM
+// ============================================================
+
+void WebServerManager::handleDisableAlarm()
+{
+    if (_alarmManager == nullptr)
+    {
+        sendError(
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "alarm manager unavailable"
+        );
+
+        return;
+    }
+
+    String id =
+        _server.arg("id");
+
+    if (id.isEmpty())
+    {
+        sendError(
+            HTTP_BAD_REQUEST_CODE,
+            "missing alarm id"
+        );
+
+        return;
+    }
+
+    if (!isValidAlarmId(id))
+    {
+        sendError(
+            HTTP_BAD_REQUEST_CODE,
+            "invalid alarm id"
+        );
+
+        return;
+    }
+
+    if (
+        !_alarmManager->setEnabled(
+            id,
+            false
+        )
+    )
+    {
+        sendError(
+            HTTP_BAD_REQUEST_CODE,
+            "failed to disable alarm"
+        );
+
+        return;
+    }
+
+    sendOk();
+}
+
+
+// ============================================================
+// ALARM RUNTIME
+// ============================================================
+
+void WebServerManager::handleAlarmRuntime()
+{
+    if (_alarmManager == nullptr)
+    {
+        sendError(
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "alarm manager unavailable"
+        );
+
+        return;
+    }
+
+    JsonDocument doc;
+
+    doc["ok"] = true;
+
     doc["active"] =
         _alarmManager->isRunning();
+
+    doc["phase"] =
+        _alarmManager->currentPhaseIndex();
+
+    doc["elapsedMs"] =
+        _alarmManager->elapsedMs();
 
     if (_alarmManager->isRunning())
     {
@@ -2642,7 +2157,7 @@ void WebServerManager::handleAlarmRuntime()
         const AlarmPhase* phase =
             _alarmManager->currentPhase();
 
-        if (alarm)
+        if (alarm != nullptr)
         {
             doc["id"] =
                 alarm->id;
@@ -2651,14 +2166,16 @@ void WebServerManager::handleAlarmRuntime()
                 alarm->name;
         }
 
-        doc["phase"] =
-            _alarmManager->currentPhaseIndex();
+        if (phase != nullptr)
+        {
+            doc["phaseDurationMs"] =
+                phase->durationMs;
 
-        doc["elapsedMs"] =
-            _alarmManager->elapsedMs();
-
-        doc["phaseActive"] =
-            phase != nullptr;
+            doc["phaseCondition"] =
+                static_cast<uint8_t>(
+                    phase->condition
+                );
+        }
     }
 
     String body;
@@ -2669,31 +2186,23 @@ void WebServerManager::handleAlarmRuntime()
     );
 
     sendJson(
-        200,
+        HTTP_OK_CODE,
         body
     );
 }
 
 
 // ============================================================
-// POST /api/alarm/dismiss
+// ALARM DISMISS
 // ============================================================
 
 void WebServerManager::handleAlarmDismiss()
 {
-    Serial0.println(
-        "[WEB][ALARM] DISMISS"
-    );
-
-    if (!_alarmManager)
+    if (_alarmManager == nullptr)
     {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] AlarmManager is null"
-        );
-
         sendError(
-            503,
-            "alarm manager not initialized"
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "alarm manager unavailable"
         );
 
         return;
@@ -2701,59 +2210,46 @@ void WebServerManager::handleAlarmDismiss()
 
     if (!_alarmManager->isRunning())
     {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] No active alarm"
-        );
-
         sendError(
-            409,
+            HTTP_CONFLICT_CODE,
             "no active alarm"
         );
 
         return;
     }
 
-    if (!_alarmManager->dismiss())
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] dismiss() FAILED"
-        );
+    bool result = false;
 
+    if (_alarmController != nullptr)
+        result = _alarmController->dismiss();
+    else
+        result = _alarmManager->dismiss();
+
+    if (!result)
+    {
         sendError(
-            409,
-            "dismiss failed"
+            HTTP_BAD_REQUEST_CODE,
+            "failed to dismiss alarm"
         );
 
         return;
     }
-
-    Serial0.println(
-        "[WEB][ALARM] dismiss() OK"
-    );
 
     sendOk();
 }
 
 
 // ============================================================
-// POST /api/alarm/snooze
+// ALARM SNOOZE
 // ============================================================
 
 void WebServerManager::handleAlarmSnooze()
 {
-    Serial0.println(
-        "[WEB][ALARM] SNOOZE"
-    );
-
-    if (!_alarmManager)
+    if (_alarmManager == nullptr)
     {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] AlarmManager is null"
-        );
-
         sendError(
-            503,
-            "alarm manager not initialized"
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "alarm manager unavailable"
         );
 
         return;
@@ -2761,12 +2257,8 @@ void WebServerManager::handleAlarmSnooze()
 
     if (!_alarmManager->isRunning())
     {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] No active alarm"
-        );
-
         sendError(
-            409,
+            HTTP_CONFLICT_CODE,
             "no active alarm"
         );
 
@@ -2778,56 +2270,72 @@ void WebServerManager::handleAlarmSnooze()
     if (!parseJson(doc))
         return;
 
+    JsonObjectConst root =
+        doc.as<JsonObjectConst>();
+
     uint32_t durationMs = 0;
 
-    if (!doc["durationMs"].isNull())
+    if (
+        !getUnsigned32(
+            root,
+            "durationMs",
+            durationMs
+        )
+    )
     {
-        durationMs =
-            doc["durationMs"].as<uint32_t>();
+        getUnsigned32(
+            root,
+            "duration",
+            durationMs
+        );
     }
-    else if (!doc["duration"].isNull())
-    {
-        durationMs =
-            doc["duration"].as<uint32_t>();
-    }
-
-    Serial0.print(
-        "[WEB][ALARM] Snooze duration: "
-    );
-
-    Serial0.println(
-        durationMs
-    );
 
     if (durationMs == 0)
     {
         sendError(
-            400,
-            "missing durationMs"
+            HTTP_BAD_REQUEST_CODE,
+            "invalid snooze duration"
         );
 
         return;
     }
 
-    if (!_alarmManager->snooze(
-            durationMs
-        ))
+    if (durationMs > MAX_SNOOZE_MS)
     {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] snooze() FAILED"
-        );
-
         sendError(
-            409,
-            "snooze failed"
+            HTTP_BAD_REQUEST_CODE,
+            "snooze duration is too large"
         );
 
         return;
     }
 
-    Serial0.println(
-        "[WEB][ALARM] snooze() OK"
-    );
+    bool result = false;
+
+    if (_alarmController != nullptr)
+    {
+        result =
+            _alarmController->snooze(
+                durationMs
+            );
+    }
+    else
+    {
+        result =
+            _alarmManager->snooze(
+                durationMs
+            );
+    }
+
+    if (!result)
+    {
+        sendError(
+            HTTP_BAD_REQUEST_CODE,
+            "failed to snooze alarm"
+        );
+
+        return;
+    }
 
     sendOk();
 }
@@ -2841,59 +2349,28 @@ bool WebServerManager::parseAlarmFromRequest(
     Alarm& alarm
 )
 {
-    Serial0.println(
-        "[WEB][ALARM] Parsing alarm JSON..."
-    );
+    if (_alarmManager == nullptr)
+        return false;
 
     JsonDocument doc;
 
     if (!parseJson(doc))
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] parseJson() FAILED"
-        );
-
         return false;
-    }
 
-    if (!_alarmManager)
-    {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] AlarmManager is null"
-        );
-
-        sendError(
-            503,
-            "alarm manager not initialized"
-        );
-
-        return false;
-    }
-
-    Serial0.println(
-        "[WEB][ALARM] Calling AlarmManager::deserialize()..."
-    );
-
-    if (!_alarmManager->deserialize(
+    if (
+        !_alarmManager->deserialize(
             doc,
             alarm
-        ))
+        )
+    )
     {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] AlarmManager::deserialize() FAILED"
-        );
-
         sendError(
-            400,
-            "invalid alarm"
+            HTTP_BAD_REQUEST_CODE,
+            "invalid alarm data"
         );
 
         return false;
     }
-
-    Serial0.println(
-        "[WEB][ALARM] AlarmManager::deserialize() OK"
-    );
 
     return true;
 }
@@ -2907,19 +2384,11 @@ void WebServerManager::sendAlarm(
     const Alarm& alarm
 )
 {
-    Serial0.println(
-        "[WEB][ALARM] Sending alarm response..."
-    );
-
-    if (!_alarmManager)
+    if (_alarmManager == nullptr)
     {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] AlarmManager is null"
-        );
-
         sendError(
-            503,
-            "alarm manager not initialized"
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "alarm manager unavailable"
         );
 
         return;
@@ -2927,17 +2396,15 @@ void WebServerManager::sendAlarm(
 
     JsonDocument doc;
 
-    if (!_alarmManager->serialize(
+    if (
+        !_alarmManager->serialize(
             alarm,
             doc
-        ))
+        )
+    )
     {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] serialize() FAILED"
-        );
-
         sendError(
-            500,
+            HTTP_INTERNAL_ERROR_CODE,
             "failed to serialize alarm"
         );
 
@@ -2953,16 +2420,8 @@ void WebServerManager::sendAlarm(
         body
     );
 
-    Serial0.print(
-        "[WEB][ALARM] Response JSON: "
-    );
-
-    Serial0.println(
-        body
-    );
-
     sendJson(
-        200,
+        HTTP_OK_CODE,
         body
     );
 }
@@ -2974,48 +2433,60 @@ void WebServerManager::sendAlarm(
 
 void WebServerManager::sendAlarmList()
 {
-    Serial0.println(
-        "[WEB][ALARM] Loading alarm list..."
+    if (_alarmManager == nullptr)
+    {
+        sendError(
+            HTTP_SERVICE_UNAVAILABLE_CODE,
+            "alarm manager unavailable"
+        );
+
+        return;
+    }
+
+    /*
+     * Alarm содержит несколько String и массив фаз.
+     *
+     * Поэтому массив Alarm не создаём на стеке.
+     */
+
+    std::unique_ptr<Alarm[]> alarms(
+        new (std::nothrow)
+        Alarm[AlarmConfig::MAX_ALARMS]
     );
 
-    static constexpr uint8_t MAX_ALARMS =
-        AlarmConfig::MAX_ALARMS;
+    if (!alarms)
+    {
+        sendError(
+            HTTP_INTERNAL_ERROR_CODE,
+            "not enough memory for alarm list"
+        );
 
-    Alarm alarms[MAX_ALARMS];
+        return;
+    }
 
     uint8_t count = 0;
 
-    if (!_alarmManager->loadAll(
-            alarms,
-            MAX_ALARMS,
+    if (
+        !_alarmManager->loadAll(
+            alarms.get(),
+            AlarmConfig::MAX_ALARMS,
             count
-        ))
+        )
+    )
     {
-        Serial0.println(
-            "[WEB][ALARM][ERROR] loadAll() FAILED"
-        );
-
         sendError(
-            500,
+            HTTP_INTERNAL_ERROR_CODE,
             "failed to load alarms"
         );
 
         return;
     }
 
-    Serial0.print(
-        "[WEB][ALARM] Loaded alarms: "
-    );
-
-    Serial0.println(
-        count
-    );
-
     JsonDocument doc;
 
     doc["ok"] = true;
 
-    JsonArray array =
+    JsonArray list =
         doc["alarms"].to<JsonArray>();
 
     for (
@@ -3025,49 +2496,29 @@ void WebServerManager::sendAlarmList()
     )
     {
         JsonObject item =
-            array.add<JsonObject>();
+            list.add<JsonObject>();
 
         JsonDocument alarmDoc;
 
-        if (!_alarmManager->serialize(
+        if (
+            !_alarmManager->serialize(
                 alarms[i],
                 alarmDoc
-            ))
+            )
+        )
         {
-            Serial0.print(
-                "[WEB][ALARM][ERROR] serialize alarm #"
-            );
-
-            Serial0.println(
-                i
-            );
-
             continue;
         }
 
         item.set(
-            alarmDoc.as<JsonObject>()
-        );
-
-        Serial0.print(
-            "[WEB][ALARM] Alarm #"
-        );
-
-        Serial0.print(
-            i
-        );
-
-        Serial0.print(
-            " ID="
-        );
-
-        Serial0.println(
-            alarms[i].id
+            alarmDoc.as<JsonObjectConst>()
         );
     }
 
     doc["count"] =
-        array.size();
+        static_cast<uint8_t>(
+            list.size()
+        );
 
     String body;
 
@@ -3076,16 +2527,8 @@ void WebServerManager::sendAlarmList()
         body
     );
 
-    Serial0.print(
-        "[WEB][ALARM] Alarm list response: "
-    );
-
-    Serial0.println(
-        body
-    );
-
     sendJson(
-        200,
+        HTTP_OK_CODE,
         body
     );
 }
@@ -3096,69 +2539,57 @@ void WebServerManager::sendAlarmList()
 // ============================================================
 
 bool WebServerManager::parseJson(
-    JsonDocument& doc
+    JsonDocument& document
 )
 {
     if (!_server.hasArg("plain"))
     {
-        Serial0.println(
-            "[WEB][JSON][ERROR] Body missing"
-        );
-
         sendError(
-            400,
-            "body missing"
+            HTTP_BAD_REQUEST_CODE,
+            "request body is required"
         );
 
         return false;
     }
 
-    const String raw =
+    const String body =
         _server.arg("plain");
 
-    Serial0.print(
-        "[WEB][JSON] Body size: "
-    );
+    if (body.isEmpty())
+    {
+        sendError(
+            HTTP_BAD_REQUEST_CODE,
+            "request body is empty"
+        );
 
-    Serial0.println(
-        raw.length()
-    );
-
-    Serial0.println(
-        "[WEB][JSON] Body:"
-    );
-
-    Serial0.println(
-        raw
-    );
+        return false;
+    }
 
     const DeserializationError error =
         deserializeJson(
-            doc,
-            raw
+            document,
+            body
         );
 
     if (error)
     {
-        Serial0.print(
-            "[WEB][JSON][ERROR] deserializeJson: "
-        );
-
-        Serial0.println(
-            error.c_str()
-        );
-
         sendError(
-            400,
+            HTTP_BAD_REQUEST_CODE,
             "invalid JSON"
         );
 
         return false;
     }
 
-    Serial0.println(
-        "[WEB][JSON] JSON OK"
-    );
+    if (!document.is<JsonObject>())
+    {
+        sendError(
+            HTTP_BAD_REQUEST_CODE,
+            "JSON object required"
+        );
+
+        return false;
+    }
 
     return true;
 }
@@ -3173,25 +2604,9 @@ void WebServerManager::sendJson(
     const String& body
 )
 {
-    Serial0.print(
-        "[WEB][RESPONSE] HTTP "
-    );
-
-    Serial0.print(
-        code
-    );
-
-    Serial0.print(
-        " body: "
-    );
-
-    Serial0.println(
-        body
-    );
-
     _server.send(
         code,
-        "application/json",
+        "application/json; charset=utf-8",
         body
     );
 }
@@ -3203,12 +2618,8 @@ void WebServerManager::sendJson(
 
 void WebServerManager::sendOk()
 {
-    Serial0.println(
-        "[WEB][RESPONSE] OK"
-    );
-
     sendJson(
-        200,
+        HTTP_OK_CODE,
         "{\"ok\":true}"
     );
 }
@@ -3223,30 +2634,12 @@ void WebServerManager::sendError(
     const char* message
 )
 {
-    Serial0.print(
-        "[WEB][RESPONSE][ERROR] HTTP "
-    );
-
-    Serial0.print(
-        code
-    );
-
-    Serial0.print(
-        ": "
-    );
-
-    Serial0.println(
-        message
-            ? message
-            : "unknown error"
-    );
-
     JsonDocument doc;
 
     doc["ok"] = false;
 
     doc["error"] =
-        message
+        message != nullptr
             ? message
             : "unknown error";
 
@@ -3265,24 +2658,181 @@ void WebServerManager::sendError(
 
 
 // ============================================================
-// WIFI
+// VALIDATE ALARM ID
 // ============================================================
 
-bool WebServerManager::isConnected() const
+bool WebServerManager::isValidAlarmId(
+    const String& id
+) const
 {
-    return WiFi.status() ==
-        WL_CONNECTED;
+    if (id.isEmpty())
+        return false;
+
+    if (id.length() > 64)
+        return false;
+
+    for (
+        size_t i = 0;
+        i < id.length();
+        ++i
+    )
+    {
+        const char c =
+            id[i];
+
+        const bool valid =
+            (c >= 'a' && c <= 'z') ||
+            (c >= 'A' && c <= 'Z') ||
+            (c >= '0' && c <= '9') ||
+            c == '_' ||
+            c == '-';
+
+        if (!valid)
+            return false;
+    }
+
+    return true;
 }
 
 
 // ============================================================
-// IP
+// GET ALARM ID
 // ============================================================
 
-String WebServerManager::getIP() const
+String WebServerManager::getAlarmIdFromRequest()
 {
-    if (!isConnected())
-        return "0.0.0.0";
+    String id =
+        _server.arg("id");
 
-    return WiFi.localIP().toString();
+    if (id.isEmpty())
+    {
+        id =
+            alarmIdFromUri(
+                _server.uri()
+            );
+    }
+
+    return id;
+}
+
+
+// ============================================================
+// GET BOOLEAN
+// ============================================================
+
+bool WebServerManager::getBoolean(
+    JsonObjectConst object,
+    const char* key,
+    bool& value
+) const
+{
+    if (!object[key])
+        return false;
+
+    JsonVariantConst variant =
+        object[key];
+
+    if (variant.is<bool>())
+    {
+        value =
+            variant.as<bool>();
+
+        return true;
+    }
+
+    if (variant.is<int>())
+    {
+        const int number =
+            variant.as<int>();
+
+        if (number == 0)
+        {
+            value = false;
+            return true;
+        }
+
+        if (number == 1)
+        {
+            value = true;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+// ============================================================
+// GET UINT32
+// ============================================================
+
+bool WebServerManager::getUnsigned32(
+    JsonObjectConst object,
+    const char* key,
+    uint32_t& value
+) const
+{
+    if (!object[key])
+        return false;
+
+    JsonVariantConst variant =
+        object[key];
+
+    if (variant.is<uint32_t>())
+    {
+        value =
+            variant.as<uint32_t>();
+
+        return true;
+    }
+
+    if (variant.is<unsigned long>())
+    {
+        value =
+            variant.as<unsigned long>();
+
+        return true;
+    }
+
+    if (variant.is<unsigned int>())
+    {
+        value =
+            variant.as<unsigned int>();
+
+        return true;
+    }
+
+    if (variant.is<int>())
+    {
+        const int number =
+            variant.as<int>();
+
+        if (number < 0)
+            return false;
+
+        value =
+            static_cast<uint32_t>(
+                number
+            );
+
+        return true;
+    }
+
+    if (variant.is<long>())
+    {
+        const long number =
+            variant.as<long>();
+
+        if (number < 0)
+            return false;
+
+        value =
+            static_cast<uint32_t>(
+                number
+            );
+
+        return true;
+    }
+
+    return false;
 }
