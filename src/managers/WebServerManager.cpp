@@ -1802,8 +1802,6 @@ void WebServerManager::handleAudioStop()
 
 void WebServerManager::handleAudioStatus()
 {
-    serialLog("handleAudioStatus()");
-
     if (_sound == nullptr)
     {
         serialLog("sound manager unavailable");
