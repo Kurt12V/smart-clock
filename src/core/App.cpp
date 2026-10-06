@@ -49,7 +49,8 @@ App::App()
       _displaySystem(
           _settings,
           _clockSystem,
-          _sensorManager
+          _sensorManager,
+          _spiManager
       ),
       _alarmManager(
           _sdManager,

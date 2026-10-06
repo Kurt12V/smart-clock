@@ -73,6 +73,15 @@ namespace
         condition = static_cast<AlarmCondition>(raw);
         return true;
     }
+
+    // Alarm is large because it embeds all phase definitions.  Reconstruct it
+    // in place rather than using `alarm = Alarm{}`, which materializes a
+    // second large Alarm on loopTask's stack.
+    void resetAlarm(Alarm& alarm)
+    {
+        alarm.~Alarm();
+        new (&alarm) Alarm();
+    }
 }
 
 
@@ -100,7 +109,8 @@ bool AlarmManager::begin()
 
     _activeCount = 0;
 
-    _runtime = Runtime{};
+    _runtime.~Runtime();
+    new (&_runtime) Runtime();
 
     _snooze = SnoozeState{};
 
@@ -176,21 +186,26 @@ void AlarmManager::update()
             _snooze = SnoozeState{};
 
 
-            Alarm alarm;
+            std::unique_ptr<Alarm> alarm(
+                new (std::nothrow) Alarm()
+            );
+
+            if (!alarm)
+                return;
 
             if (
                 loadFromSD(
                     alarmId,
-                    alarm
+                    *alarm
                 )
             )
             {
                 const int8_t index =
-                    findActive(alarm.id);
+                    findActive(alarm->id);
 
                 if (
                     index >= 0 &&
-                    alarm.enabled
+                    alarm->enabled
                 )
                 {
                     const time_t now =
@@ -198,7 +213,7 @@ void AlarmManager::update()
 
                     start(
                         static_cast<uint8_t>(index),
-                        alarm,
+                        *alarm,
                         now,
                         0
                     );
@@ -236,12 +251,17 @@ void AlarmManager::update()
             continue;
 
 
-        Alarm alarm;
+        std::unique_ptr<Alarm> alarm(
+            new (std::nothrow) Alarm()
+        );
+
+        if (!alarm)
+            return;
 
         if (
             !loadFromSD(
                 active.id,
-                alarm
+                *alarm
             )
         )
         {
@@ -249,7 +269,7 @@ void AlarmManager::update()
         }
 
 
-        if (!alarm.enabled)
+        if (!alarm->enabled)
             continue;
 
 
@@ -279,7 +299,7 @@ void AlarmManager::update()
 
         start(
             i,
-            alarm,
+            *alarm,
             t0,
             elapsed
         );
@@ -736,12 +756,17 @@ bool AlarmManager::setEnabled(
         return false;
 
 
-    Alarm alarm;
+    std::unique_ptr<Alarm> alarm(
+        new (std::nothrow) Alarm()
+    );
+
+    if (!alarm)
+        return false;
 
     if (
         !loadFromSD(
             id,
-            alarm
+            *alarm
         )
     )
     {
@@ -749,13 +774,13 @@ bool AlarmManager::setEnabled(
     }
 
 
-    if (alarm.enabled == enabled)
+    if (alarm->enabled == enabled)
         return true;
 
 
     if (
         enabled &&
-        !alarm.enabled &&
+        !alarm->enabled &&
         _activeCount >= AlarmConfig::MAX_ALARMS
     )
     {
@@ -774,12 +799,12 @@ bool AlarmManager::setEnabled(
     }
 
 
-    alarm.enabled =
+    alarm->enabled =
         enabled;
 
 
     if (
-        !saveToSD(alarm)
+        !saveToSD(*alarm)
     )
     {
         return false;
@@ -791,7 +816,7 @@ bool AlarmManager::setEnabled(
 
     if (enabled)
     {
-        if (!addActive(alarm))
+        if (!addActive(*alarm))
             return false;
     }
 
@@ -1087,7 +1112,7 @@ bool AlarmManager::loadFromSD(
     Alarm& alarm
 )
 {
-    alarm = Alarm{};
+    resetAlarm(alarm);
 
 
     if (!_sd.isReady())
@@ -1142,7 +1167,7 @@ bool AlarmManager::loadFromSD(
 
     if (alarm.id != id)
     {
-        alarm = Alarm{};
+        resetAlarm(alarm);
         return false;
     }
 
@@ -1254,12 +1279,17 @@ bool AlarmManager::reload()
         );
 
 
-        Alarm alarm;
+        std::unique_ptr<Alarm> alarm(
+            new (std::nothrow) Alarm()
+        );
+
+        if (!alarm)
+            return false;
 
         if (
             !loadFromSD(
                 filename,
-                alarm
+                *alarm
             )
         )
         {
@@ -1267,7 +1297,7 @@ bool AlarmManager::reload()
         }
 
 
-        if (!alarm.enabled)
+        if (!alarm->enabled)
             continue;
 
 
@@ -1280,7 +1310,7 @@ bool AlarmManager::reload()
         }
 
 
-        addActive(alarm);
+        addActive(*alarm);
     }
 
 
@@ -1455,7 +1485,7 @@ bool AlarmManager::deserialize(
     Alarm& alarm
 ) const
 {
-    alarm = Alarm{};
+    resetAlarm(alarm);
 
 
     if (
@@ -2060,8 +2090,8 @@ void AlarmManager::finish()
     notifyFinish();
 
 
-    _runtime =
-        Runtime{};
+    _runtime.~Runtime();
+    new (&_runtime) Runtime();
 }
 
 
@@ -2461,8 +2491,8 @@ bool AlarmManager::start(
     }
 
 
-    _runtime =
-        Runtime{};
+    _runtime.~Runtime();
+    new (&_runtime) Runtime();
 
 
     _runtime.active =

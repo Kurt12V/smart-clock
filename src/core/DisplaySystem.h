@@ -21,7 +21,8 @@ public:
     DisplaySystem(
         SettingsManager& settings,
         ClockSystem& clock,
-        SensorManager& sensors
+        SensorManager& sensors,
+        SPIManager& spi
     );
 
     bool begin();
@@ -55,7 +56,9 @@ private:
     ClockSystem&   _clock;
     SensorManager& _sensors;
 
-    SPIManager    _spi;
+    // The SD card and TFT panels share one physical SPI controller.  This
+    // reference is owned and initialized by App before either peripheral.
+    SPIManager&   _spi;
     LVGLManager   _lvgl;
     ScreenManager _screens;
 

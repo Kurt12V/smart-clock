@@ -7,14 +7,15 @@
 DisplaySystem::DisplaySystem(
     SettingsManager& settings,
     ClockSystem& clock,
-    SensorManager& sensors
+    SensorManager& sensors,
+    SPIManager& spi
 )
     : _settings(settings),
 
       _clock(clock),
       _sensors(sensors),
 
-      _spi(),
+      _spi(spi),
 
       _lvgl(_spi),
 
