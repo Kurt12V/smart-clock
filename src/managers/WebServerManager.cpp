@@ -1707,12 +1707,26 @@ void WebServerManager::handleGetAlarm()
         return;
     }
 
-    Alarm alarm;
+    // Alarm contains a fixed array of rich phases. Request handlers execute
+    // inside loopTask, so allocate the transient object outside its stack.
+    std::unique_ptr<Alarm> alarm(
+        new (std::nothrow) Alarm()
+    );
+
+    if (!alarm)
+    {
+        sendError(
+            HTTP_INTERNAL_ERROR_CODE,
+            "not enough memory for alarm"
+        );
+
+        return;
+    }
 
     if (
         !_alarmManager->loadFromSD(
             id,
-            alarm
+            *alarm
         )
     )
     {
@@ -1724,7 +1738,7 @@ void WebServerManager::handleGetAlarm()
         return;
     }
 
-    sendAlarm(alarm);
+    sendAlarm(*alarm);
 }
 
 
@@ -1789,12 +1803,24 @@ void WebServerManager::handleCreateAlarm()
     // DESERIALIZE
     // ========================================================
 
-    Alarm alarm;
+    std::unique_ptr<Alarm> alarm(
+        new (std::nothrow) Alarm()
+    );
+
+    if (!alarm)
+    {
+        sendError(
+            HTTP_INTERNAL_ERROR_CODE,
+            "not enough memory for alarm"
+        );
+
+        return;
+    }
 
     if (
         !_alarmManager->deserialize(
             doc,
-            alarm
+            *alarm
         )
     )
     {
@@ -1806,7 +1832,7 @@ void WebServerManager::handleCreateAlarm()
         return;
     }
 
-    alarm.id = id;
+    alarm->id = id;
 
 
     // ========================================================
@@ -1815,7 +1841,7 @@ void WebServerManager::handleCreateAlarm()
 
     if (
         !_alarmManager->create(
-            alarm
+            *alarm
         )
     )
     {
@@ -1827,20 +1853,7 @@ void WebServerManager::handleCreateAlarm()
         return;
     }
 
-    Alarm created;
-
-    if (
-        _alarmManager->loadFromSD(
-            id,
-            created
-        )
-    )
-    {
-        sendAlarm(created);
-        return;
-    }
-
-    sendAlarm(alarm);
+    sendAlarm(*alarm);
 }
 
 
@@ -1890,14 +1903,7 @@ void WebServerManager::handleUpdateAlarm()
         return;
     }
 
-    Alarm existing;
-
-    if (
-        !_alarmManager->loadFromSD(
-            id,
-            existing
-        )
-    )
+    if (!_alarmManager->exists(id))
     {
         sendError(
             HTTP_NOT_FOUND_CODE,
@@ -1909,12 +1915,24 @@ void WebServerManager::handleUpdateAlarm()
 
     doc["id"] = id;
 
-    Alarm alarm;
+    std::unique_ptr<Alarm> alarm(
+        new (std::nothrow) Alarm()
+    );
+
+    if (!alarm)
+    {
+        sendError(
+            HTTP_INTERNAL_ERROR_CODE,
+            "not enough memory for alarm"
+        );
+
+        return;
+    }
 
     if (
         !_alarmManager->deserialize(
             doc,
-            alarm
+            *alarm
         )
     )
     {
@@ -1926,11 +1944,11 @@ void WebServerManager::handleUpdateAlarm()
         return;
     }
 
-    alarm.id = id;
+    alarm->id = id;
 
     if (
         !_alarmManager->update(
-            alarm
+            *alarm
         )
     )
     {
@@ -1942,20 +1960,7 @@ void WebServerManager::handleUpdateAlarm()
         return;
     }
 
-    Alarm updated;
-
-    if (
-        _alarmManager->loadFromSD(
-            id,
-            updated
-        )
-    )
-    {
-        sendAlarm(updated);
-        return;
-    }
-
-    sendAlarm(alarm);
+    sendAlarm(*alarm);
 }
 
 

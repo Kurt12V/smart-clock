@@ -2,6 +2,9 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <cstring>
+#include <memory>
+#include <new>
 #include <time.h>
 
 #include "SDManager.h"
@@ -25,6 +28,51 @@ namespace
 
     constexpr uint8_t WEEK_MASK =
         0x7F;
+
+    const char* conditionToString(AlarmCondition condition)
+    {
+        switch (condition)
+        {
+            case AlarmCondition::Always:         return "always";
+            case AlarmCondition::IfNotDismissed: return "if_not_dismissed";
+            case AlarmCondition::IfNotSnoozed:   return "if_not_snoozed";
+            case AlarmCondition::IfNoMotion:     return "if_no_motion";
+        }
+
+        return nullptr;
+    }
+
+    bool conditionFromJson(JsonVariantConst value, AlarmCondition& condition)
+    {
+        if (value.is<const char*>())
+        {
+            const char* name = value.as<const char*>();
+
+            if (strcmp(name, "always") == 0)
+                condition = AlarmCondition::Always;
+            else if (strcmp(name, "if_not_dismissed") == 0)
+                condition = AlarmCondition::IfNotDismissed;
+            else if (strcmp(name, "if_not_snoozed") == 0)
+                condition = AlarmCondition::IfNotSnoozed;
+            else if (strcmp(name, "if_no_motion") == 0)
+                condition = AlarmCondition::IfNoMotion;
+            else
+                return false;
+
+            return true;
+        }
+
+        if (!value.is<uint8_t>())
+            return false;
+
+        const uint8_t raw = value.as<uint8_t>();
+
+        if (raw > static_cast<uint8_t>(AlarmCondition::IfNoMotion))
+            return false;
+
+        condition = static_cast<AlarmCondition>(raw);
+        return true;
+    }
 }
 
 
@@ -288,15 +336,18 @@ void AlarmManager::setFinishCallback(
 // ============================================================
 
 bool AlarmManager::create(
-    Alarm alarm
+    const Alarm& alarm
 )
 {
     if (!_initialized)
         return false;
 
 
+    // The caller must assign an ID before creating an alarm.  Keeping the
+    // argument by reference avoids copying a large Alarm onto loopTask's
+    // already constrained stack.
     if (alarm.id.isEmpty())
-        alarm.id = generateId();
+        return false;
 
 
     if (
@@ -320,8 +371,6 @@ bool AlarmManager::create(
     }
 
 
-    alarm.schemaVersion =
-        CURRENT_SCHEMA_VERSION;
 
 
     if (
@@ -366,12 +415,17 @@ bool AlarmManager::update(
     }
 
 
-    Alarm oldAlarm;
+    std::unique_ptr<Alarm> oldAlarm(
+        new (std::nothrow) Alarm()
+    );
+
+    if (!oldAlarm)
+        return false;
 
     if (
         !get(
             alarm.id,
-            oldAlarm
+            *oldAlarm
         )
     )
     {
@@ -380,7 +434,7 @@ bool AlarmManager::update(
 
 
     const bool wasEnabled =
-        oldAlarm.enabled;
+        oldAlarm->enabled;
 
     const bool willBeEnabled =
         alarm.enabled;
@@ -615,17 +669,22 @@ bool AlarmManager::loadAll(
         }
 
 
-        Alarm alarm;
+        std::unique_ptr<Alarm> alarm(
+            new (std::nothrow) Alarm()
+        );
+
+        if (!alarm)
+            return false;
 
         if (
             loadFromSD(
                 filename,
-                alarm
+                *alarm
             )
         )
         {
             alarms[count++] =
-                alarm;
+                *alarm;
         }
     }
 
@@ -1295,10 +1354,7 @@ bool AlarmManager::serialize(
         object["durationMs"] =
             phase.durationMs;
 
-        object["condition"] =
-            static_cast<uint8_t>(
-                phase.condition
-            );
+        object["condition"] = conditionToString(phase.condition);
 
 
         // ----------------------------------------------------
@@ -1517,26 +1573,16 @@ bool AlarmManager::deserialize(
             0;
 
 
-        const uint8_t condition =
-            object["condition"] |
-            0;
+        JsonVariantConst condition = object["condition"];
 
-
-        if (
-            condition >
-            static_cast<uint8_t>(
-                AlarmCondition::IfNoMotion
-            )
-        )
+        // A missing value is kept compatible with the old API and means
+        // Always. Both the old numeric enum and the web UI's readable names
+        // are accepted.
+        if (!condition.isNull() &&
+            !conditionFromJson(condition, phase.condition))
         {
             return false;
         }
-
-
-        phase.condition =
-            static_cast<AlarmCondition>(
-                condition
-            );
 
 
         // ----------------------------------------------------
@@ -1983,21 +2029,25 @@ void AlarmManager::finish()
         !snoozed
     )
     {
-        Alarm alarm;
+        std::unique_ptr<Alarm> alarm(
+            new (std::nothrow) Alarm()
+        );
 
+        if (!alarm)
+            return;
 
         if (
             loadFromSD(
                 alarmId,
-                alarm
+                *alarm
             )
         )
         {
-            alarm.enabled =
+            alarm->enabled =
                 false;
 
 
-            saveToSD(alarm);
+            saveToSD(*alarm);
         }
 
 

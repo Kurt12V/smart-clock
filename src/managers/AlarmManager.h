@@ -67,7 +67,7 @@ public:
     // ========================================================
 
     bool create(
-        Alarm alarm
+        const Alarm& alarm
     );
 
     bool update(
