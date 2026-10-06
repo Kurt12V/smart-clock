@@ -16,13 +16,6 @@ public:
     using TriggerCallback =
         std::function<void(const Alarm& alarm)>;
 
-    using PhaseCallback =
-        std::function<void(
-            const Alarm& alarm,
-            uint8_t phaseIndex,
-            const AlarmPhase& phase
-        )>;
-
     using FinishCallback =
         std::function<void(const String& alarmId)>;
 
@@ -31,27 +24,82 @@ public:
         ClockSystem& clock
     );
 
+    // ========================================================
+    // LIFECYCLE
+    // ========================================================
+
     bool begin();
     void update();
+
     bool isInitialized() const;
 
-    void setTriggerCallback(TriggerCallback callback);
-    void setPhaseCallback(PhaseCallback callback);
-    void setFinishCallback(FinishCallback callback);
+    // ========================================================
+    // CALLBACKS
+    // ========================================================
 
-    bool create(const Alarm& alarm);
-    bool update(const Alarm& alarm);
-    bool remove(const String& id);
-    bool get(const String& id, Alarm& alarm);
-    bool exists(const String& id);
+    void setTriggerCallback(
+        TriggerCallback callback
+    );
 
-    bool loadAll(Alarm* alarms, uint8_t maxCount, uint8_t& count);
+    void setFinishCallback(
+        FinishCallback callback
+    );
 
-    bool enable(const String& id);
-    bool disable(const String& id);
-    bool setEnabled(const String& id, bool enabled);
+    // ========================================================
+    // CRUD
+    // ========================================================
+
+    // Если alarm.id пустой:
+    // AlarmManager автоматически создаст UUID v4
+    // и запишет его обратно в alarm.id.
+    bool create(Alarm& alarm);
+
+    bool update(
+        const Alarm& alarm
+    );
+
+    bool remove(
+        const String& id
+    );
+
+    bool get(
+        const String& id,
+        Alarm& alarm
+    );
+
+    bool exists(
+        const String& id
+    );
+
+    bool loadAll(
+        Alarm* alarms,
+        uint8_t maxCount,
+        uint8_t& count
+    );
+
+    // ========================================================
+    // ENABLE
+    // ========================================================
+
+    bool enable(
+        const String& id
+    );
+
+    bool disable(
+        const String& id
+    );
+
+    bool setEnabled(
+        const String& id,
+        bool enabled
+    );
+
+    // ========================================================
+    // ACTIVE ALARMS
+    // ========================================================
 
     uint8_t activeCount() const;
+
     bool getActiveInfo(
         uint8_t index,
         String& id,
@@ -59,17 +107,48 @@ public:
         uint8_t& repeatMask
     ) const;
 
-    int8_t findActive(const String& id) const;
-    bool addActive(const Alarm& alarm);
-    bool removeActive(const String& id);
+    int8_t findActive(
+        const String& id
+    ) const;
+
+    bool addActive(
+        const Alarm& alarm
+    );
+
+    bool removeActive(
+        const String& id
+    );
+
     void clearActive();
 
+    // ========================================================
+    // SD
+    // ========================================================
+
     bool createDirectory();
-    String pathFor(const String& id) const;
-    bool saveToSD(const Alarm& alarm);
-    bool loadFromSD(const String& id, Alarm& alarm);
-    bool deleteFromSD(const String& id);
+
+    String pathFor(
+        const String& id
+    ) const;
+
+    bool saveToSD(
+        const Alarm& alarm
+    );
+
+    bool loadFromSD(
+        const String& id,
+        Alarm& alarm
+    );
+
+    bool deleteFromSD(
+        const String& id
+    );
+
     bool reload();
+
+    // ========================================================
+    // JSON
+    // ========================================================
 
     bool serialize(
         const Alarm& alarm,
@@ -81,112 +160,190 @@ public:
         Alarm& alarm
     ) const;
 
-    bool validate(const Alarm& alarm) const;
+    // ========================================================
+    // VALIDATION
+    // ========================================================
+
+    bool validate(
+        const Alarm& alarm
+    ) const;
+
+    // ========================================================
+    // RUNTIME
+    // ========================================================
 
     bool isRunning() const;
+
     const Alarm* currentAlarm() const;
-    const AlarmPhase* currentPhase() const;
-    uint8_t currentPhaseIndex() const;
+
     uint32_t elapsedMs() const;
 
+    // ========================================================
+    // ACTIONS
+    // ========================================================
+
     bool dismiss();
-    bool snooze(uint32_t durationMs);
+
+    bool snooze(
+        uint32_t durationMs
+    );
+
     void finish();
 
 private:
+
+    // ========================================================
+    // ACTIVE ALARM
+    // ========================================================
+
     struct ActiveAlarm
     {
         String id;
+
         AlarmTime time;
+
         uint8_t repeatMask = 0;
+
         bool enabled = false;
-        int32_t earliestOffsetMs = 0;
     };
+
+    // ========================================================
+    // RUNTIME
+    // ========================================================
 
     struct Runtime
     {
         bool active = false;
+
         String alarmId;
+
         Alarm alarm;
-        uint8_t phaseIndex = 0;
+
         time_t triggerT0 = 0;
-        int64_t elapsedMs = 0;
-        int64_t phaseElapsedMs = 0;
+
+        uint32_t startMs = 0;
+
         bool dismissed = false;
+
         bool snoozed = false;
-        uint32_t lastUpdateMs = 0;
     };
+
+    // ========================================================
+    // SNOOZE
+    // ========================================================
 
     struct SnoozeState
     {
         bool active = false;
+
         String alarmId;
+
         uint32_t untilMs = 0;
     };
 
+    // ========================================================
+    // CALLBACKS
+    // ========================================================
+
     TriggerCallback _triggerCallback;
-    PhaseCallback _phaseCallback;
+
     FinishCallback _finishCallback;
 
+    // ========================================================
+    // REFERENCES
+    // ========================================================
+
     SDManager& _sd;
+
     ClockSystem& _clock;
 
-    ActiveAlarm _activeAlarms[AlarmConfig::MAX_ALARMS];
+    // ========================================================
+    // ACTIVE ALARMS
+    // ========================================================
+
+    ActiveAlarm
+        _activeAlarms[AlarmConfig::MAX_ALARMS];
+
     uint8_t _activeCount = 0;
 
-    time_t _lastTriggerT0[AlarmConfig::MAX_ALARMS];
+    // Последний T0, который был обработан
+    // для каждого активного будильника.
+    time_t
+        _lastTriggerT0[AlarmConfig::MAX_ALARMS];
+
+    // ========================================================
+    // RUNTIME
+    // ========================================================
 
     Runtime _runtime;
+
     SnoozeState _snooze;
 
     bool _initialized = false;
 
+    // ========================================================
+    // TIME
+    // ========================================================
+
     time_t currentLocalTimestamp() const;
 
-    // localNow is a "local epoch": UTC epoch + configured offset.
-    // Calendar extraction therefore uses gmtime_r(), not the ESP system TZ.
     time_t makeLocalT0(
         time_t localDateTimestamp,
         const AlarmTime& time
     ) const;
 
-    int32_t earliestOffset(const Alarm& alarm) const;
+    time_t localMidnight(
+        time_t timestamp
+    ) const;
 
-    uint8_t dayBit(time_t localTimestamp) const;
+    time_t shiftLocalDays(
+        time_t timestamp,
+        int32_t days
+    ) const;
+
+    // ========================================================
+    // WEEKDAY
+    // ========================================================
+
+    uint8_t dayBit(
+        time_t localTimestamp
+    ) const;
+
     bool isRepeatDay(
         const Alarm& alarm,
         time_t localTimestamp
     ) const;
 
+    // ========================================================
+    // SCHEDULER
+    // ========================================================
+
     bool shouldStart(
         uint8_t index,
         const ActiveAlarm& active,
         time_t now,
-        time_t& t0
+        time_t& triggerT0
     ) const;
 
     bool start(
         uint8_t index,
         const Alarm& alarm,
-        time_t t0,
-        int64_t elapsedMs
+        time_t triggerT0
     );
 
     void updateRuntime();
 
-    int8_t findPhase(
-        const Alarm& alarm,
-        int64_t elapsedMs
-    ) const;
+    // ========================================================
+    // NOTIFY
+    // ========================================================
 
-    bool phaseActive(
-        const AlarmPhase& phase,
-        int64_t elapsedMs
-    ) const;
+    void notifyTrigger();
 
-    bool conditionPassed(
-        const AlarmPhase& phase
-    ) const;
+    void notifyFinish();
+
+    // ========================================================
+    // LOG
+    // ========================================================
 
     void logAlarm(
         const char* event,
@@ -199,10 +356,17 @@ private:
         time_t timestamp
     ) const;
 
-    void notifyTrigger();
-    void notifyPhase(uint8_t phaseIndex);
-    void notifyFinish();
+    // ========================================================
+    // UUID
+    // ========================================================
 
     String generateId() const;
-    void scanFile(const String& path);
+
+    // ========================================================
+    // FILE SCAN
+    // ========================================================
+
+    void scanFile(
+        const String& path
+    );
 };

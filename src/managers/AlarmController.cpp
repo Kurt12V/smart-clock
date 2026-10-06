@@ -37,6 +37,10 @@ void AlarmController::begin()
             : "NO"
     );
 
+    // --------------------------------------------------------
+    // ALREADY INITIALIZED
+    // --------------------------------------------------------
+
     if (_begun)
     {
         Serial0.println(
@@ -71,36 +75,6 @@ void AlarmController::begin()
     );
 
     // --------------------------------------------------------
-    // PHASE CALLBACK
-    // --------------------------------------------------------
-
-    _alarmManager.setPhaseCallback(
-        [this](
-            const Alarm& alarm,
-            uint8_t phaseIndex,
-            const AlarmPhase& phase
-        )
-        {
-            Serial0.printf(
-                "[ALARM_CTRL] CALLBACK -> PHASE "
-                "id=%s index=%u\n",
-                alarm.id.c_str(),
-                static_cast<unsigned>(phaseIndex)
-            );
-
-            onPhaseChanged(
-                alarm,
-                phaseIndex,
-                phase
-            );
-        }
-    );
-
-    Serial0.println(
-        "[ALARM_CTRL] Phase callback attached"
-    );
-
-    // --------------------------------------------------------
     // FINISH CALLBACK
     // --------------------------------------------------------
 
@@ -120,6 +94,10 @@ void AlarmController::begin()
         "[ALARM_CTRL] Finish callback attached"
     );
 
+    // --------------------------------------------------------
+    // READY
+    // --------------------------------------------------------
+
     _begun = true;
 
     Serial0.println(
@@ -138,17 +116,25 @@ void AlarmController::begin()
 void AlarmController::update()
 {
     /*
-     * AlarmController не управляет временем.
+     * AlarmController does not run the alarm scheduler.
      *
-     * AlarmManager отвечает за:
+     * AlarmManager owns:
      *
-     *   schedule
-     *   trigger
-     *   phase timing
-     *   finish
+     *   - schedule
+     *   - time comparison
+     *   - trigger detection
+     *   - active alarm runtime
+     *   - snooze
+     *   - finish
      *
-     * Controller только получает callbacks
-     * и управляет выходными подсистемами.
+     * AlarmController owns:
+     *
+     *   - output callbacks
+     *   - active alarm state
+     *   - dismiss / snooze / stop commands
+     *
+     * There is currently no phase system and therefore
+     * no per-frame controller update is required.
      */
 }
 
@@ -171,6 +157,8 @@ void AlarmController::setMatrixCallback(
     );
 }
 
+// ------------------------------------------------------------
+
 void AlarmController::setAudioCallback(
     AudioCallback callback
 )
@@ -186,6 +174,8 @@ void AlarmController::setAudioCallback(
     );
 }
 
+// ------------------------------------------------------------
+
 void AlarmController::setCobCallback(
     CobCallback callback
 )
@@ -200,6 +190,8 @@ void AlarmController::setCobCallback(
             : "CLEARED"
     );
 }
+
+// ------------------------------------------------------------
 
 void AlarmController::setStopCallback(
     StopCallback callback
@@ -225,14 +217,11 @@ bool AlarmController::isActive() const
     return _active;
 }
 
+// ------------------------------------------------------------
+
 const String& AlarmController::alarmId() const
 {
     return _alarmId;
-}
-
-uint8_t AlarmController::phaseIndex() const
-{
-    return _phaseIndex;
 }
 
 // ============================================================
@@ -250,6 +239,10 @@ void AlarmController::onTriggered(
     Serial0.println(
         "[ALARM_CTRL] onTriggered()"
     );
+
+    // --------------------------------------------------------
+    // ALARM DATA
+    // --------------------------------------------------------
 
     Serial0.printf(
         "[ALARM_CTRL] id=%s\n",
@@ -270,42 +263,60 @@ void AlarmController::onTriggered(
 
     Serial0.printf(
         "[ALARM_CTRL] time=%02u:%02u:%02u\n",
-        alarm.time.hour,
-        alarm.time.minute,
-        alarm.time.second
+        static_cast<unsigned>(alarm.time.hour),
+        static_cast<unsigned>(alarm.time.minute),
+        static_cast<unsigned>(alarm.time.second)
     );
 
     Serial0.printf(
         "[ALARM_CTRL] repeatMask=0x%02X\n",
-        alarm.repeatMask
+        static_cast<unsigned>(alarm.repeatMask)
     );
 
     Serial0.printf(
-        "[ALARM_CTRL] phaseCount=%u\n",
-        static_cast<unsigned>(
-            alarm.phaseCount
-        )
+        "[ALARM_CTRL] matrixEffect=%s\n",
+        alarm.matrixEffect.c_str()
     );
 
     Serial0.printf(
-        "[ALARM_CTRL] previous active=%s id=%s phase=%u\n",
+        "[ALARM_CTRL] cobEffect=%s\n",
+        alarm.cobEffect.c_str()
+    );
+
+    Serial0.printf(
+        "[ALARM_CTRL] audioEffect=%s\n",
+        alarm.audioEffect.c_str()
+    );
+
+    // --------------------------------------------------------
+    // PREVIOUS STATE
+    // --------------------------------------------------------
+
+    Serial0.printf(
+        "[ALARM_CTRL] previous active=%s id=%s\n",
         _active
             ? "true"
             : "false",
-        _alarmId.c_str(),
-        static_cast<unsigned>(
-            _phaseIndex
-        )
+        _alarmId.c_str()
     );
+
+    // --------------------------------------------------------
+    // ACTIVATE
+    // --------------------------------------------------------
 
     _active = true;
     _alarmId = alarm.id;
-    _phaseIndex = 0;
 
     Serial0.printf(
         "[ALARM_CTRL] state -> ACTIVE id=%s\n",
         _alarmId.c_str()
     );
+
+    // --------------------------------------------------------
+    // EXECUTE OUTPUTS
+    // --------------------------------------------------------
+
+    executeAlarm(alarm);
 
     Serial0.println(
         "[ALARM_CTRL] ----------------------------------------"
@@ -313,213 +324,48 @@ void AlarmController::onTriggered(
 }
 
 // ============================================================
-// PHASE CHANGED
+// EXECUTE ALARM
 // ============================================================
 
-void AlarmController::onPhaseChanged(
-    const Alarm& alarm,
-    uint8_t phaseIndex,
-    const AlarmPhase& phase
+void AlarmController::executeAlarm(
+    const Alarm& alarm
 )
 {
     Serial0.println(
-        "[ALARM_CTRL] ========================================"
+        "[ALARM_CTRL] executeAlarm()"
     );
 
-    Serial0.println(
-        "[ALARM_CTRL] onPhaseChanged()"
-    );
-
-    Serial0.printf(
-        "[ALARM_CTRL] alarm id=%s\n",
-        alarm.id.c_str()
-    );
-
-    Serial0.printf(
-        "[ALARM_CTRL] controller id=%s\n",
-        _alarmId.c_str()
-    );
-
-    Serial0.printf(
-        "[ALARM_CTRL] phase index=%u\n",
-        static_cast<unsigned>(
-            phaseIndex
-        )
-    );
-
-    Serial0.printf(
-        "[ALARM_CTRL] controller active=%s\n",
-        _active
-            ? "true"
-            : "false"
-    );
-
-    // --------------------------------------------------------
-    // VALIDATION
-    // --------------------------------------------------------
-
-    if (!_active)
-    {
-        Serial0.println(
-            "[ALARM_CTRL] PHASE IGNORED: controller inactive"
-        );
-
-        Serial0.println(
-            "[ALARM_CTRL] ========================================"
-        );
-
-        return;
-    }
-
-    if (alarm.id != _alarmId)
-    {
-        Serial0.printf(
-            "[ALARM_CTRL] PHASE IGNORED: ID mismatch "
-            "controller=%s callback=%s\n",
-            _alarmId.c_str(),
-            alarm.id.c_str()
-        );
-
-        Serial0.println(
-            "[ALARM_CTRL] ========================================"
-        );
-
-        return;
-    }
-
-    if (
-        phaseIndex >=
-        alarm.phaseCount
-    )
-    {
-        Serial0.printf(
-            "[ALARM_CTRL] PHASE IGNORED: invalid index "
-            "index=%u phaseCount=%u\n",
-            static_cast<unsigned>(phaseIndex),
-            static_cast<unsigned>(alarm.phaseCount)
-        );
-
-        Serial0.println(
-            "[ALARM_CTRL] ========================================"
-        );
-
-        return;
-    }
-
-    // --------------------------------------------------------
-    // UPDATE STATE
-    // --------------------------------------------------------
-
-    _phaseIndex =
-        phaseIndex;
-
-    Serial0.printf(
-        "[ALARM_CTRL] state -> phase=%u\n",
-        static_cast<unsigned>(
-            _phaseIndex
-        )
-    );
-
-    // --------------------------------------------------------
-    // PHASE DATA
-    // --------------------------------------------------------
-
-    Serial0.printf(
-        "[ALARM_CTRL] phase offset=%ld ms\n",
-        static_cast<long>(
-            phase.startOffsetMs
-        )
-    );
-
-    Serial0.printf(
-        "[ALARM_CTRL] phase duration=%lu ms\n",
-        static_cast<unsigned long>(
-            phase.durationMs
-        )
-    );
-
-    Serial0.printf(
-        "[ALARM_CTRL] phase condition=%u\n",
-        static_cast<unsigned>(
-            phase.condition
-        )
-    );
-
-    // --------------------------------------------------------
-    // OUTPUTS
-    // --------------------------------------------------------
-
-    executePhase(phase);
-
-    Serial0.println(
-        "[ALARM_CTRL] ========================================"
-    );
-}
-
-// ============================================================
-// EXECUTE PHASE
-// ============================================================
-
-void AlarmController::executePhase(
-    const AlarmPhase& phase
-)
-{
-    Serial0.println(
-        "[ALARM_CTRL] executePhase()"
-    );
-
-    // --------------------------------------------------------
+    // ========================================================
     // MATRIX
-    // --------------------------------------------------------
+    // ========================================================
 
     Serial0.println(
         "[ALARM_CTRL] MATRIX"
     );
 
     Serial0.printf(
-        "[ALARM_CTRL]   enabled=%s\n",
-        phase.matrix.enabled
-            ? "true"
-            : "false"
-    );
-
-    Serial0.printf(
         "[ALARM_CTRL]   effect=%s\n",
-        phase.matrix.effectId.c_str()
+        alarm.matrixEffect.c_str()
     );
 
-    Serial0.printf(
-        "[ALARM_CTRL]   range=%u-%u\n",
-        static_cast<unsigned>(
-            phase.matrix.start
-        ),
-        static_cast<unsigned>(
-            phase.matrix.end
-        )
-    );
-
-    Serial0.printf(
-        "[ALARM_CTRL]   speedMs=%lu\n",
-        static_cast<unsigned long>(
-            phase.matrix.speedMs
-        )
-    );
-
-    Serial0.printf(
-        "[ALARM_CTRL]   durationMs=%lu\n",
-        static_cast<unsigned long>(
-            phase.matrix.durationMs
-        )
-    );
-
-    if (_matrixCallback)
+    if (alarm.matrixEffect.isEmpty())
+    {
+        Serial0.println(
+            "[ALARM_CTRL]   -> Matrix effect EMPTY"
+        );
+    }
+    else if (_matrixCallback)
     {
         Serial0.println(
             "[ALARM_CTRL]   -> Matrix callback"
         );
 
         _matrixCallback(
-            phase.matrix
+            alarm.matrixEffect
+        );
+
+        Serial0.println(
+            "[ALARM_CTRL]   <- Matrix callback"
         );
     }
     else
@@ -529,133 +375,37 @@ void AlarmController::executePhase(
         );
     }
 
-    // --------------------------------------------------------
-    // AUDIO
-    // --------------------------------------------------------
-
-    Serial0.println(
-        "[ALARM_CTRL] AUDIO"
-    );
-
-    Serial0.printf(
-        "[ALARM_CTRL]   enabled=%s\n",
-        phase.audio.enabled
-            ? "true"
-            : "false"
-    );
-
-    Serial0.printf(
-        "[ALARM_CTRL]   effect=%s\n",
-        phase.audio.effectId.c_str()
-    );
-
-    Serial0.printf(
-        "[ALARM_CTRL]   range=%u-%u\n",
-        static_cast<unsigned>(
-            phase.audio.start
-        ),
-        static_cast<unsigned>(
-            phase.audio.end
-        )
-    );
-
-    Serial0.printf(
-        "[ALARM_CTRL]   speedMs=%lu\n",
-        static_cast<unsigned long>(
-            phase.audio.speedMs
-        )
-    );
-
-    Serial0.printf(
-        "[ALARM_CTRL]   durationMs=%lu\n",
-        static_cast<unsigned long>(
-            phase.audio.durationMs
-        )
-    );
-
-    Serial0.printf(
-        "[ALARM_CTRL]   loop=%s\n",
-        phase.audio.loop
-            ? "true"
-            : "false"
-    );
-
-    if (_audioCallback)
-    {
-        Serial0.println(
-            "[ALARM_CTRL]   -> Audio callback"
-        );
-
-        _audioCallback(
-            phase.audio
-        );
-    }
-    else
-    {
-        Serial0.println(
-            "[ALARM_CTRL]   -> Audio callback NOT SET"
-        );
-    }
-
-    // --------------------------------------------------------
+    // ========================================================
     // COB
-    // --------------------------------------------------------
+    // ========================================================
 
     Serial0.println(
         "[ALARM_CTRL] COB"
     );
 
     Serial0.printf(
-        "[ALARM_CTRL]   enabled=%s\n",
-        phase.cob.enabled
-            ? "true"
-            : "false"
-    );
-
-    Serial0.printf(
         "[ALARM_CTRL]   effect=%s\n",
-        phase.cob.effectId.c_str()
+        alarm.cobEffect.c_str()
     );
 
-    Serial0.printf(
-        "[ALARM_CTRL]   range=%u-%u\n",
-        static_cast<unsigned>(
-            phase.cob.start
-        ),
-        static_cast<unsigned>(
-            phase.cob.end
-        )
-    );
-
-    Serial0.printf(
-        "[ALARM_CTRL]   speedMs=%lu\n",
-        static_cast<unsigned long>(
-            phase.cob.speedMs
-        )
-    );
-
-    Serial0.printf(
-        "[ALARM_CTRL]   durationMs=%lu\n",
-        static_cast<unsigned long>(
-            phase.cob.durationMs
-        )
-    );
-
-    Serial0.printf(
-        "[ALARM_CTRL]   maxDurationMs=%lu\n",
-        static_cast<unsigned long>(
-            phase.cob.maxDurationMs
-        )
-    );
-
-    if (_cobCallback)
+    if (alarm.cobEffect.isEmpty())
+    {
+        Serial0.println(
+            "[ALARM_CTRL]   -> COB effect EMPTY"
+        );
+    }
+    else if (_cobCallback)
     {
         Serial0.println(
             "[ALARM_CTRL]   -> COB callback"
         );
 
         _cobCallback(
-            phase.cob
+            alarm.cobEffect
+        );
+
+        Serial0.println(
+            "[ALARM_CTRL]   <- COB callback"
         );
     }
     else
@@ -665,8 +415,48 @@ void AlarmController::executePhase(
         );
     }
 
+    // ========================================================
+    // AUDIO
+    // ========================================================
+
     Serial0.println(
-        "[ALARM_CTRL] executePhase() complete"
+        "[ALARM_CTRL] AUDIO"
+    );
+
+    Serial0.printf(
+        "[ALARM_CTRL]   effect=%s\n",
+        alarm.audioEffect.c_str()
+    );
+
+    if (alarm.audioEffect.isEmpty())
+    {
+        Serial0.println(
+            "[ALARM_CTRL]   -> Audio effect EMPTY"
+        );
+    }
+    else if (_audioCallback)
+    {
+        Serial0.println(
+            "[ALARM_CTRL]   -> Audio callback"
+        );
+
+        _audioCallback(
+            alarm.audioEffect
+        );
+
+        Serial0.println(
+            "[ALARM_CTRL]   <- Audio callback"
+        );
+    }
+    else
+    {
+        Serial0.println(
+            "[ALARM_CTRL]   -> Audio callback NOT SET"
+        );
+    }
+
+    Serial0.println(
+        "[ALARM_CTRL] executeAlarm() complete"
     );
 }
 
@@ -703,10 +493,15 @@ void AlarmController::onFinished(
         _alarmId.c_str()
     );
 
+    // --------------------------------------------------------
+    // ALREADY INACTIVE
+    // --------------------------------------------------------
+
     if (!_active)
     {
         Serial0.println(
-            "[ALARM_CTRL] FINISH ignored: already inactive"
+            "[ALARM_CTRL] FINISH ignored:"
+            " controller inactive"
         );
 
         Serial0.println(
@@ -716,11 +511,17 @@ void AlarmController::onFinished(
         return;
     }
 
+    // --------------------------------------------------------
+    // ID VALIDATION
+    // --------------------------------------------------------
+
     if (id != _alarmId)
     {
         Serial0.printf(
-            "[ALARM_CTRL] FINISH ignored: ID mismatch "
-            "controller=%s callback=%s\n",
+            "[ALARM_CTRL] FINISH ignored:"
+            " ID mismatch"
+            " controller=%s"
+            " callback=%s\n",
             _alarmId.c_str(),
             id.c_str()
         );
@@ -732,15 +533,22 @@ void AlarmController::onFinished(
         return;
     }
 
+    // --------------------------------------------------------
+    // STOP OUTPUTS
+    // --------------------------------------------------------
+
     Serial0.println(
         "[ALARM_CTRL] Stopping outputs"
     );
 
     stopOutputs();
 
+    // --------------------------------------------------------
+    // CLEAR STATE
+    // --------------------------------------------------------
+
     _active = false;
     _alarmId = String();
-    _phaseIndex = 0;
 
     Serial0.println(
         "[ALARM_CTRL] state -> INACTIVE"
@@ -770,7 +578,7 @@ void AlarmController::stopOutputs()
         _stopCallback();
 
         Serial0.println(
-            "[ALARM_CTRL] Stop callback complete"
+            "[ALARM_CTRL] <- Stop callback"
         );
     }
     else
@@ -796,20 +604,22 @@ bool AlarmController::dismiss()
     );
 
     Serial0.printf(
-        "[ALARM_CTRL] active=%s id=%s phase=%u\n",
+        "[ALARM_CTRL] active=%s id=%s\n",
         _active
             ? "true"
             : "false",
-        _alarmId.c_str(),
-        static_cast<unsigned>(
-            _phaseIndex
-        )
+        _alarmId.c_str()
     );
+
+    // --------------------------------------------------------
+    // VALIDATE
+    // --------------------------------------------------------
 
     if (!_active)
     {
         Serial0.println(
-            "[ALARM_CTRL] DISMISS rejected: inactive"
+            "[ALARM_CTRL] DISMISS rejected:"
+            " controller inactive"
         );
 
         Serial0.println(
@@ -819,11 +629,15 @@ bool AlarmController::dismiss()
         return false;
     }
 
+    // --------------------------------------------------------
+    // MANAGER
+    // --------------------------------------------------------
+
     const bool result =
         _alarmManager.dismiss();
 
     Serial0.printf(
-        "[ALARM_CTRL] dismiss result=%s\n",
+        "[ALARM_CTRL] AlarmManager::dismiss() -> %s\n",
         result
             ? "SUCCESS"
             : "FAILED"
@@ -853,27 +667,27 @@ bool AlarmController::snooze(
     );
 
     Serial0.printf(
-        "[ALARM_CTRL] active=%s id=%s phase=%u\n",
+        "[ALARM_CTRL] active=%s id=%s\n",
         _active
             ? "true"
             : "false",
-        _alarmId.c_str(),
-        static_cast<unsigned>(
-            _phaseIndex
-        )
+        _alarmId.c_str()
     );
 
     Serial0.printf(
         "[ALARM_CTRL] durationMs=%lu\n",
-        static_cast<unsigned long>(
-            durationMs
-        )
+        static_cast<unsigned long>(durationMs)
     );
+
+    // --------------------------------------------------------
+    // VALIDATE ACTIVE
+    // --------------------------------------------------------
 
     if (!_active)
     {
         Serial0.println(
-            "[ALARM_CTRL] SNOOZE rejected: inactive"
+            "[ALARM_CTRL] SNOOZE rejected:"
+            " controller inactive"
         );
 
         Serial0.println(
@@ -882,11 +696,16 @@ bool AlarmController::snooze(
 
         return false;
     }
+
+    // --------------------------------------------------------
+    // VALIDATE DURATION
+    // --------------------------------------------------------
 
     if (durationMs == 0)
     {
         Serial0.println(
-            "[ALARM_CTRL] SNOOZE rejected: duration=0"
+            "[ALARM_CTRL] SNOOZE rejected:"
+            " duration=0"
         );
 
         Serial0.println(
@@ -896,13 +715,16 @@ bool AlarmController::snooze(
         return false;
     }
 
+    // --------------------------------------------------------
+    // MANAGER
+    // --------------------------------------------------------
+
     const bool result =
-        _alarmManager.snooze(
-            durationMs
-        );
+        _alarmManager.snooze(durationMs);
 
     Serial0.printf(
-        "[ALARM_CTRL] snooze result=%s\n",
+        "[ALARM_CTRL] AlarmManager::snooze(%lu) -> %s\n",
+        static_cast<unsigned long>(durationMs),
         result
             ? "SUCCESS"
             : "FAILED"
@@ -930,20 +752,22 @@ void AlarmController::stop()
     );
 
     Serial0.printf(
-        "[ALARM_CTRL] active=%s id=%s phase=%u\n",
+        "[ALARM_CTRL] active=%s id=%s\n",
         _active
             ? "true"
             : "false",
-        _alarmId.c_str(),
-        static_cast<unsigned>(
-            _phaseIndex
-        )
+        _alarmId.c_str()
     );
+
+    // --------------------------------------------------------
+    // VALIDATE ACTIVE
+    // --------------------------------------------------------
 
     if (!_active)
     {
         Serial0.println(
-            "[ALARM_CTRL] STOP ignored: inactive"
+            "[ALARM_CTRL] STOP ignored:"
+            " controller inactive"
         );
 
         Serial0.println(
@@ -953,9 +777,13 @@ void AlarmController::stop()
         return;
     }
 
+    // --------------------------------------------------------
+    // FINISH
+    // --------------------------------------------------------
+
     Serial0.printf(
-        "[ALARM_CTRL] Requesting AlarmManager::finish() "
-        "id=%s\n",
+        "[ALARM_CTRL] Requesting "
+        "AlarmManager::finish() id=%s\n",
         _alarmId.c_str()
     );
 

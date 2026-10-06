@@ -6,16 +6,16 @@
 // TIME CONSTANTS
 // ============================================================
 
-namespace Constants
-{
-    constexpr uint32_t MS_PER_SECOND = 1000;
-    constexpr uint32_t MS_PER_MINUTE = 60 * MS_PER_SECOND;
-    constexpr uint32_t MS_PER_HOUR   = 60 * MS_PER_MINUTE;
+// namespace Constants
+// {
+//     constexpr uint32_t MS_PER_SECOND = 1000;
+//     constexpr uint32_t MS_PER_MINUTE = 60 * MS_PER_SECOND;
+//     constexpr uint32_t MS_PER_HOUR   = 60 * MS_PER_MINUTE;
 
-    constexpr uint32_t SECONDS_PER_MINUTE = 60;
-    constexpr uint32_t MINUTES_PER_HOUR   = 60;
-    constexpr uint32_t HOURS_PER_DAY      = 24;
-}
+//     constexpr uint32_t SECONDS_PER_MINUTE = 60;
+//     constexpr uint32_t MINUTES_PER_HOUR   = 60;
+//     constexpr uint32_t HOURS_PER_DAY      = 24;
+// }
 
 
 // ============================================================

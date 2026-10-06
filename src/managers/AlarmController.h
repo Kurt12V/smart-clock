@@ -9,17 +9,18 @@ class AlarmController
 {
 public:
     using MatrixCallback =
-        std::function<void(const AlarmMatrix& matrix)>;
+        std::function<void(const String& effectId)>;
 
     using AudioCallback =
-        std::function<void(const AlarmAudio& audio)>;
+        std::function<void(const String& effectId)>;
 
     using CobCallback =
-        std::function<void(const AlarmCob& cob)>;
+        std::function<void(const String& effectId)>;
 
     using StopCallback =
         std::function<void()>;
 
+public:
     explicit AlarmController(
         AlarmManager& alarmManager
     );
@@ -27,29 +28,43 @@ public:
     void begin();
     void update();
 
+    // --------------------------------------------------------
+    // CALLBACKS
+    // --------------------------------------------------------
+
     void setMatrixCallback(MatrixCallback callback);
     void setAudioCallback(AudioCallback callback);
     void setCobCallback(CobCallback callback);
     void setStopCallback(StopCallback callback);
 
+    // --------------------------------------------------------
+    // STATE
+    // --------------------------------------------------------
+
     bool isActive() const;
     const String& alarmId() const;
-    uint8_t phaseIndex() const;
+
+    // --------------------------------------------------------
+    // CONTROL
+    // --------------------------------------------------------
 
     bool dismiss();
     bool snooze(uint32_t durationMs);
     void stop();
 
 private:
+    // --------------------------------------------------------
+    // ALARM MANAGER CALLBACKS
+    // --------------------------------------------------------
+
     void onTriggered(const Alarm& alarm);
-    void onPhaseChanged(
-        const Alarm& alarm,
-        uint8_t phaseIndex,
-        const AlarmPhase& phase
-    );
     void onFinished(const String& id);
 
-    void executePhase(const AlarmPhase& phase);
+    // --------------------------------------------------------
+    // OUTPUT CONTROL
+    // --------------------------------------------------------
+
+    void executeAlarm(const Alarm& alarm);
     void stopOutputs();
 
 private:
@@ -62,6 +77,6 @@ private:
 
     bool _active = false;
     String _alarmId;
-    uint8_t _phaseIndex = 0;
+
     bool _begun = false;
 };

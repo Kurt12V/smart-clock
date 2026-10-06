@@ -3,9 +3,8 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <cstring>
-#include <memory>
-#include <new>
-#include <time.h>
+#include <limits>
+#include <utility>
 
 #include "SDManager.h"
 #include "./core/ClockSystem.h"
@@ -16,170 +15,169 @@
 
 namespace
 {
-    constexpr const char* ALARM_DIRECTORY = "/alarms";
-    constexpr uint16_t CURRENT_SCHEMA_VERSION = 1;
+    constexpr const char* ALARM_DIRECTORY =
+        "/alarms";
 
-    constexpr uint32_t MAX_SNOOZE_MS = 0x7FFFFFFFUL;
-    constexpr uint8_t WEEK_MASK = 0x7F;
+    constexpr uint16_t CURRENT_SCHEMA_VERSION =
+        1;
 
-    // If the main loop was blocked, allow a recently missed trigger to start.
-    // The allowance also includes the negative phase offset.
-    constexpr uint32_t MIN_MISSED_TRIGGER_GRACE_MS = 60UL * 1000UL;
+    constexpr uint8_t WEEK_MASK =
+        0x7F;
 
-    const char* conditionToString(
-        AlarmCondition condition
+    constexpr uint32_t MAX_SNOOZE_MS =
+        0x7FFFFFFFUL;
+
+    // Если основной loop был задержан,
+    // допускаем максимум 60 секунд пропуска.
+    constexpr uint32_t MISSED_TRIGGER_GRACE_MS =
+        60UL * 1000UL;
+
+    constexpr int64_t ALARM_MS_PER_SECOND =
+        1000LL;
+
+    constexpr int64_t ALARM_SECONDS_PER_MINUTE =
+        60LL;
+
+    constexpr int64_t ALARM_MINUTES_PER_HOUR =
+        60LL;
+
+    constexpr int64_t ALARM_HOURS_PER_DAY =
+        24LL;
+
+    constexpr int64_t ALARM_SECONDS_PER_HOUR =
+        ALARM_SECONDS_PER_MINUTE *
+        ALARM_MINUTES_PER_HOUR;
+
+    constexpr int64_t ALARM_SECONDS_PER_DAY =
+        ALARM_HOURS_PER_DAY *
+        ALARM_SECONDS_PER_HOUR;
+
+    // ========================================================
+    // RESET
+    // ========================================================
+
+    void resetAlarm(
+        Alarm& alarm
     )
     {
-        switch (condition)
-        {
-            case AlarmCondition::Always:
-                return "always";
-
-            case AlarmCondition::IfNotDismissed:
-                return "if_not_dismissed";
-
-            case AlarmCondition::IfNotSnoozed:
-                return "if_not_snoozed";
-
-            case AlarmCondition::IfNoMotion:
-                return "if_no_motion";
-        }
-
-        return "always";
+        alarm = Alarm{};
     }
 
-    bool conditionFromJson(
-        JsonVariantConst value,
-        AlarmCondition& condition
+    // ========================================================
+    // LOCAL TIME
+    // ========================================================
+
+    void localTm(
+        time_t timestamp,
+        struct tm& value
     )
     {
-        if (value.is<const char*>())
+        memset(
+            &value,
+            0,
+            sizeof(value)
+        );
+
+        gmtime_r(
+            &timestamp,
+            &value
+        );
+    }
+
+    // ========================================================
+    // ALARM ID FROM FILE
+    // ========================================================
+
+    String alarmIdFromPath(
+        const String& path
+    )
+    {
+        String id = path;
+
+        const int slash =
+            id.lastIndexOf('/');
+
+        if (slash >= 0)
         {
-            const char* name =
-                value.as<const char*>();
+            id = id.substring(
+                slash + 1
+            );
+        }
 
-            if (strcmp(name, "always") == 0)
+        if (!id.endsWith(".json"))
+            return String();
+
+        id.remove(
+            id.length() - 5
+        );
+
+        return id;
+    }
+
+    // ========================================================
+    // UUID CHARACTER VALIDATION
+    // ========================================================
+
+    bool isUuidV4(
+        const String& id
+    )
+    {
+        if (id.length() != 36)
+            return false;
+
+        for (uint8_t i = 0; i < 36; ++i)
+        {
+            if (
+                i == 8 ||
+                i == 13 ||
+                i == 18 ||
+                i == 23
+            )
             {
-                condition = AlarmCondition::Always;
-                return true;
+                if (id[i] != '-')
+                    return false;
+
+                continue;
             }
 
-            if (strcmp(name, "if_not_dismissed") == 0)
-            {
-                condition = AlarmCondition::IfNotDismissed;
-                return true;
-            }
+            const char c = id[i];
 
-            if (strcmp(name, "if_not_snoozed") == 0)
-            {
-                condition = AlarmCondition::IfNotSnoozed;
-                return true;
-            }
+            const bool hex =
+                (c >= '0' && c <= '9') ||
+                (c >= 'a' && c <= 'f') ||
+                (c >= 'A' && c <= 'F');
 
-            if (strcmp(name, "if_no_motion") == 0)
-            {
-                condition = AlarmCondition::IfNoMotion;
-                return true;
-            }
+            if (!hex)
+                return false;
+        }
 
+        // UUID version 4
+        if (
+            id[14] != '4'
+        )
+        {
             return false;
         }
 
-        if (!value.is<uint8_t>())
-            return false;
-
-        const uint8_t raw =
-            value.as<uint8_t>();
+        // UUID variant: 8, 9, A, B
+        const char variant =
+            id[19];
 
         if (
-            raw >
-            static_cast<uint8_t>(
-                AlarmCondition::IfNoMotion
+            !(
+                variant == '8' ||
+                variant == '9' ||
+                variant == 'a' ||
+                variant == 'A' ||
+                variant == 'b' ||
+                variant == 'B'
             )
         )
         {
             return false;
         }
 
-        condition =
-            static_cast<AlarmCondition>(raw);
-
         return true;
-    }
-
-    void resetAlarm(Alarm& alarm)
-    {
-        alarm.~Alarm();
-        new (&alarm) Alarm();
-    }
-
-    // --------------------------------------------------------
-    // Local-calendar helpers
-    //
-    // ClockSystem's local timestamp is UTC epoch + configured
-    // UTC_OFFSET. It is NOT an ESP timezone timestamp.
-    //
-    // Therefore all calendar operations in this manager use
-    // gmtime_r(), never localtime_r()/mktime().
-    // --------------------------------------------------------
-
-    void localTm(
-        time_t localTimestamp,
-        struct tm& value
-    )
-    {
-        gmtime_r(
-            &localTimestamp,
-            &value
-        );
-    }
-
-    time_t localMidnight(
-        time_t localTimestamp
-    )
-    {
-        // ClockSystem::getLocalTime() returns a local-epoch value:
-        // UTC epoch + configured offset. Treat it as a plain epoch and
-        // remove the time-of-day without applying the ESP timezone.
-        const int64_t seconds =
-            static_cast<int64_t>(localTimestamp);
-
-        int64_t days = seconds / 86400LL;
-
-        if (seconds < 0 && (seconds % 86400LL) != 0)
-            --days;
-
-        return static_cast<time_t>(days * 86400LL);
-    }
-
-    time_t shiftLocalDays(
-        time_t localTimestamp,
-        int32_t days
-    )
-    {
-        return localTimestamp +
-               static_cast<time_t>(days) * 86400;
-    }
-
-    uint32_t missedTriggerGraceMs(
-        int32_t earliestOffsetMs
-    )
-    {
-        const int64_t negativeOffset =
-            earliestOffsetMs < 0
-                ? -static_cast<int64_t>(earliestOffsetMs)
-                : 0;
-
-        const int64_t grace =
-            negativeOffset +
-            static_cast<int64_t>(
-                MIN_MISSED_TRIGGER_GRACE_MS
-            );
-
-        return grace >
-                static_cast<int64_t>(0xFFFFFFFFUL)
-            ? 0xFFFFFFFFUL
-            : static_cast<uint32_t>(grace);
     }
 }
 
@@ -203,32 +201,33 @@ AlarmManager::AlarmManager(
 bool AlarmManager::begin()
 {
     Serial0.println(
-        "[ALARM] Initializing AlarmManager"
+        "============================================"
+    );
+
+    Serial0.println(
+        "[ALARM] AlarmManager::begin()"
+    );
+
+    Serial0.println(
+        "============================================"
     );
 
     _initialized = false;
-    _activeCount = 0;
 
-    _runtime.~Runtime();
-    new (&_runtime) Runtime();
+    clearActive();
 
-    _snooze = SnoozeState{};
+    _runtime =
+        Runtime{};
 
-    for (
-        uint8_t i = 0;
-        i < AlarmConfig::MAX_ALARMS;
-        ++i
-    )
-    {
-        _activeAlarms[i] = ActiveAlarm{};
-        _lastTriggerT0[i] = 0;
-    }
+    _snooze =
+        SnoozeState{};
 
     if (!_sd.isReady())
     {
         Serial0.println(
             "[ALARM] ERROR: SD is not ready"
         );
+
         return false;
     }
 
@@ -237,6 +236,7 @@ bool AlarmManager::begin()
         Serial0.println(
             "[ALARM] ERROR: cannot create /alarms"
         );
+
         return false;
     }
 
@@ -245,6 +245,7 @@ bool AlarmManager::begin()
         Serial0.println(
             "[ALARM] ERROR: reload failed"
         );
+
         return false;
     }
 
@@ -252,7 +253,9 @@ bool AlarmManager::begin()
 
     Serial0.printf(
         "[ALARM] READY active=%u localNow=%lld\n",
-        static_cast<unsigned>(_activeCount),
+        static_cast<unsigned>(
+            _activeCount
+        ),
         static_cast<long long>(
             currentLocalTimestamp()
         )
@@ -271,7 +274,7 @@ void AlarmManager::update()
         return;
 
     // --------------------------------------------------------
-    // Existing runtime
+    // Если будильник уже работает
     // --------------------------------------------------------
 
     if (_runtime.active)
@@ -281,75 +284,91 @@ void AlarmManager::update()
     }
 
     // --------------------------------------------------------
-    // Snooze
+    // SNOOZE
     // --------------------------------------------------------
 
     if (_snooze.active)
     {
-        const uint32_t nowMs = millis();
+        const uint32_t nowMs =
+            millis();
 
         if (
             static_cast<int32_t>(
                 nowMs - _snooze.untilMs
-            ) >= 0
+            ) < 0
         )
         {
-            const String alarmId =
-                _snooze.alarmId;
+            return;
+        }
 
-            _snooze = SnoozeState{};
+        const String alarmId =
+            _snooze.alarmId;
 
-            std::unique_ptr<Alarm> alarm(
-                new (std::nothrow) Alarm()
+        Serial0.printf(
+            "[ALARM] SNOOZE EXPIRED id=%s\n",
+            alarmId.c_str()
+        );
+
+        _snooze =
+            SnoozeState{};
+
+        Alarm alarm;
+
+        if (
+            !loadFromSD(
+                alarmId,
+                alarm
+            )
+        )
+        {
+            Serial0.printf(
+                "[ALARM] SNOOZE ERROR id=%s "
+                "reason=load-failed\n",
+                alarmId.c_str()
             );
 
-            if (!alarm)
-            {
-                Serial0.println(
-                    "[ALARM] ERROR: snooze Alarm allocation failed"
-                );
-                return;
-            }
-
-            if (
-                loadFromSD(
-                    alarmId,
-                    *alarm
-                )
-            )
-            {
-                const int8_t index =
-                    findActive(alarm->id);
-
-                if (
-                    index >= 0 &&
-                    alarm->enabled
-                )
-                {
-                    const time_t now =
-                        currentLocalTimestamp();
-
-                    Serial0.printf(
-                        "[ALARM] SNOOZE EXPIRED id=%s localNow=%lld\n",
-                        alarm->id.c_str(),
-                        static_cast<long long>(now)
-                    );
-
-                    start(
-                        static_cast<uint8_t>(index),
-                        *alarm,
-                        now,
-                        0
-                    );
-                }
-            }
+            return;
         }
+
+        if (!alarm.enabled)
+        {
+            Serial0.printf(
+                "[ALARM] SNOOZE CANCELLED id=%s "
+                "reason=disabled\n",
+                alarmId.c_str()
+            );
+
+            return;
+        }
+
+        const int8_t index =
+            findActive(alarmId);
+
+        if (index < 0)
+        {
+            Serial0.printf(
+                "[ALARM] SNOOZE ERROR id=%s "
+                "reason=not-active\n",
+                alarmId.c_str()
+            );
+
+            return;
+        }
+
+        const time_t now =
+            currentLocalTimestamp();
+
+        start(
+            static_cast<uint8_t>(index),
+            alarm,
+            now
+        );
 
         return;
     }
 
     // --------------------------------------------------------
-    // Normal scheduler
+    // NORMAL SCHEDULER
     // --------------------------------------------------------
 
     const time_t now =
@@ -370,59 +389,51 @@ void AlarmManager::update()
         if (active.id.isEmpty())
             continue;
 
-        std::unique_ptr<Alarm> alarm(
-            new (std::nothrow) Alarm()
-        );
-
-        if (!alarm)
-        {
-            Serial0.println(
-                "[ALARM] ERROR: scheduler Alarm allocation failed"
-            );
-            return;
-        }
-
-        if (
-            !loadFromSD(
-                active.id,
-                *alarm
-            )
-        )
-        {
-            continue;
-        }
-
-        if (!alarm->enabled)
-            continue;
-
-        time_t t0 = 0;
+        time_t triggerT0 = 0;
 
         if (
             !shouldStart(
                 i,
                 active,
                 now,
-                t0
+                triggerT0
             )
         )
         {
             continue;
         }
 
-        const int64_t elapsed =
-            (
-                static_cast<int64_t>(now) -
-                static_cast<int64_t>(t0)
-            ) * 1000LL;
+        Alarm alarm;
 
-        start(
-            i,
-            *alarm,
-            t0,
-            elapsed
-        );
+        if (
+            !loadFromSD(
+                active.id,
+                alarm
+            )
+        )
+        {
+            Serial0.printf(
+                "[ALARM] WARNING: "
+                "cannot load id=%s\n",
+                active.id.c_str()
+            );
 
-        break;
+            continue;
+        }
+
+        if (!alarm.enabled)
+            continue;
+
+        if (
+            start(
+                i,
+                alarm,
+                triggerT0
+            )
+        )
+        {
+            break;
+        }
     }
 }
 
@@ -443,21 +454,16 @@ void AlarmManager::setTriggerCallback(
     TriggerCallback callback
 )
 {
-    _triggerCallback = std::move(callback);
-}
-
-void AlarmManager::setPhaseCallback(
-    PhaseCallback callback
-)
-{
-    _phaseCallback = std::move(callback);
+    _triggerCallback =
+        std::move(callback);
 }
 
 void AlarmManager::setFinishCallback(
     FinishCallback callback
 )
 {
-    _finishCallback = std::move(callback);
+    _finishCallback =
+        std::move(callback);
 }
 
 // ============================================================
@@ -465,125 +471,179 @@ void AlarmManager::setFinishCallback(
 // ============================================================
 
 bool AlarmManager::create(
-    const Alarm& alarm
+    Alarm& alarm
 )
 {
+    if (!_initialized)
+        return false;
+
+    // --------------------------------------------------------
+    // Generate UUID automatically
+    // --------------------------------------------------------
+
+    if (alarm.id.isEmpty())
+    {
+        do
+        {
+            alarm.id =
+                generateId();
+
+        } while (exists(alarm.id));
+    }
+
     logAlarm(
         "CREATE",
         alarm
     );
 
-    if (!_initialized)
-        return false;
-
-    if (alarm.id.isEmpty())
-        return false;
-
     if (!validate(alarm))
+    {
+        Serial0.println(
+            "[ALARM] CREATE rejected: "
+            "validation failed"
+        );
+
         return false;
+    }
 
     if (exists(alarm.id))
+    {
+        Serial0.printf(
+            "[ALARM] CREATE rejected: "
+            "already exists id=%s\n",
+            alarm.id.c_str()
+        );
+
         return false;
+    }
 
     if (
         alarm.enabled &&
-        _activeCount >= AlarmConfig::MAX_ALARMS
+        _activeCount >=
+            AlarmConfig::MAX_ALARMS
     )
     {
+        Serial0.println(
+            "[ALARM] CREATE rejected: "
+            "active alarm limit"
+        );
+
         return false;
     }
 
     if (!saveToSD(alarm))
+    {
+        Serial0.println(
+            "[ALARM] CREATE failed: save"
+        );
+
         return false;
+    }
 
     if (alarm.enabled)
     {
         if (!addActive(alarm))
         {
-            deleteFromSD(alarm.id);
+            deleteFromSD(
+                alarm.id
+            );
+
             return false;
         }
     }
+
+    Serial0.printf(
+        "[ALARM] CREATE OK "
+        "id=%s\n",
+        alarm.id.c_str()
+    );
 
     return true;
 }
 
 // ============================================================
-// UPDATE ALARM
+// UPDATE
 // ============================================================
 
 bool AlarmManager::update(
     const Alarm& alarm
 )
 {
-    logAlarm(
-        "UPDATE",
-        alarm
-    );
-
     if (!_initialized)
         return false;
 
     if (!validate(alarm))
-        return false;
+    {
+        Serial0.println(
+            "[ALARM] UPDATE rejected: "
+            "validation failed"
+        );
 
-    std::unique_ptr<Alarm> oldAlarm(
-        new (std::nothrow) Alarm()
-    );
-
-    if (!oldAlarm)
         return false;
+    }
+
+    Alarm oldAlarm;
 
     if (
         !get(
             alarm.id,
-            *oldAlarm
+            oldAlarm
         )
     )
     {
+        Serial0.printf(
+            "[ALARM] UPDATE failed: "
+            "not found id=%s\n",
+            alarm.id.c_str()
+        );
+
         return false;
     }
 
-    const bool wasEnabled =
-        oldAlarm->enabled;
-
-    const bool willBeEnabled =
-        alarm.enabled;
-
-    const bool runtimeSameAlarm =
-        _runtime.active &&
-        _runtime.alarmId == alarm.id;
-
     if (
-        !wasEnabled &&
-        willBeEnabled &&
-        _activeCount >= AlarmConfig::MAX_ALARMS
+        !oldAlarm.enabled &&
+        alarm.enabled &&
+        _activeCount >=
+            AlarmConfig::MAX_ALARMS
     )
     {
         return false;
     }
 
-    if (runtimeSameAlarm)
+    const bool runtimeSame =
+        _runtime.active &&
+        _runtime.alarmId == alarm.id;
+
+    if (runtimeSame)
+    {
         finish();
+    }
 
     if (!saveToSD(alarm))
         return false;
 
-    removeActive(alarm.id);
+    removeActive(
+        alarm.id
+    );
 
-    if (willBeEnabled)
+    if (alarm.enabled)
     {
         if (!addActive(alarm))
+        {
+            Serial0.println(
+                "[ALARM] UPDATE failed: "
+                "addActive"
+            );
+
             return false;
+        }
     }
 
-    // The next occurrence of a changed alarm must be allowed
-    // to trigger even if its T0 equals an old occurrence.
-    const int8_t index =
-        findActive(alarm.id);
-
-    if (index >= 0)
-        _lastTriggerT0[index] = 0;
+    Serial0.printf(
+        "[ALARM] UPDATE OK "
+        "id=%s\n",
+        alarm.id.c_str()
+    );
 
     return true;
 }
@@ -596,8 +656,13 @@ bool AlarmManager::remove(
     const String& id
 )
 {
-    if (!_initialized || id.isEmpty())
+    if (
+        !_initialized ||
+        id.isEmpty()
+    )
+    {
         return false;
+    }
 
     if (!exists(id))
         return false;
@@ -615,12 +680,22 @@ bool AlarmManager::remove(
         _snooze.alarmId == id
     )
     {
-        _snooze = SnoozeState{};
+        _snooze =
+            SnoozeState{};
     }
+
+    if (!deleteFromSD(id))
+        return false;
 
     removeActive(id);
 
-    return deleteFromSD(id);
+    Serial0.printf(
+        "[ALARM] REMOVE OK "
+        "id=%s\n",
+        id.c_str()
+    );
+
+    return true;
 }
 
 // ============================================================
@@ -632,8 +707,13 @@ bool AlarmManager::get(
     Alarm& alarm
 )
 {
-    if (!_initialized || id.isEmpty())
+    if (
+        !_initialized ||
+        id.isEmpty()
+    )
+    {
         return false;
+    }
 
     return loadFromSD(
         id,
@@ -649,8 +729,13 @@ bool AlarmManager::exists(
     const String& id
 )
 {
-    if (!_initialized || id.isEmpty())
+    if (
+        !_sd.isReady() ||
+        id.isEmpty()
+    )
+    {
         return false;
+    }
 
     return _sd.fileExists(
         pathFor(id)
@@ -675,9 +760,6 @@ bool AlarmManager::loadAll(
     if (!alarms)
         return false;
 
-    if (maxCount == 0)
-        return true;
-
     SDFileEntry files[
         AlarmConfig::MAX_ALARMS
     ];
@@ -700,40 +782,25 @@ bool AlarmManager::loadAll(
         if (files[i].isDir)
             continue;
 
-        if (!files[i].path.endsWith(".json"))
+        const String id =
+            alarmIdFromPath(
+                files[i].path
+            );
+
+        if (id.isEmpty())
             continue;
 
-        String id =
-            files[i].path;
-
-        const int slash =
-            id.lastIndexOf('/');
-
-        if (slash >= 0)
-            id = id.substring(slash + 1);
-
-        if (!id.endsWith(".json"))
-            continue;
-
-        id.remove(
-            id.length() - 5
-        );
-
-        std::unique_ptr<Alarm> alarm(
-            new (std::nothrow) Alarm()
-        );
-
-        if (!alarm)
-            return false;
+        Alarm alarm;
 
         if (
             loadFromSD(
                 id,
-                *alarm
+                alarm
             )
         )
         {
-            alarms[count++] = *alarm;
+            alarms[count++] =
+                alarm;
         }
     }
 
@@ -741,7 +808,7 @@ bool AlarmManager::loadAll(
 }
 
 // ============================================================
-// ENABLE / DISABLE
+// ENABLE
 // ============================================================
 
 bool AlarmManager::enable(
@@ -754,6 +821,10 @@ bool AlarmManager::enable(
     );
 }
 
+// ============================================================
+// DISABLE
+// ============================================================
+
 bool AlarmManager::disable(
     const String& id
 )
@@ -764,39 +835,49 @@ bool AlarmManager::disable(
     );
 }
 
+// ============================================================
+// SET ENABLED
+// ============================================================
+
 bool AlarmManager::setEnabled(
     const String& id,
     bool enabled
 )
 {
-    if (!_initialized || id.isEmpty())
+    if (
+        !_initialized ||
+        id.isEmpty()
+    )
+    {
         return false;
+    }
 
-    std::unique_ptr<Alarm> alarm(
-        new (std::nothrow) Alarm()
-    );
-
-    if (!alarm)
-        return false;
+    Alarm alarm;
 
     if (
         !loadFromSD(
             id,
-            *alarm
+            alarm
         )
     )
     {
         return false;
     }
 
-    if (alarm->enabled == enabled)
+    if (alarm.enabled == enabled)
         return true;
 
     if (
         enabled &&
-        _activeCount >= AlarmConfig::MAX_ALARMS
+        _activeCount >=
+            AlarmConfig::MAX_ALARMS
     )
     {
+        Serial0.println(
+            "[ALARM] ENABLE rejected: "
+            "active limit"
+        );
+
         return false;
     }
 
@@ -808,30 +889,43 @@ bool AlarmManager::setEnabled(
         finish();
     }
 
-    alarm->enabled = enabled;
+    alarm.enabled =
+        enabled;
 
-    if (!saveToSD(*alarm))
+    if (!saveToSD(alarm))
         return false;
 
     removeActive(id);
 
     if (enabled)
     {
-        if (!addActive(*alarm))
+        if (!addActive(alarm))
             return false;
     }
+
+    Serial0.printf(
+        "[ALARM] %s id=%s\n",
+        enabled
+            ? "ENABLED"
+            : "DISABLED",
+        id.c_str()
+    );
 
     return true;
 }
 
 // ============================================================
-// ACTIVE LIST
+// ACTIVE COUNT
 // ============================================================
 
 uint8_t AlarmManager::activeCount() const
 {
     return _activeCount;
 }
+
+// ============================================================
+// ACTIVE INFO
+// ============================================================
 
 bool AlarmManager::getActiveInfo(
     uint8_t index,
@@ -846,20 +940,26 @@ bool AlarmManager::getActiveInfo(
     const ActiveAlarm& active =
         _activeAlarms[index];
 
-    id = active.id;
-    time = active.time;
-    repeatMask = active.repeatMask;
+    id =
+        active.id;
+
+    time =
+        active.time;
+
+    repeatMask =
+        active.repeatMask;
 
     return true;
 }
+
+// ============================================================
+// FIND ACTIVE
+// ============================================================
 
 int8_t AlarmManager::findActive(
     const String& id
 ) const
 {
-    if (id.isEmpty())
-        return -1;
-
     for (
         uint8_t i = 0;
         i < _activeCount;
@@ -877,11 +977,18 @@ int8_t AlarmManager::findActive(
     return -1;
 }
 
+// ============================================================
+// ADD ACTIVE
+// ============================================================
+
 bool AlarmManager::addActive(
     const Alarm& alarm
 )
 {
     if (!alarm.enabled)
+        return false;
+
+    if (!isUuidV4(alarm.id))
         return false;
 
     if (
@@ -892,7 +999,8 @@ bool AlarmManager::addActive(
     }
 
     if (
-        _activeCount >= AlarmConfig::MAX_ALARMS
+        _activeCount >=
+        AlarmConfig::MAX_ALARMS
     )
     {
         return false;
@@ -901,17 +1009,42 @@ bool AlarmManager::addActive(
     ActiveAlarm& active =
         _activeAlarms[_activeCount];
 
-    active.id = alarm.id;
-    active.time = alarm.time;
-    active.repeatMask = alarm.repeatMask;
-    active.enabled = alarm.enabled;
-    active.earliestOffsetMs =
-        earliestOffset(alarm);
+    active.id =
+        alarm.id;
+
+    active.time =
+        alarm.time;
+
+    active.repeatMask =
+        alarm.repeatMask;
+
+    active.enabled =
+        alarm.enabled;
+
+    _lastTriggerT0[
+        _activeCount
+    ] = 0;
 
     ++_activeCount;
 
+    Serial0.printf(
+        "[ALARM] ACTIVE ADD "
+        "id=%s "
+        "time=%02u:%02u:%02u "
+        "repeat=0x%02X\n",
+        active.id.c_str(),
+        active.time.hour,
+        active.time.minute,
+        active.time.second,
+        active.repeatMask
+    );
+
     return true;
 }
+
+// ============================================================
+// REMOVE ACTIVE
+// ============================================================
 
 bool AlarmManager::removeActive(
     const String& id
@@ -934,16 +1067,27 @@ bool AlarmManager::removeActive(
     {
         _activeAlarms[i] =
             _activeAlarms[i + 1];
+
+        _lastTriggerT0[i] =
+            _lastTriggerT0[i + 1];
     }
 
     _activeAlarms[
         _activeCount - 1
     ] = ActiveAlarm{};
 
+    _lastTriggerT0[
+        _activeCount - 1
+    ] = 0;
+
     --_activeCount;
 
     return true;
 }
+
+// ============================================================
+// CLEAR ACTIVE
+// ============================================================
 
 void AlarmManager::clearActive()
 {
@@ -955,13 +1099,16 @@ void AlarmManager::clearActive()
     {
         _activeAlarms[i] =
             ActiveAlarm{};
+
+        _lastTriggerT0[i] =
+            0;
     }
 
     _activeCount = 0;
 }
 
 // ============================================================
-// SD
+// CREATE DIRECTORY
 // ============================================================
 
 bool AlarmManager::createDirectory()
@@ -974,11 +1121,15 @@ bool AlarmManager::createDirectory()
     );
 }
 
+// ============================================================
+// PATH
+// ============================================================
+
 String AlarmManager::pathFor(
     const String& id
 ) const
 {
-    if (id.isEmpty())
+    if (!isUuidV4(id))
         return String();
 
     return String(ALARM_DIRECTORY) +
@@ -987,13 +1138,17 @@ String AlarmManager::pathFor(
            ".json";
 }
 
+// ============================================================
+// SAVE
+// ============================================================
+
 bool AlarmManager::saveToSD(
     const Alarm& alarm
 )
 {
     if (
         !_sd.isReady() ||
-        alarm.id.isEmpty()
+        !isUuidV4(alarm.id)
     )
     {
         return false;
@@ -1013,16 +1168,25 @@ bool AlarmManager::saveToSD(
 
     String content;
 
-    serializeJson(
-        document,
-        content
-    );
+    if (
+        serializeJson(
+            document,
+            content
+        ) == 0
+    )
+    {
+        return false;
+    }
 
     return _sd.writeFile(
         pathFor(alarm.id),
         content
     );
 }
+
+// ============================================================
+// LOAD
+// ============================================================
 
 bool AlarmManager::loadFromSD(
     const String& id,
@@ -1033,7 +1197,7 @@ bool AlarmManager::loadFromSD(
 
     if (
         !_sd.isReady() ||
-        id.isEmpty()
+        !isUuidV4(id)
     )
     {
         return false;
@@ -1051,6 +1215,9 @@ bool AlarmManager::loadFromSD(
         return false;
     }
 
+    if (content.isEmpty())
+        return false;
+
     JsonDocument document;
 
     const DeserializationError error =
@@ -1060,7 +1227,16 @@ bool AlarmManager::loadFromSD(
         );
 
     if (error)
+    {
+        Serial0.printf(
+            "[ALARM] JSON ERROR "
+            "id=%s error=%s\n",
+            id.c_str(),
+            error.c_str()
+        );
+
         return false;
+    }
 
     if (
         !deserialize(
@@ -1074,12 +1250,23 @@ bool AlarmManager::loadFromSD(
 
     if (alarm.id != id)
     {
+        Serial0.printf(
+            "[ALARM] JSON ERROR "
+            "id=%s reason=id-mismatch\n",
+            id.c_str()
+        );
+
         resetAlarm(alarm);
+
         return false;
     }
 
     return true;
 }
+
+// ============================================================
+// DELETE
+// ============================================================
 
 bool AlarmManager::deleteFromSD(
     const String& id
@@ -1087,7 +1274,7 @@ bool AlarmManager::deleteFromSD(
 {
     if (
         !_sd.isReady() ||
-        id.isEmpty()
+        !isUuidV4(id)
     )
     {
         return false;
@@ -1106,15 +1293,6 @@ bool AlarmManager::reload()
 {
     clearActive();
 
-    for (
-        uint8_t i = 0;
-        i < AlarmConfig::MAX_ALARMS;
-        ++i
-    )
-    {
-        _lastTriggerT0[i] = 0;
-    }
-
     if (!_sd.isReady())
         return false;
 
@@ -1130,6 +1308,13 @@ bool AlarmManager::reload()
             ALARM_DIRECTORY
         );
 
+    Serial0.printf(
+        "[ALARM] reload files=%u\n",
+        static_cast<unsigned>(
+            fileCount
+        )
+    );
+
     for (
         size_t i = 0;
         i < fileCount;
@@ -1139,73 +1324,61 @@ bool AlarmManager::reload()
         if (files[i].isDir)
             continue;
 
-        if (!files[i].path.endsWith(".json"))
+        const String id =
+            alarmIdFromPath(
+                files[i].path
+            );
+
+        if (!isUuidV4(id))
             continue;
 
-        String id =
-            files[i].path;
-
-        const int slash =
-            id.lastIndexOf('/');
-
-        if (slash >= 0)
-            id = id.substring(slash + 1);
-
-        if (!id.endsWith(".json"))
-            continue;
-
-        id.remove(
-            id.length() - 5
-        );
-
-        std::unique_ptr<Alarm> alarm(
-            new (std::nothrow) Alarm()
-        );
-
-        if (!alarm)
-            return false;
+        Alarm alarm;
 
         if (
             !loadFromSD(
                 id,
-                *alarm
+                alarm
             )
         )
         {
             Serial0.printf(
-                "[ALARM] WARNING: cannot load %s\n",
+                "[ALARM] reload "
+                "failed id=%s\n",
                 id.c_str()
             );
+
             continue;
         }
 
-        if (!alarm->enabled)
+        if (!alarm.enabled)
             continue;
 
         if (
-            _activeCount >=
-            AlarmConfig::MAX_ALARMS
+            !addActive(alarm)
         )
         {
             Serial0.println(
-                "[ALARM] WARNING: active alarm limit reached"
+                "[ALARM] reload "
+                "active limit reached"
             );
+
             break;
         }
-
-        addActive(*alarm);
     }
 
     Serial0.printf(
-        "[ALARM] reload complete active=%u\n",
-        static_cast<unsigned>(_activeCount)
+        "[ALARM] reload complete "
+        "active=%u\n",
+        static_cast<unsigned>(
+            _activeCount
+        )
     );
 
     return true;
 }
 
 // ============================================================
-// SERIALIZATION
+// SERIALIZE
 // ============================================================
 
 bool AlarmManager::serialize(
@@ -1242,107 +1415,20 @@ bool AlarmManager::serialize(
     document["repeatMask"] =
         alarm.repeatMask;
 
-    JsonArray phases =
-        document["phases"].to<JsonArray>();
+    document["matrixEffect"] =
+        alarm.matrixEffect;
 
-    for (
-        uint8_t i = 0;
-        i < alarm.phaseCount;
-        ++i
-    )
-    {
-        const AlarmPhase& phase =
-            alarm.phases[i];
+    document["cobEffect"] =
+        alarm.cobEffect;
 
-        JsonObject object =
-            phases.add<JsonObject>();
-
-        object["startOffsetMs"] =
-            phase.startOffsetMs;
-
-        object["durationMs"] =
-            phase.durationMs;
-
-        object["condition"] =
-            conditionToString(
-                phase.condition
-            );
-
-        JsonObject matrix =
-            object["matrix"].to<JsonObject>();
-
-        matrix["enabled"] =
-            phase.matrix.enabled;
-
-        matrix["effectId"] =
-            phase.matrix.effectId;
-
-        matrix["start"] =
-            phase.matrix.start;
-
-        matrix["end"] =
-            phase.matrix.end;
-
-        matrix["speedMs"] =
-            phase.matrix.speedMs;
-
-        matrix["durationMs"] =
-            phase.matrix.durationMs;
-
-        JsonObject audio =
-            object["audio"].to<JsonObject>();
-
-        audio["enabled"] =
-            phase.audio.enabled;
-
-        audio["effectId"] =
-            phase.audio.effectId;
-
-        audio["start"] =
-            phase.audio.start;
-
-        audio["end"] =
-            phase.audio.end;
-
-        audio["speedMs"] =
-            phase.audio.speedMs;
-
-        audio["durationMs"] =
-            phase.audio.durationMs;
-
-        audio["loop"] =
-            phase.audio.loop;
-
-        JsonObject cob =
-            object["cob"].to<JsonObject>();
-
-        cob["enabled"] =
-            phase.cob.enabled;
-
-        cob["effectId"] =
-            phase.cob.effectId;
-
-        cob["start"] =
-            phase.cob.start;
-
-        cob["end"] =
-            phase.cob.end;
-
-        cob["speedMs"] =
-            phase.cob.speedMs;
-
-        cob["durationMs"] =
-            phase.cob.durationMs;
-
-        cob["maxDurationMs"] =
-            phase.cob.maxDurationMs;
-    }
+    document["audioEffect"] =
+        alarm.audioEffect;
 
     return true;
 }
 
 // ============================================================
-// DESERIALIZATION
+// DESERIALIZE
 // ============================================================
 
 bool AlarmManager::deserialize(
@@ -1352,15 +1438,33 @@ bool AlarmManager::deserialize(
 {
     resetAlarm(alarm);
 
-    if (!document["id"].is<String>())
-        return false;
+    // --------------------------------------------------------
+    // ID
+    // --------------------------------------------------------
+
+    JsonVariantConst id =
+        document["id"];
+
+    // null допустим только при CREATE.
+    // При загрузке с SD id должен быть UUID.
+    if (
+        !id.isNull()
+    )
+    {
+        if (!id.is<const char*>())
+            return false;
+
+        alarm.id =
+            id.as<String>();
+    }
+
+    // --------------------------------------------------------
+    // BASIC
+    // --------------------------------------------------------
 
     alarm.schemaVersion =
         document["schemaVersion"] |
         CURRENT_SCHEMA_VERSION;
-
-    alarm.id =
-        document["id"].as<String>();
 
     alarm.name =
         document["name"] |
@@ -1374,6 +1478,10 @@ bool AlarmManager::deserialize(
         document["repeatMask"] |
         0;
 
+    // --------------------------------------------------------
+    // TIME
+    // --------------------------------------------------------
+
     JsonObject time =
         document["time"].as<JsonObject>();
 
@@ -1381,186 +1489,74 @@ bool AlarmManager::deserialize(
         return false;
 
     alarm.time.hour =
-        time["hour"] | 0;
+        time["hour"] |
+        0;
 
     alarm.time.minute =
-        time["minute"] | 0;
+        time["minute"] |
+        0;
 
     alarm.time.second =
-        time["second"] | 0;
+        time["second"] |
+        0;
 
-    JsonArray phases =
-        document["phases"].as<JsonArray>();
+    // --------------------------------------------------------
+    // EFFECTS
+    // --------------------------------------------------------
 
-    if (phases.isNull())
-    {
-        alarm.phaseCount = 0;
-        return validate(alarm);
-    }
+    alarm.matrixEffect =
+        document["matrixEffect"] |
+        String();
+
+    alarm.cobEffect =
+        document["cobEffect"] |
+        String();
+
+    alarm.audioEffect =
+        document["audioEffect"] |
+        String();
+
+    // --------------------------------------------------------
+    // Validate fields except UUID.
+    // Empty ID is allowed here because POST may use null.
+    // --------------------------------------------------------
 
     if (
-        phases.size() >
-        AlarmConfig::MAX_PHASES
+        alarm.time.hour > 23 ||
+        alarm.time.minute > 59 ||
+        alarm.time.second > 59
     )
     {
         return false;
     }
 
-    alarm.phaseCount =
+    if (
+        alarm.repeatMask &
         static_cast<uint8_t>(
-            phases.size()
-        );
-
-    uint8_t index = 0;
-
-    for (
-        JsonVariant value : phases
+            ~WEEK_MASK
+        )
     )
     {
-        JsonObject object =
-            value.as<JsonObject>();
-
-        if (object.isNull())
-            return false;
-
-        AlarmPhase& phase =
-            alarm.phases[index++];
-
-        phase.startOffsetMs =
-            object["startOffsetMs"] |
-            0;
-
-        phase.durationMs =
-            object["durationMs"] |
-            0;
-
-        JsonVariantConst condition =
-            object["condition"];
-
-        if (
-            !condition.isNull() &&
-            !conditionFromJson(
-                condition,
-                phase.condition
-            )
-        )
-        {
-            return false;
-        }
-
-        JsonObject matrix =
-            object["matrix"].as<JsonObject>();
-
-        if (!matrix.isNull())
-        {
-            phase.matrix.enabled =
-                matrix["enabled"] | false;
-
-            phase.matrix.effectId =
-                matrix["effectId"] | String();
-
-            phase.matrix.start =
-                matrix["start"] | 0;
-
-            phase.matrix.end =
-                matrix["end"] | 0;
-
-            phase.matrix.speedMs =
-                matrix["speedMs"] | 0;
-
-            phase.matrix.durationMs =
-                matrix["durationMs"] | 0;
-        }
-
-        JsonObject audio =
-            object["audio"].as<JsonObject>();
-
-        if (!audio.isNull())
-        {
-            phase.audio.enabled =
-                audio["enabled"] | false;
-
-            phase.audio.effectId =
-                audio["effectId"] | String();
-
-            phase.audio.start =
-                audio["start"] | 0;
-
-            phase.audio.end =
-                audio["end"] | 0;
-
-            phase.audio.speedMs =
-                audio["speedMs"] | 0;
-
-            phase.audio.durationMs =
-                audio["durationMs"] | 0;
-
-            phase.audio.loop =
-                audio["loop"] | false;
-        }
-
-        JsonObject cob =
-            object["cob"].as<JsonObject>();
-
-        if (!cob.isNull())
-        {
-            phase.cob.enabled =
-                cob["enabled"] | false;
-
-            phase.cob.effectId =
-                cob["effectId"] | String();
-
-            phase.cob.start =
-                cob["start"] | 0;
-
-            phase.cob.end =
-                cob["end"] | 0;
-
-            phase.cob.speedMs =
-                cob["speedMs"] | 0;
-
-            phase.cob.durationMs =
-                cob["durationMs"] | 0;
-
-            phase.cob.maxDurationMs =
-                cob["maxDurationMs"] | 0;
-        }
+        return false;
     }
 
-    return validate(alarm);
+    return true;
 }
 
 // ============================================================
-// VALIDATION
+// VALIDATE
 // ============================================================
 
 bool AlarmManager::validate(
     const Alarm& alarm
 ) const
 {
-    if (alarm.id.isEmpty())
+    // UUID is mandatory after CREATE.
+    if (!isUuidV4(alarm.id))
         return false;
 
-    for (
-        size_t i = 0;
-        i < alarm.id.length();
-        ++i
-    )
-    {
-        const char c = alarm.id[i];
-
-        const bool valid =
-            (
-                (c >= 'a' && c <= 'z') ||
-                (c >= 'A' && c <= 'Z') ||
-                (c >= '0' && c <= '9') ||
-                c == '-' ||
-                c == '_'
-            );
-
-        if (!valid)
-            return false;
-    }
+    if (alarm.name.length() > 64)
+        return false;
 
     if (alarm.time.hour > 23)
         return false;
@@ -1573,40 +1569,21 @@ bool AlarmManager::validate(
 
     if (
         alarm.repeatMask &
-        static_cast<uint8_t>(~WEEK_MASK)
+        static_cast<uint8_t>(
+            ~WEEK_MASK
+        )
     )
     {
         return false;
     }
 
     if (
-        alarm.phaseCount >
-        AlarmConfig::MAX_PHASES
+        alarm.matrixEffect.length() > 64 ||
+        alarm.cobEffect.length() > 64 ||
+        alarm.audioEffect.length() > 64
     )
     {
         return false;
-    }
-
-    for (
-        uint8_t i = 0;
-        i < alarm.phaseCount;
-        ++i
-    )
-    {
-        const uint8_t condition =
-            static_cast<uint8_t>(
-                alarm.phases[i].condition
-            );
-
-        if (
-            condition >
-            static_cast<uint8_t>(
-                AlarmCondition::IfNoMotion
-            )
-        )
-        {
-            return false;
-        }
     }
 
     return true;
@@ -1621,6 +1598,10 @@ bool AlarmManager::isRunning() const
     return _runtime.active;
 }
 
+// ============================================================
+// CURRENT ALARM
+// ============================================================
+
 const Alarm* AlarmManager::currentAlarm() const
 {
     if (!_runtime.active)
@@ -1629,52 +1610,21 @@ const Alarm* AlarmManager::currentAlarm() const
     return &_runtime.alarm;
 }
 
-const AlarmPhase* AlarmManager::currentPhase() const
-{
-    if (!_runtime.active)
-        return nullptr;
-
-    if (
-        _runtime.phaseIndex >=
-        _runtime.alarm.phaseCount
-    )
-    {
-        return nullptr;
-    }
-
-    return &_runtime.alarm.phases[
-        _runtime.phaseIndex
-    ];
-}
-
-uint8_t AlarmManager::currentPhaseIndex() const
-{
-    return _runtime.phaseIndex;
-}
+// ============================================================
+// ELAPSED
+// ============================================================
 
 uint32_t AlarmManager::elapsedMs() const
 {
     if (!_runtime.active)
         return 0;
 
-    if (_runtime.elapsedMs <= 0)
-        return 0;
-
-    if (
-        _runtime.elapsedMs >
-        0xFFFFFFFFLL
-    )
-    {
-        return 0xFFFFFFFFUL;
-    }
-
-    return static_cast<uint32_t>(
-        _runtime.elapsedMs
-    );
+    return millis() -
+           _runtime.startMs;
 }
 
 // ============================================================
-// DISMISS / SNOOZE / FINISH
+// DISMISS
 // ============================================================
 
 bool AlarmManager::dismiss()
@@ -1682,12 +1632,22 @@ bool AlarmManager::dismiss()
     if (!_runtime.active)
         return false;
 
-    _runtime.dismissed = true;
+    Serial0.printf(
+        "[ALARM] DISMISS id=%s\n",
+        _runtime.alarmId.c_str()
+    );
+
+    _runtime.dismissed =
+        true;
 
     finish();
 
     return true;
 }
+
+// ============================================================
+// SNOOZE
+// ============================================================
 
 bool AlarmManager::snooze(
     uint32_t durationMs
@@ -1704,26 +1664,37 @@ bool AlarmManager::snooze(
         return false;
     }
 
-    _runtime.snoozed = true;
+    _runtime.snoozed =
+        true;
 
-    _snooze.active = true;
+    _snooze.active =
+        true;
+
     _snooze.alarmId =
         _runtime.alarmId;
 
     _snooze.untilMs =
-        millis() + durationMs;
+        millis() +
+        durationMs;
 
     Serial0.printf(
-        "[ALARM] SNOOZE id=%s duration=%lu untilMs=%lu\n",
+        "[ALARM] SNOOZE "
+        "id=%s "
+        "duration=%lu\n",
         _runtime.alarmId.c_str(),
-        static_cast<unsigned long>(durationMs),
-        static_cast<unsigned long>(_snooze.untilMs)
+        static_cast<unsigned long>(
+            durationMs
+        )
     );
 
     finish();
 
     return true;
 }
+
+// ============================================================
+// FINISH
+// ============================================================
 
 void AlarmManager::finish()
 {
@@ -1739,40 +1710,67 @@ void AlarmManager::finish()
     const bool snoozed =
         _runtime.snoozed;
 
+    Serial0.printf(
+        "[ALARM] FINISH "
+        "id=%s "
+        "oneShot=%s "
+        "snoozed=%s\n",
+        alarmId.c_str(),
+        oneShot
+            ? "true"
+            : "false",
+        snoozed
+            ? "true"
+            : "false"
+    );
+
+    // Одноразовый будильник после
+    // dismiss/finish отключается.
+    //
+    // При snooze оставляем включённым.
     if (
         oneShot &&
         !snoozed
     )
     {
-        std::unique_ptr<Alarm> alarm(
-            new (std::nothrow) Alarm()
-        );
+        Alarm alarm;
 
-        if (alarm)
+        if (
+            loadFromSD(
+                alarmId,
+                alarm
+            )
+        )
         {
+            alarm.enabled =
+                false;
+
             if (
-                loadFromSD(
-                    alarmId,
-                    *alarm
-                )
+                saveToSD(alarm)
             )
             {
-                alarm->enabled = false;
-                saveToSD(*alarm);
+                Serial0.printf(
+                    "[ALARM] "
+                    "one-shot disabled "
+                    "id=%s\n",
+                    alarmId.c_str()
+                );
             }
         }
 
-        removeActive(alarmId);
+        removeActive(
+            alarmId
+        );
     }
 
     notifyFinish();
 
-    _runtime.~Runtime();
-    new (&_runtime) Runtime();
+    _runtime =
+        Runtime{};
 }
 
 // ============================================================
-// LOCAL TIME
+// CURRENT LOCAL TIME
 // ============================================================
 
 time_t AlarmManager::currentLocalTimestamp() const
@@ -1780,58 +1778,92 @@ time_t AlarmManager::currentLocalTimestamp() const
     return _clock.getLocalTime();
 }
 
-time_t AlarmManager::makeLocalT0(
-    time_t localDateTimestamp,
-    const AlarmTime& timeValue
-) const
-{
-    // localDateTimestamp is already expressed in ClockSystem's
-    // local-epoch representation. Therefore we only need the
-    // local calendar midnight plus HH:MM:SS.
-    const time_t midnight =
-        localMidnight(localDateTimestamp);
-
-    return midnight +
-           static_cast<time_t>(timeValue.hour) * 3600 +
-           static_cast<time_t>(timeValue.minute) * 60 +
-           static_cast<time_t>(timeValue.second);
-}
-
 // ============================================================
-// PHASE OFFSET
+// LOCAL MIDNIGHT
 // ============================================================
 
-int32_t AlarmManager::earliestOffset(
-    const Alarm& alarm
+time_t AlarmManager::localMidnight(
+    time_t timestamp
 ) const
 {
-    if (alarm.phaseCount == 0)
-        return 0;
+    const int64_t seconds =
+        static_cast<int64_t>(
+            timestamp
+        );
 
-    int32_t earliest =
-        alarm.phases[0].startOffsetMs;
+    int64_t days =
+        seconds /
+        ALARM_SECONDS_PER_DAY;
 
-    for (
-        uint8_t i = 1;
-        i < alarm.phaseCount;
-        ++i
+    if (
+        seconds < 0 &&
+        seconds %
+            ALARM_SECONDS_PER_DAY != 0
     )
     {
-        if (
-            alarm.phases[i].startOffsetMs <
-            earliest
-        )
-        {
-            earliest =
-                alarm.phases[i].startOffsetMs;
-        }
+        --days;
     }
 
-    return earliest;
+    return static_cast<time_t>(
+        days *
+        ALARM_SECONDS_PER_DAY
+    );
 }
 
 // ============================================================
-// WEEKDAY
+// SHIFT DAYS
+// ============================================================
+
+time_t AlarmManager::shiftLocalDays(
+    time_t timestamp,
+    int32_t days
+) const
+{
+    return static_cast<time_t>(
+        static_cast<int64_t>(
+            timestamp
+        ) +
+        static_cast<int64_t>(
+            days
+        ) *
+        ALARM_SECONDS_PER_DAY
+    );
+}
+
+// ============================================================
+// MAKE T0
+// ============================================================
+
+time_t AlarmManager::makeLocalT0(
+    time_t localDateTimestamp,
+    const AlarmTime& time
+) const
+{
+    const time_t midnight =
+        localMidnight(
+            localDateTimestamp
+        );
+
+    return static_cast<time_t>(
+        static_cast<int64_t>(
+            midnight
+        ) +
+        static_cast<int64_t>(
+            time.hour
+        ) *
+        ALARM_SECONDS_PER_HOUR +
+        static_cast<int64_t>(
+            time.minute
+        ) *
+        ALARM_SECONDS_PER_MINUTE +
+        static_cast<int64_t>(
+            time.second
+        )
+    );
+}
+
+// ============================================================
+// DAY BIT
 // ============================================================
 
 uint8_t AlarmManager::dayBit(
@@ -1839,15 +1871,18 @@ uint8_t AlarmManager::dayBit(
 ) const
 {
     struct tm value{};
+
     localTm(
         localTimestamp,
         value
     );
 
     // tm_wday:
-    // Sunday=0, Monday=1 ... Saturday=6.
-    // Alarm mask:
-    // Monday=bit0 ... Sunday=bit6.
+    // Sunday = 0
+    // Monday = 1
+    // ...
+    // Saturday = 6
+
     if (value.tm_wday == 0)
         return 6;
 
@@ -1856,20 +1891,34 @@ uint8_t AlarmManager::dayBit(
     );
 }
 
+// ============================================================
+// REPEAT DAY
+// ============================================================
+
 bool AlarmManager::isRepeatDay(
     const Alarm& alarm,
     time_t localTimestamp
 ) const
 {
+    // repeatMask == 0
+    // означает одноразовый будильник.
+    //
+    // Для scheduler это означает:
+    // ближайшее наступление времени.
+
     if (alarm.repeatMask == 0)
         return true;
 
     const uint8_t bit =
-        dayBit(localTimestamp);
+        dayBit(
+            localTimestamp
+        );
 
     return (
         alarm.repeatMask &
-        static_cast<uint8_t>(1U << bit)
+        static_cast<uint8_t>(
+            1U << bit
+        )
     ) != 0;
 }
 
@@ -1881,11 +1930,16 @@ bool AlarmManager::shouldStart(
     uint8_t index,
     const ActiveAlarm& active,
     time_t now,
-    time_t& t0
+    time_t& triggerT0
 ) const
 {
-    if (index >= AlarmConfig::MAX_ALARMS)
+    if (
+        index >=
+        AlarmConfig::MAX_ALARMS
+    )
+    {
         return false;
+    }
 
     if (!active.enabled)
         return false;
@@ -1893,165 +1947,156 @@ bool AlarmManager::shouldStart(
     if (active.id.isEmpty())
         return false;
 
-    const time_t day =
-        86400;
-
     const time_t today =
         localMidnight(now);
 
-    const uint32_t graceMs =
-        missedTriggerGraceMs(
-            active.earliestOffsetMs
-        );
-
-    /*
-     * We evaluate the ALARM DATE, not the trigger date.
-     *
-     * Candidates:
-     *
-     * yesterday:
-     *   catches a valid occurrence whose phase extends around midnight.
-     *
-     * today:
-     *   normal occurrence.
-     *
-     * tomorrow:
-     *   required when a negative phase offset moves a tomorrow alarm
-     *   into today's late evening.
-     */
     const time_t candidates[3] =
     {
-        today - day,
+        shiftLocalDays(
+            today,
+            -1
+        ),
+
         today,
-        today + day
+
+        shiftLocalDays(
+            today,
+            1
+        )
     };
 
     const int64_t nowMs =
-        static_cast<int64_t>(now) * 1000LL;
+        static_cast<int64_t>(
+            now
+        ) *
+        ALARM_MS_PER_SECOND;
 
     bool found = false;
-    time_t bestTrigger = 0;
-    int64_t bestAge = INT64_MAX;
 
-    for (uint8_t c = 0; c < 3; ++c)
+    time_t bestT0 = 0;
+
+    int64_t bestAge =
+        std::numeric_limits<
+            int64_t
+        >::max();
+
+    for (
+        uint8_t i = 0;
+        i < 3;
+        ++i
+    )
     {
         const time_t occurrenceDate =
-            candidates[c];
+            candidates[i];
 
-        // Repeat mask belongs to the alarm occurrence date.
+        // Для повторяющегося будильника
+        // день относится к самому будильнику.
         if (
             active.repeatMask != 0 &&
-            (
+            !(
                 active.repeatMask &
                 static_cast<uint8_t>(
-                    1U << dayBit(occurrenceDate)
+                    1U <<
+                    dayBit(
+                        occurrenceDate
+                    )
                 )
-            ) == 0
+            )
         )
         {
             continue;
         }
 
-        const time_t alarmT0 =
+        const time_t t0 =
             makeLocalT0(
                 occurrenceDate,
                 active.time
             );
 
         const int64_t triggerMs =
-            static_cast<int64_t>(alarmT0) * 1000LL +
             static_cast<int64_t>(
-                active.earliestOffsetMs
-            );
+                t0
+            ) *
+            ALARM_MS_PER_SECOND;
 
         const int64_t ageMs =
-            nowMs - triggerMs;
+            nowMs -
+            triggerMs;
 
-        Serial0.printf(
-            "[ALARM][CHECK] id=%s occurrence=%lld alarmT0=%lld trigger=%lld "
-            "now=%lld age=%lld offset=%ld repeat=0x%02X\n",
-            active.id.c_str(),
-            static_cast<long long>(occurrenceDate),
-            static_cast<long long>(alarmT0),
-            static_cast<long long>(
-                triggerMs / 1000LL
-            ),
-            static_cast<long long>(now),
-            static_cast<long long>(ageMs),
-            static_cast<long>(
-                active.earliestOffsetMs
-            ),
-            static_cast<unsigned>(
-                active.repeatMask
-            )
-        );
-
-        // Trigger is still in the future.
+        // Время ещё не наступило.
         if (ageMs < 0)
             continue;
 
-        // Already handled this exact occurrence.
+        // Уже запускали именно это
+        // календарное срабатывание.
         if (
             _lastTriggerT0[index] ==
-            alarmT0
+            t0
         )
         {
-            Serial0.printf(
-                "[ALARM][SKIP] id=%s reason=already-triggered t0=%lld\n",
-                active.id.c_str(),
-                static_cast<long long>(alarmT0)
-            );
             continue;
         }
 
-        // Do not fire an occurrence hours later.
+        // Если loop был заблокирован слишком долго,
+        // не запускаем старый будильник.
         if (
-            static_cast<uint64_t>(ageMs) >
-            static_cast<uint64_t>(graceMs)
+            static_cast<uint64_t>(
+                ageMs
+            ) >
+            MISSED_TRIGGER_GRACE_MS
         )
         {
-            Serial0.printf(
-                "[ALARM][SKIP] id=%s reason=too-old age=%lld grace=%lu\n",
-                active.id.c_str(),
-                static_cast<long long>(ageMs),
-                static_cast<unsigned long>(graceMs)
-            );
             continue;
         }
 
-        // Select the most recent valid trigger.
+        // Берём ближайшее прошедшее
+        // срабатывание.
         if (
             !found ||
             ageMs < bestAge
         )
         {
             found = true;
-            bestAge = ageMs;
-            bestTrigger = alarmT0;
+
+            bestAge =
+                ageMs;
+
+            bestT0 =
+                t0;
         }
     }
 
     if (!found)
         return false;
 
-    t0 = bestTrigger;
+    triggerT0 =
+        bestT0;
 
     logSchedule(
-        "TRIGGER",
+        "MATCH",
         active.id,
-        t0
+        triggerT0
     );
 
     Serial0.printf(
-        "[ALARM][MATCH] id=%s t0=%lld now=%lld elapsed=%lldms\n",
+        "[ALARM][MATCH] "
+        "id=%s "
+        "alarm=%02u:%02u:%02u "
+        "now=%lld "
+        "t0=%lld "
+        "age=%lldms\n",
         active.id.c_str(),
-        static_cast<long long>(t0),
-        static_cast<long long>(now),
+        active.time.hour,
+        active.time.minute,
+        active.time.second,
         static_cast<long long>(
-            (
-                static_cast<int64_t>(now) -
-                static_cast<int64_t>(t0)
-            ) * 1000LL
+            now
+        ),
+        static_cast<long long>(
+            triggerT0
+        ),
+        static_cast<long long>(
+            bestAge
         )
     );
 
@@ -2065,8 +2110,7 @@ bool AlarmManager::shouldStart(
 bool AlarmManager::start(
     uint8_t index,
     const Alarm& alarm,
-    time_t t0,
-    int64_t elapsedMs
+    time_t triggerT0
 )
 {
     if (
@@ -2083,81 +2127,49 @@ bool AlarmManager::start(
     if (_runtime.active)
         return false;
 
-    _runtime.~Runtime();
-    new (&_runtime) Runtime();
+    _runtime =
+        Runtime{};
 
-    _runtime.active = true;
-    _runtime.alarmId = alarm.id;
-    _runtime.alarm = alarm;
-    _runtime.triggerT0 = t0;
-    _runtime.elapsedMs = elapsedMs;
-    _runtime.phaseElapsedMs = 0;
-    _runtime.dismissed = false;
-    _runtime.snoozed = false;
-    _runtime.lastUpdateMs = millis();
+    _runtime.active =
+        true;
 
-    _lastTriggerT0[index] = t0;
+    _runtime.alarmId =
+        alarm.id;
+
+    _runtime.alarm =
+        alarm;
+
+    _runtime.triggerT0 =
+        triggerT0;
+
+    _runtime.startMs =
+        millis();
+
+    _lastTriggerT0[index] =
+        triggerT0;
 
     logAlarm(
         "START",
-        _runtime.alarm
+        alarm
     );
 
     Serial0.printf(
-        "[ALARM][START] id=%s t0=%lld elapsed=%lldms phases=%u\n",
-        _runtime.alarmId.c_str(),
-        static_cast<long long>(t0),
-        static_cast<long long>(elapsedMs),
-        static_cast<unsigned>(
-            _runtime.alarm.phaseCount
+        "[ALARM][START] "
+        "id=%s "
+        "t0=%lld\n",
+        alarm.id.c_str(),
+        static_cast<long long>(
+            triggerT0
         )
     );
 
     notifyTrigger();
 
-    const int8_t phaseIndex =
-        findPhase(
-            _runtime.alarm,
-            _runtime.elapsedMs
-        );
-
-    if (phaseIndex < 0)
-    {
-        _runtime.phaseIndex = 0;
-
-        Serial0.printf(
-            "[ALARM][START] id=%s no active phase yet\n",
-            _runtime.alarmId.c_str()
-        );
-
-        return true;
-    }
-
-    _runtime.phaseIndex =
-        static_cast<uint8_t>(
-            phaseIndex
-        );
-
-    const AlarmPhase& phase =
-        _runtime.alarm.phases[
-            _runtime.phaseIndex
-        ];
-
-    _runtime.phaseElapsedMs =
-        _runtime.elapsedMs -
-        static_cast<int64_t>(
-            phase.startOffsetMs
-        );
-
-    notifyPhase(
-        _runtime.phaseIndex
-    );
-
     return true;
 }
 
 // ============================================================
-// RUNTIME UPDATE
+// UPDATE RUNTIME
 // ============================================================
 
 void AlarmManager::updateRuntime()
@@ -2165,203 +2177,21 @@ void AlarmManager::updateRuntime()
     if (!_runtime.active)
         return;
 
-    const uint32_t nowMs =
-        millis();
-
-    const uint32_t deltaMs =
-        nowMs -
-        _runtime.lastUpdateMs;
-
-    _runtime.lastUpdateMs =
-        nowMs;
-
-    _runtime.elapsedMs +=
-        static_cast<int64_t>(
-            deltaMs
-        );
-
-    if (
-        _runtime.phaseIndex <
-        _runtime.alarm.phaseCount
-    )
-    {
-        const AlarmPhase& phase =
-            _runtime.alarm.phases[
-                _runtime.phaseIndex
-            ];
-
-        _runtime.phaseElapsedMs =
-            _runtime.elapsedMs -
-            static_cast<int64_t>(
-                phase.startOffsetMs
-            );
-    }
-
-    const int8_t newPhase =
-        findPhase(
-            _runtime.alarm,
-            _runtime.elapsedMs
-        );
-
-    if (newPhase >= 0)
-    {
-        const uint8_t phaseIndex =
-            static_cast<uint8_t>(newPhase);
-
-        if (
-            phaseIndex !=
-            _runtime.phaseIndex
-        )
-        {
-            _runtime.phaseIndex =
-                phaseIndex;
-
-            const AlarmPhase& phase =
-                _runtime.alarm.phases[
-                    phaseIndex
-                ];
-
-            _runtime.phaseElapsedMs =
-                _runtime.elapsedMs -
-                static_cast<int64_t>(
-                    phase.startOffsetMs
-                );
-
-            notifyPhase(
-                phaseIndex
-            );
-        }
-    }
-
-    bool infinite = false;
-    int64_t latestEnd = INT64_MIN;
-
-    for (
-        uint8_t i = 0;
-        i < _runtime.alarm.phaseCount;
-        ++i
-    )
-    {
-        const AlarmPhase& phase =
-            _runtime.alarm.phases[i];
-
-        if (phase.durationMs == 0)
-        {
-            infinite = true;
-            break;
-        }
-
-        const int64_t end =
-            static_cast<int64_t>(
-                phase.startOffsetMs
-            ) +
-            static_cast<int64_t>(
-                phase.durationMs
-            );
-
-        if (end > latestEnd)
-            latestEnd = end;
-    }
-
-    if (
-        !infinite &&
-        _runtime.alarm.phaseCount > 0 &&
-        _runtime.elapsedMs >= latestEnd
-    )
-    {
-        finish();
-    }
+    // Сейчас у будильника нет фаз
+    // и нет встроенного времени завершения.
+    //
+    // Он считается активным до:
+    //
+    // dismiss()
+    // snooze()
+    // finish()
+    //
+    // Поэтому здесь пока только
+    // контролируем runtime.
 }
 
 // ============================================================
-// PHASES
-// ============================================================
-
-int8_t AlarmManager::findPhase(
-    const Alarm& alarm,
-    int64_t elapsedMs
-) const
-{
-    int8_t result = -1;
-
-    for (
-        uint8_t i = 0;
-        i < alarm.phaseCount;
-        ++i
-    )
-    {
-        const AlarmPhase& phase =
-            alarm.phases[i];
-
-        if (!conditionPassed(phase))
-            continue;
-
-        if (!phaseActive(
-                phase,
-                elapsedMs
-            ))
-        {
-            continue;
-        }
-
-        // Later phase wins when intervals overlap.
-        result =
-            static_cast<int8_t>(i);
-    }
-
-    return result;
-}
-
-bool AlarmManager::phaseActive(
-    const AlarmPhase& phase,
-    int64_t elapsedMs
-) const
-{
-    const int64_t start =
-        static_cast<int64_t>(
-            phase.startOffsetMs
-        );
-
-    if (elapsedMs < start)
-        return false;
-
-    if (phase.durationMs == 0)
-        return true;
-
-    const int64_t end =
-        start +
-        static_cast<int64_t>(
-            phase.durationMs
-        );
-
-    return elapsedMs < end;
-}
-
-bool AlarmManager::conditionPassed(
-    const AlarmPhase& phase
-) const
-{
-    switch (phase.condition)
-    {
-        case AlarmCondition::Always:
-            return true;
-
-        case AlarmCondition::IfNotDismissed:
-            return !_runtime.dismissed;
-
-        case AlarmCondition::IfNotSnoozed:
-            return !_runtime.snoozed;
-
-        case AlarmCondition::IfNoMotion:
-            // Sensor callback is not yet part of AlarmManager.
-            return true;
-    }
-
-    return false;
-}
-
-// ============================================================
-// DIAGNOSTICS
+// LOG SCHEDULE
 // ============================================================
 
 void AlarmManager::logSchedule(
@@ -2371,13 +2201,17 @@ void AlarmManager::logSchedule(
 ) const
 {
     struct tm value{};
+
     localTm(
         timestamp,
         value
     );
 
     Serial0.printf(
-        "[ALARM] %s id=%s local=%04d-%02d-%02d %02d:%02d:%02d "
+        "[ALARM] %s "
+        "id=%s "
+        "local=%04d-%02d-%02d "
+        "%02d:%02d:%02d "
         "ts=%lld\n",
         event,
         id.c_str(),
@@ -2387,9 +2221,15 @@ void AlarmManager::logSchedule(
         value.tm_hour,
         value.tm_min,
         value.tm_sec,
-        static_cast<long long>(timestamp)
+        static_cast<long long>(
+            timestamp
+        )
     );
 }
+
+// ============================================================
+// LOG ALARM
+// ============================================================
 
 void AlarmManager::logAlarm(
     const char* event,
@@ -2397,141 +2237,154 @@ void AlarmManager::logAlarm(
 ) const
 {
     Serial0.printf(
-        "[ALARM] %s id=%s name=%s enabled=%s "
-        "time=%02u:%02u:%02u repeat=0x%02X phases=%u\n",
+        "[ALARM] %s "
+        "id=%s "
+        "name=%s "
+        "enabled=%s "
+        "time=%02u:%02u:%02u "
+        "repeat=0x%02X "
+        "matrix=%s "
+        "cob=%s "
+        "audio=%s\n",
+
         event,
+
         alarm.id.c_str(),
+
         alarm.name.c_str(),
-        alarm.enabled ? "true" : "false",
+
+        alarm.enabled
+            ? "true"
+            : "false",
+
         alarm.time.hour,
+
         alarm.time.minute,
+
         alarm.time.second,
+
         alarm.repeatMask,
-        alarm.phaseCount
+
+        alarm.matrixEffect.c_str(),
+
+        alarm.cobEffect.c_str(),
+
+        alarm.audioEffect.c_str()
     );
-
-    for (
-        uint8_t i = 0;
-        i < alarm.phaseCount;
-        ++i
-    )
-    {
-        const AlarmPhase& phase =
-            alarm.phases[i];
-
-        Serial0.printf(
-            "[ALARM]   phase=%u offset=%ldms duration=%lums "
-            "condition=%u "
-            "matrix=%s/%s/%u-%u "
-            "audio=%s/%s/%u-%u loop=%s "
-            "cob=%s/%s/%u-%u\n",
-            static_cast<unsigned>(i),
-            static_cast<long>(
-                phase.startOffsetMs
-            ),
-            static_cast<unsigned long>(
-                phase.durationMs
-            ),
-            static_cast<unsigned>(
-                phase.condition
-            ),
-            phase.matrix.enabled
-                ? "on"
-                : "off",
-            phase.matrix.effectId.c_str(),
-            phase.matrix.start,
-            phase.matrix.end,
-            phase.audio.enabled
-                ? "on"
-                : "off",
-            phase.audio.effectId.c_str(),
-            phase.audio.start,
-            phase.audio.end,
-            phase.audio.loop
-                ? "true"
-                : "false",
-            phase.cob.enabled
-                ? "on"
-                : "off",
-            phase.cob.effectId.c_str(),
-            phase.cob.start,
-            phase.cob.end
-        );
-    }
 }
 
 // ============================================================
-// CALLBACK NOTIFY
+// NOTIFY TRIGGER
 // ============================================================
 
 void AlarmManager::notifyTrigger()
 {
     if (_triggerCallback)
+    {
         _triggerCallback(
             _runtime.alarm
         );
-}
-
-void AlarmManager::notifyPhase(
-    uint8_t phaseIndex
-)
-{
-    if (
-        !_phaseCallback ||
-        phaseIndex >=
-            _runtime.alarm.phaseCount
-    )
-    {
-        return;
     }
-
-    _phaseCallback(
-        _runtime.alarm,
-        phaseIndex,
-        _runtime.alarm.phases[
-            phaseIndex
-        ]
-    );
 }
+
+// ============================================================
+// NOTIFY FINISH
+// ============================================================
 
 void AlarmManager::notifyFinish()
 {
     if (_finishCallback)
+    {
         _finishCallback(
             _runtime.alarmId
         );
+    }
 }
 
 // ============================================================
-// ID
+// UUID V4
 // ============================================================
 
 String AlarmManager::generateId() const
 {
-    char buffer[37];
+    uint8_t bytes[16];
 
-    const uint32_t a = esp_random();
-    const uint32_t b = esp_random();
-    const uint32_t c = esp_random();
-    const uint32_t d = esp_random();
+    for (
+        uint8_t i = 0;
+        i < sizeof(bytes);
+        i += 4
+    )
+    {
+        const uint32_t value =
+            esp_random();
+
+        bytes[i + 0] =
+            static_cast<uint8_t>(
+                value
+            );
+
+        bytes[i + 1] =
+            static_cast<uint8_t>(
+                value >> 8
+            );
+
+        bytes[i + 2] =
+            static_cast<uint8_t>(
+                value >> 16
+            );
+
+        bytes[i + 3] =
+            static_cast<uint8_t>(
+                value >> 24
+            );
+    }
+
+    // UUID version 4
+    bytes[6] =
+        static_cast<uint8_t>(
+            (bytes[6] & 0x0F) |
+            0x40
+        );
+
+    // RFC 4122 variant
+    bytes[8] =
+        static_cast<uint8_t>(
+            (bytes[8] & 0x3F) |
+            0x80
+        );
+
+    char buffer[37];
 
     snprintf(
         buffer,
         sizeof(buffer),
-        "%08lX-%04lX-%04lX-%04lX-%08lX",
-        static_cast<unsigned long>(a),
-        static_cast<unsigned long>(
-            (b >> 16) & 0xFFFF
-        ),
-        static_cast<unsigned long>(
-            b & 0xFFFF
-        ),
-        static_cast<unsigned long>(
-            (c >> 16) & 0xFFFF
-        ),
-        static_cast<unsigned long>(
-            c & 0xFFFF
-        )
+
+        "%02X%02X%02X%02X-"
+        "%02X%02X-"
+        "%02X%02X-"
+        "%02X%02X-"
+        "%02X%02X%02X%02X%02X%02X",
+
+        bytes[0],
+        bytes[1],
+        bytes[2],
+        bytes[3],
+
+        bytes[4],
+        bytes[5],
+
+        bytes[6],
+        bytes[7],
+
+        bytes[8],
+        bytes[9],
+
+        bytes[10],
+        bytes[11],
+        bytes[12],
+        bytes[13],
+        bytes[14],
+        bytes[15]
     );
 
     return String(buffer);
@@ -2545,45 +2398,26 @@ void AlarmManager::scanFile(
     const String& path
 )
 {
-    if (
-        path.isEmpty() ||
-        !path.endsWith(".json")
-    )
-    {
+    const String id =
+        alarmIdFromPath(path);
+
+    if (!isUuidV4(id))
         return;
-    }
 
-    String id = path;
-
-    const int slash =
-        id.lastIndexOf('/');
-
-    if (slash >= 0)
-        id = id.substring(slash + 1);
-
-    id.remove(
-        id.length() - 5
-    );
-
-    std::unique_ptr<Alarm> alarm(
-        new (std::nothrow) Alarm()
-    );
-
-    if (!alarm)
-        return;
+    Alarm alarm;
 
     if (
         !loadFromSD(
             id,
-            *alarm
+            alarm
         )
     )
     {
         return;
     }
 
-    if (!alarm->enabled)
+    if (!alarm.enabled)
         return;
 
-    addActive(*alarm);
+    addActive(alarm);
 }
