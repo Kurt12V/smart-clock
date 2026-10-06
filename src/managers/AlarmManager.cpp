@@ -2101,7 +2101,11 @@ void AlarmManager::finish()
 
 time_t AlarmManager::currentLocalTimestamp() const
 {
-    return time(nullptr);
+    // Alarm time is entered and displayed as local time.  Do not use the
+    // ESP system clock here: it is only populated after an optional NTP sync
+    // and may still be UTC. ClockSystem is backed by the RTC and already
+    // applies the configured UTC offset.
+    return _clock.getLocalTime();
 }
 
 
