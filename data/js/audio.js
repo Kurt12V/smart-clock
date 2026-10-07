@@ -1,81 +1,86 @@
+// ============================================================
+// SMARTCLOCK AUDIO
+// ============================================================
+
 import { state } from "./state.js";
 import { apiFetch } from "./api.js";
 import { setConnection, showMessage } from "./ui.js";
 
-function renderAudioFiles() {
 
+// ============================================================
+// RENDER AUDIO FILES
+// ============================================================
+
+export function renderAudioFiles()
+{
     const list =
-        document.getElementById(
-            "audioList"
+        document.getElementById("audioList");
+
+    if (!list)
+    {
+        console.warn(
+            "[AUDIO] #audioList not found"
         );
+
+        return;
+    }
 
     const audioFiles =
         state.files.filter(
-            f => {
-
-                if (
-                    f.type === "dir"
-                ) {
-
+            file =>
+            {
+                if (file.type === "dir")
+                {
                     return false;
-
                 }
 
                 const path =
-                    String(
-                        f.path
-                    ).toLowerCase();
+                    String(file.path || "")
+                        .toLowerCase();
 
                 return (
-                    path.endsWith(
-                        ".wav"
-                    ) ||
-                    path.endsWith(
-                        ".mp3"
-                    )
+                    path.endsWith(".wav") ||
+                    path.endsWith(".mp3")
                 );
-
             }
         );
 
-    if (!audioFiles.length) {
 
+    if (!audioFiles.length)
+    {
         list.innerHTML =
             '<div class="empty">No sounds</div>';
 
         return;
-
     }
+
 
     const fragment =
         document.createDocumentFragment();
 
-    audioFiles.forEach(
-        f => {
 
+    audioFiles.forEach(
+        file =>
+        {
             const row =
-                document.createElement(
-                    "div"
-                );
+                document.createElement("div");
 
             row.className =
                 "audio-row";
 
+
             const name =
-                document.createElement(
-                    "div"
-                );
+                document.createElement("div");
 
             name.className =
                 "audio-name";
 
             name.textContent =
-                f.path;
+                file.path;
+
 
             const button =
-                document.createElement(
-                    "button"
-                );
+                document.createElement("button");
 
             button.className =
                 "audio-play";
@@ -83,239 +88,272 @@ function renderAudioFiles() {
             button.textContent =
                 "▶";
 
-            button.onclick =
+
+            button.addEventListener(
+                "click",
                 () =>
-                    playSound(
-                        f.path
-                    );
-
-            row.appendChild(
-                name
+                {
+                    playSound(file.path);
+                }
             );
 
-            row.appendChild(
-                button
-            );
 
-            fragment.appendChild(
-                row
-            );
+            row.appendChild(name);
+            row.appendChild(button);
 
+            fragment.appendChild(row);
         }
     );
 
-    list.replaceChildren(
-        fragment
-    );
+
+    list.replaceChildren(fragment);
 }
 
-async function playSound(
+
+// ============================================================
+// PLAY
+// ============================================================
+
+export async function playSound(
     path,
     stream = 0
-) {
+)
+{
+    if (!path)
+    {
+        return;
+    }
 
     state.selectedSound =
         path;
 
-    try {
 
+    try
+    {
         await apiFetch(
             "/api/audio/play",
             {
-
                 method: "POST",
 
-                headers: {
+                headers:
+                {
                     "Content-Type":
                         "application/json"
                 },
 
                 body:
-                    JSON.stringify({
-
-                        path: path,
-
-                        stream: stream,
-
-                        localPercent: 100,
-
-                        fadeInMs: 0,
-
-                        fadeOutMs: 0,
-
-                        curve: 0
-
-                    })
-
-            },
-
-            1200
+                    JSON.stringify(
+                        {
+                            path: path,
+                            stream: stream,
+                            localPercent: 100,
+                            fadeInMs: 0,
+                            fadeOutMs: 0,
+                            curve: 0
+                        }
+                    )
+            }
         );
+
 
         setConnection(true);
 
         await updatePlayerStatus();
 
-        showMessage(
-            "Playing"
+        showMessage("Playing");
+    }
+    catch (error)
+    {
+        console.error(
+            "[AUDIO][PLAY]",
+            error
         );
-
-    } catch (e) {
 
         showMessage(
             "Playback error"
         );
-
     }
 }
 
-async function playSelectedSound() {
 
-    if (state.selectedSound) {
+// ============================================================
+// PLAY SELECTED
+// ============================================================
 
+export async function playSelectedSound()
+{
+    if (state.selectedSound)
+    {
         await playSound(
             state.selectedSound
         );
 
         return;
-
     }
+
 
     const wav =
         state.files.find(
-            f =>
-                f.type !== "dir" &&
-                String(
-                    f.path
-                )
+            file =>
+                file.type !== "dir" &&
+                String(file.path || "")
                     .toLowerCase()
                     .endsWith(".wav")
         );
 
-    if (!wav) {
 
+    if (!wav)
+    {
         showMessage(
-            "No WAV state.files"
+            "No WAV files"
         );
 
         return;
-
     }
+
 
     await playSound(
         wav.path
     );
 }
 
-async function pauseSound() {
 
-    try {
+// ============================================================
+// PAUSE
+// ============================================================
 
+export async function pauseSound()
+{
+    try
+    {
         await apiFetch(
             "/api/audio/pause",
             {
                 method: "POST"
-            },
-            1000
+            }
         );
+
 
         await updatePlayerStatus();
 
-        showMessage(
-            "Paused"
+        showMessage("Paused");
+    }
+    catch (error)
+    {
+        console.error(
+            "[AUDIO][PAUSE]",
+            error
         );
-
-    } catch (e) {
 
         showMessage(
             "Pause error"
         );
-
     }
 }
 
-async function resumeSound() {
 
-    try {
+// ============================================================
+// RESUME
+// ============================================================
 
+export async function resumeSound()
+{
+    try
+    {
         await apiFetch(
             "/api/audio/resume",
             {
                 method: "POST"
-            },
-            1000
+            }
         );
+
 
         await updatePlayerStatus();
 
-        showMessage(
-            "Resumed"
+        showMessage("Resumed");
+    }
+    catch (error)
+    {
+        console.error(
+            "[AUDIO][RESUME]",
+            error
         );
-
-    } catch (e) {
 
         showMessage(
             "Resume error"
         );
-
     }
 }
 
-async function stopSound() {
 
-    try {
+// ============================================================
+// STOP
+// ============================================================
 
+export async function stopSound()
+{
+    try
+    {
         await apiFetch(
             "/api/audio/stop",
             {
-
                 method: "POST",
 
-                headers: {
+                headers:
+                {
                     "Content-Type":
                         "application/json"
                 },
 
                 body:
-                    JSON.stringify({
-                        fadeOutMs: 0
-                    })
-
-            },
-            1000
+                    JSON.stringify(
+                        {
+                            fadeOutMs: 0
+                        }
+                    )
+            }
         );
+
 
         await updatePlayerStatus();
 
         showMessage(
             "Playback stopped"
         );
-
-    } catch (e) {
+    }
+    catch (error)
+    {
+        console.error(
+            "[AUDIO][STOP]",
+            error
+        );
 
         showMessage(
             "Stop error"
         );
-
     }
 }
 
-function formatTime(ms) {
 
+// ============================================================
+// FORMAT TIME
+// ============================================================
+
+function formatTime(ms)
+{
     const total =
         Math.floor(
-            Number(ms || 0) /
-            1000
+            Number(ms || 0) / 1000
         );
+
 
     const minutes =
-        Math.floor(
-            total / 60
-        );
+        Math.floor(total / 60);
+
 
     const seconds =
-        total %
-        60;
+        total % 60;
+
 
     return (
         minutes +
@@ -325,71 +363,116 @@ function formatTime(ms) {
     );
 }
 
-async function updatePlayerStatus() {
 
-    if (state.playerRequest) {
+// ============================================================
+// UPDATE PLAYER STATUS
+// ============================================================
+
+export async function updatePlayerStatus()
+{
+    if (state.playerRequest)
+    {
         return;
     }
 
+
     state.playerRequest = true;
 
-    try {
 
+    try
+    {
         const response =
             await apiFetch(
-                "/api/audio/status",
-                {},
-                700
+                "/api/audio/status"
             );
 
-        const s =
+
+        const data =
             await response.json();
 
 
-        document.getElementById(
-            "playerTrack"
-        ).textContent =
-            s.path &&
-            s.path.length
-                ? s.path
-                : "—";
+        // ----------------------------------------------------
+        // TRACK
+        // ----------------------------------------------------
 
-
-        document.getElementById(
-            "playerTime"
-        ).textContent =
-            formatTime(
-                s.positionMs
-            ) +
-            " / " +
-            formatTime(
-                s.durationMs
+        const track =
+            document.getElementById(
+                "playerTrack"
             );
 
+        if (track)
+        {
+            track.textContent =
+                data.path &&
+                data.path.length
+                    ? data.path
+                    : "—";
+        }
 
-        const state =
-            s.state ||
+
+        // ----------------------------------------------------
+        // TIME
+        // ----------------------------------------------------
+
+        const time =
+            document.getElementById(
+                "playerTime"
+            );
+
+        if (time)
+        {
+            time.textContent =
+                formatTime(
+                    data.positionMs
+                ) +
+                " / " +
+                formatTime(
+                    data.durationMs
+                );
+        }
+
+
+        // ----------------------------------------------------
+        // PLAYER STATE
+        // ----------------------------------------------------
+
+        const playerState =
+            data.state ||
             "stopped";
 
-        const stateEl =
+
+        const stateElement =
             document.getElementById(
                 "playerState"
             );
 
-        stateEl.textContent =
-            state;
 
-        stateEl.className =
-            "player-state " +
-            state;
+        if (stateElement)
+        {
+            stateElement.textContent =
+                playerState;
 
-    } catch (e) {
+            stateElement.className =
+                "player-state " +
+                playerState;
+        }
 
-        /* silent */
 
-    } finally {
+        setConnection(true);
+    }
+    catch (error)
+    {
+        // Audio polling should not spam
+        // the user with errors every second.
 
-        state.playerRequest = false;
-
+        console.debug(
+            "[AUDIO][STATUS]",
+            error.message
+        );
+    }
+    finally
+    {
+        state.playerRequest =
+            false;
     }
 }

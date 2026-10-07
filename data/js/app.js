@@ -1,7 +1,3 @@
-// ============================================================
-// SMARTCLOCK APP
-// ============================================================
-
 import * as params from "./params.js";
 import * as sd from "./sd.js";
 import * as audio from "./audio.js";
@@ -9,20 +5,14 @@ import * as tabs from "./tabs.js";
 
 import * as alarms from "./alarms/alarms.js";
 import * as editor from "./alarms/alarm-editor.js";
-import * as phases from "./alarms/alarm-phases.js";
 
 
 // ============================================================
-// GLOBAL HTML HANDLERS
-//
-// The HTML currently uses onclick/oninput attributes.
-// ES modules do not expose their functions to window
-// automatically, so we explicitly export them here.
+// GLOBAL FUNCTIONS FOR INLINE HTML
 // ============================================================
-
 
 // ------------------------------------------------------------
-// Tabs
+// TABS
 // ------------------------------------------------------------
 
 window.openTab =
@@ -30,7 +20,7 @@ window.openTab =
 
 
 // ------------------------------------------------------------
-// Settings
+// SETTINGS
 // ------------------------------------------------------------
 
 window.changeTimezone =
@@ -82,7 +72,7 @@ window.filterFiles =
 
 
 // ------------------------------------------------------------
-// Audio
+// AUDIO
 // ------------------------------------------------------------
 
 window.playSound =
@@ -105,7 +95,7 @@ window.updatePlayerStatus =
 
 
 // ------------------------------------------------------------
-// Alarms
+// ALARMS
 // ------------------------------------------------------------
 
 window.loadAlarms =
@@ -128,7 +118,7 @@ window.deleteCurrentAlarm =
 
 
 // ------------------------------------------------------------
-// Alarm editor
+// ALARM EDITOR
 // ------------------------------------------------------------
 
 window.showAlarmEditor =
@@ -141,28 +131,8 @@ window.closeAlarmEditor =
     editor.closeAlarmEditor;
 
 
-// ------------------------------------------------------------
-// Alarm phases
-// ------------------------------------------------------------
-
-window.renderAlarmPhases =
-    phases.renderAlarmPhases;
-
-window.togglePhaseDevice =
-    phases.togglePhaseDevice;
-
-window.togglePhaseLoop =
-    phases.togglePhaseLoop;
-
-window.addAlarmPhase =
-    phases.addAlarmPhase;
-
-window.removeAlarmPhase =
-    phases.removeAlarmPhase;
-
-
 // ============================================================
-// APPLICATION INITIALIZATION
+// INITIALIZATION
 // ============================================================
 
 async function init()
@@ -171,30 +141,21 @@ async function init()
         "[APP] SmartClock frontend initialization..."
     );
 
+
     try
     {
-        // ----------------------------------------------------
-        // Settings
-        // ----------------------------------------------------
-
         await params.loadParams();
 
         params.renderTimezone();
 
 
-        // ----------------------------------------------------
-        // SD + Audio
-        // ----------------------------------------------------
+        await Promise.all(
+            [
+                sd.loadSD(),
+                audio.updatePlayerStatus()
+            ]
+        );
 
-        await Promise.all([
-            sd.loadSD(),
-            audio.updatePlayerStatus()
-        ]);
-
-
-        // ----------------------------------------------------
-        // Alarms
-        // ----------------------------------------------------
 
         await alarms.loadAlarms();
 

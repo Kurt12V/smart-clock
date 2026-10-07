@@ -1,506 +1,326 @@
-function formatAlarmTime(time) {
+// ============================================================
+// DAY NAMES
+// ============================================================
 
-    if (!time) {
-        return "--:--";
-    }
+export const DAY_NAMES =
+[
+    "Mon",
+    "Tue",
+    "Wed",
+    "Thu",
+    "Fri",
+    "Sat",
+    "Sun"
+];
+
+
+// ============================================================
+// FORMAT TIME
+// ============================================================
+
+export function formatAlarmTime(
+    time
+)
+{
+    if (!time)
+        return "--:--:--";
 
     const hour =
-        Math.max(
-            0,
-            Math.min(
-                23,
-                Number(
-                    time.hour || 0
-                )
-            )
+        padAlarmTimePart(
+            time.hour
         );
 
     const minute =
-        Math.max(
-            0,
-            Math.min(
-                59,
-                Number(
-                    time.minute || 0
-                )
-            )
-        );
-
-    return (
-        String(hour).padStart(
-            2,
-            "0"
-        ) +
-        ":" +
-        String(minute).padStart(
-            2,
-            "0"
-        )
-    );
-}
-function formatAlarmTimeWithSeconds(time) {
-
-    if (!time) {
-        return "00:00:00";
-    }
-
-    const hour =
-        Math.max(
-            0,
-            Math.min(
-                23,
-                Number(
-                    time.hour || 0
-                )
-            )
-        );
-
-    const minute =
-        Math.max(
-            0,
-            Math.min(
-                59,
-                Number(
-                    time.minute || 0
-                )
-            )
+        padAlarmTimePart(
+            time.minute
         );
 
     const second =
-        Math.max(
-            0,
-            Math.min(
-                59,
-                Number(
-                    time.second || 0
-                )
-            )
+        padAlarmTimePart(
+            time.second
         );
 
-    return (
-        String(hour).padStart(
-            2,
-            "0"
-        ) +
-        ":" +
-        String(minute).padStart(
-            2,
-            "0"
-        ) +
-        ":" +
-        String(second).padStart(
-            2,
-            "0"
-        )
+    return `${hour}:${minute}:${second}`;
+}
+
+
+// ============================================================
+// FORMAT TIME WITH OPTIONAL SECONDS
+// ============================================================
+
+export function formatAlarmTimeWithSeconds(
+    time
+)
+{
+    return formatAlarmTime(
+        time
     );
 }
-function padAlarmTimePart(
+
+
+// ============================================================
+// PAD TIME PART
+// ============================================================
+
+export function padAlarmTimePart(
     value
-) {
+)
+{
+    const number =
+        Number(
+            value
+        );
+
+    if (!Number.isFinite(number))
+        return "00";
 
     return String(
-        Math.max(
-            0,
-            Number(
-                value || 0
-            )
+        Math.trunc(
+            number
         )
     ).padStart(
         2,
         "0"
     );
 }
-function clampAlarmTimePart(
+
+
+// ============================================================
+// CLAMP TIME PART
+// ============================================================
+
+export function clampAlarmTimePart(
     value,
     min,
     max
-) {
-
-    const digits =
-        String(
-            value || ""
-        )
-            .replace(
-                /\D/g,
-                ""
-            )
-            .slice(
-                0,
-                2
-            );
-
-    if (!digits) {
-        return "";
-    }
-
+)
+{
     const number =
-        Math.min(
-            max,
-            Math.max(
-                min,
-                Number(digits)
-            )
+        Number(
+            value
         );
 
-    return padAlarmTimePart(
-        number
+    if (!Number.isFinite(number))
+        return min;
+
+    return Math.min(
+        max,
+        Math.max(
+            min,
+            Math.trunc(
+                number
+            )
+        )
     );
 }
-function setupAlarmTimeInput(
-    id,
-    min,
-    max,
-    nextId,
-    prevId
-) {
 
-    const input =
+
+// ============================================================
+// GET TIME FROM EDITOR
+// ============================================================
+
+export function getAlarmTime()
+{
+    const hourElement =
         document.getElementById(
-            id
+            "alarm_hour"
         );
 
-    if (!input) {
-        return;
+    const minuteElement =
+        document.getElementById(
+            "alarm_minute"
+        );
+
+    const secondElement =
+        document.getElementById(
+            "alarm_second"
+        );
+
+
+    if (
+        !hourElement ||
+        !minuteElement ||
+        !secondElement
+    )
+    {
+        return null;
     }
 
-
-    input.addEventListener(
-        "focus",
-        () => {
-
-            input.select();
-
-        }
-    );
-
-
-    input.addEventListener(
-        "input",
-        () => {
-
-            let value =
-                input.value
-                    .replace(
-                        /\D/g,
-                        ""
-                    )
-                    .slice(
-                        0,
-                        2
-                    );
-
-            input.value =
-                value;
-
-
-            if (
-                value.length === 2
-            ) {
-
-                const number =
-                    Number(value);
-
-                input.value =
-                    padAlarmTimePart(
-                        Math.min(
-                            max,
-                            Math.max(
-                                min,
-                                number
-                            )
-                        )
-                    );
-
-
-                if (nextId) {
-
-                    document.getElementById(
-                        nextId
-                    ).focus();
-
-                }
-
-            }
-
-        }
-    );
-
-
-    input.addEventListener(
-        "blur",
-        () => {
-
-            if (
-                input.value === ""
-            ) {
-
-                input.value =
-                    padAlarmTimePart(
-                        min
-                    );
-
-                return;
-
-            }
-
-            input.value =
-                clampAlarmTimePart(
-                    input.value,
-                    min,
-                    max
-                );
-
-        }
-    );
-
-
-    input.addEventListener(
-        "keydown",
-        event => {
-
-            /* UP / DOWN */
-
-            if (
-                event.key === "ArrowUp" ||
-                event.key === "ArrowDown"
-            ) {
-
-                event.preventDefault();
-
-                let value =
-                    Number(
-                        input.value || min
-                    );
-
-                value +=
-                    event.key === "ArrowUp"
-                        ? 1
-                        : -1;
-
-
-                if (
-                    value > max
-                ) {
-
-                    value = min;
-
-                }
-
-                if (
-                    value < min
-                ) {
-
-                    value = max;
-
-                }
-
-
-                input.value =
-                    padAlarmTimePart(
-                        value
-                    );
-
-                return;
-
-            }
-
-
-            /* ENTER */
-
-            if (
-                event.key === "Enter"
-            ) {
-
-                event.preventDefault();
-
-                if (nextId) {
-
-                    document.getElementById(
-                        nextId
-                    ).focus();
-
-                }
-
-                return;
-
-            }
-
-
-            /* BACKSPACE */
-
-            if (
-                event.key === "Backspace" &&
-                input.value === "" &&
-                prevId
-            ) {
-
-                document.getElementById(
-                    prevId
-                ).focus();
-
-            }
-
-        }
-    );
-
-}
-function getAlarmTime() {
 
     const hour =
         Number(
-            document.getElementById(
-                "alarm_hour"
-            ).value
+            hourElement.value
         );
 
     const minute =
         Number(
-            document.getElementById(
-                "alarm_minute"
-            ).value
+            minuteElement.value
         );
 
     const second =
         Number(
-            document.getElementById(
-                "alarm_second"
-            ).value
+            secondElement.value
         );
 
 
     if (
         !Number.isInteger(hour) ||
         hour < 0 ||
-        hour > 23 ||
+        hour > 23
+    )
+    {
+        return null;
+    }
 
+    if (
         !Number.isInteger(minute) ||
         minute < 0 ||
-        minute > 59 ||
+        minute > 59
+    )
+    {
+        return null;
+    }
 
+    if (
         !Number.isInteger(second) ||
         second < 0 ||
         second > 59
-    ) {
-
+    )
+    {
         return null;
-
     }
 
 
     return {
-
         hour,
-
         minute,
-
         second
-
     };
-
 }
-function formatAlarmDays(mask) {
 
+
+// ============================================================
+// FORMAT DAYS
+// ============================================================
+
+export function formatAlarmDays(
+    mask
+)
+{
     mask =
-        Number(mask || 0);
+        Number(
+            mask || 0
+        );
 
-    if (mask === 0) {
+
+    if (mask === 0)
+    {
         return "Once";
     }
 
-    if (mask === 127) {
+
+    if (mask === 127)
+    {
         return "Every day";
     }
 
-    if (mask === 31) {
+
+    if (mask === 31)
+    {
         return "Mon – Fri";
     }
 
-    const result = [];
+
+    const result =
+        [];
+
 
     for (
         let i = 0;
         i < 7;
         ++i
-    ) {
-
+    )
+    {
         if (
             mask &
             (1 << i)
-        ) {
-
+        )
+        {
             result.push(
                 DAY_NAMES[i]
             );
-
         }
-
     }
 
-    return result.join(
-        " · "
-    );
-}
-function minutesToMs(value) {
 
-    return Math.round(
-        Number(value || 0) *
-        60000
-    );
+    return result.length
+        ? result.join(" · ")
+        : "Once";
 }
-function secondsToMs(value) {
 
-    return Math.round(
-        Number(value || 0) *
-        1000
-    );
-}
-function msToMinutes(value) {
 
-    return Number(
-        Number(value || 0) /
-        60000
-    ).toFixed(2);
-}
-function msToSeconds(value) {
+// ============================================================
+// DAYS -> MASK
+// ============================================================
 
-    return Number(
-        Number(value || 0) /
-        1000
-    ).toFixed(2);
-}
-function daysToMask() {
+export function daysToMask()
+{
+    let mask =
+        0;
 
-    let mask = 0;
 
     document
         .querySelectorAll(
             ".days button.selected"
         )
         .forEach(
-            button => {
-
+            button =>
+            {
                 const day =
                     Number(
                         button.dataset.day
                     );
 
-                mask |=
-                    1 << day;
-
+                if (
+                    Number.isInteger(
+                        day
+                    ) &&
+                    day >= 0 &&
+                    day <= 6
+                )
+                {
+                    mask |=
+                        1 << day;
+                }
             }
         );
 
+
     return mask;
 }
-function maskToDays(mask) {
+
+
+// ============================================================
+// MASK -> DAYS
+// ============================================================
+
+export function maskToDays(
+    mask
+)
+{
+    mask =
+        Number(
+            mask || 0
+        );
+
 
     document
         .querySelectorAll(
             ".days button"
         )
         .forEach(
-            button => {
-
+            button =>
+            {
                 const day =
                     Number(
                         button.dataset.day
@@ -513,7 +333,6 @@ function maskToDays(mask) {
                         (1 << day)
                     ) !== 0
                 );
-
             }
         );
 }

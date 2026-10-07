@@ -1,182 +1,233 @@
+// ============================================================
+// SMARTCLOCK SD
+// ============================================================
+
 import { state } from "./state.js";
 import { apiFetch } from "./api.js";
-import { setConnection } from "./ui.js";
-import { renderAudioFiles } from "./audio.js";
+import {
+    setConnection
+} from "./ui.js";
 
-async function loadSD() {
+import {
+    renderAudioFiles
+} from "./audio.js";
 
-    if (state.sdRequest) {
+
+// ============================================================
+// LOAD SD
+// ============================================================
+
+export async function loadSD()
+{
+    if (state.sdRequest)
+    {
         return;
     }
 
+
     state.sdRequest = true;
+
 
     const list =
         document.getElementById(
             "fileList"
         );
 
-    list.innerHTML =
-        '<div class="empty">Loading...</div>';
 
-    try {
+    if (list)
+    {
+        list.innerHTML =
+            '<div class="empty">Loading...</div>';
+    }
 
+
+    try
+    {
         const response =
             await apiFetch(
-                "/api/sd",
-                {},
-                2500
+                "/api/sd"
             );
+
 
         const data =
             await response.json();
 
+
         state.files =
-            Array.isArray(
-                data.files
-            )
+            Array.isArray(data.files)
                 ? data.files
                 : [];
+
 
         renderFiles();
 
         renderAudioFiles();
 
         setConnection(true);
+    }
+    catch (error)
+    {
+        console.error(
+            "[SD] Load failed:",
+            error
+        );
 
-    } catch (e) {
 
-        list.innerHTML =
-            '<div class="empty">SD unavailable</div>';
+        if (list)
+        {
+            list.innerHTML =
+                '<div class="empty">SD unavailable</div>';
+        }
 
-    } finally {
 
+        setConnection(false);
+    }
+    finally
+    {
         state.sdRequest = false;
-
     }
 }
 
-function filterFiles() {
 
+// ============================================================
+// FILTER
+// ============================================================
+
+export function filterFiles()
+{
     renderFiles();
-
 }
 
-function renderFiles() {
 
+// ============================================================
+// RENDER FILES
+// ============================================================
+
+export function renderFiles()
+{
     const list =
         document.getElementById(
             "fileList"
         );
+
+
+    if (!list)
+    {
+        console.warn(
+            "[SD] #fileList not found"
+        );
+
+        return;
+    }
+
 
     const input =
         document.getElementById(
             "searchInput"
         );
 
+
     const query =
-        input.value
-            .toLowerCase()
-            .trim();
+        input
+            ? input.value
+                .toLowerCase()
+                .trim()
+            : "";
+
 
     const filtered =
         state.files.filter(
-            f =>
-                String(f.path)
+            file =>
+                String(file.path || "")
                     .toLowerCase()
                     .includes(query)
         );
 
-    if (!filtered.length) {
 
+    if (!filtered.length)
+    {
         list.innerHTML =
-            '<div class="empty">No state.files</div>';
+            '<div class="empty">No files</div>';
 
         return;
-
     }
+
 
     const fragment =
         document.createDocumentFragment();
 
-    filtered.forEach(
-        f => {
 
+    filtered.forEach(
+        file =>
+        {
             const row =
-                document.createElement(
-                    "div"
-                );
+                document.createElement("div");
 
             row.className =
                 "file";
 
+
             const path =
-                document.createElement(
-                    "div"
-                );
+                document.createElement("div");
 
             path.className =
                 "file-path";
 
             path.textContent =
-                f.path;
+                file.path;
+
 
             const size =
-                document.createElement(
-                    "div"
-                );
+                document.createElement("div");
 
             size.className =
                 "file-size";
 
+
             size.textContent =
-                f.type === "dir"
+                file.type === "dir"
                     ? "DIR"
                     : formatSize(
                         Number(
-                            f.size || 0
+                            file.size || 0
                         )
                     );
 
-            row.appendChild(
-                path
-            );
 
-            row.appendChild(
-                size
-            );
+            row.appendChild(path);
+            row.appendChild(size);
 
-            fragment.appendChild(
-                row
-            );
-
+            fragment.appendChild(row);
         }
     );
+
 
     list.replaceChildren(
         fragment
     );
 }
 
-function formatSize(bytes) {
 
-    if (bytes < 1024) {
+// ============================================================
+// FORMAT SIZE
+// ============================================================
 
+function formatSize(bytes)
+{
+    if (bytes < 1024)
+    {
         return bytes + " B";
-
     }
 
-    if (
-        bytes <
-        1024 * 1024
-    ) {
 
+    if (bytes < 1024 * 1024)
+    {
         return (
             bytes / 1024
         ).toFixed(1) +
         " KB";
-
     }
+
 
     return (
         bytes /
