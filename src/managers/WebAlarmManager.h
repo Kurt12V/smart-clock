@@ -10,69 +10,39 @@
 class WebAlarmManager
 {
 public:
-
     WebAlarmManager(
         AlarmManager& alarmManager,
         AlarmController& alarmController
     );
 
-    void setupRoutes(
-        WebServer& server
-    );
+    void setupRoutes(WebServer& server);
 
-    bool handleDynamicRequest(
-        WebServer& server
-    );
-
+    bool handleDynamicRequest(WebServer& server);
 
 private:
-void handleStop(WebServer& server);
+    // ========================================================
+    // REST API
+    // ========================================================
 
-    void sendError(
-        WebServer& server,
-        int code,
-        const char* message
-    );
-    void handleGetAlarms(
-        WebServer& server
-    );
+    void handleGetAlarms(WebServer& server);
+    void handleGetAlarm(WebServer& server);
+    void handleCreateAlarm(WebServer& server);
+    void handleUpdateAlarm(WebServer& server);
+    void handleDeleteAlarm(WebServer& server);
+    void handleSetEnabled(WebServer& server);
 
-    void handleGetAlarm(
-        WebServer& server
-    );
+    // ========================================================
+    // Runtime API
+    // ========================================================
 
-    void handleCreateAlarm(
-        WebServer& server
-    );
+    void handleRuntime(WebServer& server);
+    void handleDismiss(WebServer& server);
+    void handleSnooze(WebServer& server);
+    void handleStop(WebServer& server);
 
-    void handleUpdateAlarm(
-        WebServer& server
-    );
-
-    void handleDeleteAlarm(
-        WebServer& server
-    );
-
-    void handleEnableAlarm(
-        WebServer& server
-    );
-
-    void handleDisableAlarm(
-        WebServer& server
-    );
-
-    void handleRuntime(
-        WebServer& server
-    );
-
-    void handleDismiss(
-        WebServer& server
-    );
-
-    void handleSnooze(
-        WebServer& server
-    );
-
+    // ========================================================
+    // Serialization
+    // ========================================================
 
     bool parseAlarmFromRequest(
         WebServer& server,
@@ -88,6 +58,9 @@ void handleStop(WebServer& server);
         WebServer& server
     );
 
+    // ========================================================
+    // Helpers
+    // ========================================================
 
     String getAlarmIdFromRequest(
         WebServer& server
@@ -97,10 +70,17 @@ void handleStop(WebServer& server);
         const String& id
     ) const;
 
+    void sendError(
+        WebServer& server,
+        int code,
+        const char* message
+    );
+
+    void sendOk(
+        WebServer& server
+    );
 
 private:
-
     AlarmManager& _alarmManager;
-
     AlarmController& _alarmController;
 };

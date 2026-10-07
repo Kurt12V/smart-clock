@@ -1,12 +1,12 @@
 #include "WebAlarmManager.h"
 
-#include <ArduinoJson.h>
-
-
 namespace
 {
     constexpr uint32_t MAX_SNOOZE_MS =
         24UL * 60UL * 60UL * 1000UL;
+
+    constexpr uint8_t MAX_ALARMS =
+        AlarmConfig::MAX_ALARMS;
 }
 
 
@@ -33,7 +33,7 @@ void WebAlarmManager::setupRoutes(
 )
 {
     // ========================================================
-    // MODERN API
+    // COLLECTION
     // ========================================================
 
     server.on(
@@ -51,48 +51,6 @@ void WebAlarmManager::setupRoutes(
         [&server, this]()
         {
             handleCreateAlarm(server);
-        }
-    );
-
-
-    // ========================================================
-    // LEGACY API
-    // ========================================================
-
-    server.on(
-        "/api/alarm",
-        HTTP_GET,
-        [&server, this]()
-        {
-            handleGetAlarms(server);
-        }
-    );
-
-    server.on(
-        "/api/alarm",
-        HTTP_POST,
-        [&server, this]()
-        {
-            handleCreateAlarm(server);
-        }
-    );
-
-
-    server.on(
-        "/api/alarm/enable",
-        HTTP_POST,
-        [&server, this]()
-        {
-            handleEnableAlarm(server);
-        }
-    );
-
-    server.on(
-        "/api/alarm/disable",
-        HTTP_POST,
-        [&server, this]()
-        {
-            handleDisableAlarm(server);
         }
     );
 
@@ -102,7 +60,7 @@ void WebAlarmManager::setupRoutes(
     // ========================================================
 
     server.on(
-        "/api/alarm/runtime",
+        "/api/alarms/runtime",
         HTTP_GET,
         [&server, this]()
         {
@@ -110,13 +68,8 @@ void WebAlarmManager::setupRoutes(
         }
     );
 
-
-    // ========================================================
-    // CONTROL
-    // ========================================================
-
     server.on(
-        "/api/alarm/dismiss",
+        "/api/alarms/runtime/dismiss",
         HTTP_POST,
         [&server, this]()
         {
@@ -125,7 +78,7 @@ void WebAlarmManager::setupRoutes(
     );
 
     server.on(
-        "/api/alarm/snooze",
+        "/api/alarms/runtime/snooze",
         HTTP_POST,
         [&server, this]()
         {
@@ -134,7 +87,7 @@ void WebAlarmManager::setupRoutes(
     );
 
     server.on(
-        "/api/alarm/stop",
+        "/api/alarms/runtime/stop",
         HTTP_POST,
         [&server, this]()
         {
@@ -154,22 +107,22 @@ bool WebAlarmManager::handleDynamicRequest(
 {
     const String uri = server.uri();
 
-    const String prefix = "/api/alarms/";
+    constexpr const char* PREFIX =
+        "/api/alarms/";
 
-
-    if (!uri.startsWith(prefix))
+    if (!uri.startsWith(PREFIX))
         return false;
 
 
     String tail =
-        uri.substring(prefix.length());
+        uri.substring(strlen(PREFIX));
 
 
     // --------------------------------------------------------
     // Remove trailing slash
     // --------------------------------------------------------
 
-    if (tail.endsWith("/"))
+    while (tail.endsWith("/"))
     {
         tail.remove(
             tail.length() - 1
@@ -177,19 +130,45 @@ bool WebAlarmManager::handleDynamicRequest(
     }
 
 
+    if (tail.isEmpty())
+    {
+        return false;
+    }
+
+
+    // ========================================================
+    // /api/alarms/runtime/*
+    //
+    // These routes are handled explicitly by setupRoutes().
+    // Do not treat "runtime" as an alarm UUID.
+    // ========================================================
+
+    if (tail == "runtime")
+    {
+        sendError(
+            server,
+            405,
+            "Method not allowed"
+        );
+
+        return true;
+    }
+
+
     // ========================================================
     // /api/alarms/{id}/enabled
     // ========================================================
 
-    const String enabledSuffix = "/enabled";
+    constexpr const char* ENABLED_SUFFIX =
+        "/enabled";
 
-
-    if (tail.endsWith(enabledSuffix))
+    if (tail.endsWith(ENABLED_SUFFIX))
     {
-        String id = tail.substring(
-            0,
-            tail.length() - enabledSuffix.length()
-        );
+        const String id =
+            tail.substring(
+                0,
+                tail.length() - strlen(ENABLED_SUFFIX)
+            );
 
 
         if (!isValidAlarmId(id))
@@ -216,9 +195,7 @@ bool WebAlarmManager::handleDynamicRequest(
         }
 
 
-        // getAlarmIdFromRequest() can extract the ID from URI,
-        // therefore the common handler can be used.
-        handleEnableAlarm(server);
+        handleSetEnabled(server);
 
         return true;
     }
@@ -246,16 +223,13 @@ bool WebAlarmManager::handleDynamicRequest(
             handleGetAlarm(server);
             return true;
 
-
         case HTTP_PUT:
             handleUpdateAlarm(server);
             return true;
 
-
         case HTTP_DELETE:
             handleDeleteAlarm(server);
             return true;
-
 
         default:
             sendError(
@@ -270,7 +244,7 @@ bool WebAlarmManager::handleDynamicRequest(
 
 
 // ============================================================
-// GET ALL
+// GET /api/alarms
 // ============================================================
 
 void WebAlarmManager::handleGetAlarms(
@@ -282,7 +256,7 @@ void WebAlarmManager::handleGetAlarms(
 
 
 // ============================================================
-// GET ONE
+// GET /api/alarms/{id}
 // ============================================================
 
 void WebAlarmManager::handleGetAlarm(
@@ -331,7 +305,7 @@ void WebAlarmManager::handleGetAlarm(
 
 
 // ============================================================
-// CREATE
+// POST /api/alarms
 // ============================================================
 
 void WebAlarmManager::handleCreateAlarm(
@@ -350,6 +324,18 @@ void WebAlarmManager::handleCreateAlarm(
     }
 
 
+    // ========================================================
+    // IMPORTANT
+    //
+    // The web layer does NOT generate an ID.
+    //
+    // AlarmManager::create() generates UUID v4 when id is
+    // empty.
+    // ========================================================
+
+    alarm.id = String();
+
+
     if (!_alarmManager.create(
         alarm
     ))
@@ -364,15 +350,35 @@ void WebAlarmManager::handleCreateAlarm(
     }
 
 
-    sendAlarm(
-        server,
-        alarm
+    // AlarmManager has now generated the final UUID.
+
+    server.send(
+        201,
+        "application/json",
+        [&]()
+        {
+            JsonDocument doc;
+
+            _alarmManager.serialize(
+                alarm,
+                doc
+            );
+
+            String body;
+
+            serializeJson(
+                doc,
+                body
+            );
+
+            return body;
+        }()
     );
 }
 
 
 // ============================================================
-// UPDATE
+// PUT /api/alarms/{id}
 // ============================================================
 
 void WebAlarmManager::handleUpdateAlarm(
@@ -407,7 +413,10 @@ void WebAlarmManager::handleUpdateAlarm(
     }
 
 
-    // The URL is authoritative.
+    // ========================================================
+    // URL ID is authoritative.
+    // ========================================================
+
     alarm.id = id;
 
 
@@ -417,8 +426,8 @@ void WebAlarmManager::handleUpdateAlarm(
     {
         sendError(
             server,
-            500,
-            "Failed to update alarm"
+            404,
+            "Alarm not found"
         );
 
         return;
@@ -433,7 +442,7 @@ void WebAlarmManager::handleUpdateAlarm(
 
 
 // ============================================================
-// DELETE
+// DELETE /api/alarms/{id}
 // ============================================================
 
 void WebAlarmManager::handleDeleteAlarm(
@@ -456,31 +465,39 @@ void WebAlarmManager::handleDeleteAlarm(
     }
 
 
+    if (!_alarmManager.exists(id))
+    {
+        sendError(
+            server,
+            404,
+            "Alarm not found"
+        );
+
+        return;
+    }
+
+
     if (!_alarmManager.remove(id))
     {
         sendError(
             server,
-            404,
-            "Alarm not found"
+            500,
+            "Failed to delete alarm"
         );
 
         return;
     }
 
 
-    server.send(
-        200,
-        "application/json",
-        "{\"ok\":true}"
-    );
+    sendOk(server);
 }
 
 
 // ============================================================
-// ENABLE
+// POST /api/alarms/{id}/enabled
 // ============================================================
 
-void WebAlarmManager::handleEnableAlarm(
+void WebAlarmManager::handleSetEnabled(
     WebServer& server
 )
 {
@@ -500,51 +517,60 @@ void WebAlarmManager::handleEnableAlarm(
     }
 
 
-    if (!_alarmManager.enable(id))
-    {
-        sendError(
-            server,
-            404,
-            "Alarm not found"
-        );
-
-        return;
-    }
-
-
-    server.send(
-        200,
-        "application/json",
-        "{\"ok\":true,\"enabled\":true}"
-    );
-}
-
-
-// ============================================================
-// DISABLE
-// ============================================================
-
-void WebAlarmManager::handleDisableAlarm(
-    WebServer& server
-)
-{
-    const String id =
-        getAlarmIdFromRequest(server);
-
-
-    if (!isValidAlarmId(id))
+    if (!server.hasArg("plain"))
     {
         sendError(
             server,
             400,
-            "Invalid alarm id"
+            "Missing JSON body"
         );
 
         return;
     }
 
 
-    if (!_alarmManager.disable(id))
+    JsonDocument doc;
+
+
+    const DeserializationError error =
+        deserializeJson(
+            doc,
+            server.arg("plain")
+        );
+
+
+    if (error)
+    {
+        sendError(
+            server,
+            400,
+            "Invalid JSON"
+        );
+
+        return;
+    }
+
+
+    if (!doc["enabled"].is<bool>())
+    {
+        sendError(
+            server,
+            400,
+            "Missing enabled"
+        );
+
+        return;
+    }
+
+
+    const bool enabled =
+        doc["enabled"].as<bool>();
+
+
+    if (!_alarmManager.setEnabled(
+        id,
+        enabled
+    ))
     {
         sendError(
             server,
@@ -556,16 +582,37 @@ void WebAlarmManager::handleDisableAlarm(
     }
 
 
-    server.send(
-        200,
-        "application/json",
-        "{\"ok\":true,\"enabled\":false}"
+    // --------------------------------------------------------
+    // Return the actual stored alarm.
+    // --------------------------------------------------------
+
+    Alarm alarm;
+
+
+    if (!_alarmManager.get(
+        id,
+        alarm
+    ))
+    {
+        sendError(
+            server,
+            500,
+            "Failed to read alarm"
+        );
+
+        return;
+    }
+
+
+    sendAlarm(
+        server,
+        alarm
     );
 }
 
 
 // ============================================================
-// RUNTIME
+// GET /api/alarms/runtime
 // ============================================================
 
 void WebAlarmManager::handleRuntime(
@@ -583,7 +630,7 @@ void WebAlarmManager::handleRuntime(
 
 
     // ========================================================
-    // AlarmController state
+    // Controller state
     // ========================================================
 
     if (_alarmController.isActive())
@@ -598,7 +645,7 @@ void WebAlarmManager::handleRuntime(
     }
 
     // ========================================================
-    // AlarmManager runtime state
+    // AlarmManager state
     // ========================================================
 
     else if (_alarmManager.isRunning())
@@ -621,10 +668,6 @@ void WebAlarmManager::handleRuntime(
             _alarmManager.elapsedMs();
     }
 
-
-    // ========================================================
-    // Response
-    // ========================================================
 
     doc["active"] =
         active;
@@ -653,7 +696,7 @@ void WebAlarmManager::handleRuntime(
 
 
 // ============================================================
-// DISMISS
+// POST /api/alarms/runtime/dismiss
 // ============================================================
 
 void WebAlarmManager::handleDismiss(
@@ -663,14 +706,11 @@ void WebAlarmManager::handleDismiss(
     bool result = false;
 
 
-    // Controller owns the output state.
     if (_alarmController.isActive())
     {
         result =
             _alarmController.dismiss();
     }
-
-    // Fallback for scheduler-only runtime.
     else if (_alarmManager.isRunning())
     {
         result =
@@ -690,16 +730,12 @@ void WebAlarmManager::handleDismiss(
     }
 
 
-    server.send(
-        200,
-        "application/json",
-        "{\"ok\":true}"
-    );
+    sendOk(server);
 }
 
 
 // ============================================================
-// SNOOZE
+// POST /api/alarms/runtime/snooze
 // ============================================================
 
 void WebAlarmManager::handleSnooze(
@@ -710,7 +746,7 @@ void WebAlarmManager::handleSnooze(
 
 
     // ========================================================
-    // JSON body
+    // JSON
     // ========================================================
 
     if (server.hasArg("plain"))
@@ -735,7 +771,7 @@ void WebAlarmManager::handleSnooze(
 
 
     // ========================================================
-    // Query parameter fallback
+    // Query fallback
     // ========================================================
 
     if (
@@ -751,7 +787,7 @@ void WebAlarmManager::handleSnooze(
 
 
     // ========================================================
-    // Validate
+    // Validation
     // ========================================================
 
     if (
@@ -772,7 +808,6 @@ void WebAlarmManager::handleSnooze(
     bool result = false;
 
 
-    // Controller first.
     if (_alarmController.isActive())
     {
         result =
@@ -780,8 +815,6 @@ void WebAlarmManager::handleSnooze(
                 durationMs
             );
     }
-
-    // Scheduler fallback.
     else if (_alarmManager.isRunning())
     {
         result =
@@ -803,24 +836,22 @@ void WebAlarmManager::handleSnooze(
     }
 
 
-    server.send(
-        200,
-        "application/json",
-        "{\"ok\":true}"
-    );
+    sendOk(server);
 }
 
 
 // ============================================================
-// STOP
+// POST /api/alarms/runtime/stop
 // ============================================================
 
 void WebAlarmManager::handleStop(
     WebServer& server
 )
 {
-    if (!_alarmController.isActive() &&
-        !_alarmManager.isRunning())
+    if (
+        !_alarmController.isActive() &&
+        !_alarmManager.isRunning()
+    )
     {
         sendError(
             server,
@@ -835,11 +866,7 @@ void WebAlarmManager::handleStop(
     _alarmController.stop();
 
 
-    server.send(
-        200,
-        "application/json",
-        "{\"ok\":true}"
-    );
+    sendOk(server);
 }
 
 
@@ -917,14 +944,22 @@ void WebAlarmManager::sendAlarm(
     JsonDocument doc;
 
 
-    _alarmManager.serialize(
+    if (!_alarmManager.serialize(
         alarm,
         doc
-    );
+    ))
+    {
+        sendError(
+            server,
+            500,
+            "Failed to serialize alarm"
+        );
+
+        return;
+    }
 
 
     String body;
-
 
     serializeJson(
         doc,
@@ -948,9 +983,6 @@ void WebAlarmManager::sendAlarmList(
     WebServer& server
 )
 {
-    constexpr uint8_t MAX_ALARMS = 32;
-
-
     Alarm alarms[MAX_ALARMS];
 
     uint8_t count = 0;
@@ -1019,11 +1051,6 @@ void WebAlarmManager::sendAlarmList(
         item["repeatMask"] =
             alarms[i].repeatMask;
 
-
-        // ====================================================
-        // Actual Alarm model
-        // ====================================================
-
         item["matrixEffect"] =
             alarms[i].matrixEffect;
 
@@ -1036,7 +1063,6 @@ void WebAlarmManager::sendAlarmList(
 
 
     String body;
-
 
     serializeJson(
         doc,
@@ -1053,7 +1079,7 @@ void WebAlarmManager::sendAlarmList(
 
 
 // ============================================================
-// GET ID
+// GET ALARM ID
 // ============================================================
 
 String WebAlarmManager::getAlarmIdFromRequest(
@@ -1061,34 +1087,21 @@ String WebAlarmManager::getAlarmIdFromRequest(
 ) const
 {
     // --------------------------------------------------------
-    // Query parameters
+    // REST URI
     // --------------------------------------------------------
 
-    if (server.hasArg("id"))
-        return server.arg("id");
-
-
-    if (server.hasArg("alarmId"))
-        return server.arg("alarmId");
-
-
-    // --------------------------------------------------------
-    // REST path
-    // --------------------------------------------------------
-
-    const String prefix =
+    constexpr const char* PREFIX =
         "/api/alarms/";
-
 
     const String uri =
         server.uri();
 
 
-    if (uri.startsWith(prefix))
+    if (uri.startsWith(PREFIX))
     {
         String id =
             uri.substring(
-                prefix.length()
+                strlen(PREFIX)
             );
 
 
@@ -1126,16 +1139,17 @@ bool WebAlarmManager::isValidAlarmId(
         return false;
 
 
+    // ========================================================
+    // Format
+    // xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+    // ========================================================
+
     for (
         uint8_t i = 0;
         i < 36;
         ++i
     )
     {
-        // ----------------------------------------------------
-        // Hyphens
-        // ----------------------------------------------------
-
         if (
             i == 8 ||
             i == 13 ||
@@ -1149,10 +1163,6 @@ bool WebAlarmManager::isValidAlarmId(
             continue;
         }
 
-
-        // ----------------------------------------------------
-        // Hexadecimal character
-        // ----------------------------------------------------
 
         const char c =
             id[i];
@@ -1169,22 +1179,17 @@ bool WebAlarmManager::isValidAlarmId(
     }
 
 
-    // --------------------------------------------------------
+    // ========================================================
     // UUID version 4
-    // --------------------------------------------------------
+    // ========================================================
 
-    if (
-        id[14] != '4' &&
-        id[14] != '4'
-    )
-    {
+    if (id[14] != '4')
         return false;
-    }
 
 
-    // --------------------------------------------------------
+    // ========================================================
     // UUID variant 10xx
-    // --------------------------------------------------------
+    // ========================================================
 
     const char variant =
         id[19];
@@ -1208,6 +1213,22 @@ bool WebAlarmManager::isValidAlarmId(
 
 
 // ============================================================
+// OK RESPONSE
+// ============================================================
+
+void WebAlarmManager::sendOk(
+    WebServer& server
+)
+{
+    server.send(
+        200,
+        "application/json",
+        "{\"ok\":true}"
+    );
+}
+
+
+// ============================================================
 // ERROR RESPONSE
 // ============================================================
 
@@ -1219,13 +1240,11 @@ void WebAlarmManager::sendError(
 {
     JsonDocument doc;
 
-
     doc["error"] =
         message;
 
 
     String body;
-
 
     serializeJson(
         doc,
