@@ -1,420 +1,285 @@
-#include "SDManager.h"
+#include "WebSDManager.h"
+
+#include <memory>
+
+
+namespace
+{
+    constexpr size_t DEFAULT_LIMIT = 10;
+    constexpr size_t MAX_LIMIT     = 10;
+    constexpr uint8_t MAX_DEPTH    = 8;
+}
 
 
 // ============================================================
 // CONSTRUCTOR
 // ============================================================
 
-SDManager::SDManager()
-    : _initialized(false)
+WebSDManager::WebSDManager(
+    SDManager& sd
+)
+    : _sd(sd)
 {
 }
 
 
 // ============================================================
-// BEGIN
+// ROUTES
 // ============================================================
 
-bool SDManager::begin(
-    uint8_t csPin
+void WebSDManager::setupRoutes(
+    WebServer& server
 )
 {
-    _initialized = false;
-
-    if (!_card.begin(csPin))
-        return false;
-
-    _initialized = true;
-
-    return true;
-}
-
-
-// ============================================================
-// END
-// ============================================================
-
-void SDManager::end()
-{
-    if (!_initialized)
-        return;
-
-    _card.end();
-
-    _initialized = false;
-}
-
-
-// ============================================================
-// IS READY
-// ============================================================
-
-bool SDManager::isReady() const
-{
-    return (
-        _initialized &&
-        _card.isMounted()
-    );
-}
-
-
-// ============================================================
-// CARD
-// ============================================================
-
-SDCard& SDManager::card()
-{
-    return _card;
-}
-
-
-const SDCard& SDManager::card() const
-{
-    return _card;
-}
-
-
-// ============================================================
-// INFO
-// ============================================================
-
-SDCardInfo SDManager::getInfo() const
-{
-    if (!_initialized)
-        return SDCardInfo{};
-
-    return _card.getInfo();
-}
-
-
-// ============================================================
-// LIST FILES
-// ============================================================
-
-size_t SDManager::listFiles(
-    SDFileEntry* out,
-    size_t maxFiles,
-    uint8_t maxDepth,
-    const char* root
-) const
-{
-    if (out == nullptr)
-        return 0;
-
-    if (maxFiles == 0)
-        return 0;
-
-    if (!_initialized)
-        return 0;
-
-    if (!_card.isMounted())
-        return 0;
-
-    if (root == nullptr)
-        root = "/";
-
-    return listDir(
-        root,
-        out,
-        maxFiles,
-        0,
-        0,
-        maxDepth
-    );
-}
-
-
-// ============================================================
-// LIST DIRECTORY
-// ============================================================
-
-size_t SDManager::listDir(
-    const char* dirname,
-    SDFileEntry* out,
-    size_t maxFiles,
-    size_t count,
-    uint8_t depth,
-    uint8_t maxDepth
-) const
-{
-    if (dirname == nullptr)
-        return count;
-
-    if (out == nullptr)
-        return count;
-
-    if (count >= maxFiles)
-        return count;
-
-
-    // --------------------------------------------------------
-    // Открываем директорию.
-    //
-    // Здесь используется существующий SD API,
-    // как и в твоей исходной реализации.
-    // --------------------------------------------------------
-
-    File dir =
-        SD.open(dirname);
-
-    if (!dir)
-        return count;
-
-    if (!dir.isDirectory())
-    {
-        dir.close();
-        return count;
-    }
-
-
-    // --------------------------------------------------------
-    // Перебираем содержимое
-    // --------------------------------------------------------
-
-    while (true)
-    {
-        if (count >= maxFiles)
-            break;
-
-
-        File file =
-            dir.openNextFile();
-
-        if (!file)
-            break;
-
-
-        const bool isDirectory =
-            file.isDirectory();
-
-
-        const String path =
-            file.path();
-
-
-        const uint64_t size =
-            isDirectory
-                ? 0
-                : static_cast<uint64_t>(
-                    file.size()
-                );
-
-
-        // ----------------------------------------------------
-        // Добавляем запись
-        // ----------------------------------------------------
-
-        out[count].path =
-            path;
-
-        out[count].size =
-            size;
-
-        out[count].isDir =
-            isDirectory;
-
-
-        ++count;
-
-
-        // ----------------------------------------------------
-        // Рекурсивный обход
-        // ----------------------------------------------------
-
-        if (
-            isDirectory &&
-            depth < maxDepth &&
-            count < maxFiles
-        )
+    server.on(
+        "/api/sd",
+        HTTP_GET,
+        [&server, this]()
         {
-            count =
-                listDir(
-                    path.c_str(),
-                    out,
-                    maxFiles,
-                    count,
-                    depth + 1,
-                    maxDepth
-                );
+            handleSD(server);
         }
-
-
-        file.close();
-    }
-
-
-    dir.close();
-
-    return count;
+    );
 }
 
 
 // ============================================================
-// CREATE DIRECTORY
+// QUERY PARAMETER
 // ============================================================
 
-bool SDManager::createDirectory(
-    const String& path
+size_t WebSDManager::getQuerySize(
+    WebServer& server,
+    const char* name,
+    size_t defaultValue
+) const
+{
+    if (!server.hasArg(name))
+        return defaultValue;
+
+
+    const String value =
+        server.arg(name);
+
+
+    if (value.isEmpty())
+        return defaultValue;
+
+
+    char* end = nullptr;
+
+
+    const unsigned long parsed =
+        strtoul(
+            value.c_str(),
+            &end,
+            10
+        );
+
+
+    if (end == value.c_str())
+        return defaultValue;
+
+
+    return static_cast<size_t>(
+        parsed
+    );
+}
+
+
+// ============================================================
+// GET SD
+// ============================================================
+
+void WebSDManager::handleSD(
+    WebServer& server
 )
 {
-    if (!_initialized)
-        return false;
+    // ========================================================
+    // CHECK SD
+    // ========================================================
 
-    if (!_card.isMounted())
-        return false;
+    if (!_sd.isReady())
+    {
+        sendError(
+            server,
+            503,
+            "SD card is not ready"
+        );
 
-    if (path.isEmpty())
-        return false;
+        return;
+    }
 
 
-    // Уже существует
+    // ========================================================
+    // OFFSET
+    // ========================================================
 
-    if (
-        _card.exists(
-            path.c_str()
-        )
+    const size_t offset =
+        getQuerySize(
+            server,
+            "offset",
+            0
+        );
+
+
+    // ========================================================
+    // LIMIT
+    // ========================================================
+
+    size_t limit =
+        getQuerySize(
+            server,
+            "limit",
+            DEFAULT_LIMIT
+        );
+
+
+    if (limit == 0)
+        limit = DEFAULT_LIMIT;
+
+
+    if (limit > MAX_LIMIT)
+        limit = MAX_LIMIT;
+
+
+    // ========================================================
+    // ALLOCATE ONLY CURRENT PAGE
+    // ========================================================
+
+    std::unique_ptr<SDFileEntry[]> entries(
+        new SDFileEntry[limit]
+    );
+
+
+    // ========================================================
+    // READ PAGE
+    // ========================================================
+
+    bool hasMore = false;
+
+
+    const size_t count =
+        _sd.listFilesPage(
+            entries.get(),
+            limit,
+            offset,
+            hasMore,
+            MAX_DEPTH,
+            "/"
+        );
+
+
+    // ========================================================
+    // JSON
+    // ========================================================
+
+    JsonDocument doc;
+
+
+    JsonArray files =
+        doc["files"].to<JsonArray>();
+
+
+    // ========================================================
+    // FILES
+    // ========================================================
+
+    for (
+        size_t i = 0;
+        i < count;
+        ++i
     )
     {
-        return true;
+        JsonObject file =
+            files.add<JsonObject>();
+
+
+        file["path"] =
+            entries[i].path;
+
+
+        file["size"] =
+            entries[i].size;
+
+
+        file["isDir"] =
+            entries[i].isDir;
     }
 
 
-    return _card.fs().mkdir(
-        path.c_str()
+    // ========================================================
+    // PAGINATION
+    // ========================================================
+
+    doc["offset"] =
+        offset;
+
+
+    doc["limit"] =
+        limit;
+
+
+    doc["count"] =
+        count;
+
+
+    doc["hasMore"] =
+        hasMore;
+
+
+    // ========================================================
+    // SERIALIZE
+    // ========================================================
+
+    String response;
+
+
+    serializeJson(
+        doc,
+        response
+    );
+
+
+    // ========================================================
+    // RESPONSE
+    // ========================================================
+
+    server.send(
+        200,
+        "application/json",
+        response
     );
 }
 
 
 // ============================================================
-// FILE EXISTS
+// ERROR
 // ============================================================
 
-bool SDManager::fileExists(
-    const String& path
-) const
+void WebSDManager::sendError(
+    WebServer& server,
+    int code,
+    const char* message
+)
 {
-    if (!_initialized)
-        return false;
-
-    if (!_card.isMounted())
-        return false;
-
-    if (path.isEmpty())
-        return false;
+    JsonDocument doc;
 
 
-    return _card.exists(
-        path.c_str()
+    doc["error"] =
+        message;
+
+
+    String response;
+
+
+    serializeJson(
+        doc,
+        response
     );
-}
 
 
-// ============================================================
-// READ FILE
-// ============================================================
-
-bool SDManager::readFile(
-    const String& path,
-    String& content
-)
-{
-    content = "";
-
-    if (!_initialized)
-        return false;
-
-    if (!_card.isMounted())
-        return false;
-
-    if (path.isEmpty())
-        return false;
-
-
-    File file =
-        _card.fs().open(
-            path.c_str(),
-            FILE_READ
-        );
-
-
-    if (!file)
-        return false;
-
-
-    content =
-        file.readString();
-
-
-    file.close();
-
-
-    return true;
-}
-
-
-// ============================================================
-// WRITE FILE
-// ============================================================
-
-bool SDManager::writeFile(
-    const String& path,
-    const String& content
-)
-{
-    if (!_initialized)
-        return false;
-
-    if (!_card.isMounted())
-        return false;
-
-    if (path.isEmpty())
-        return false;
-
-
-    File file =
-        _card.fs().open(
-            path.c_str(),
-            FILE_WRITE
-        );
-
-
-    if (!file)
-        return false;
-
-
-    const size_t written =
-        file.print(content);
-
-
-    file.close();
-
-
-    return (
-        written ==
-        content.length()
-    );
-}
-
-
-// ============================================================
-// DELETE FILE
-// ============================================================
-
-bool SDManager::deleteFile(
-    const String& path
-)
-{
-    if (!_initialized)
-        return false;
-
-    if (!_card.isMounted())
-        return false;
-
-    if (path.isEmpty())
-        return false;
-
-
-    return _card.fs().remove(
-        path.c_str()
+    server.send(
+        code,
+        "application/json",
+        response
     );
 }

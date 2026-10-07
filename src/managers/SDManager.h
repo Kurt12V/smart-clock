@@ -12,8 +12,8 @@
 struct SDFileEntry
 {
     String   path;
-    uint64_t size;
-    bool     isDir;
+    uint64_t size = 0;
+    bool     isDir = false;
 };
 
 
@@ -59,6 +59,11 @@ public:
 
     // ========================================================
     // FILE LIST
+    //
+    // Старый API.
+    //
+    // Возвращает максимум maxFiles записей.
+    // Сохраняется для совместимости с существующим кодом.
     // ========================================================
 
     size_t listFiles(
@@ -70,9 +75,36 @@ public:
 
 
     // ========================================================
+    // PAGINATED FILE LIST
+    //
+    // Возвращает одну страницу файлов.
+    //
+    // offset:
+    //     Сколько записей пропустить.
+    //
+    // maxFiles:
+    //     Максимальное количество записей вернуть.
+    //
+    // hasMore:
+    //     true, если после текущей страницы есть ещё записи.
+    //
+    // ВАЖНО:
+    // Метод НЕ создаёт массив размером offset + maxFiles.
+    // ========================================================
+
+    size_t listFilesPage(
+        SDFileEntry* out,
+        size_t maxFiles,
+        size_t offset,
+        bool& hasMore,
+        uint8_t maxDepth = 1,
+        const char* root = "/"
+    ) const;
+
+
+    // ========================================================
     // FILE OPERATIONS
     //
-    // Добавлены для AlarmManager.
     // Работа с FS остаётся внутри SDManager.
     // ========================================================
 
@@ -111,7 +143,7 @@ private:
 
 
     // ========================================================
-    // DIRECTORY SCAN
+    // NORMAL DIRECTORY SCAN
     // ========================================================
 
     size_t listDir(
@@ -119,6 +151,23 @@ private:
         SDFileEntry* out,
         size_t maxFiles,
         size_t count,
+        uint8_t depth,
+        uint8_t maxDepth
+    ) const;
+
+
+    // ========================================================
+    // PAGINATED DIRECTORY SCAN
+    // ========================================================
+
+    size_t listDirPage(
+        const char* dirname,
+        SDFileEntry* out,
+        size_t maxFiles,
+        size_t count,
+        size_t& skipped,
+        size_t offset,
+        bool& hasMore,
         uint8_t depth,
         uint8_t maxDepth
     ) const;

@@ -1,10 +1,6 @@
 #include "WebSDManager.h"
 
-
-namespace
-{
-    constexpr size_t MAX_FILES = 300;
-}
+#include <memory>
 
 
 // ============================================================
@@ -39,6 +35,47 @@ void WebSDManager::setupRoutes(
 
 
 // ============================================================
+// GET QUERY PARAMETER
+// ============================================================
+
+size_t WebSDManager::getQuerySize(
+    WebServer& server,
+    const char* name,
+    size_t defaultValue
+) const
+{
+    if (!server.hasArg(name))
+    {
+        return defaultValue;
+    }
+
+    const String value =
+        server.arg(name);
+
+    if (value.isEmpty())
+    {
+        return defaultValue;
+    }
+
+    char* end = nullptr;
+
+    const unsigned long parsed =
+        strtoul(
+            value.c_str(),
+            &end,
+            10
+        );
+
+    if (end == value.c_str())
+    {
+        return defaultValue;
+    }
+
+    return static_cast<size_t>(parsed);
+}
+
+
+// ============================================================
 // GET SD
 // ============================================================
 
@@ -46,25 +83,185 @@ void WebSDManager::handleSD(
     WebServer& server
 )
 {
-    SDFileEntry entries[MAX_FILES];
+    // ========================================================
+    // CHECK SD
+    // ========================================================
 
-    uint16_t count = 0;
-
-    if (!_sd.listFiles(
-        entries,
-        MAX_FILES,
-        count
-    ))
+    if (!_sd.isReady())
     {
-        server.send(
-            500,
-            "application/json",
-            "{\"error\":\"Failed to list SD files\"}"
+        sendError(
+            server,
+            503,
+            "SD card is not ready"
         );
 
         return;
     }
 
+
+    // ========================================================
+    // QUERY
+    //
+    // /api/sd
+    // /api/sd?offset=10
+    // /api/sd?offset=20&limit=10
+    // ========================================================
+
+    const size_t offset =
+        getQuerySize(
+            server,
+            "offset",
+            0
+        );
+
+    size_t limit =
+        getQuerySize(
+            server,
+            "limit",
+            DEFAULT_LIMIT
+        );
+
+
+    // ========================================================
+    // LIMIT
+    //
+    // Никогда не разрешаем запросить больше MAX_LIMIT.
+    // ========================================================
+
+    if (limit == 0)
+    {
+        limit = DEFAULT_LIMIT;
+    }
+
+    if (limit > MAX_LIMIT)
+    {
+        limit = MAX_LIMIT;
+    }
+
+
+    // ========================================================
+    // ALLOCATE ONLY ONE PAGE
+    // ========================================================
+
+    std::unique_ptr<SDFileEntry[]> entries(
+        new SDFileEntry[limit]
+    );
+
+
+    // ========================================================
+    // LIST FILES
+    //
+    // ВАЖНО:
+    //
+    // SDManager::listFiles() сейчас возвращает только первые
+    // maxFiles элементов.
+    //
+    // Поэтому для offset нам нужно получить данные начиная
+    // с offset.
+    //
+    // Здесь используем отдельный временный буфер:
+    //
+    // offset + limit
+    //
+    // Но это всё равно находится в HEAP, а не в stack.
+    // ========================================================
+
+    const size_t required =
+        offset + limit;
+
+
+    std::unique_ptr<SDFileEntry[]> allEntries;
+
+    if (required > limit)
+    {
+        allEntries.reset(
+            new SDFileEntry[required]
+        );
+    }
+
+
+    SDFileEntry* source =
+        allEntries
+            ? allEntries.get()
+            : entries.get();
+
+
+    const size_t maxFiles =
+        allEntries
+            ? required
+            : limit;
+
+
+    const size_t totalRead =
+        _sd.listFiles(
+            source,
+            maxFiles,
+            MAX_DEPTH,
+            "/"
+        );
+
+
+    // ========================================================
+    // OFFSET OUT OF RANGE
+    // ========================================================
+
+    if (offset >= totalRead)
+    {
+        JsonDocument doc;
+
+        JsonArray files =
+            doc["files"].to<JsonArray>();
+
+        doc["offset"] =
+            offset;
+
+        doc["limit"] =
+            limit;
+
+        doc["count"] =
+            0;
+
+        doc["hasMore"] =
+            false;
+
+        doc["total"] =
+            totalRead;
+
+
+        String response;
+
+        serializeJson(
+            doc,
+            response
+        );
+
+
+        server.send(
+            200,
+            "application/json",
+            response
+        );
+
+        return;
+    }
+
+
+    // ========================================================
+    // ACTUAL PAGE COUNT
+    // ========================================================
+
+    size_t pageCount =
+        totalRead - offset;
+
+    if (pageCount > limit)
+    {
+        pageCount = limit;
+    }
+
+
+    // ========================================================
+    // JSON
+    // ========================================================
 
     JsonDocument doc;
 
@@ -72,24 +269,93 @@ void WebSDManager::handleSD(
         doc["files"].to<JsonArray>();
 
 
+    // ========================================================
+    // ADD CURRENT PAGE
+    // ========================================================
+
     for (
-        uint16_t i = 0;
-        i < count;
+        size_t i = 0;
+        i < pageCount;
         ++i
     )
     {
+        const SDFileEntry& entry =
+            source[offset + i];
+
+
         JsonObject file =
             files.add<JsonObject>();
 
+
         file["path"] =
-            entries[i].path;
+            entry.path;
 
         file["size"] =
-            entries[i].size;
+            entry.size;
 
         file["isDir"] =
-            entries[i].isDir;
+            entry.isDir;
     }
+
+
+    // ========================================================
+    // PAGINATION INFO
+    // ========================================================
+
+    doc["offset"] =
+        offset;
+
+    doc["limit"] =
+        limit;
+
+    doc["count"] =
+        pageCount;
+
+    doc["total"] =
+        totalRead;
+
+    doc["hasMore"] =
+        (offset + pageCount < totalRead);
+
+
+    // ========================================================
+    // SERIALIZE
+    // ========================================================
+
+    String response;
+
+    serializeJson(
+        doc,
+        response
+    );
+
+
+    // ========================================================
+    // RESPONSE
+    // ========================================================
+
+    server.send(
+        200,
+        "application/json",
+        response
+    );
+}
+
+
+// ============================================================
+// ERROR
+// ============================================================
+
+void WebSDManager::sendError(
+    WebServer& server,
+    int code,
+    const char* message
+)
+{
+    JsonDocument doc;
+
+    doc["error"] =
+        message;
 
 
     String response;
@@ -99,8 +365,9 @@ void WebSDManager::handleSD(
         response
     );
 
+
     server.send(
-        200,
+        code,
         "application/json",
         response
     );

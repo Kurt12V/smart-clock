@@ -273,7 +273,7 @@ bool LVGLManager::initDisplay(
         TFT_HEIGHT
     );
 
-    tft.setRotation(0);
+    tft.setRotation(2);
 
     tft.setSPISpeed(
         40000000

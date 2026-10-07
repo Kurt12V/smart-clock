@@ -21,7 +21,7 @@ bool LVGLTFTPanel::begin()
 {
     _tft.init(240, 320);
 
-    _tft.setRotation(0);
+    _tft.setRotation(2);
 
     _tft.fillScreen(ST77XX_BLACK);
 
