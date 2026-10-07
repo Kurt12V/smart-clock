@@ -10,16 +10,28 @@
 // WEB SETTINGS MANAGER
 // ============================================================
 //
-// HTTP API for SettingsManager.
+// HTTP API:
 //
-// Routes:
-//
-// GET  /api/param?name=brightness
+// GET  /api/param?name=<name>
 // POST /api/param
 // GET  /api/params
 // POST /api/reset
 //
-// ============================================================
+// POST body:
+//
+// {
+//     "name": "matrixEnabled",
+//     "value": true
+// }
+//
+// The web API accepts both:
+//
+//     ParamDesc::name
+//     ParamDesc::key
+//
+// This keeps the HTTP layer independent from internal
+// SettingsManager/NVS naming.
+//
 
 class WebSettingsManager
 {
@@ -63,6 +75,27 @@ private:
 
 
     // ========================================================
+    // PARAMETER RESOLUTION
+    // ========================================================
+
+    bool resolveParam(
+        const String& name,
+        SettingsManager::Param& param
+    ) const;
+
+
+    // ========================================================
+    // VALUE HANDLING
+    // ========================================================
+
+    bool readValue(
+        JsonVariantConst value,
+        const SettingsManager::ParamDesc& desc,
+        int& result
+    ) const;
+
+
+    // ========================================================
     // RESPONSE HELPERS
     // ========================================================
 
@@ -78,14 +111,8 @@ private:
         int statusCode = 200
     ) const;
 
-
-    // ========================================================
-    // VALIDATION
-    // ========================================================
-
-    bool resolveParam(
-        const String& name,
-        SettingsManager::Param& param
+    void sendAllParams(
+        WebServer& server
     ) const;
 
 

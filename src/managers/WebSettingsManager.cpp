@@ -82,7 +82,11 @@ void WebSettingsManager::setupRoutes(
 // GET PARAM
 // ============================================================
 //
-// GET /api/param?name=brightness
+// GET /api/param?name=matrixEnabled
+//
+// Also accepts:
+//
+// GET /api/param?name=matrix_on
 //
 // ============================================================
 
@@ -90,10 +94,6 @@ void WebSettingsManager::handleGetParam(
     WebServer& server
 )
 {
-    // --------------------------------------------------------
-    // Check name
-    // --------------------------------------------------------
-
     if (!server.hasArg("name"))
     {
         sendError(
@@ -110,13 +110,23 @@ void WebSettingsManager::handleGetParam(
         server.arg("name");
 
 
-    // --------------------------------------------------------
-    // Resolve parameter
-    // --------------------------------------------------------
+    if (name.isEmpty())
+    {
+        sendError(
+            server,
+            400,
+            "Parameter name is empty"
+        );
+
+        return;
+    }
+
 
     SettingsManager::Param param;
 
-    if (!resolveParam(name, param))
+    if (!resolveParam(
+            name,
+            param))
     {
         sendError(
             server,
@@ -127,10 +137,6 @@ void WebSettingsManager::handleGetParam(
         return;
     }
 
-
-    // --------------------------------------------------------
-    // Send parameter
-    // --------------------------------------------------------
 
     sendParam(
         server,
@@ -146,7 +152,14 @@ void WebSettingsManager::handleGetParam(
 // POST /api/param
 //
 // {
-//     "name": "brightness",
+//     "name": "matrixEnabled",
+//     "value": true
+// }
+//
+// Numeric:
+//
+// {
+//     "name": "matrixBrightness",
 //     "value": 80
 // }
 //
@@ -157,7 +170,7 @@ void WebSettingsManager::handleSetParam(
 )
 {
     // --------------------------------------------------------
-    // Check body
+    // Request body
     // --------------------------------------------------------
 
     if (!server.hasArg("plain"))
@@ -166,6 +179,22 @@ void WebSettingsManager::handleSetParam(
             server,
             400,
             "Missing JSON body"
+        );
+
+        return;
+    }
+
+
+    const String body =
+        server.arg("plain");
+
+
+    if (body.isEmpty())
+    {
+        sendError(
+            server,
+            400,
+            "Empty JSON body"
         );
 
         return;
@@ -181,7 +210,7 @@ void WebSettingsManager::handleSetParam(
     const DeserializationError error =
         deserializeJson(
             doc,
-            server.arg("plain")
+            body
         );
 
     if (error)
@@ -197,13 +226,10 @@ void WebSettingsManager::handleSetParam(
 
 
     // --------------------------------------------------------
-    // Get name
+    // Parameter name
     // --------------------------------------------------------
 
-    const char* name =
-        doc["name"];
-
-    if (name == nullptr || name[0] == '\0')
+    if (!doc["name"].is<const char*>())
     {
         sendError(
             server,
@@ -215,9 +241,24 @@ void WebSettingsManager::handleSetParam(
     }
 
 
-    // --------------------------------------------------------
-    // Resolve parameter
-    // --------------------------------------------------------
+    const char* name =
+        doc["name"].as<const char*>();
+
+
+    if (
+        name == nullptr ||
+        name[0] == '\0'
+    )
+    {
+        sendError(
+            server,
+            400,
+            "Missing name"
+        );
+
+        return;
+    }
+
 
     SettingsManager::Param param;
 
@@ -236,27 +277,7 @@ void WebSettingsManager::handleSetParam(
 
 
     // --------------------------------------------------------
-    // Check value
-    // --------------------------------------------------------
-
-    if (!doc["value"].is<int>())
-    {
-        sendError(
-            server,
-            400,
-            "Value must be integer"
-        );
-
-        return;
-    }
-
-
-    int value =
-        doc["value"].as<int>();
-
-
-    // --------------------------------------------------------
-    // Get description
+    // Parameter description
     // --------------------------------------------------------
 
     const SettingsManager::ParamDesc& desc =
@@ -264,29 +285,64 @@ void WebSettingsManager::handleSetParam(
 
 
     // --------------------------------------------------------
+    // Value
+    // --------------------------------------------------------
+
+    if (!doc.containsKey("value"))
+    {
+        sendError(
+            server,
+            400,
+            "Missing value"
+        );
+
+        return;
+    }
+
+
+    int value = 0;
+
+    if (!readValue(
+            doc["value"],
+            desc,
+            value))
+    {
+        sendError(
+            server,
+            400,
+            "Invalid parameter value"
+        );
+
+        return;
+    }
+
+
+    // --------------------------------------------------------
     // Clamp
     // --------------------------------------------------------
 
     if (value < desc.minValue)
+    {
         value = desc.minValue;
+    }
 
     if (value > desc.maxValue)
+    {
         value = desc.maxValue;
+    }
 
 
     // --------------------------------------------------------
     // Set
     // --------------------------------------------------------
     //
-    // SettingsManager::set() returns false both when:
+    // SettingsManager::set() returning false does not
+    // necessarily mean an error.
     //
-    // 1. the value is unchanged
-    // 2. the parameter cannot be set
+    // The value may simply already be equal to the current
+    // value.
     //
-    // Therefore false is NOT treated as HTTP 500.
-    //
-    // The current value is returned to the client.
-    //
+    // Therefore the actual value is returned below.
     // --------------------------------------------------------
 
     _settings.set(
@@ -296,7 +352,7 @@ void WebSettingsManager::handleSetParam(
 
 
     // --------------------------------------------------------
-    // Return actual current value
+    // Return actual state
     // --------------------------------------------------------
 
     sendParam(
@@ -318,80 +374,7 @@ void WebSettingsManager::handleGetAllParams(
     WebServer& server
 )
 {
-    JsonDocument doc;
-
-    JsonArray array =
-        doc["params"].to<JsonArray>();
-
-
-    // --------------------------------------------------------
-    // Iterate through all valid parameters
-    // --------------------------------------------------------
-    //
-    // IMPORTANT:
-    //
-    // The enum value is COUNT, not Count.
-    //
-    // --------------------------------------------------------
-
-    constexpr uint8_t PARAM_COUNT =
-        static_cast<uint8_t>(
-            SettingsManager::Param::COUNT
-        );
-
-
-    for (uint8_t i = 0;
-         i < PARAM_COUNT;
-         ++i)
-    {
-        const SettingsManager::Param param =
-            static_cast<SettingsManager::Param>(i);
-
-
-        const SettingsManager::ParamDesc& desc =
-            _settings.getDesc(param);
-
-
-        JsonObject item =
-            array.add<JsonObject>();
-
-
-        item["name"] =
-            desc.name;
-
-        item["key"] =
-            desc.key;
-
-        item["value"] =
-            _settings.get(param);
-
-        item["min"] =
-            desc.minValue;
-
-        item["max"] =
-            desc.maxValue;
-
-        item["default"] =
-            desc.defaultValue;
-    }
-
-
-    // --------------------------------------------------------
-    // Send response
-    // --------------------------------------------------------
-
-    String response;
-
-    serializeJson(
-        doc,
-        response
-    );
-
-    server.send(
-        200,
-        "application/json",
-        response
-    );
+    sendAllParams(server);
 }
 
 
@@ -407,93 +390,25 @@ void WebSettingsManager::handleReset(
     WebServer& server
 )
 {
-    // --------------------------------------------------------
-    // IMPORTANT:
-    //
-    // SettingsManager::resetAll() returns void.
-    //
-    // It only changes values in RAM and marks them dirty.
-    // SettingsManager::update() will save them after the
-    // normal delayed-save interval.
-    //
-    // --------------------------------------------------------
-
     _settings.resetAll();
 
-
-    // --------------------------------------------------------
-    // Return all reset values
-    // --------------------------------------------------------
-
-    JsonDocument doc;
-
-    doc["ok"] = true;
-
-
-    JsonArray array =
-        doc["params"].to<JsonArray>();
-
-
-    constexpr uint8_t PARAM_COUNT =
-        static_cast<uint8_t>(
-            SettingsManager::Param::COUNT
-        );
-
-
-    for (uint8_t i = 0;
-         i < PARAM_COUNT;
-         ++i)
-    {
-        const SettingsManager::Param param =
-            static_cast<SettingsManager::Param>(i);
-
-
-        const SettingsManager::ParamDesc& desc =
-            _settings.getDesc(param);
-
-
-        JsonObject item =
-            array.add<JsonObject>();
-
-
-        item["name"] =
-            desc.name;
-
-        item["key"] =
-            desc.key;
-
-        item["value"] =
-            _settings.get(param);
-
-        item["min"] =
-            desc.minValue;
-
-        item["max"] =
-            desc.maxValue;
-
-        item["default"] =
-            desc.defaultValue;
-    }
-
-
-    String response;
-
-    serializeJson(
-        doc,
-        response
-    );
-
-
-    server.send(
-        200,
-        "application/json",
-        response
-    );
+    sendAllParams(server);
 }
 
 
 // ============================================================
 // RESOLVE PARAMETER
+// ============================================================
+//
+// The HTTP API can identify a parameter by:
+//
+// 1. ParamDesc::name
+// 2. ParamDesc::key
+// 3. SettingsManager::paramFromName()
+//
+// This allows the frontend and internal settings names
+// to remain independent.
+//
 // ============================================================
 
 bool WebSettingsManager::resolveParam(
@@ -501,20 +416,276 @@ bool WebSettingsManager::resolveParam(
     SettingsManager::Param& param
 ) const
 {
+    // --------------------------------------------------------
+    // First use SettingsManager's own resolver.
+    // --------------------------------------------------------
+
     param =
         _settings.paramFromName(
             name.c_str()
         );
 
-
-    if (param ==
-        SettingsManager::Param::COUNT)
+    if (
+        param !=
+        SettingsManager::Param::COUNT
+    )
     {
-        return false;
+        return true;
     }
 
 
-    return true;
+    // --------------------------------------------------------
+    // Fallback:
+    // search ParamDesc::name and ParamDesc::key.
+    // --------------------------------------------------------
+
+    constexpr uint8_t PARAM_COUNT =
+        static_cast<uint8_t>(
+            SettingsManager::Param::COUNT
+        );
+
+
+    for (
+        uint8_t i = 0;
+        i < PARAM_COUNT;
+        ++i
+    )
+    {
+        const SettingsManager::Param candidate =
+            static_cast<SettingsManager::Param>(i);
+
+
+        const SettingsManager::ParamDesc& desc =
+            _settings.getDesc(candidate);
+
+
+        if (
+            name.equals(
+                desc.name
+            )
+        )
+        {
+            param = candidate;
+            return true;
+        }
+
+
+        if (
+            name.equals(
+                desc.key
+            )
+        )
+        {
+            param = candidate;
+            return true;
+        }
+    }
+
+
+    param =
+        SettingsManager::Param::COUNT;
+
+    return false;
+}
+
+
+// ============================================================
+// READ VALUE
+// ============================================================
+//
+// Supports:
+//
+// bool
+// int
+// unsigned int
+// float/double
+//
+// SettingsManager currently stores the value as integer,
+// therefore everything is converted to int.
+//
+// Boolean values are converted:
+//
+// false -> 0
+// true  -> 1
+//
+// ============================================================
+
+bool WebSettingsManager::readValue(
+    JsonVariantConst value,
+    const SettingsManager::ParamDesc& desc,
+    int& result
+) const
+{
+    // --------------------------------------------------------
+    // Boolean
+    // --------------------------------------------------------
+
+    if (value.is<bool>())
+    {
+        result =
+            value.as<bool>()
+                ? 1
+                : 0;
+
+        return true;
+    }
+
+
+    // --------------------------------------------------------
+    // Signed integer
+    // --------------------------------------------------------
+
+    if (value.is<int>())
+    {
+        result =
+            value.as<int>();
+
+        return true;
+    }
+
+
+    // --------------------------------------------------------
+    // Unsigned integer
+    // --------------------------------------------------------
+
+    if (value.is<unsigned int>())
+    {
+        const unsigned int raw =
+            value.as<unsigned int>();
+
+
+        if (
+            raw >
+            static_cast<unsigned int>(
+                INT_MAX
+            )
+        )
+        {
+            result = INT_MAX;
+        }
+        else
+        {
+            result =
+                static_cast<int>(raw);
+        }
+
+        return true;
+    }
+
+
+    // --------------------------------------------------------
+    // Long
+    // --------------------------------------------------------
+
+    if (value.is<long>())
+    {
+        const long raw =
+            value.as<long>();
+
+
+        if (raw < INT_MIN)
+        {
+            result = INT_MIN;
+        }
+        else if (raw > INT_MAX)
+        {
+            result = INT_MAX;
+        }
+        else
+        {
+            result =
+                static_cast<int>(raw);
+        }
+
+        return true;
+    }
+
+
+    // --------------------------------------------------------
+    // Unsigned long
+    // --------------------------------------------------------
+
+    if (value.is<unsigned long>())
+    {
+        const unsigned long raw =
+            value.as<unsigned long>();
+
+
+        if (
+            raw >
+            static_cast<unsigned long>(
+                INT_MAX
+            )
+        )
+        {
+            result = INT_MAX;
+        }
+        else
+        {
+            result =
+                static_cast<int>(raw);
+        }
+
+        return true;
+    }
+
+
+    // --------------------------------------------------------
+    // Floating point
+    //
+    // SettingsManager uses integer values, so accept a number
+    // only if it represents an integer.
+    // --------------------------------------------------------
+
+    if (value.is<float>())
+    {
+        const float raw =
+            value.as<float>();
+
+
+        const int converted =
+            static_cast<int>(raw);
+
+
+        if (
+            static_cast<float>(converted) != raw
+        )
+        {
+            return false;
+        }
+
+
+        result = converted;
+
+        return true;
+    }
+
+
+    if (value.is<double>())
+    {
+        const double raw =
+            value.as<double>();
+
+
+        const int converted =
+            static_cast<int>(raw);
+
+
+        if (
+            static_cast<double>(converted) != raw
+        )
+        {
+            return false;
+        }
+
+
+        result = converted;
+
+        return true;
+    }
+
+
+    return false;
 }
 
 
@@ -534,6 +705,8 @@ void WebSettingsManager::sendParam(
 
     JsonDocument doc;
 
+
+    doc["ok"] = true;
 
     doc["name"] =
         desc.name;
@@ -571,6 +744,87 @@ void WebSettingsManager::sendParam(
 
 
 // ============================================================
+// SEND ALL PARAMETERS
+// ============================================================
+
+void WebSettingsManager::sendAllParams(
+    WebServer& server
+) const
+{
+    JsonDocument doc;
+
+    doc["ok"] = true;
+
+
+    JsonArray array =
+        doc["params"].to<JsonArray>();
+
+
+    constexpr uint8_t PARAM_COUNT =
+        static_cast<uint8_t>(
+            SettingsManager::Param::COUNT
+        );
+
+
+    for (
+        uint8_t i = 0;
+        i < PARAM_COUNT;
+        ++i
+    )
+    {
+        const SettingsManager::Param param =
+            static_cast<SettingsManager::Param>(i);
+
+
+        const SettingsManager::ParamDesc& desc =
+            _settings.getDesc(param);
+
+
+        JsonObject item =
+            array.add<JsonObject>();
+
+
+        item["name"] =
+            desc.name;
+
+        item["key"] =
+            desc.key;
+
+        item["value"] =
+            _settings.get(param);
+
+        item["min"] =
+            desc.minValue;
+
+        item["max"] =
+            desc.maxValue;
+
+        item["default"] =
+            desc.defaultValue;
+    }
+
+
+    doc["count"] =
+        PARAM_COUNT;
+
+
+    String response;
+
+    serializeJson(
+        doc,
+        response
+    );
+
+
+    server.send(
+        200,
+        "application/json",
+        response
+    );
+}
+
+
+// ============================================================
 // SEND ERROR
 // ============================================================
 
@@ -583,7 +837,9 @@ void WebSettingsManager::sendError(
     JsonDocument doc;
 
     doc["ok"] = false;
-    doc["error"] = message;
+
+    doc["error"] =
+        message;
 
 
     String response;

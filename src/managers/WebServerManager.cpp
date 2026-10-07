@@ -17,14 +17,14 @@ namespace
 // ============================================================
 
 WebServerManager::WebServerManager()
-    : _server(80),
-      _settings(nullptr),
-      _pageManager(nullptr),
-      _settingsManager(nullptr),
-      _sdManager(nullptr),
-      _audioManager(nullptr),
-      _alarmManager(nullptr),
-      _initialized(false)
+    : _server(80)
+    , _settings(nullptr)
+    , _pageManager(nullptr)
+    , _settingsManager(nullptr)
+    , _sdManager(nullptr)
+    , _audioManager(nullptr)
+    , _alarmManager(nullptr)
+    , _initialized(false)
 {
 }
 
@@ -41,56 +41,15 @@ bool WebServerManager::begin(
 {
     _settings = &settings;
 
-    Serial0.println();
-    Serial0.println("============================================");
-    Serial0.println("[WEB] WebServerManager");
-    Serial0.println("============================================");
-
-
-    // --------------------------------------------------------
-    // Serial
-    // --------------------------------------------------------
-
-    Serial0.print("[WEB] Serial baudrate: ");
-
-
-    // --------------------------------------------------------
-    // Modules
-    // --------------------------------------------------------
-
-    Serial0.println("[WEB] Checking modules...");
-
-    Serial0.print("[WEB] PageManager:    ");
-    Serial0.println(
-        _pageManager ? "attached" : "NOT ATTACHED"
-    );
-
-    Serial0.print("[WEB] SettingsManager:");
-    Serial0.println(
-        _settingsManager ? " attached" : " NOT ATTACHED"
-    );
-
-    Serial0.print("[WEB] SDManager:      ");
-    Serial0.println(
-        _sdManager ? "attached" : "NOT ATTACHED"
-    );
-
-    Serial0.print("[WEB] AudioManager:   ");
-    Serial0.println(
-        _audioManager ? "attached" : "NOT ATTACHED"
-    );
-
-    Serial0.print("[WEB] AlarmManager:   ");
-    Serial0.println(
-        _alarmManager ? "attached" : "NOT ATTACHED"
-    );
-
-
     // --------------------------------------------------------
     // WiFi
     // --------------------------------------------------------
 
     Serial0.println();
+    Serial0.println("============================================");
+    Serial0.println("[WEB] WebServerManager");
+    Serial0.println("============================================");
+
     Serial0.println("[WEB] WiFi");
 
     WiFi.mode(WIFI_STA);
@@ -111,12 +70,10 @@ bool WebServerManager::begin(
     )
     {
         delay(250);
-
         Serial0.print(".");
     }
 
     Serial0.println();
-
 
     if (WiFi.status() != WL_CONNECTED)
     {
@@ -129,14 +86,11 @@ bool WebServerManager::begin(
         );
 
         Serial0.println(
-            static_cast<int>(
-                WiFi.status()
-            )
+            static_cast<int>(WiFi.status())
         );
 
         return false;
     }
-
 
     Serial0.println(
         "[WEB] WiFi connected"
@@ -337,9 +291,9 @@ void WebServerManager::setAlarmManager(
 
 void WebServerManager::setupRoutes()
 {
-    Serial0.println(
-        "[WEB] Registering root route..."
-    );
+    // --------------------------------------------------------
+    // ROOT
+    // --------------------------------------------------------
 
     _server.on(
         "/",
@@ -352,7 +306,7 @@ void WebServerManager::setupRoutes()
 
 
     // --------------------------------------------------------
-    // Page
+    // PAGE
     // --------------------------------------------------------
 
     if (_pageManager)
@@ -372,7 +326,7 @@ void WebServerManager::setupRoutes()
 
 
     // --------------------------------------------------------
-    // Settings
+    // SETTINGS
     // --------------------------------------------------------
 
     if (_settingsManager)
@@ -412,7 +366,7 @@ void WebServerManager::setupRoutes()
 
 
     // --------------------------------------------------------
-    // Audio
+    // AUDIO
     // --------------------------------------------------------
 
     if (_audioManager)
@@ -432,7 +386,7 @@ void WebServerManager::setupRoutes()
 
 
     // --------------------------------------------------------
-    // Alarm
+    // ALARMS
     // --------------------------------------------------------
 
     if (_alarmManager)
@@ -452,7 +406,7 @@ void WebServerManager::setupRoutes()
 
 
     // --------------------------------------------------------
-    // Not found
+    // SINGLE GLOBAL NOT FOUND ROUTER
     // --------------------------------------------------------
 
     _server.onNotFound(
@@ -463,7 +417,7 @@ void WebServerManager::setupRoutes()
     );
 
     Serial0.println(
-        "[WEB] NotFound handler:  OK"
+        "[WEB] NotFound router:  OK"
     );
 }
 
@@ -474,25 +428,15 @@ void WebServerManager::setupRoutes()
 
 void WebServerManager::handleRoot()
 {
-    Serial0.println(
-        "[WEB][HTTP] GET /"
-    );
-
-
     if (_pageManager)
     {
         _pageManager->handleRoot(_server);
-
         return;
     }
 
 
     if (!LittleFS.exists("/index.html"))
     {
-        Serial0.println(
-            "[WEB][ERROR] /index.html not found"
-        );
-
         _server.send(
             404,
             "text/plain",
@@ -508,13 +452,8 @@ void WebServerManager::handleRoot()
         "r"
     );
 
-
     if (!file)
     {
-        Serial0.println(
-            "[WEB][ERROR] Failed to open /index.html"
-        );
-
         _server.send(
             500,
             "text/plain",
@@ -535,49 +474,42 @@ void WebServerManager::handleRoot()
 
 
 // ============================================================
-// NOT FOUND
+// NOT FOUND ROUTER
 // ============================================================
 
 void WebServerManager::handleNotFound()
 {
-    const String uri =
-        _server.uri();
+    const String uri = _server.uri();
 
 
-    Serial0.print(
-        "[WEB][404] "
-    );
+    // --------------------------------------------------------
+    // Dynamic alarm API
+    //
+    // Important:
+    // WebServer does not have a generic "{id}" route.
+    // AlarmManager therefore receives dynamic alarm requests
+    // through this single global router.
+    // --------------------------------------------------------
 
-    Serial0.print(
-        _server.method() == HTTP_GET
-            ? "GET "
-            : "REQUEST "
-    );
-
-    Serial0.println(
-        uri
-    );
+    if (_alarmManager)
+    {
+        if (_alarmManager->handleDynamicRequest(_server))
+        {
+            return;
+        }
+    }
 
 
     // --------------------------------------------------------
     // Static files
     // --------------------------------------------------------
 
-    if (_pageManager &&
-        _pageManager->handleNotFound(_server))
+    if (_pageManager)
     {
-        return;
-    }
-
-
-    // --------------------------------------------------------
-    // Dynamic alarm REST API
-    // --------------------------------------------------------
-
-    if (_alarmManager &&
-        _alarmManager->handleDynamicRequest(_server))
-    {
-        return;
+        if (_pageManager->handleNotFound(_server))
+        {
+            return;
+        }
     }
 
 
@@ -586,12 +518,37 @@ void WebServerManager::handleNotFound()
     // --------------------------------------------------------
 
     Serial0.print(
-        "[WEB][ERROR] Route not found: "
+        "[WEB][404] "
     );
 
-    Serial0.println(
-        uri
-    );
+    switch (_server.method())
+    {
+        case HTTP_GET:
+            Serial0.print("GET ");
+            break;
+
+        case HTTP_POST:
+            Serial0.print("POST ");
+            break;
+
+        case HTTP_PUT:
+            Serial0.print("PUT ");
+            break;
+
+        case HTTP_DELETE:
+            Serial0.print("DELETE ");
+            break;
+
+        case HTTP_PATCH:
+            Serial0.print("PATCH ");
+            break;
+
+        default:
+            Serial0.print("REQUEST ");
+            break;
+    }
+
+    Serial0.println(uri);
 
 
     _server.send(
