@@ -36,17 +36,6 @@ void WebPageManager::setupRoutes(
         "/assets/"
     );
 
-    server.on(
-        "/favicon.ico",
-        HTTP_GET,
-        [&server, this]()
-        {
-            sendFile(
-                server,
-                "/favicon.ico"
-            );
-        }
-    );
 }
 
 
@@ -85,8 +74,7 @@ bool WebPageManager::handleNotFound(
     if (
         !uri.startsWith("/css/") &&
         !uri.startsWith("/js/") &&
-        !uri.startsWith("/assets/") &&
-        uri != "/favicon.ico"
+        !uri.startsWith("/assets/")
     )
     {
         return false;
