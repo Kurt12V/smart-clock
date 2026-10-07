@@ -1,47 +1,79 @@
+// ============================================================
+// SMARTCLOCK PARAMETERS
+// ============================================================
+
 import { state } from "./state.js";
-import { apiFetch, debounce, setParam } from "./api.js";
-import { setConnection, setRange, applyToggle, showMessage } from "./ui.js";
 
-async function loadParams() {
+import {
+    apiFetch,
+    debounce,
+    setParam
+} from "./api.js";
 
-    if (state.paramsRequest) {
+import {
+    setConnection,
+    setRange,
+    applyToggle,
+    showMessage
+} from "./ui.js";
+
+
+// ============================================================
+// LOAD ALL PARAMETERS
+// ============================================================
+
+export async function loadParams()
+{
+    if (state.paramsRequest)
+    {
         return;
     }
 
     state.paramsRequest = true;
 
-    try {
+    try
+    {
+        console.log(
+            "[PARAMS] Loading parameters..."
+        );
 
         const response =
             await apiFetch(
-                "/api/params",
-                {},
-                1500
+                "/api/params"
             );
 
-        const p =
+        const data =
             await response.json();
 
+        console.log(
+            "[PARAMS] Received:",
+            data
+        );
 
-        /* DISPLAY */
+
+        // ----------------------------------------------------
+        // DISPLAY
+        // ----------------------------------------------------
 
         setRange(
             "brightness",
-            p.brightness,
+            data.brightness,
             "brightness_value"
         );
 
 
-        /* MATRIX */
+        // ----------------------------------------------------
+        // MATRIX
+        // ----------------------------------------------------
 
         applyToggle(
             "mx_on",
-            p.mx_on
+            data.mx_on
         );
 
         setRange(
             "mx_br",
-            p.mx_br,
+            data.mx_br,
             "mx_br_value"
         );
 
@@ -52,136 +84,173 @@ async function loadParams() {
 
         if (
             matrixEffect &&
-            p.mx_eff !== undefined
-        ) {
-
+            data.mx_eff !== undefined
+        )
+        {
             matrixEffect.value =
-                p.mx_eff;
-
+                data.mx_eff;
         }
 
         setRange(
             "mx_spd",
-            p.mx_spd,
+            data.mx_spd,
             "mx_spd_value"
         );
 
 
-        /* COB */
+        // ----------------------------------------------------
+        // COB
+        // ----------------------------------------------------
 
         applyToggle(
             "cob_on",
-            p.cob_on
+            data.cob_on
         );
 
         setRange(
             "cob_br",
-            p.cob_br,
+            data.cob_br,
             "cob_br_value"
         );
 
-        const effect =
+        const cobEffect =
             document.getElementById(
                 "cob_eff"
             );
 
         if (
-            effect &&
-            p.cob_eff !== undefined
-        ) {
-
-            effect.value =
-                p.cob_eff;
-
+            cobEffect &&
+            data.cob_eff !== undefined
+        )
+        {
+            cobEffect.value =
+                data.cob_eff;
         }
 
         setRange(
             "cob_spd",
-            p.cob_spd,
+            data.cob_spd,
             "cob_spd_value"
         );
 
 
-        /* VOLUME */
+        // ----------------------------------------------------
+        // VOLUME
+        // ----------------------------------------------------
 
         setRange(
             "vol_media",
-            p.vol_media,
+            data.vol_media,
             "vol_media_value"
         );
 
         setRange(
             "vol_alarm",
-            p.vol_alarm,
+            data.vol_alarm,
             "vol_alarm_value"
         );
 
         setRange(
             "vol_system",
-            p.vol_system,
+            data.vol_system,
             "vol_system_value"
         );
 
 
-        /* MICROPHONE */
+        // ----------------------------------------------------
+        // MICROPHONE
+        // ----------------------------------------------------
 
         applyToggle(
             "mic_on",
-            p.mic_on
+            data.mic_on
         );
 
 
-        /* TIMEZONE */
+        // ----------------------------------------------------
+        // TIMEZONE
+        // ----------------------------------------------------
 
         if (
-            p.utc !== undefined
-        ) {
-
+            data.utc !== undefined
+        )
+        {
             state.timezoneOffset =
-                Number(p.utc);
+                Number(data.utc);
 
             renderTimezone();
-
         }
+
 
         setConnection(true);
 
-    } catch (e) {
+        console.log(
+            "[PARAMS] Parameters loaded"
+        );
+    }
+    catch (error)
+    {
+        console.error(
+            "[PARAMS] Load failed:",
+            error
+        );
 
         setConnection(false);
-
-    } finally {
-
+    }
+    finally
+    {
         state.paramsRequest = false;
-
     }
 }
 
-function renderTimezone() {
+
+// ============================================================
+// TIMEZONE DISPLAY
+// ============================================================
+
+export function renderTimezone()
+{
+    const element =
+        document.getElementById(
+            "timezone"
+        );
+
+    if (!element)
+    {
+        return;
+    }
 
     const sign =
         state.timezoneOffset >= 0
             ? "+"
             : "";
 
-    document.getElementById(
-        "timezone"
-    ).textContent =
+    element.textContent =
         "UTC " +
         sign +
         state.timezoneOffset;
 }
 
-async function changeTimezone(delta) {
 
+// ============================================================
+// TIMEZONE
+// ============================================================
+
+export async function changeTimezone(
+    delta
+)
+{
     let value =
-        state.timezoneOffset + delta;
+        state.timezoneOffset +
+        Number(delta);
 
-    if (value < -12) {
+    if (value < -12)
+    {
         value = -12;
     }
 
-    if (value > 14) {
+    if (value > 14)
+    {
         value = 14;
     }
 
@@ -200,8 +269,8 @@ async function changeTimezone(delta) {
             false
         );
 
-    if (!result) {
-
+    if (!result)
+    {
         state.timezoneOffset =
             oldValue;
 
@@ -212,7 +281,6 @@ async function changeTimezone(delta) {
         );
 
         return;
-
     }
 
     showMessage(
@@ -220,39 +288,64 @@ async function changeTimezone(delta) {
     );
 }
 
-function changeBrightness(value) {
 
-    document.getElementById(
-        "brightness_value"
-    ).textContent =
-        value + "%";
+// ============================================================
+// DISPLAY BRIGHTNESS
+// ============================================================
+
+export function changeBrightness(
+    value
+)
+{
+    value = Number(value);
+
+    const element =
+        document.getElementById(
+            "brightness_value"
+        );
+
+    if (element)
+    {
+        element.textContent =
+            value + "%";
+    }
 
     debounce(
         "brightness",
         () =>
+        {
             setParam(
                 "brightness",
                 value
-            )
+            );
+        }
     );
 }
 
-async function toggleMatrix() {
 
-    const el =
+// ============================================================
+// MATRIX TOGGLE
+// ============================================================
+
+export async function toggleMatrix()
+{
+    const element =
         document.getElementById(
             "mx_on"
         );
 
+    if (!element)
+    {
+        return;
+    }
+
     const oldState =
-        el.classList.contains(
+        element.classList.contains(
             "on"
         );
 
     const newState =
-        oldState
-            ? 0
-            : 1;
+        oldState ? 0 : 1;
 
     applyToggle(
         "mx_on",
@@ -266,80 +359,122 @@ async function toggleMatrix() {
             false
         );
 
-    if (!result) {
-
+    if (!result)
+    {
         applyToggle(
             "mx_on",
             oldState
         );
-
     }
 }
 
-function changeMatrixBrightness(
-    value
-) {
 
-    document.getElementById(
-        "mx_br_value"
-    ).textContent =
-        value + "%";
+// ============================================================
+// MATRIX BRIGHTNESS
+// ============================================================
+
+export function changeMatrixBrightness(
+    value
+)
+{
+    value = Number(value);
+
+    const element =
+        document.getElementById(
+            "mx_br_value"
+        );
+
+    if (element)
+    {
+        element.textContent =
+            value + "%";
+    }
 
     debounce(
         "mx_br",
         () =>
+        {
             setParam(
                 "mx_br",
                 value
-            )
+            );
+        }
     );
 }
 
-function changeMatrixEffect(
-    value
-) {
 
+// ============================================================
+// MATRIX EFFECT
+// ============================================================
+
+export function changeMatrixEffect(
+    value
+)
+{
     setParam(
         "mx_eff",
         value
     );
 }
 
-function changeMatrixSpeed(
-    value
-) {
 
-    document.getElementById(
-        "mx_spd_value"
-    ).textContent =
-        value + "%";
+// ============================================================
+// MATRIX SPEED
+// ============================================================
+
+export function changeMatrixSpeed(
+    value
+)
+{
+    value = Number(value);
+
+    const element =
+        document.getElementById(
+            "mx_spd_value"
+        );
+
+    if (element)
+    {
+        element.textContent =
+            value + "%";
+    }
 
     debounce(
         "mx_spd",
         () =>
+        {
             setParam(
                 "mx_spd",
                 value
-            )
+            );
+        }
     );
 }
 
-async function toggleCob() {
 
-    const el =
+// ============================================================
+// COB TOGGLE
+// ============================================================
+
+export async function toggleCob()
+{
+    const element =
         document.getElementById(
             "cob_on"
         );
 
+    if (!element)
+    {
+        return;
+    }
+
     const oldState =
-        el.classList.contains(
+        element.classList.contains(
             "on"
         );
 
     const newState =
-        oldState
-            ? 0
-            : 1;
+        oldState ? 0 : 1;
 
     applyToggle(
         "cob_on",
@@ -353,101 +488,158 @@ async function toggleCob() {
             false
         );
 
-    if (!result) {
-
+    if (!result)
+    {
         applyToggle(
             "cob_on",
             oldState
         );
-
     }
 }
 
-function changeCobBrightness(
-    value
-) {
 
-    document.getElementById(
-        "cob_br_value"
-    ).textContent =
-        value + "%";
+// ============================================================
+// COB BRIGHTNESS
+// ============================================================
+
+export function changeCobBrightness(
+    value
+)
+{
+    value = Number(value);
+
+    const element =
+        document.getElementById(
+            "cob_br_value"
+        );
+
+    if (element)
+    {
+        element.textContent =
+            value + "%";
+    }
 
     debounce(
         "cob_br",
         () =>
+        {
             setParam(
                 "cob_br",
                 value
-            )
+            );
+        }
     );
 }
 
-function changeCobEffect(
-    value
-) {
 
+// ============================================================
+// COB EFFECT
+// ============================================================
+
+export function changeCobEffect(
+    value
+)
+{
     setParam(
         "cob_eff",
         value
     );
 }
 
-function changeCobSpeed(
-    value
-) {
 
-    document.getElementById(
-        "cob_spd_value"
-    ).textContent =
-        value + "%";
+// ============================================================
+// COB SPEED
+// ============================================================
+
+export function changeCobSpeed(
+    value
+)
+{
+    value = Number(value);
+
+    const element =
+        document.getElementById(
+            "cob_spd_value"
+        );
+
+    if (element)
+    {
+        element.textContent =
+            value + "%";
+    }
 
     debounce(
         "cob_spd",
         () =>
+        {
             setParam(
                 "cob_spd",
                 value
-            )
+            );
+        }
     );
 }
 
-function changeVolume(
+
+// ============================================================
+// VOLUME
+// ============================================================
+
+export function changeVolume(
     name,
     value
-) {
+)
+{
+    value = Number(value);
 
-    document.getElementById(
-        name + "_value"
-    ).textContent =
-        value + "%";
+    const element =
+        document.getElementById(
+            name + "_value"
+        );
+
+    if (element)
+    {
+        element.textContent =
+            value + "%";
+    }
 
     debounce(
         name,
         () =>
+        {
             setParam(
                 name,
                 value
-            ),
+            );
+        },
         60
     );
 }
 
-async function toggleMic() {
 
-    const el =
+// ============================================================
+// MICROPHONE TOGGLE
+// ============================================================
+
+export async function toggleMic()
+{
+    const element =
         document.getElementById(
             "mic_on"
         );
 
+    if (!element)
+    {
+        return;
+    }
+
     const oldState =
-        el.classList.contains(
+        element.classList.contains(
             "on"
         );
 
     const newState =
-        oldState
-            ? 0
-            : 1;
+        oldState ? 0 : 1;
 
     applyToggle(
         "mic_on",
@@ -461,12 +653,11 @@ async function toggleMic() {
             false
         );
 
-    if (!result) {
-
+    if (!result)
+    {
         applyToggle(
             "mic_on",
             oldState
         );
-
     }
 }

@@ -1,11 +1,27 @@
+// ============================================================
+// SMARTCLOCK UI
+// ============================================================
+
 import { state } from "./state.js";
 
-function showMessage(text) {
 
+// ============================================================
+// MESSAGE
+// ============================================================
+
+export function showMessage(text)
+{
     const el =
-        document.getElementById(
-            "message"
+        document.getElementById("message");
+
+    if (!el)
+    {
+        console.warn(
+            "[UI] #message element not found"
         );
+
+        return;
+    }
 
     el.textContent = text;
 
@@ -17,19 +33,21 @@ function showMessage(text) {
 
     state.messageTimer =
         setTimeout(
-            () => {
-
-                el.classList.remove(
-                    "show"
-                );
-
+            () =>
+            {
+                el.classList.remove("show");
             },
             1200
         );
 }
 
-function setConnection(online) {
 
+// ============================================================
+// CONNECTION STATUS
+// ============================================================
+
+export function setConnection(online)
+{
     const dot =
         document.getElementById(
             "connectionDot"
@@ -40,23 +58,34 @@ function setConnection(online) {
             "connectionText"
         );
 
-    dot.classList.toggle(
-        "online",
-        online
-    );
+    if (dot)
+    {
+        dot.classList.toggle(
+            "online",
+            online
+        );
+    }
 
-    text.textContent =
-        online
-            ? "Online"
-            : "Offline";
+    if (text)
+    {
+        text.textContent =
+            online
+                ? "Online"
+                : "Offline";
+    }
 }
 
-function setRange(
+
+// ============================================================
+// RANGE
+// ============================================================
+
+export function setRange(
     id,
     value,
     valueId
-) {
-
+)
+{
     const el =
         document.getElementById(id);
 
@@ -64,40 +93,43 @@ function setRange(
         !el ||
         value === undefined ||
         value === null
-    ) {
-
+    )
+    {
         return;
-
     }
 
     el.value = value;
 
-    if (valueId) {
-
+    if (valueId)
+    {
         const valueEl =
             document.getElementById(
                 valueId
             );
 
-        if (valueEl) {
-
+        if (valueEl)
+        {
             valueEl.textContent =
                 value + "%";
-
         }
-
     }
 }
 
-function applyToggle(
+
+// ============================================================
+// TOGGLE
+// ============================================================
+
+export function applyToggle(
     id,
     value
-) {
-
+)
+{
     const el =
         document.getElementById(id);
 
-    if (!el) {
+    if (!el)
+    {
         return;
     }
 
