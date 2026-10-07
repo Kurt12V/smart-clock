@@ -30,11 +30,7 @@ void WebPageManager::setupRoutes(
         "/js/"
     );
 
-    server.serveStatic(
-        "/assets/",
-        LittleFS,
-        "/assets/"
-    );
+
 
 }
 
@@ -73,8 +69,7 @@ bool WebPageManager::handleNotFound(
 
     if (
         !uri.startsWith("/css/") &&
-        !uri.startsWith("/js/") &&
-        !uri.startsWith("/assets/")
+        !uri.startsWith("/js/")
     )
     {
         return false;
