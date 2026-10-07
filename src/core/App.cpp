@@ -6,6 +6,8 @@
 #include "./Version.h"
 
 
+
+
 // ============================================================
 // WIFI
 // ============================================================
@@ -52,6 +54,7 @@ App::App()
           _sensorManager,
           _spiManager
       ),
+
       _alarmManager(
           _sdManager,
           _clockSystem
@@ -60,6 +63,31 @@ App::App()
       _alarmController(
           _alarmManager
       ),
+
+      // --------------------------------------------------------
+      // WEB MODULES
+      // --------------------------------------------------------
+
+      _webPageManager(),
+
+      _webSettingsManager(
+          _settings
+      ),
+
+      _webSDManager(
+          _sdManager
+      ),
+
+      _webAudioManager(
+          _soundManager,
+          _sdManager
+      ),
+
+      _webAlarmManager(
+          _alarmManager,
+          _alarmController
+      ),
+
       _webServer(),
 
       _initialized(false)
@@ -99,10 +127,13 @@ bool App::begin()
 
     if (!initDisplay())
         return false;
+
     if (!initAlarm())
         return false;
+
     if (!initWebServer())
         return false;
+
 
     _initialized = true;
 
@@ -119,20 +150,61 @@ void App::update()
     if (!_initialized)
         return;
 
+
+    // --------------------------------------------------------
+    // SETTINGS
+    // --------------------------------------------------------
+
     _settings.update();
+
+
+    // --------------------------------------------------------
+    // CLOCK
+    // --------------------------------------------------------
 
     _clockSystem.update();
 
+
+    // --------------------------------------------------------
+    // SENSORS
+    // --------------------------------------------------------
+
     _sensorManager.update();
+
+
+    // --------------------------------------------------------
+    // LIGHTING
+    // --------------------------------------------------------
 
     _lighting.update();
 
+
+    // --------------------------------------------------------
+    // DISPLAY
+    // --------------------------------------------------------
+
     _displaySystem.update();
 
+
+    // --------------------------------------------------------
+    // SOUND
+    // --------------------------------------------------------
+
     _soundManager.update();
-        _alarmManager.update();
+
+
+    // --------------------------------------------------------
+    // ALARM
+    // --------------------------------------------------------
+
+    _alarmManager.update();
 
     _alarmController.update();
+
+
+    // --------------------------------------------------------
+    // WEB
+    // --------------------------------------------------------
 
     _webServer.update();
 }
@@ -230,16 +302,21 @@ bool App::initDisplay()
 }
 
 
+// ============================================================
+// ALARM
+// ============================================================
 
 bool App::initAlarm()
 {
     if (!_alarmManager.begin())
         return false;
 
+
     _alarmController.begin();
 
     return true;
 }
+
 
 // ============================================================
 // WEB SERVER
@@ -247,18 +324,37 @@ bool App::initAlarm()
 
 bool App::initWebServer()
 {
-    _webServer.setAlarmManager(
-        _alarmManager
+    // --------------------------------------------------------
+    // Register web modules
+    // --------------------------------------------------------
+
+    _webServer.setPageManager(
+        _webPageManager
     );
 
-    _webServer.setAlarmController(
-        _alarmController
+    _webServer.setSettingsManager(
+        _webSettingsManager
     );
+
+    _webServer.setSDManager(
+        _webSDManager
+    );
+
+    _webServer.setAudioManager(
+        _webAudioManager
+    );
+
+    _webServer.setAlarmManager(
+        _webAlarmManager
+    );
+
+
+    // --------------------------------------------------------
+    // Start server
+    // --------------------------------------------------------
 
     return _webServer.begin(
         _settings,
-        _sdManager,
-        _soundManager,
         WIFI_SSID,
         WIFI_PASSWORD
     );

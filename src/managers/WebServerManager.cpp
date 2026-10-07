@@ -1,16 +1,16 @@
 #include "WebServerManager.h"
 
-// ============================================================
-// CONSTANTS
-// ============================================================
+#include "WebPageManager.h"
+#include "WebSettingsManager.h"
+#include "WebSDManager.h"
+#include "WebAudioManager.h"
+#include "WebAlarmManager.h"
 
 namespace
 {
-    constexpr uint32_t SERIAL_BAUDRATE = 115200;
-
-    constexpr uint32_t WIFI_TIMEOUT_MS =
-        20000UL;
+    constexpr uint32_t WIFI_TIMEOUT_MS = 20000UL;
 }
+
 
 // ============================================================
 // CONSTRUCTOR
@@ -19,28 +19,15 @@ namespace
 WebServerManager::WebServerManager()
     : _server(80),
       _settings(nullptr),
-      _sd(nullptr),
-      _sound(nullptr),
+      _pageManager(nullptr),
+      _settingsManager(nullptr),
+      _sdManager(nullptr),
+      _audioManager(nullptr),
       _alarmManager(nullptr),
-      _alarmController(nullptr),
       _initialized(false)
 {
-
-    Serial0.println();
-    Serial0.println(
-        "============================================================"
-    );
-    Serial0.println(
-        "[WEB] WebServerManager CONSTRUCTOR"
-    );
-    Serial0.println(
-        "============================================================"
-    );
-
-    Serial0.println(
-        "[WEB] HTTP port = 80"
-    );
 }
+
 
 // ============================================================
 // BEGIN
@@ -48,104 +35,100 @@ WebServerManager::WebServerManager()
 
 bool WebServerManager::begin(
     SettingsManager& settings,
-    SDManager& sd,
-    SoundManager& sound,
     const char* ssid,
     const char* password
 )
 {
-    const uint32_t startedAt =
-        millis();
+    _settings = &settings;
 
     Serial0.println();
-    Serial0.println(
-        "============================================================"
-    );
-    Serial0.println(
-        "[WEB] WebServerManager BEGIN"
-    );
-    Serial0.println(
-        "============================================================"
-    );
+    Serial0.println("============================================");
+    Serial0.println("[WEB] WebServerManager");
+    Serial0.println("============================================");
 
-    _initialized = false;
-
-    _settings = &settings;
-    _sd = &sd;
-    _sound = &sound;
-
-    Serial0.printf(
-        "[WEB][PTR] SettingsManager=%p\n",
-        static_cast<void*>(_settings)
-    );
-
-    Serial0.printf(
-        "[WEB][PTR] SDManager=%p\n",
-        static_cast<void*>(_sd)
-    );
-
-    Serial0.printf(
-        "[WEB][PTR] SoundManager=%p\n",
-        static_cast<void*>(_sound)
-    );
 
     // --------------------------------------------------------
-    // WIFI
+    // Serial
     // --------------------------------------------------------
 
+    Serial0.print("[WEB] Serial baudrate: ");
+
+
+    // --------------------------------------------------------
+    // Modules
+    // --------------------------------------------------------
+
+    Serial0.println("[WEB] Checking modules...");
+
+    Serial0.print("[WEB] PageManager:    ");
     Serial0.println(
-        "[WEB][STEP] Connecting to WiFi"
+        _pageManager ? "attached" : "NOT ATTACHED"
     );
 
-    if (!ssid)
-    {
-        Serial0.println(
-            "[WEB][ERROR] WiFi SSID is nullptr"
-        );
-
-        return false;
-    }
-
-    Serial0.printf(
-        "[WEB][WIFI] SSID=%s\n",
-        ssid
+    Serial0.print("[WEB] SettingsManager:");
+    Serial0.println(
+        _settingsManager ? " attached" : " NOT ATTACHED"
     );
 
-    WiFi.mode(
-        WIFI_STA
+    Serial0.print("[WEB] SDManager:      ");
+    Serial0.println(
+        _sdManager ? "attached" : "NOT ATTACHED"
     );
+
+    Serial0.print("[WEB] AudioManager:   ");
+    Serial0.println(
+        _audioManager ? "attached" : "NOT ATTACHED"
+    );
+
+    Serial0.print("[WEB] AlarmManager:   ");
+    Serial0.println(
+        _alarmManager ? "attached" : "NOT ATTACHED"
+    );
+
+
+    // --------------------------------------------------------
+    // WiFi
+    // --------------------------------------------------------
+
+    Serial0.println();
+    Serial0.println("[WEB] WiFi");
+
+    WiFi.mode(WIFI_STA);
+
+    Serial0.print("[WEB] Connecting to WiFi: ");
+    Serial0.println(ssid);
 
     WiFi.begin(
         ssid,
         password
     );
 
-    const uint32_t wifiStartedAt =
-        millis();
+    const uint32_t startTime = millis();
 
     while (
         WiFi.status() != WL_CONNECTED &&
-        millis() - wifiStartedAt <
-            WIFI_TIMEOUT_MS
+        millis() - startTime < WIFI_TIMEOUT_MS
     )
     {
         delay(250);
 
-        Serial0.printf(
-            "[WEB][WIFI] status=%d elapsed=%lu ms\n",
-            static_cast<int>(
-                WiFi.status()
-            ),
-            static_cast<unsigned long>(
-                millis() - wifiStartedAt
-            )
-        );
+        Serial0.print(".");
     }
+
+    Serial0.println();
+
 
     if (WiFi.status() != WL_CONNECTED)
     {
-        Serial0.printf(
-            "[WEB][WIFI][ERROR] Connection failed status=%d\n",
+        Serial0.println(
+            "[WEB][ERROR] WiFi connection FAILED"
+        );
+
+        Serial0.print(
+            "[WEB][ERROR] WiFi status: "
+        );
+
+        Serial0.println(
             static_cast<int>(
                 WiFi.status()
             )
@@ -154,42 +137,43 @@ bool WebServerManager::begin(
         return false;
     }
 
+
     Serial0.println(
-        "[WEB][WIFI] Connected"
+        "[WEB] WiFi connected"
     );
 
-    Serial0.printf(
-        "[WEB][WIFI] IP=%s\n",
-        WiFi.localIP().toString().c_str()
+    Serial0.print(
+        "[WEB] IP: "
     );
 
-    Serial0.printf(
-        "[WEB][WIFI] Gateway=%s\n",
-        WiFi.gatewayIP().toString().c_str()
+    Serial0.println(
+        WiFi.localIP()
     );
 
-    Serial0.printf(
-        "[WEB][WIFI] Netmask=%s\n",
-        WiFi.subnetMask().toString().c_str()
+    Serial0.print(
+        "[WEB] RSSI: "
     );
 
-    Serial0.printf(
-        "[WEB][WIFI] RSSI=%d dBm\n",
+    Serial0.print(
         WiFi.RSSI()
     );
 
+    Serial0.println(
+        " dBm"
+    );
+
+
     // --------------------------------------------------------
-    // LITTLEFS
+    // LittleFS
     // --------------------------------------------------------
 
-    Serial0.println(
-        "[WEB][STEP] Mounting LittleFS"
-    );
+    Serial0.println();
+    Serial0.println("[WEB] LittleFS");
 
     if (!LittleFS.begin(true))
     {
         Serial0.println(
-            "[WEB][ERROR] LittleFS mount failed"
+            "[WEB][ERROR] LittleFS mount FAILED"
         );
 
         return false;
@@ -199,19 +183,26 @@ bool WebServerManager::begin(
         "[WEB] LittleFS mounted"
     );
 
+
     // --------------------------------------------------------
-    // ROUTES
+    // Routes
     // --------------------------------------------------------
+
+    Serial0.println();
+    Serial0.println(
+        "[WEB] Registering HTTP routes..."
+    );
 
     setupRoutes();
 
-    // --------------------------------------------------------
-    // SERVER
-    // --------------------------------------------------------
-
     Serial0.println(
-        "[WEB][STEP] Starting WebServer"
+        "[WEB] HTTP routes registered"
     );
+
+
+    // --------------------------------------------------------
+    // Server
+    // --------------------------------------------------------
 
     _server.begin();
 
@@ -219,29 +210,24 @@ bool WebServerManager::begin(
 
     Serial0.println();
     Serial0.println(
-        "============================================================"
-    );
-    Serial0.println(
-        "[WEB] WebServerManager READY"
-    );
-    Serial0.println(
-        "============================================================"
+        "[WEB] HTTP server started"
     );
 
-    Serial0.printf(
-        "[WEB] URL=http://%s\n",
-        WiFi.localIP().toString().c_str()
+    Serial0.print(
+        "[WEB] Server: http://"
     );
 
-    Serial0.printf(
-        "[WEB] begin() completed in %lu ms\n",
-        static_cast<unsigned long>(
-            millis() - startedAt
-        )
+    Serial0.println(
+        WiFi.localIP()
+    );
+
+    Serial0.println(
+        "============================================"
     );
 
     return true;
 }
+
 
 // ============================================================
 // UPDATE
@@ -255,6 +241,7 @@ void WebServerManager::update()
     _server.handleClient();
 }
 
+
 // ============================================================
 // CONNECTION
 // ============================================================
@@ -266,8 +253,9 @@ bool WebServerManager::isConnected() const
         WiFi.status() == WL_CONNECTED;
 }
 
+
 // ============================================================
-// GET IP
+// IP
 // ============================================================
 
 String WebServerManager::getIP() const
@@ -278,40 +266,337 @@ String WebServerManager::getIP() const
     return WiFi.localIP().toString();
 }
 
+
 // ============================================================
-// SET ALARM MANAGER
+// MODULE SETTERS
 // ============================================================
 
-void WebServerManager::setAlarmManager(
-    AlarmManager& alarmManager
+void WebServerManager::setPageManager(
+    WebPageManager& manager
 )
 {
-    _alarmManager =
-        &alarmManager;
+    _pageManager = &manager;
 
-    Serial0.printf(
-        "[WEB][ALARM] AlarmManager attached: %p\n",
-        static_cast<void*>(
-            _alarmManager
-        )
+    Serial0.println(
+        "[WEB] PageManager attached"
     );
 }
 
-// ============================================================
-// SET ALARM CONTROLLER
-// ============================================================
 
-void WebServerManager::setAlarmController(
-    AlarmController& alarmController
+void WebServerManager::setSettingsManager(
+    WebSettingsManager& manager
 )
 {
-    _alarmController =
-        &alarmController;
+    _settingsManager = &manager;
 
-    Serial0.printf(
-        "[WEB][ALARM] AlarmController attached: %p\n",
-        static_cast<void*>(
-            _alarmController
-        )
+    Serial0.println(
+        "[WEB] SettingsManager attached"
+    );
+}
+
+
+void WebServerManager::setSDManager(
+    WebSDManager& manager
+)
+{
+    _sdManager = &manager;
+
+    Serial0.println(
+        "[WEB] SDManager attached"
+    );
+}
+
+
+void WebServerManager::setAudioManager(
+    WebAudioManager& manager
+)
+{
+    _audioManager = &manager;
+
+    Serial0.println(
+        "[WEB] AudioManager attached"
+    );
+}
+
+
+void WebServerManager::setAlarmManager(
+    WebAlarmManager& manager
+)
+{
+    _alarmManager = &manager;
+
+    Serial0.println(
+        "[WEB] AlarmManager attached"
+    );
+}
+
+
+// ============================================================
+// ROUTES
+// ============================================================
+
+void WebServerManager::setupRoutes()
+{
+    Serial0.println(
+        "[WEB] Registering root route..."
+    );
+
+    _server.on(
+        "/",
+        HTTP_GET,
+        [this]()
+        {
+            handleRoot();
+        }
+    );
+
+
+    // --------------------------------------------------------
+    // Page
+    // --------------------------------------------------------
+
+    if (_pageManager)
+    {
+        _pageManager->setupRoutes(_server);
+
+        Serial0.println(
+            "[WEB] Page routes:      OK"
+        );
+    }
+    else
+    {
+        Serial0.println(
+            "[WEB][WARN] Page routes: NOT ATTACHED"
+        );
+    }
+
+
+    // --------------------------------------------------------
+    // Settings
+    // --------------------------------------------------------
+
+    if (_settingsManager)
+    {
+        _settingsManager->setupRoutes(_server);
+
+        Serial0.println(
+            "[WEB] Settings routes:  OK"
+        );
+    }
+    else
+    {
+        Serial0.println(
+            "[WEB][WARN] Settings routes: NOT ATTACHED"
+        );
+    }
+
+
+    // --------------------------------------------------------
+    // SD
+    // --------------------------------------------------------
+
+    if (_sdManager)
+    {
+        _sdManager->setupRoutes(_server);
+
+        Serial0.println(
+            "[WEB] SD routes:        OK"
+        );
+    }
+    else
+    {
+        Serial0.println(
+            "[WEB][WARN] SD routes: NOT ATTACHED"
+        );
+    }
+
+
+    // --------------------------------------------------------
+    // Audio
+    // --------------------------------------------------------
+
+    if (_audioManager)
+    {
+        _audioManager->setupRoutes(_server);
+
+        Serial0.println(
+            "[WEB] Audio routes:     OK"
+        );
+    }
+    else
+    {
+        Serial0.println(
+            "[WEB][WARN] Audio routes: NOT ATTACHED"
+        );
+    }
+
+
+    // --------------------------------------------------------
+    // Alarm
+    // --------------------------------------------------------
+
+    if (_alarmManager)
+    {
+        _alarmManager->setupRoutes(_server);
+
+        Serial0.println(
+            "[WEB] Alarm routes:     OK"
+        );
+    }
+    else
+    {
+        Serial0.println(
+            "[WEB][WARN] Alarm routes: NOT ATTACHED"
+        );
+    }
+
+
+    // --------------------------------------------------------
+    // Not found
+    // --------------------------------------------------------
+
+    _server.onNotFound(
+        [this]()
+        {
+            handleNotFound();
+        }
+    );
+
+    Serial0.println(
+        "[WEB] NotFound handler:  OK"
+    );
+}
+
+
+// ============================================================
+// ROOT
+// ============================================================
+
+void WebServerManager::handleRoot()
+{
+    Serial0.println(
+        "[WEB][HTTP] GET /"
+    );
+
+
+    if (_pageManager)
+    {
+        _pageManager->handleRoot(_server);
+
+        return;
+    }
+
+
+    if (!LittleFS.exists("/index.html"))
+    {
+        Serial0.println(
+            "[WEB][ERROR] /index.html not found"
+        );
+
+        _server.send(
+            404,
+            "text/plain",
+            "index.html not found"
+        );
+
+        return;
+    }
+
+
+    File file = LittleFS.open(
+        "/index.html",
+        "r"
+    );
+
+
+    if (!file)
+    {
+        Serial0.println(
+            "[WEB][ERROR] Failed to open /index.html"
+        );
+
+        _server.send(
+            500,
+            "text/plain",
+            "Failed to open index.html"
+        );
+
+        return;
+    }
+
+
+    _server.streamFile(
+        file,
+        "text/html; charset=utf-8"
+    );
+
+    file.close();
+}
+
+
+// ============================================================
+// NOT FOUND
+// ============================================================
+
+void WebServerManager::handleNotFound()
+{
+    const String uri =
+        _server.uri();
+
+
+    Serial0.print(
+        "[WEB][404] "
+    );
+
+    Serial0.print(
+        _server.method() == HTTP_GET
+            ? "GET "
+            : "REQUEST "
+    );
+
+    Serial0.println(
+        uri
+    );
+
+
+    // --------------------------------------------------------
+    // Static files
+    // --------------------------------------------------------
+
+    if (_pageManager &&
+        _pageManager->handleNotFound(_server))
+    {
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // Dynamic alarm REST API
+    // --------------------------------------------------------
+
+    if (_alarmManager &&
+        _alarmManager->handleDynamicRequest(_server))
+    {
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // Final 404
+    // --------------------------------------------------------
+
+    Serial0.print(
+        "[WEB][ERROR] Route not found: "
+    );
+
+    Serial0.println(
+        uri
+    );
+
+
+    _server.send(
+        404,
+        "application/json",
+        "{\"ok\":false,\"error\":\"Not found\"}"
     );
 }

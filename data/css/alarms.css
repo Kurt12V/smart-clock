@@ -1,0 +1,286 @@
+/* ============================================================
+   ALARMS
+   ============================================================ */
+
+.alarm-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.alarm-title {
+    color: #aaa;
+    font-size: 13px;
+}
+
+.alarm-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.alarm-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    min-height: 70px;
+    padding: 10px 0;
+    border-bottom: 1px solid #181818;
+    cursor: pointer;
+}
+
+.alarm-item:hover {
+    background: #0d0d0d;
+}
+
+.alarm-time {
+    width: 100px;
+    flex-shrink: 0;
+    color: #eee;
+    font-size: 24px;
+    font-variant-numeric: tabular-nums;
+}
+
+.alarm-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.alarm-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #aaa;
+    font-size: 13px;
+}
+
+.alarm-days {
+    margin-top: 5px;
+    color: #555;
+    font-size: 10px;
+}
+
+.alarm-item .toggle {
+    flex-shrink: 0;
+}
+
+
+/* ============================================================
+   ALARM EDITOR
+   ============================================================ */
+
+.alarm-editor-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.alarm-editor-header .section-title {
+    margin: 0;
+}
+
+.alarm-form {
+    margin-top: 20px;
+}
+
+.form-row {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 18px;
+}
+
+.form-row > label {
+    width: 90px;
+    flex-shrink: 0;
+    color: #aaa;
+    font-size: 12px;
+}
+
+.form-row input[type="text"],
+.form-row input[type="time"] {
+    flex: 1;
+}
+
+.days {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.days button {
+    min-width: 42px;
+    padding: 0 8px;
+}
+
+.days button.selected {
+    background: #eee;
+    border-color: #eee;
+    color: #080808;
+}
+
+
+/* ============================================================
+   ALARM PHASE
+   ============================================================ */
+
+.phase {
+    margin-bottom: 15px;
+    padding: 15px;
+    border: 1px solid #222;
+    border-radius: 6px;
+    background: #0c0c0c;
+}
+
+.phase-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.phase-title {
+    color: #aaa;
+    font-size: 12px;
+}
+
+.phase-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.phase-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.phase-field label {
+    color: #555;
+    font-size: 10px;
+}
+
+.phase-field small {
+    color: #444;
+    font-size: 9px;
+}
+
+.phase-field input,
+.phase-field select {
+    width: 100%;
+}
+
+
+/* ============================================================
+   DEVICE BLOCK
+   ============================================================ */
+
+.device-block {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #1c1c1c;
+}
+
+.device-title {
+    margin-bottom: 10px;
+    color: #777;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.device-row {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.device-row:last-child {
+    margin-bottom: 0;
+}
+
+.device-row label {
+    color: #666;
+    font-size: 10px;
+}
+
+.device-row input,
+.device-row select {
+    width: 100%;
+}
+
+.device-row .toggle {
+    width: 60px;
+}
+
+
+/* ============================================================
+   ALARM SAVE
+   ============================================================ */
+
+.alarm-save {
+    padding: 20px 0 40px;
+    text-align: right;
+}
+
+
+/* ============================================================
+   MOBILE
+   ============================================================ */
+
+@media (max-width: 650px) {
+
+    .page {
+        padding: 15px 15px 40px;
+    }
+
+    .timezone {
+        max-width: none;
+        width: 100%;
+    }
+
+    .timezone-value {
+        flex: 1;
+    }
+
+    .alarm-item {
+        gap: 8px;
+    }
+
+    .alarm-time {
+        width: 75px;
+        font-size: 20px;
+    }
+
+    .phase-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .device-row {
+        grid-template-columns: 80px 1fr;
+    }
+
+    .alarm-header {
+        align-items: flex-start;
+    }
+
+    .alarm-header .primary {
+        white-space: nowrap;
+    }
+
+    .time-input {
+        gap: 4px;
+    }
+
+    .time-input input {
+        width: 50px;
+    }
+
+}
