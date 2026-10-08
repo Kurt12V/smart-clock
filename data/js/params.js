@@ -19,6 +19,206 @@ import {
 
 
 // ============================================================
+// PARAMETER NORMALIZATION
+// ============================================================
+//
+// Поддерживаем несколько вариантов ответа API:
+//
+// 1. Плоский:
+// {
+//     "brightness": 80,
+//     "mx_on": 1,
+//     ...
+// }
+//
+// 2. Объект params:
+// {
+//     "ok": true,
+//     "params": {
+//         "brightness": 80,
+//         "mx_on": 1,
+//         ...
+//     }
+// }
+//
+// 3. Массив params:
+//
+// {
+//     "ok": true,
+//     "params": [
+//         {
+//             "name": "mx_on",
+//             "value": 1
+//         },
+//         ...
+//     ]
+// }
+//
+// Нормализуем всё в:
+//
+// {
+//     brightness: 80,
+//     mx_on: 1,
+//     ...
+// }
+//
+// ВАЖНО:
+// эта функция НИКОГДА ничего не отправляет на ESP32.
+// ============================================================
+
+function normalizeParameters(data)
+{
+    if (!data || typeof data !== "object")
+    {
+        return {};
+    }
+
+
+    // --------------------------------------------------------
+    // Плоский объект
+    // --------------------------------------------------------
+
+    if (
+        data.params === undefined &&
+        !Array.isArray(data)
+    )
+    {
+        return data;
+    }
+
+
+    const params =
+        data.params;
+
+
+    // --------------------------------------------------------
+    // params: object
+    // --------------------------------------------------------
+
+    if (
+        params &&
+        typeof params === "object" &&
+        !Array.isArray(params)
+    )
+    {
+        return params;
+    }
+
+
+    // --------------------------------------------------------
+    // params: array
+    // --------------------------------------------------------
+
+    if (Array.isArray(params))
+    {
+        const result = {};
+
+        for (const item of params)
+        {
+            if (
+                !item ||
+                typeof item !== "object"
+            )
+            {
+                continue;
+            }
+
+
+            const name =
+                item.name;
+
+
+            if (!name)
+            {
+                continue;
+            }
+
+
+            // API может использовать value
+            if (
+                item.value !== undefined
+            )
+            {
+                result[name] =
+                    item.value;
+
+                continue;
+            }
+
+
+            // На случай другого формата
+            if (
+                item.current !== undefined
+            )
+            {
+                result[name] =
+                    item.current;
+
+                continue;
+            }
+
+
+            if (
+                item.currentValue !== undefined
+            )
+            {
+                result[name] =
+                    item.currentValue;
+
+                continue;
+            }
+        }
+
+        return result;
+    }
+
+
+    return {};
+}
+
+
+// ============================================================
+// VALUE HELPERS
+// ============================================================
+
+function hasValue(
+    object,
+    name
+)
+{
+    return (
+        object &&
+        Object.prototype.hasOwnProperty.call(
+            object,
+            name
+        )
+    );
+}
+
+
+function numberValue(
+    object,
+    name
+)
+{
+    if (!hasValue(object, name))
+    {
+        return null;
+    }
+
+    const value =
+        Number(object[name]);
+
+    if (!Number.isFinite(value))
+    {
+        return null;
+    }
+
+    return value;
+}
+
+
+// ============================================================
 // LOAD ALL PARAMETERS
 // ============================================================
 
@@ -37,155 +237,312 @@ export async function loadParams()
             "[PARAMS] Loading parameters..."
         );
 
+
         const response =
             await apiFetch(
                 "/api/params"
             );
 
-        const data =
+
+        const rawData =
             await response.json();
 
+
         console.log(
-            "[PARAMS] Received:",
+            "[PARAMS] Raw response:",
+            rawData
+        );
+
+
+        // ----------------------------------------------------
+        // NORMALIZE API RESPONSE
+        // ----------------------------------------------------
+
+        const data =
+            normalizeParameters(
+                rawData
+            );
+
+
+        console.log(
+            "[PARAMS] Normalized:",
             data
         );
+
+
+        // ----------------------------------------------------
+        // VALIDATE RESPONSE
+        // ----------------------------------------------------
+
+        if (
+            rawData &&
+            rawData.ok === false
+        )
+        {
+            throw new Error(
+                rawData.error ||
+                "Failed to load parameters"
+            );
+        }
 
 
         // ----------------------------------------------------
         // DISPLAY
         // ----------------------------------------------------
 
-        setRange(
-            "brightness",
-            data.brightness,
-            "brightness_value"
-        );
+        const brightness =
+            numberValue(
+                data,
+                "brightness"
+            );
+
+        if (brightness !== null)
+        {
+            setRange(
+                "brightness",
+                brightness,
+                "brightness_value"
+            );
+        }
 
 
         // ----------------------------------------------------
         // MATRIX
         // ----------------------------------------------------
 
-        applyToggle(
-            "mx_on",
-            data.mx_on
-        );
-
-        setRange(
-            "mx_br",
-            data.mx_br,
-            "mx_br_value"
-        );
-
-        const matrixEffect =
-            document.getElementById(
-                "mx_eff"
-            );
-
         if (
-            matrixEffect &&
-            data.mx_eff !== undefined
+            hasValue(
+                data,
+                "mx_on"
+            )
         )
         {
-            matrixEffect.value =
-                data.mx_eff;
+            applyToggle(
+                "mx_on",
+                data.mx_on
+            );
         }
 
-        setRange(
-            "mx_spd",
-            data.mx_spd,
-            "mx_spd_value"
-        );
+
+        const matrixBrightness =
+            numberValue(
+                data,
+                "mx_br"
+            );
+
+        if (matrixBrightness !== null)
+        {
+            setRange(
+                "mx_br",
+                matrixBrightness,
+                "mx_br_value"
+            );
+        }
+
+
+        if (
+            hasValue(
+                data,
+                "mx_eff"
+            )
+        )
+        {
+            const matrixEffect =
+                document.getElementById(
+                    "mx_eff"
+                );
+
+            if (matrixEffect)
+            {
+                matrixEffect.value =
+                    String(data.mx_eff);
+            }
+        }
+
+
+        const matrixSpeed =
+            numberValue(
+                data,
+                "mx_spd"
+            );
+
+        if (matrixSpeed !== null)
+        {
+            setRange(
+                "mx_spd",
+                matrixSpeed,
+                "mx_spd_value"
+            );
+        }
 
 
         // ----------------------------------------------------
         // COB
         // ----------------------------------------------------
 
-        applyToggle(
-            "cob_on",
-            data.cob_on
-        );
-
-        setRange(
-            "cob_br",
-            data.cob_br,
-            "cob_br_value"
-        );
-
-        const cobEffect =
-            document.getElementById(
-                "cob_eff"
-            );
-
         if (
-            cobEffect &&
-            data.cob_eff !== undefined
+            hasValue(
+                data,
+                "cob_on"
+            )
         )
         {
-            cobEffect.value =
-                data.cob_eff;
+            applyToggle(
+                "cob_on",
+                data.cob_on
+            );
         }
 
-        setRange(
-            "cob_spd",
-            data.cob_spd,
-            "cob_spd_value"
-        );
+
+        const cobBrightness =
+            numberValue(
+                data,
+                "cob_br"
+            );
+
+        if (cobBrightness !== null)
+        {
+            setRange(
+                "cob_br",
+                cobBrightness,
+                "cob_br_value"
+            );
+        }
+
+
+        if (
+            hasValue(
+                data,
+                "cob_eff"
+            )
+        )
+        {
+            const cobEffect =
+                document.getElementById(
+                    "cob_eff"
+                );
+
+            if (cobEffect)
+            {
+                cobEffect.value =
+                    String(data.cob_eff);
+            }
+        }
+
+
+        const cobSpeed =
+            numberValue(
+                data,
+                "cob_spd"
+            );
+
+        if (cobSpeed !== null)
+        {
+            setRange(
+                "cob_spd",
+                cobSpeed,
+                "cob_spd_value"
+            );
+        }
 
 
         // ----------------------------------------------------
         // VOLUME
         // ----------------------------------------------------
 
-        setRange(
-            "vol_media",
-            data.vol_media,
-            "vol_media_value"
-        );
+        const mediaVolume =
+            numberValue(
+                data,
+                "vol_media"
+            );
 
-        setRange(
-            "vol_alarm",
-            data.vol_alarm,
-            "vol_alarm_value"
-        );
+        if (mediaVolume !== null)
+        {
+            setRange(
+                "vol_media",
+                mediaVolume,
+                "vol_media_value"
+            );
+        }
 
-        setRange(
-            "vol_system",
-            data.vol_system,
-            "vol_system_value"
-        );
+
+        const alarmVolume =
+            numberValue(
+                data,
+                "vol_alarm"
+            );
+
+        if (alarmVolume !== null)
+        {
+            setRange(
+                "vol_alarm",
+                alarmVolume,
+                "vol_alarm_value"
+            );
+        }
+
+
+        const systemVolume =
+            numberValue(
+                data,
+                "vol_system"
+            );
+
+        if (systemVolume !== null)
+        {
+            setRange(
+                "vol_system",
+                systemVolume,
+                "vol_system_value"
+            );
+        }
 
 
         // ----------------------------------------------------
         // MICROPHONE
         // ----------------------------------------------------
 
-        applyToggle(
-            "mic_on",
-            data.mic_on
-        );
+        if (
+            hasValue(
+                data,
+                "mic_on"
+            )
+        )
+        {
+            applyToggle(
+                "mic_on",
+                data.mic_on
+            );
+        }
 
 
         // ----------------------------------------------------
         // TIMEZONE
         // ----------------------------------------------------
 
-        if (
-            data.utc !== undefined
-        )
+        const utc =
+            numberValue(
+                data,
+                "utc"
+            );
+
+        if (utc !== null)
         {
             state.timezoneOffset =
-                Number(data.utc);
+                utc;
 
             renderTimezone();
         }
 
 
+        // ----------------------------------------------------
+        // SUCCESS
+        // ----------------------------------------------------
+
         setConnection(true);
 
         console.log(
-            "[PARAMS] Parameters loaded"
+            "[PARAMS] Parameters loaded successfully"
         );
     }
     catch (error)
@@ -196,6 +553,10 @@ export async function loadParams()
         );
 
         setConnection(false);
+
+        showMessage(
+            "Failed to load settings"
+        );
     }
     finally
     {
@@ -220,10 +581,12 @@ export function renderTimezone()
         return;
     }
 
+
     const sign =
         state.timezoneOffset >= 0
             ? "+"
             : "";
+
 
     element.textContent =
         "UTC " +
@@ -244,23 +607,29 @@ export async function changeTimezone(
         state.timezoneOffset +
         Number(delta);
 
+
     if (value < -12)
     {
         value = -12;
     }
+
 
     if (value > 14)
     {
         value = 14;
     }
 
+
     const oldValue =
         state.timezoneOffset;
+
 
     state.timezoneOffset =
         value;
 
+
     renderTimezone();
+
 
     const result =
         await setParam(
@@ -269,6 +638,7 @@ export async function changeTimezone(
             false
         );
 
+
     if (!result)
     {
         state.timezoneOffset =
@@ -276,12 +646,14 @@ export async function changeTimezone(
 
         renderTimezone();
 
+
         showMessage(
             "Timezone error"
         );
 
         return;
     }
+
 
     showMessage(
         "Timezone changed"
@@ -297,18 +669,22 @@ export function changeBrightness(
     value
 )
 {
-    value = Number(value);
+    value =
+        Number(value);
+
 
     const element =
         document.getElementById(
             "brightness_value"
         );
 
+
     if (element)
     {
         element.textContent =
             value + "%";
     }
+
 
     debounce(
         "brightness",
@@ -334,23 +710,30 @@ export async function toggleMatrix()
             "mx_on"
         );
 
+
     if (!element)
     {
         return;
     }
+
 
     const oldState =
         element.classList.contains(
             "on"
         );
 
+
     const newState =
-        oldState ? 0 : 1;
+        oldState
+            ? 0
+            : 1;
+
 
     applyToggle(
         "mx_on",
         newState
     );
+
 
     const result =
         await setParam(
@@ -358,6 +741,7 @@ export async function toggleMatrix()
             newState,
             false
         );
+
 
     if (!result)
     {
@@ -377,18 +761,22 @@ export function changeMatrixBrightness(
     value
 )
 {
-    value = Number(value);
+    value =
+        Number(value);
+
 
     const element =
         document.getElementById(
             "mx_br_value"
         );
 
+
     if (element)
     {
         element.textContent =
             value + "%";
     }
+
 
     debounce(
         "mx_br",
@@ -413,7 +801,7 @@ export function changeMatrixEffect(
 {
     setParam(
         "mx_eff",
-        value
+        Number(value)
     );
 }
 
@@ -426,18 +814,22 @@ export function changeMatrixSpeed(
     value
 )
 {
-    value = Number(value);
+    value =
+        Number(value);
+
 
     const element =
         document.getElementById(
             "mx_spd_value"
         );
 
+
     if (element)
     {
         element.textContent =
             value + "%";
     }
+
 
     debounce(
         "mx_spd",
@@ -463,23 +855,30 @@ export async function toggleCob()
             "cob_on"
         );
 
+
     if (!element)
     {
         return;
     }
+
 
     const oldState =
         element.classList.contains(
             "on"
         );
 
+
     const newState =
-        oldState ? 0 : 1;
+        oldState
+            ? 0
+            : 1;
+
 
     applyToggle(
         "cob_on",
         newState
     );
+
 
     const result =
         await setParam(
@@ -487,6 +886,7 @@ export async function toggleCob()
             newState,
             false
         );
+
 
     if (!result)
     {
@@ -506,18 +906,22 @@ export function changeCobBrightness(
     value
 )
 {
-    value = Number(value);
+    value =
+        Number(value);
+
 
     const element =
         document.getElementById(
             "cob_br_value"
         );
 
+
     if (element)
     {
         element.textContent =
             value + "%";
     }
+
 
     debounce(
         "cob_br",
@@ -542,7 +946,7 @@ export function changeCobEffect(
 {
     setParam(
         "cob_eff",
-        value
+        Number(value)
     );
 }
 
@@ -555,18 +959,22 @@ export function changeCobSpeed(
     value
 )
 {
-    value = Number(value);
+    value =
+        Number(value);
+
 
     const element =
         document.getElementById(
             "cob_spd_value"
         );
 
+
     if (element)
     {
         element.textContent =
             value + "%";
     }
+
 
     debounce(
         "cob_spd",
@@ -590,18 +998,22 @@ export function changeVolume(
     value
 )
 {
-    value = Number(value);
+    value =
+        Number(value);
+
 
     const element =
         document.getElementById(
             name + "_value"
         );
 
+
     if (element)
     {
         element.textContent =
             value + "%";
     }
+
 
     debounce(
         name,
@@ -628,23 +1040,30 @@ export async function toggleMic()
             "mic_on"
         );
 
+
     if (!element)
     {
         return;
     }
+
 
     const oldState =
         element.classList.contains(
             "on"
         );
 
+
     const newState =
-        oldState ? 0 : 1;
+        oldState
+            ? 0
+            : 1;
+
 
     applyToggle(
         "mic_on",
         newState
     );
+
 
     const result =
         await setParam(
@@ -652,6 +1071,7 @@ export async function toggleMic()
             newState,
             false
         );
+
 
     if (!result)
     {
