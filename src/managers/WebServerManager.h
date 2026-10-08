@@ -12,6 +12,7 @@ class WebSettingsManager;
 class WebSDManager;
 class WebAudioManager;
 class WebAlarmManager;
+class WebWiFiManager;
 
 class WebServerManager
 {
@@ -20,9 +21,7 @@ public:
     WebServerManager();
 
     bool begin(
-        SettingsManager& settings,
-        const char* ssid,
-        const char* password
+        SettingsManager& settings
     );
 
     void update();
@@ -56,6 +55,9 @@ public:
         WebAlarmManager& manager
     );
 
+    void setWiFiManager(
+        WebWiFiManager& manager
+    );
 
 private:
 
@@ -68,6 +70,23 @@ private:
     void handleRoot();
 
     void handleNotFound();
+
+
+    // ========================================================
+    // SETUP PAGE
+    // ========================================================
+
+    bool serveWiFiSetupPage();
+
+
+    // ========================================================
+    // STATIC FILE
+    // ========================================================
+
+    bool serveFile(
+        const char* path,
+        const char* contentType
+    );
 
 
 private:
@@ -85,6 +104,8 @@ private:
     WebAudioManager* _audioManager;
 
     WebAlarmManager* _alarmManager;
+
+    WebWiFiManager* _webWiFiManager;
 
     bool _initialized;
 };

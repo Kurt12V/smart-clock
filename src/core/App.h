@@ -13,6 +13,7 @@
 #include "./managers/SoundManager.h"
 #include "./managers/SensorsManager.h"
 #include "./managers/LightingManager.h"
+#include "./managers/WiFiManager.h"
 
 // ============================================================
 // CORE SYSTEMS
@@ -38,6 +39,7 @@
 #include "./managers/WebSDManager.h"
 #include "./managers/WebAudioManager.h"
 #include "./managers/WebAlarmManager.h"
+#include "./managers/WebWiFiManager.h"
 
 
 class App
@@ -86,6 +88,8 @@ private:
 
     bool initAlarm();
 
+    bool initWiFi();
+
     bool initWebServer();
 
 
@@ -113,6 +117,8 @@ private:
 
     DisplaySystem _displaySystem;
 
+    WiFiManager _wifiManager;
+
 
     // ========================================================
     // ALARM
@@ -136,6 +142,8 @@ private:
     WebAudioManager _webAudioManager;
 
     WebAlarmManager _webAlarmManager;
+
+    WebWiFiManager _webWiFiManager;
 
     WebServerManager _webServer;
 

@@ -1,0 +1,401 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="theme-color"
+        content="#0b0d12"
+    >
+
+    <title>SmartClock — настройка Wi-Fi</title>
+
+    <link
+        rel="stylesheet"
+        href="/css/wifi-setup.css"
+    >
+</head>
+
+<body>
+
+<div class="page">
+
+    <!-- =========================================================
+         HEADER
+         ========================================================= -->
+
+    <header class="header">
+
+        <div class="logo">
+            <div class="logo-icon">
+                SC
+            </div>
+
+            <div>
+                <div class="logo-title">
+                    SmartClock
+                </div>
+
+                <div class="logo-subtitle">
+                    Настройка устройства
+                </div>
+            </div>
+        </div>
+
+        <div class="status">
+            <span
+                id="statusDot"
+                class="status-dot"
+            ></span>
+
+            <span id="statusText">
+                Режим настройки
+            </span>
+        </div>
+
+    </header>
+
+
+    <!-- =========================================================
+         MAIN
+         ========================================================= -->
+
+    <main>
+
+        <!-- INTRO -->
+
+        <section class="intro">
+
+            <div class="intro-icon">
+                Wi-Fi
+            </div>
+
+            <h1>
+                Подключение к Wi-Fi
+            </h1>
+
+            <p>
+                SmartClock пока не подключён к домашней сети.
+                Выберите вашу Wi-Fi сеть и введите пароль.
+            </p>
+
+        </section>
+
+
+        <!-- =====================================================
+             WIFI CARD
+             ===================================================== -->
+
+        <section class="card">
+
+            <div class="card-header">
+
+                <div>
+                    <h2>
+                        Доступные сети
+                    </h2>
+
+                    <p>
+                        Выберите сеть, к которой нужно подключить часы.
+                    </p>
+                </div>
+
+                <button
+                    id="scanButton"
+                    class="button secondary"
+                    type="button"
+                >
+                    <span id="scanIcon">↻</span>
+                    <span id="scanText">Сканировать</span>
+                </button>
+
+            </div>
+
+
+            <!-- SCAN ERROR -->
+
+            <div
+                id="scanError"
+                class="message error hidden"
+            ></div>
+
+
+            <!-- NETWORK LIST -->
+
+            <div
+                id="networkList"
+                class="network-list"
+            >
+
+                <div class="empty-state">
+
+                    <div class="empty-icon">
+                        Wi-Fi
+                    </div>
+
+                    <div>
+                        Нажмите «Сканировать»
+                    </div>
+
+                    <small>
+                        SmartClock найдёт доступные сети
+                    </small>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =====================================================
+             CONNECTION FORM
+             ===================================================== -->
+
+        <section
+            id="connectionCard"
+            class="card hidden"
+        >
+
+            <div class="card-header">
+
+                <div>
+                    <h2>
+                        Подключение
+                    </h2>
+
+                    <p>
+                        Введите пароль выбранной сети.
+                    </p>
+                </div>
+
+            </div>
+
+
+            <form id="wifiForm">
+
+                <!-- SSID -->
+
+                <div class="field">
+
+                    <label for="ssid">
+                        Wi-Fi сеть
+                    </label>
+
+                    <input
+                        id="ssid"
+                        name="ssid"
+                        type="text"
+                        readonly
+                    >
+
+                </div>
+
+
+                <!-- PASSWORD -->
+
+                <div class="field">
+
+                    <label for="password">
+                        Пароль
+                    </label>
+
+                    <div class="password-wrapper">
+
+                        <input
+                            id="password"
+                            name="password"
+                            type="password"
+                            autocomplete="current-password"
+                            placeholder="Введите пароль"
+                        >
+
+                        <button
+                            id="showPassword"
+                            class="password-toggle"
+                            type="button"
+                            aria-label="Показать пароль"
+                        >
+                            ◉
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <!-- FORM ERROR -->
+
+                <div
+                    id="formError"
+                    class="message error hidden"
+                ></div>
+
+
+                <!-- CONNECT -->
+
+                <button
+                    id="connectButton"
+                    class="button primary"
+                    type="submit"
+                >
+                    <span id="connectText">
+                        Подключить SmartClock
+                    </span>
+                </button>
+
+            </form>
+
+        </section>
+
+
+        <!-- =====================================================
+             SUCCESS
+             ===================================================== -->
+
+        <section
+            id="successCard"
+            class="card success-card hidden"
+        >
+
+            <div class="success-icon">
+                ✓
+            </div>
+
+            <h2>
+                Настройки сохранены
+            </h2>
+
+            <p>
+                SmartClock сейчас перезагрузится и попробует
+                подключиться к выбранной сети.
+            </p>
+
+            <div class="reboot-info">
+
+                <span>
+                    Перезагрузка
+                </span>
+
+                <strong id="countdown">
+                    3
+                </strong>
+
+            </div>
+
+            <p class="small-text">
+                После подключения откройте
+                <strong>http://smartclock.local</strong>
+            </p>
+
+        </section>
+
+
+        <!-- =====================================================
+             SETUP INFORMATION
+             ===================================================== -->
+
+        <section class="info-card">
+
+            <div class="info-title">
+                Как это работает
+            </div>
+
+            <div class="steps">
+
+                <div class="step">
+
+                    <div class="step-number">
+                        1
+                    </div>
+
+                    <div>
+                        <strong>
+                            Выберите сеть
+                        </strong>
+
+                        <span>
+                            Найдите свою домашнюю Wi-Fi сеть.
+                        </span>
+                    </div>
+
+                </div>
+
+
+                <div class="step">
+
+                    <div class="step-number">
+                        2
+                    </div>
+
+                    <div>
+                        <strong>
+                            Введите пароль
+                        </strong>
+
+                        <span>
+                            Пароль будет сохранён во внутренней памяти SmartClock.
+                        </span>
+                    </div>
+
+                </div>
+
+
+                <div class="step">
+
+                    <div class="step-number">
+                        3
+                    </div>
+
+                    <div>
+                        <strong>
+                            SmartClock перезагрузится
+                        </strong>
+
+                        <span>
+                            После перезагрузки часы подключатся к вашей сети.
+                        </span>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <!-- =========================================================
+         FOOTER
+         ========================================================= -->
+
+    <footer>
+
+        <span>
+            SmartClock
+        </span>
+
+        <span class="separator">
+            •
+        </span>
+
+        <span>
+            Первоначальная настройка
+        </span>
+
+    </footer>
+
+</div>
+
+
+<script src="/js/wifi-setup.js"></script>
+
+</body>
+</html>

@@ -5,11 +5,7 @@
 #include "WebSDManager.h"
 #include "WebAudioManager.h"
 #include "WebAlarmManager.h"
-
-namespace
-{
-    constexpr uint32_t WIFI_TIMEOUT_MS = 20000UL;
-}
+#include "WebWiFiManager.h"
 
 
 // ============================================================
@@ -24,6 +20,7 @@ WebServerManager::WebServerManager()
     , _sdManager(nullptr)
     , _audioManager(nullptr)
     , _alarmManager(nullptr)
+    , _webWiFiManager(nullptr)
     , _initialized(false)
 {
 }
@@ -34,87 +31,91 @@ WebServerManager::WebServerManager()
 // ============================================================
 
 bool WebServerManager::begin(
-    SettingsManager& settings,
-    const char* ssid,
-    const char* password
+    SettingsManager& settings
 )
 {
     _settings = &settings;
 
+
     // --------------------------------------------------------
-    // WiFi
+    // HEADER
     // --------------------------------------------------------
 
     Serial0.println();
-    Serial0.println("============================================");
-    Serial0.println("[WEB] WebServerManager");
-    Serial0.println("============================================");
-
-    Serial0.println("[WEB] WiFi");
-
-    WiFi.mode(WIFI_STA);
-
-    Serial0.print("[WEB] Connecting to WiFi: ");
-    Serial0.println(ssid);
-
-    WiFi.begin(
-        ssid,
-        password
+    Serial0.println(
+        "============================================"
     );
 
-    const uint32_t startTime = millis();
+    Serial0.println(
+        "[WEB] WebServerManager"
+    );
 
-    while (
-        WiFi.status() != WL_CONNECTED &&
-        millis() - startTime < WIFI_TIMEOUT_MS
+    Serial0.println(
+        "============================================"
+    );
+
+
+    // --------------------------------------------------------
+    // WIFI CHECK
+    // --------------------------------------------------------
+
+    Serial0.println(
+        "[WEB] Checking WiFi..."
+    );
+
+    if (
+        WiFi.status() != WL_CONNECTED
     )
     {
-        delay(250);
-        Serial0.print(".");
+        Serial0.println(
+            "[WEB][WARN] WiFi is not connected"
+        );
+
+        /*
+         * Это не является фатальной ошибкой.
+         *
+         * WiFiManager может находиться в:
+         *
+         *   - Connecting
+         *   - Setup AP
+         *
+         * WebServer всё равно запускается.
+         *
+         * В Setup Mode:
+         *
+         *   http://192.168.4.1
+         *
+         * После подключения к домашней сети:
+         *
+         *   http://smartclock.local
+         */
     }
-
-    Serial0.println();
-
-    if (WiFi.status() != WL_CONNECTED)
+    else
     {
         Serial0.println(
-            "[WEB][ERROR] WiFi connection FAILED"
+            "[WEB] WiFi connected"
         );
 
         Serial0.print(
-            "[WEB][ERROR] WiFi status: "
+            "[WEB] IP: "
         );
 
         Serial0.println(
-            static_cast<int>(WiFi.status())
+            WiFi.localIP()
         );
 
-        return false;
+        Serial0.print(
+            "[WEB] RSSI: "
+        );
+
+        Serial0.print(
+            WiFi.RSSI()
+        );
+
+        Serial0.println(
+            " dBm"
+        );
     }
-
-    Serial0.println(
-        "[WEB] WiFi connected"
-    );
-
-    Serial0.print(
-        "[WEB] IP: "
-    );
-
-    Serial0.println(
-        WiFi.localIP()
-    );
-
-    Serial0.print(
-        "[WEB] RSSI: "
-    );
-
-    Serial0.print(
-        WiFi.RSSI()
-    );
-
-    Serial0.println(
-        " dBm"
-    );
 
 
     // --------------------------------------------------------
@@ -122,7 +123,9 @@ bool WebServerManager::begin(
     // --------------------------------------------------------
 
     Serial0.println();
-    Serial0.println("[WEB] LittleFS");
+    Serial0.println(
+        "[WEB] LittleFS"
+    );
 
     if (!LittleFS.begin(true))
     {
@@ -139,7 +142,32 @@ bool WebServerManager::begin(
 
 
     // --------------------------------------------------------
-    // Routes
+    // CHECK SETUP PAGE
+    // --------------------------------------------------------
+
+    if (
+        _webWiFiManager &&
+        !LittleFS.exists(
+            "/wifi-setup.html"
+        )
+    )
+    {
+        Serial0.println(
+            "[WEB][WARN] /wifi-setup.html not found"
+        );
+    }
+    else if (
+        _webWiFiManager
+    )
+    {
+        Serial0.println(
+            "[WEB] WiFi setup page: OK"
+        );
+    }
+
+
+    // --------------------------------------------------------
+    // ROUTES
     // --------------------------------------------------------
 
     Serial0.println();
@@ -155,25 +183,54 @@ bool WebServerManager::begin(
 
 
     // --------------------------------------------------------
-    // Server
+    // SERVER
     // --------------------------------------------------------
 
     _server.begin();
 
     _initialized = true;
 
+
     Serial0.println();
     Serial0.println(
         "[WEB] HTTP server started"
     );
 
-    Serial0.print(
-        "[WEB] Server: http://"
-    );
 
-    Serial0.println(
-        WiFi.localIP()
-    );
+    // --------------------------------------------------------
+    // ADDRESS
+    // --------------------------------------------------------
+
+    if (
+        WiFi.status() == WL_CONNECTED
+    )
+    {
+        Serial0.print(
+            "[WEB] Server: http://"
+        );
+
+        Serial0.println(
+            WiFi.localIP()
+        );
+
+        Serial0.println(
+            "[WEB] mDNS: http://smartclock.local"
+        );
+    }
+    else
+    {
+        Serial0.println(
+            "[WEB] Server waiting for WiFi..."
+        );
+
+        /*
+         * Если WiFiManager находится в Setup Mode,
+         * WebServer доступен через:
+         *
+         *   http://192.168.4.1
+         */
+    }
+
 
     Serial0.println(
         "============================================"
@@ -190,7 +247,9 @@ bool WebServerManager::begin(
 void WebServerManager::update()
 {
     if (!_initialized)
+    {
         return;
+    }
 
     _server.handleClient();
 }
@@ -214,10 +273,13 @@ bool WebServerManager::isConnected() const
 
 String WebServerManager::getIP() const
 {
-    if (WiFi.status() != WL_CONNECTED)
-        return String();
+    if (!_webWiFiManager)
+        return "";
 
-    return WiFi.localIP().toString();
+    if (_webWiFiManager->isSetupMode())
+        return _webWiFiManager->getAPIP();
+
+    return _webWiFiManager->getIP();
 }
 
 
@@ -285,6 +347,18 @@ void WebServerManager::setAlarmManager(
 }
 
 
+void WebServerManager::setWiFiManager(
+    WebWiFiManager& manager
+)
+{
+    _webWiFiManager = &manager;
+
+    Serial0.println(
+        "[WEB] WiFiManager attached"
+    );
+}
+
+
 // ============================================================
 // ROUTES
 // ============================================================
@@ -311,7 +385,9 @@ void WebServerManager::setupRoutes()
 
     if (_pageManager)
     {
-        _pageManager->setupRoutes(_server);
+        _pageManager->setupRoutes(
+            _server
+        );
 
         Serial0.println(
             "[WEB] Page routes:      OK"
@@ -331,7 +407,9 @@ void WebServerManager::setupRoutes()
 
     if (_settingsManager)
     {
-        _settingsManager->setupRoutes(_server);
+        _settingsManager->setupRoutes(
+            _server
+        );
 
         Serial0.println(
             "[WEB] Settings routes:  OK"
@@ -351,7 +429,9 @@ void WebServerManager::setupRoutes()
 
     if (_sdManager)
     {
-        _sdManager->setupRoutes(_server);
+        _sdManager->setupRoutes(
+            _server
+        );
 
         Serial0.println(
             "[WEB] SD routes:        OK"
@@ -371,7 +451,9 @@ void WebServerManager::setupRoutes()
 
     if (_audioManager)
     {
-        _audioManager->setupRoutes(_server);
+        _audioManager->setupRoutes(
+            _server
+        );
 
         Serial0.println(
             "[WEB] Audio routes:     OK"
@@ -391,7 +473,9 @@ void WebServerManager::setupRoutes()
 
     if (_alarmManager)
     {
-        _alarmManager->setupRoutes(_server);
+        _alarmManager->setupRoutes(
+            _server
+        );
 
         Serial0.println(
             "[WEB] Alarm routes:     OK"
@@ -401,6 +485,28 @@ void WebServerManager::setupRoutes()
     {
         Serial0.println(
             "[WEB][WARN] Alarm routes: NOT ATTACHED"
+        );
+    }
+
+
+    // --------------------------------------------------------
+    // WIFI
+    // --------------------------------------------------------
+
+    if (_webWiFiManager)
+    {
+        _webWiFiManager->setupRoutes(
+            _server
+        );
+
+        Serial0.println(
+            "[WEB] WiFi routes:      OK"
+        );
+    }
+    else
+    {
+        Serial0.println(
+            "[WEB][WARN] WiFi routes: NOT ATTACHED"
         );
     }
 
@@ -428,40 +534,108 @@ void WebServerManager::setupRoutes()
 
 void WebServerManager::handleRoot()
 {
-    if (_pageManager)
+    /*
+     * ВАЖНО:
+     *
+     * Если SmartClock находится в Setup Mode,
+     * корень:
+     *
+     *   http://192.168.4.1/
+     *
+     * должен показывать страницу настройки WiFi,
+     * а не обычный SmartClock UI.
+     */
+
+    if (
+        _webWiFiManager &&
+        WiFi.getMode() == WIFI_AP
+    )
     {
-        _pageManager->handleRoot(_server);
-        return;
+        if (serveWiFiSetupPage())
+        {
+            return;
+        }
+
+        /*
+         * Если страница отсутствует,
+         * продолжаем обычную обработку.
+         */
     }
 
 
-    if (!LittleFS.exists("/index.html"))
+    // --------------------------------------------------------
+    // NORMAL SMARTCLOCK PAGE
+    // --------------------------------------------------------
+
+    if (_pageManager)
     {
-        _server.send(
-            404,
-            "text/plain",
-            "index.html not found"
+        _pageManager->handleRoot(
+            _server
         );
 
         return;
     }
 
 
-    File file = LittleFS.open(
+    serveFile(
         "/index.html",
-        "r"
+        "text/html; charset=utf-8"
     );
+}
+
+
+// ============================================================
+// WIFI SETUP PAGE
+// ============================================================
+
+bool WebServerManager::serveWiFiSetupPage()
+{
+    const char* path =
+        "/wifi-setup.html";
+
+
+    if (!LittleFS.exists(path))
+    {
+        Serial0.println(
+            "[WEB][ERROR] WiFi setup page not found"
+        );
+
+        _server.send(
+            404,
+            "text/plain; charset=utf-8",
+            "wifi-setup.html not found"
+        );
+
+        return false;
+    }
+
+
+    File file =
+        LittleFS.open(
+            path,
+            "r"
+        );
+
 
     if (!file)
     {
-        _server.send(
-            500,
-            "text/plain",
-            "Failed to open index.html"
+        Serial0.println(
+            "[WEB][ERROR] Failed to open WiFi setup page"
         );
 
-        return;
+        _server.send(
+            500,
+            "text/plain; charset=utf-8",
+            "Failed to open wifi-setup.html"
+        );
+
+        return false;
     }
+
+
+    Serial0.println(
+        "[WEB] Serving WiFi setup page"
+    );
 
 
     _server.streamFile(
@@ -469,7 +643,74 @@ void WebServerManager::handleRoot()
         "text/html; charset=utf-8"
     );
 
+
     file.close();
+
+    return true;
+}
+
+
+// ============================================================
+// STATIC FILE
+// ============================================================
+
+bool WebServerManager::serveFile(
+    const char* path,
+    const char* contentType
+)
+{
+    if (!LittleFS.exists(path))
+    {
+        Serial0.print(
+            "[WEB][ERROR] File not found: "
+        );
+
+        Serial0.println(path);
+
+        _server.send(
+            404,
+            "text/plain; charset=utf-8",
+            "File not found"
+        );
+
+        return false;
+    }
+
+
+    File file =
+        LittleFS.open(
+            path,
+            "r"
+        );
+
+
+    if (!file)
+    {
+        Serial0.print(
+            "[WEB][ERROR] Failed to open: "
+        );
+
+        Serial0.println(path);
+
+        _server.send(
+            500,
+            "text/plain; charset=utf-8",
+            "Failed to open file"
+        );
+
+        return false;
+    }
+
+
+    _server.streamFile(
+        file,
+        contentType
+    );
+
+
+    file.close();
+
+    return true;
 }
 
 
@@ -479,21 +720,47 @@ void WebServerManager::handleRoot()
 
 void WebServerManager::handleNotFound()
 {
-    const String uri = _server.uri();
+    const String uri =
+        _server.uri();
 
 
     // --------------------------------------------------------
-    // Dynamic alarm API
+    // WIFI SETUP STATIC RESOURCES
+    // --------------------------------------------------------
+    //
+    // В Setup Mode JS/CSS должны работать:
+    //
+    //   /css/wifi-setup.css
+    //   /js/wifi-setup.js
+    //
+    // WebPageManager может обработать их самостоятельно.
+    //
+    // Здесь специально не перехватываем их.
+    // --------------------------------------------------------
+
+
+    // --------------------------------------------------------
+    // DYNAMIC ALARM API
     //
     // Important:
-    // WebServer does not have a generic "{id}" route.
-    // AlarmManager therefore receives dynamic alarm requests
-    // through this single global router.
+    //
+    // WebServer does not support generic:
+    //
+    //   /api/alarms/{id}
+    //
+    // routes.
+    //
+    // Therefore WebAlarmManager receives dynamic alarm
+    // requests through this global router.
     // --------------------------------------------------------
 
     if (_alarmManager)
     {
-        if (_alarmManager->handleDynamicRequest(_server))
+        if (
+            _alarmManager->handleDynamicRequest(
+                _server
+            )
+        )
         {
             return;
         }
@@ -501,12 +768,16 @@ void WebServerManager::handleNotFound()
 
 
     // --------------------------------------------------------
-    // Static files
+    // STATIC FILES
     // --------------------------------------------------------
 
     if (_pageManager)
     {
-        if (_pageManager->handleNotFound(_server))
+        if (
+            _pageManager->handleNotFound(
+                _server
+            )
+        )
         {
             return;
         }
@@ -514,41 +785,57 @@ void WebServerManager::handleNotFound()
 
 
     // --------------------------------------------------------
-    // Final 404
+    // FINAL 404
     // --------------------------------------------------------
 
     Serial0.print(
         "[WEB][404] "
     );
 
+
     switch (_server.method())
     {
         case HTTP_GET:
-            Serial0.print("GET ");
+            Serial0.print(
+                "GET "
+            );
             break;
 
         case HTTP_POST:
-            Serial0.print("POST ");
+            Serial0.print(
+                "POST "
+            );
             break;
 
         case HTTP_PUT:
-            Serial0.print("PUT ");
+            Serial0.print(
+                "PUT "
+            );
             break;
 
         case HTTP_DELETE:
-            Serial0.print("DELETE ");
+            Serial0.print(
+                "DELETE "
+            );
             break;
 
         case HTTP_PATCH:
-            Serial0.print("PATCH ");
+            Serial0.print(
+                "PATCH "
+            );
             break;
 
         default:
-            Serial0.print("REQUEST ");
+            Serial0.print(
+                "REQUEST "
+            );
             break;
     }
 
-    Serial0.println(uri);
+
+    Serial0.println(
+        uri
+    );
 
 
     _server.send(
@@ -557,3 +844,7 @@ void WebServerManager::handleNotFound()
         "{\"ok\":false,\"error\":\"Not found\"}"
     );
 }
+// ============================================================
+// SETUP MODE
+// ============================================================
+

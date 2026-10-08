@@ -349,7 +349,7 @@ void WebAlarmManager::handleGetAlarm(
 
     Alarm alarm;
 
-    if (!_alarmManager.getAlarm(id, alarm))
+    if (!_alarmManager.get(id, alarm))
     {
         sendError(
             server,
@@ -403,7 +403,7 @@ void WebAlarmManager::handleCreateAlarm(
     }
 
 
-    if (!_alarmManager.createAlarm(alarm))
+    if (!_alarmManager.create(alarm))
     {
         sendError(
             server,
@@ -461,7 +461,7 @@ void WebAlarmManager::handleUpdateAlarm(
     alarm.id = id;
 
 
-    if (!_alarmManager.updateAlarm(alarm))
+    if (!_alarmManager.update(alarm))
     {
         sendError(
             server,
@@ -504,7 +504,7 @@ void WebAlarmManager::handleDeleteAlarm(
     }
 
 
-    if (!_alarmManager.removeAlarm(id))
+    if (!_alarmManager.remove(id))
     {
         sendError(
             server,
@@ -611,7 +611,7 @@ void WebAlarmManager::handleSetEnabled(
 
     Alarm alarm;
 
-    if (!_alarmManager.getAlarm(
+    if (!_alarmManager.get(
             id,
             alarm
         ))
@@ -1223,85 +1223,59 @@ void WebAlarmManager::sendAlarm(
 // SEND ALARM LIST
 // ============================================================
 
-void WebAlarmManager::sendAlarmList(
-    WebServer& server
-)
+void WebAlarmManager::sendAlarmList(WebServer& server)
 {
-    Alarm alarms[
-        AlarmConfig::MAX_ALARMS
-    ];
+    Alarm alarms[AlarmConfig::MAX_ALARMS];
+    uint8_t count = 0;
 
-    const size_t count =
-        _alarmManager.listAlarms(
+    if (!_alarmManager.loadAll(
             alarms,
-            AlarmConfig::MAX_ALARMS
+            AlarmConfig::MAX_ALARMS,
+            count))
+    {
+        sendError(
+            server,
+            500,
+            "Failed to load alarms"
         );
 
-
-    DynamicJsonDocument doc(
-        JSON_DOC_SIZE
-    );
-
-    JsonArray array =
-        doc.createNestedArray("alarms");
-
-
-    for (size_t i = 0; i < count; ++i)
-    {
-        JsonObject item =
-            array.createNestedObject();
-
-        item["schemaVersion"] =
-            alarms[i].schemaVersion;
-
-        item["id"] =
-            alarms[i].id;
-
-        item["name"] =
-            alarms[i].name;
-
-        item["enabled"] =
-            alarms[i].enabled;
-
-
-        JsonObject time =
-            item.createNestedObject("time");
-
-        time["hour"] =
-            alarms[i].time.hour;
-
-        time["minute"] =
-            alarms[i].time.minute;
-
-        time["second"] =
-            alarms[i].time.second;
-
-
-        item["repeatMask"] =
-            alarms[i].repeatMask;
-
-        item["matrixEffect"] =
-            alarms[i].matrixEffect;
-
-        item["cobEffect"] =
-            alarms[i].cobEffect;
-
-        item["audioEffect"] =
-            alarms[i].audioEffect;
+        return;
     }
 
 
-    doc["count"] =
-        count;
+    JsonDocument doc;
+
+    doc["ok"] = true;
+
+    JsonArray array = doc["alarms"].to<JsonArray>();
+
+    for (uint8_t i = 0; i < count; ++i)
+    {
+        const Alarm& alarm = alarms[i];
+
+        JsonObject item = array.add<JsonObject>();
+
+        item["schemaVersion"] = alarm.schemaVersion;
+        item["id"]            = alarm.id;
+        item["name"]          = alarm.name;
+        item["enabled"]       = alarm.enabled;
+        item["repeatMask"]    = alarm.repeatMask;
+
+        JsonObject time = item["time"].to<JsonObject>();
+
+        time["hour"]   = alarm.time.hour;
+        time["minute"] = alarm.time.minute;
+        time["second"] = alarm.time.second;
+
+        item["matrixEffect"] = alarm.matrixEffect;
+        item["cobEffect"]    = alarm.cobEffect;
+        item["audioEffect"]  = alarm.audioEffect;
+    }
 
 
     String response;
 
-    serializeJson(
-        doc,
-        response
-    );
-
+    serializeJson(doc, response);
 
     server.send(
         200,
