@@ -576,36 +576,20 @@ void SunriseLightEffect::calculateBrightness()
     // GAMMA CORRECTION
     // ========================================================
 
-    const float normalized =
-        static_cast<float>(_perceivedBrightness) / 100.0f;
+const float normalized =
+    static_cast<float>(_perceivedBrightness) / 100.0f;
 
-    const float corrected = powf(
-        normalized,
-        SunriseConfig::GAMMA
-    );
+const float corrected =
+    powf(normalized, 1.0f / SunriseConfig::GAMMA);
 
-    // ========================================================
-    // CONVERT TO HARDWARE BRIGHTNESS (0-255)
-    // ========================================================
+int output = static_cast<int>(corrected * 255.0f + 0.5f);
 
-    int output = static_cast<int>(
-        corrected * 255.0f + 0.5f
-    );
+if (output < 0)
+    output = 0;
+else if (output > 255)
+    output = 255;
 
-    // Clamp to valid range.
-    if (output < 0)
-        output = 0;
-    else if (output > 255)
-        output = 255;
-
-    // ========================================================
-    // PREVENT POSITIVE BRIGHTNESS FROM ROUNDING TO ZERO
-    // ========================================================
-
-    if (_perceivedBrightness > 0 && output == 0)
-        output = 1;
-
-    _brightness = static_cast<uint8_t>(output);
+_brightness = static_cast<uint8_t>(output);
 }
 
 // ============================================================
