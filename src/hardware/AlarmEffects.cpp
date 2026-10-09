@@ -170,7 +170,7 @@ void AlarmEffects::updateSunrise(
 
 void AlarmEffects::updateSunriseLight()
 {
-    {
+    
     static uint8_t lastBrightness = 200;
 
     const uint8_t brightness = _sunrise.brightness();
