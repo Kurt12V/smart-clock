@@ -28,12 +28,12 @@ namespace SunriseConfig
     constexpr uint8_t PHASE_1_END_BLUE  = 0;
 
     // Light intensity, percent.
-    constexpr uint8_t PHASE_1_LIGHT_START_PERCENT = 5;
-    constexpr uint8_t PHASE_1_LIGHT_END_PERCENT   = 30;
+    constexpr uint8_t PHASE_1_LIGHT_START_PERCENT =0;
+    constexpr uint8_t PHASE_1_LIGHT_END_PERCENT   = 15;
 
     // Audio volume, percent.
     constexpr uint8_t PHASE_1_SOUND_START_PERCENT = 0;
-    constexpr uint8_t PHASE_1_SOUND_END_PERCENT   = 5;
+    constexpr uint8_t PHASE_1_SOUND_END_PERCENT   = 0;
 
     // ========================================================
     // PHASE 2: WARM LIGHT
@@ -47,8 +47,8 @@ namespace SunriseConfig
     constexpr uint8_t PHASE_2_END_GREEN = 60;
     constexpr uint8_t PHASE_2_END_BLUE  = 40;
 
-    constexpr uint8_t PHASE_2_LIGHT_START_PERCENT = 30;
-    constexpr uint8_t PHASE_2_LIGHT_END_PERCENT   = 60;
+    constexpr uint8_t PHASE_2_LIGHT_START_PERCENT = 15;
+    constexpr uint8_t PHASE_2_LIGHT_END_PERCENT   = 30;
 
     constexpr uint8_t PHASE_2_SOUND_START_PERCENT = 5;
     constexpr uint8_t PHASE_2_SOUND_END_PERCENT   = 15;
@@ -65,8 +65,8 @@ namespace SunriseConfig
     constexpr uint8_t PEAK_GREEN = 90;
     constexpr uint8_t PEAK_BLUE  = 255;
 
-    constexpr uint8_t PHASE_3_LIGHT_START_PERCENT = 60;
-    constexpr uint8_t PHASE_3_LIGHT_END_PERCENT   = 100;
+    constexpr uint8_t PHASE_3_LIGHT_START_PERCENT = 30;
+    constexpr uint8_t PHASE_3_LIGHT_END_PERCENT   = 50;
 
     constexpr uint8_t PHASE_3_SOUND_START_PERCENT = 15;
     constexpr uint8_t PHASE_3_SOUND_END_PERCENT   = 35;

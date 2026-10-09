@@ -510,27 +510,15 @@ uint8_t SunriseLightEffect::clampPercent(uint8_t value)
 
 uint8_t SunriseLightEffect::lightPercentToOutput(float percent)
 {
-    if (percent <= 0.0f)
-        return 0;
+    if (percent <= 0.0f) return 0;
+    if (percent >= 100.0f) return SunriseConfig::MAX_OUTPUT_BRIGHTNESS;
 
-    if (percent > 100.0f)
-        percent = 100.0f;
+    // 1 % -> 1, 100 % -> MAX_OUTPUT_BRIGHTNESS
+    float output = (percent / 100.0f) * SunriseConfig::MAX_OUTPUT_BRIGHTNESS;
 
-    float gamma = SunriseConfig::GAMMA;
+    // Округление вверх, чтобы 1 % не превращался в 0
+    uint8_t result = static_cast<uint8_t>(ceilf(output));
 
-    if (gamma <= 0.0001f)
-        gamma = 1.0f;
-
-    const float corrected = powf(percent / 100.0f, 1.0f / gamma);
-
-    const int output = static_cast<int>(
-        lroundf(corrected * SunriseConfig::MAX_OUTPUT_BRIGHTNESS));
-
-    if (output < 0)
-        return 0;
-
-    if (output > SunriseConfig::MAX_OUTPUT_BRIGHTNESS)
-        return SunriseConfig::MAX_OUTPUT_BRIGHTNESS;
-
-    return static_cast<uint8_t>(output);
+    if (result < 1) result = 1;   // минимум 1 шаг, если percent > 0
+    return result;
 }
