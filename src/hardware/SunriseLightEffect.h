@@ -4,28 +4,22 @@
 #include <Arduino.h>
 #include <stdint.h>
 
-// ============================================================
-// SUNRISE CONFIGURATION
-// ============================================================
-
 namespace SunriseConfig
 {
-    // --------------------------------------------------------
-    // TIMING
-    // --------------------------------------------------------
+    // ========================================================
+    // DURATION
+    // ========================================================
 
     constexpr uint32_t DEFAULT_DURATION_MS = 25UL * 60UL * 1000UL;
+    constexpr uint32_t PHASE_1_END_MS     = 20UL * 60UL * 1000UL;
+    constexpr uint32_t PHASE_2_END_MS     = 22UL * 60UL * 1000UL;
+    constexpr uint32_t MIN_DURATION_MS    = PHASE_2_END_MS + 1UL;
 
-    constexpr uint32_t PHASE_1_END_MS = 20UL * 60UL * 1000UL;
-    constexpr uint32_t PHASE_2_END_MS = 22UL * 60UL * 1000UL;
+    // ========================================================
+    // PHASE 1: RED SUNRISE
+    // ========================================================
 
-    constexpr uint32_t MIN_DURATION_MS = PHASE_2_END_MS + 1UL;
-
-    // --------------------------------------------------------
-    // PHASE 1: DARK -> WARM ORANGE
-    // --------------------------------------------------------
-
-    constexpr uint8_t PHASE_1_START_RED   = 0;
+    constexpr uint8_t PHASE_1_START_RED   = 255;
     constexpr uint8_t PHASE_1_START_GREEN = 0;
     constexpr uint8_t PHASE_1_START_BLUE  = 0;
 
@@ -33,12 +27,17 @@ namespace SunriseConfig
     constexpr uint8_t PHASE_1_END_GREEN = 140;
     constexpr uint8_t PHASE_1_END_BLUE  = 0;
 
-    constexpr uint8_t PHASE_1_START_BRIGHTNESS = 0;
-    constexpr uint8_t PHASE_1_END_BRIGHTNESS   = 60;
+    // Light intensity, percent.
+    constexpr uint8_t PHASE_1_LIGHT_START_PERCENT = 5;
+    constexpr uint8_t PHASE_1_LIGHT_END_PERCENT   = 30;
 
-    // --------------------------------------------------------
-    // PHASE 2: WARM ORANGE -> WARM RED
-    // --------------------------------------------------------
+    // Audio volume, percent.
+    constexpr uint8_t PHASE_1_SOUND_START_PERCENT = 0;
+    constexpr uint8_t PHASE_1_SOUND_END_PERCENT   = 5;
+
+    // ========================================================
+    // PHASE 2: WARM LIGHT
+    // ========================================================
 
     constexpr uint8_t PHASE_2_START_RED   = 255;
     constexpr uint8_t PHASE_2_START_GREEN = 140;
@@ -48,12 +47,15 @@ namespace SunriseConfig
     constexpr uint8_t PHASE_2_END_GREEN = 60;
     constexpr uint8_t PHASE_2_END_BLUE  = 40;
 
-    constexpr uint8_t PHASE_2_START_BRIGHTNESS = 60;
-    constexpr uint8_t PHASE_2_END_BRIGHTNESS   = 75;
+    constexpr uint8_t PHASE_2_LIGHT_START_PERCENT = 30;
+    constexpr uint8_t PHASE_2_LIGHT_END_PERCENT   = 60;
 
-    // --------------------------------------------------------
-    // PHASE 3: WARM RED -> BLUE PEAK
-    // --------------------------------------------------------
+    constexpr uint8_t PHASE_2_SOUND_START_PERCENT = 5;
+    constexpr uint8_t PHASE_2_SOUND_END_PERCENT   = 15;
+
+    // ========================================================
+    // PHASE 3: FINAL BRIGHTENING
+    // ========================================================
 
     constexpr uint8_t PHASE_3_START_RED   = 255;
     constexpr uint8_t PHASE_3_START_GREEN = 60;
@@ -63,34 +65,37 @@ namespace SunriseConfig
     constexpr uint8_t PEAK_GREEN = 90;
     constexpr uint8_t PEAK_BLUE  = 255;
 
-    constexpr uint8_t PHASE_3_START_BRIGHTNESS = 75;
-    constexpr uint8_t PHASE_3_END_BRIGHTNESS   = 100;
+    constexpr uint8_t PHASE_3_LIGHT_START_PERCENT = 60;
+    constexpr uint8_t PHASE_3_LIGHT_END_PERCENT   = 100;
 
-    // --------------------------------------------------------
-    // BRIGHTNESS
-    // --------------------------------------------------------
+    constexpr uint8_t PHASE_3_SOUND_START_PERCENT = 15;
+    constexpr uint8_t PHASE_3_SOUND_END_PERCENT   = 35;
 
+    // ========================================================
+    // PEAK
+    // ========================================================
+
+    constexpr uint8_t PEAK_LIGHT_PERCENT = 100;
+    constexpr uint8_t PEAK_SOUND_PERCENT = 40;
+
+    // Maximum value passed to the LED matrix brightness API.
+    constexpr uint8_t MAX_OUTPUT_BRIGHTNESS = 150;
+
+    // Gamma correction for LED output.
     constexpr float GAMMA = 2.2f;
 
-    // --------------------------------------------------------
-    // AUXILIARY / COB LIGHTING
-    // --------------------------------------------------------
+    // ========================================================
+    // AUXILIARY LIGHT
+    // ========================================================
 
     constexpr uint32_t AUX_FLASH_FREQUENCY_HZ = 40;
-
     constexpr uint8_t AUX_FLASH_DUTY_PERCENT = 50;
-
     constexpr uint8_t DEFAULT_AUX_BRIGHTNESS_PERCENT = 15;
 }
-
-// ============================================================
-// SUNRISE LIGHT EFFECT
-// ============================================================
 
 class SunriseLightEffect
 {
 public:
-
     enum class State : uint8_t
     {
         Stopped,
@@ -98,24 +103,13 @@ public:
         Peak
     };
 
-    // --------------------------------------------------------
-    // LIFECYCLE
-    // --------------------------------------------------------
-
     SunriseLightEffect();
 
     void begin();
     void start();
-
-    // elapsedMs: elapsed time since the sunrise started.
     void update(uint32_t elapsedMs);
-
     void stop();
     void reset();
-
-    // --------------------------------------------------------
-    // CONFIGURATION
-    // --------------------------------------------------------
 
     void setDuration(uint32_t durationMs);
     uint32_t duration() const;
@@ -123,53 +117,38 @@ public:
     void setAuxiliaryBrightness(uint8_t percent);
     uint8_t auxiliaryBrightness() const;
 
-    // --------------------------------------------------------
-    // STATE
-    // --------------------------------------------------------
-
     State state() const;
 
     bool isRunning() const;
     bool isPeak() const;
     bool isStopped() const;
-
     bool begun() const;
 
     uint32_t elapsed() const;
-
-    // --------------------------------------------------------
-    // RGB OUTPUT
-    // --------------------------------------------------------
 
     uint8_t red() const;
     uint8_t green() const;
     uint8_t blue() const;
 
-    // Perceived brightness: 0-100%.
-    uint8_t perceivedBrightness() const;
+    // Configured perceived light percentage: 0-100.
+    uint8_t lightPercent() const;
 
-    // Gamma-corrected output brightness: 0-255.
+    // Actual output value for LedMatrixManager::setBrightness().
     uint8_t brightness() const;
 
-    // --------------------------------------------------------
-    // AUXILIARY LIGHT OUTPUT
-    // --------------------------------------------------------
+    // Desired audio volume percentage: 0-100.
+    uint8_t soundPercent() const;
 
     bool auxiliaryEnabled() const;
     bool auxiliaryFlashState() const;
 
 private:
-
-    // --------------------------------------------------------
-    // CALCULATIONS
-    // --------------------------------------------------------
-
     void updateSunrise();
     void updatePeak();
     void updateAuxiliaryFlash();
 
     void calculateColor();
-    void calculateBrightness();
+    void calculateOutputs();
 
     float calculateProgress(
         uint32_t startMs,
@@ -183,32 +162,21 @@ private:
     );
 
     static uint8_t clampPercent(uint8_t value);
-
-    // --------------------------------------------------------
-    // STATE
-    // --------------------------------------------------------
+    static uint8_t lightPercentToOutput(float percent);
 
     State _state;
-
     bool _begun;
 
     uint32_t _durationMs;
     uint32_t _elapsedMs;
 
-    // --------------------------------------------------------
-    // RGB
-    // --------------------------------------------------------
-
     uint8_t _red;
     uint8_t _green;
     uint8_t _blue;
 
-    uint8_t _perceivedBrightness;
+    uint8_t _lightPercent;
     uint8_t _brightness;
-
-    // --------------------------------------------------------
-    // AUXILIARY LIGHTING
-    // --------------------------------------------------------
+    uint8_t _soundPercent;
 
     uint8_t _auxiliaryBrightnessPercent;
 
@@ -216,10 +184,6 @@ private:
     bool _auxiliaryFlashState;
 
     uint32_t _lastAuxiliaryToggleUs;
-
-    // --------------------------------------------------------
-    // PHASE TRACKING
-    // --------------------------------------------------------
 
     uint8_t _currentPhase;
 };
