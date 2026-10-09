@@ -1,88 +1,40 @@
+
 #include <Arduino.h>
 
 #include "Pins.h"
-
-#include "./managers/LedMatrixManager.h"
-#include "./managers/CobLedManager.h"
-#include "./managers/I2SManager.h"
-
-#include "./hardware/AlarmEffects.h"
 #include "Config.h"
+#include "./managers/SettingsManager.h"
+
+#include "./managers/LightingManager.h"
+#include "./managers/I2SManager.h"
+#include "./hardware/AlarmEffects.h"
 
 // ============================================================
-// HARDWARE
+// SETTINGS
 // ============================================================
 
-// ------------------------------------------------------------
-// MATRIX
-// ------------------------------------------------------------
+SettingsManager g_settings;
 
-LedMatrixManager g_matrix(
-    PIN_MATRIX
-);
+// ============================================================
+// LIGHTING
+// ============================================================
 
-// ------------------------------------------------------------
-// COB LEDS
-// ------------------------------------------------------------
-//
-// Здесь используются твои реальные CobLed.
-//
-// Имена пинов нужно заменить на те,
-// которые используются в твоём Pins.h.
-// ------------------------------------------------------------
-
-CobLed g_cob1(
-    PIN_COB1,
-    1,
-    Config::COB_PWM_FREQUENCY,
-    Config::COB_PWM_RESOLUTION
-);
-
-CobLed g_cob2(
-    PIN_COB2,
-    2,
-    Config::COB_PWM_FREQUENCY,
-    Config::COB_PWM_RESOLUTION
-);
-
-CobLed g_cob3(
-    PIN_COB3,
-    3,
-    Config::COB_PWM_FREQUENCY,
-    Config::COB_PWM_RESOLUTION
-);
-
-CobLed g_cob4(
-    PIN_COB4,
-    4,
-    Config::COB_PWM_FREQUENCY,
-    Config::COB_PWM_RESOLUTION
+LightingManager g_lighting(
+    g_settings
 );
 
 // ============================================================
-// COB MANAGER
+// AUDIO
 // ============================================================
-
-CobLedManager g_cobManager(
-    g_cob1,
-    g_cob2,
-    g_cob3,
-    g_cob4
-);
-
-// ------------------------------------------------------------
-// I2S
-// ------------------------------------------------------------
 
 I2SManager g_i2s;
 
-// ------------------------------------------------------------
+// ============================================================
 // ALARM EFFECTS
-// ------------------------------------------------------------
+// ============================================================
 
 AlarmEffects g_alarmEffects(
-    g_matrix,
-    g_cobManager,
+    g_lighting,
     g_i2s
 );
 
@@ -90,7 +42,11 @@ AlarmEffects g_alarmEffects(
 // TEST STATE
 // ============================================================
 
+static constexpr uint32_t TEST_DURATION_MS =
+    25UL * 60UL * 1000UL;
+
 uint32_t g_testStartMs = 0;
+uint32_t g_lastDebugMs = 0;
 
 bool g_testStarted = false;
 
@@ -112,37 +68,36 @@ void setup()
     Serial0.println(
         "============================================"
     );
-
     Serial0.println(
         "SMART CLOCK - ALARM EFFECT TEST"
     );
-
     Serial0.println(
         "============================================"
     );
 
     // --------------------------------------------------------
-    // MATRIX
+    // LIGHTING MANAGER
     // --------------------------------------------------------
 
     Serial0.println(
-        "[TEST] Starting LedMatrixManager..."
+        "[TEST] Starting LightingManager..."
     );
 
-    g_matrix.begin();
+    if (!g_lighting.begin())
+    {
+        Serial0.println(
+            "[TEST][ERROR] LightingManager failed"
+        );
 
-    // --------------------------------------------------------
-    // COB
-    // --------------------------------------------------------
+        return;
+    }
 
     Serial0.println(
-        "[TEST] Starting CobLedManager..."
+        "[TEST] LightingManager READY"
     );
 
-    g_cobManager.begin();
-
     // --------------------------------------------------------
-    // I2S
+    // I2S MANAGER
     // --------------------------------------------------------
 
     Serial0.println(
@@ -154,13 +109,13 @@ void setup()
         Serial0.println(
             "[TEST][ERROR] I2SManager failed"
         );
+
+        return;
     }
-    else
-    {
-        Serial0.println(
-            "[TEST] I2SManager READY"
-        );
-    }
+
+    Serial0.println(
+        "[TEST] I2SManager READY"
+    );
 
     // --------------------------------------------------------
     // ALARM EFFECTS
@@ -196,21 +151,20 @@ void setup()
     );
 
     Serial0.println(
-        "[TEST] Peak: 25 minutes"
+        "[TEST] Volume reaches 30% at 25 minutes"
     );
 
     Serial0.println(
-        "[TEST] Auxiliary LEDs: 40 Hz after peak"
+        "[TEST] Volume reaches 100% at 26 minutes"
     );
 
     Serial0.println();
 
-    g_alarmEffects.startSunrise();
-
-    g_testStartMs =
-        millis();
-
+    g_testStartMs = millis();
+    g_lastDebugMs = g_testStartMs;
     g_testStarted = true;
+
+    g_alarmEffects.startSunrise();
 }
 
 // ============================================================
@@ -220,18 +174,18 @@ void setup()
 void loop()
 {
     if (!g_testStarted)
+    {
+        delay(10);
         return;
+    }
 
-    // --------------------------------------------------------
-    // ELAPSED TIME
-    // --------------------------------------------------------
+    const uint32_t now = millis();
 
     const uint32_t elapsedMs =
-        millis() -
-        g_testStartMs;
+        now - g_testStartMs;
 
     // --------------------------------------------------------
-    // ALARM EFFECTS
+    // UPDATE ALARM
     // --------------------------------------------------------
 
     g_alarmEffects.update(
@@ -239,36 +193,43 @@ void loop()
     );
 
     // --------------------------------------------------------
-    // NORMAL MANAGERS
-    // --------------------------------------------------------
+    // UPDATE LIGHTING
     //
-    // Важно:
-    //
-    // matrix.update() и cob.update()
-    // продолжают работать.
-    //
-    // AlarmEffects временно отключает
-    // их обычные effects.
+    // LightingManager пропускает обычные эффекты и применение
+    // пользовательских настроек, пока активен alarm override.
     // --------------------------------------------------------
 
-    g_matrix.update();
+    g_lighting.update();
 
-    g_cobManager.update();
+    // --------------------------------------------------------
+    // AUTOMATIC TEST STOP
+    // --------------------------------------------------------
+
+    if (elapsedMs >= TEST_DURATION_MS)
+    {
+        Serial0.println();
+        Serial0.println(
+            "[TEST] Duration complete. Stopping sunrise..."
+        );
+
+        g_alarmEffects.stop();
+
+        g_testStarted = false;
+
+        Serial0.println(
+            "[TEST] Sunrise stopped. Lighting restored."
+        );
+
+        return;
+    }
 
     // --------------------------------------------------------
     // DEBUG EVERY SECOND
     // --------------------------------------------------------
 
-    static uint32_t lastDebug = 0;
-
-    if (
-        elapsedMs -
-        lastDebug >=
-        1000
-    )
+    if (now - g_lastDebugMs >= 1000)
     {
-        lastDebug =
-            elapsedMs;
+        g_lastDebugMs = now;
 
         const uint32_t seconds =
             elapsedMs / 1000;
@@ -282,29 +243,20 @@ void loop()
         Serial0.printf(
             "[TEST] Sunrise %02lu:%02lu | "
             "Active=%d | "
-            "Audio=%d\n",
+            "Audio=%d | "
+            "LightingOverride=%d\n",
 
-            static_cast<unsigned long>(
-                minutes
-            ),
+            static_cast<unsigned long>(minutes),
 
-            static_cast<unsigned long>(
-                remainingSeconds
-            ),
+            static_cast<unsigned long>(remainingSeconds),
 
-            g_alarmEffects.isActive()
-                ? 1
-                : 0,
+            g_alarmEffects.isActive() ? 1 : 0,
 
-            g_i2s.isSpeakerInitialized()
-                ? 1
-                : 0
+            g_i2s.isSpeakerInitialized() ? 1 : 0,
+
+            g_lighting.isAlarmOverrideActive() ? 1 : 0
         );
     }
-
-    // --------------------------------------------------------
-    // SMALL DELAY
-    // --------------------------------------------------------
 
     delay(1);
 }

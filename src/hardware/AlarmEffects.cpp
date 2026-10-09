@@ -1,3 +1,4 @@
+
 #include "AlarmEffects.h"
 
 #include <algorithm>
@@ -8,12 +9,10 @@
 // ============================================================
 
 AlarmEffects::AlarmEffects(
-    LedMatrixManager& matrix,
-    CobLedManager& cob,
+    LightingManager& lighting,
     I2SManager& i2s
 )
-    : _matrix(matrix),
-      _cob(cob),
+    : _lighting(lighting),
       _i2s(i2s),
 
       _effect(EffectType::None),
@@ -24,24 +23,10 @@ AlarmEffects::AlarmEffects(
       _sunrise(),
       _music(),
 
-      _audioBuffer{},
+      _monoAudioBuffer{},
+      _stereoAudioBuffer{},
 
-      _audioStarted(false),
-
-      _savedMatrixOn(false),
-      _savedMatrixBrightness(0),
-      _savedMatrixEffect(
-          LedMatrixManager::Effect::None
-      ),
-      _savedMatrixEffectSpeed(0),
-      _savedMatrixTransitionTime(0),
-
-      _savedCobEnabled(false),
-      _savedCobEffect(0),
-      _savedCobSpeed(0),
-      _savedCobBrightness{0, 0, 0, 0},
-
-      _controlTaken(false)
+      _audioStarted(false)
 {
 }
 
@@ -54,7 +39,9 @@ void AlarmEffects::begin()
     if (_begun)
         return;
 
-    Serial0.printf("[AlarmEffects] begin()\n");
+    Serial0.printf(
+        "[AlarmEffects] begin()\n"
+    );
 
     _music.begin(
         AUDIO_SAMPLE_RATE
@@ -64,7 +51,9 @@ void AlarmEffects::begin()
 
     _begun = true;
 
-    Serial0.printf("[AlarmEffects] begin() done\n");
+    Serial0.printf(
+        "[AlarmEffects] begin() done\n"
+    );
 }
 
 // ============================================================
@@ -73,57 +62,60 @@ void AlarmEffects::begin()
 
 void AlarmEffects::startSunrise()
 {
-    Serial0.printf("[AlarmEffects] startSunrise()\n");
+    Serial0.printf(
+        "[AlarmEffects] startSunrise()\n"
+    );
 
     if (!_begun)
         begin();
 
-    // --------------------------------------------------------
-    // Stop previous effect
-    // --------------------------------------------------------
-
+    // Останавливаем предыдущий эффект.
     stop();
 
     // --------------------------------------------------------
-    // Save normal system state
+    // STOP PREVIOUS AUDIO
     // --------------------------------------------------------
 
-    saveOutputs();
+    if (_i2s.isSpeakerInitialized())
+    {
+        _i2s.stopSpeaker();
+        _i2s.clearSpeaker();
+    }
+
+    _audioStarted = false;
 
     // --------------------------------------------------------
-    // Take temporary control
+    // TAKE LIGHTING CONTROL
     // --------------------------------------------------------
 
-    takeControl();
+    _lighting.beginAlarmOverride();
 
     // --------------------------------------------------------
-    // Start sunrise logic
+    // START SUNRISE
     // --------------------------------------------------------
 
     _sunrise.start();
 
     // --------------------------------------------------------
-    // Start music generator
+    // START MUSIC GENERATOR
     //
-    // Actual I2S output starts later at 21 minutes.
+    // PCM генерируется с нулевой громкостью.
+    // Физический вывод включается на 21-й минуте.
     // --------------------------------------------------------
 
+    _music.setVolume(0.0f);
     _music.start();
 
-    _music.setVolume(
-        0.0f
-    );
-
-    _audioStarted = false;
-
     // --------------------------------------------------------
-    // State
+    // STATE
     // --------------------------------------------------------
 
     _effect = EffectType::Sunrise;
     _active = true;
 
-    Serial0.printf("[AlarmEffects] Sunrise started\n");
+    Serial0.printf(
+        "[AlarmEffects] Sunrise started\n"
+    );
 }
 
 // ============================================================
@@ -140,52 +132,32 @@ void AlarmEffects::update(
     switch (_effect)
     {
         case EffectType::Sunrise:
-
-            updateSunrise(
-                elapsedMs
-            );
-
+            updateSunrise(elapsedMs);
             break;
 
         case EffectType::None:
-
         default:
-
             break;
     }
 }
 
 // ============================================================
-// SUNRISE
+// UPDATE SUNRISE
 // ============================================================
 
 void AlarmEffects::updateSunrise(
     uint32_t elapsedMs
 )
 {
-    // --------------------------------------------------------
-    // Sunrise calculation
-    // --------------------------------------------------------
-
+    // Сохраняем исходный контракт SunriseLightEffect:
+    // ему передаётся elapsedMs, как и в предыдущем коде.
     _sunrise.update(
         elapsedMs
     );
 
-    // --------------------------------------------------------
-    // Apply matrix
-    // --------------------------------------------------------
-
     updateSunriseLight();
 
-    // --------------------------------------------------------
-    // Apply auxiliary COB
-    // --------------------------------------------------------
-
     applyAuxiliaryLeds();
-
-    // --------------------------------------------------------
-    // Audio
-    // --------------------------------------------------------
 
     updateSunriseAudio(
         elapsedMs
@@ -198,34 +170,12 @@ void AlarmEffects::updateSunrise(
 
 void AlarmEffects::updateSunriseLight()
 {
-    applyMatrix();
-}
-
-// ============================================================
-// MATRIX
-// ============================================================
-
-void AlarmEffects::applyMatrix()
-{
-    if (!_matrix.isOn())
-        _matrix.on();
-
-    /*
-     * SunriseLightEffect already calculates gamma-corrected
-     * brightness.
-     */
-
-    _matrix.setBrightness(
-        _sunrise.brightness()
-    );
-
-    _matrix.fill(
+    _lighting.setAlarmMatrix(
+        _sunrise.brightness(),
         _sunrise.red(),
         _sunrise.green(),
         _sunrise.blue()
     );
-
-    _matrix.show();
 }
 
 // ============================================================
@@ -236,59 +186,28 @@ void AlarmEffects::applyAuxiliaryLeds()
 {
     if (!_sunrise.auxiliaryEnabled())
     {
-        setAuxiliaryLeds(0);
+        _lighting.setAlarmCob(0);
         return;
     }
 
     if (!_sunrise.auxiliaryFlashState())
     {
-        setAuxiliaryLeds(0);
+        _lighting.setAlarmCob(0);
         return;
     }
 
+    // auxiliaryBrightness() возвращает проценты 0–100.
+    // CobLedManager получает яркость 0–255.
     const uint8_t brightness =
         static_cast<uint8_t>(
             (
                 static_cast<uint16_t>(
                     _sunrise.auxiliaryBrightness()
-                )
-                *
-                255U
-            )
-            /
-            100U
+                ) * 255U
+            ) / 100U
         );
 
-    setAuxiliaryLeds(
-        brightness
-    );
-}
-
-// ============================================================
-// SET ALL AUXILIARY LEDS
-// ============================================================
-
-void AlarmEffects::setAuxiliaryLeds(
-    uint8_t brightness
-)
-{
-    _cob.set(
-        1,
-        brightness
-    );
-
-    _cob.set(
-        2,
-        brightness
-    );
-
-    _cob.set(
-        3,
-        brightness
-    );
-
-    _cob.set(
-        4,
+    _lighting.setAlarmCob(
         brightness
     );
 }
@@ -302,133 +221,98 @@ void AlarmEffects::updateSunriseAudio(
 )
 {
     // --------------------------------------------------------
-    // Before 21 minutes
-    //
-    // No audio output.
+    // WAIT FOR MUSIC START
     // --------------------------------------------------------
 
     if (elapsedMs < MUSIC_START_MS)
         return;
 
     // --------------------------------------------------------
-    // Start I2S
+    // START I2S
     // --------------------------------------------------------
 
     if (!_audioStarted)
     {
-        Serial0.printf("[AlarmEffects] Starting I2S speaker for sunrise audio\n");
+        Serial0.printf(
+            "[AlarmEffects] Starting I2S speaker\n"
+        );
 
         if (!_i2s.isSpeakerInitialized())
         {
-            if (
-                !_i2s.beginSpeaker(
-                    AUDIO_SAMPLE_RATE
-                )
-            )
+            if (!_i2s.beginSpeaker(AUDIO_SAMPLE_RATE))
             {
-                Serial0.printf("[AlarmEffects] beginSpeaker() failed\n");
+                Serial0.printf(
+                    "[AlarmEffects] beginSpeaker() failed\n"
+                );
+
                 return;
             }
         }
 
-        if (
-            !_i2s.startSpeaker()
-        )
+        if (!_i2s.startSpeaker())
         {
-            Serial0.printf("[AlarmEffects] startSpeaker() failed\n");
+            Serial0.printf(
+                "[AlarmEffects] startSpeaker() failed\n"
+            );
+
             return;
         }
 
         _audioStarted = true;
 
-        Serial0.printf("[AlarmEffects] I2S speaker started\n");
+        Serial0.printf(
+            "[AlarmEffects] I2S speaker started\n"
+        );
     }
 
     // --------------------------------------------------------
-    // Calculate volume
+    // CALCULATE VOLUME
     // --------------------------------------------------------
 
     float volume = 0.0f;
 
-    // --------------------------------------------------------
     // 21:00 -> 25:00
-    //
-    // 0 -> 30%
-    // --------------------------------------------------------
-
+    // 0% -> 30%
     if (elapsedMs < PEAK_TIME_MS)
     {
         const uint32_t elapsed =
-            elapsedMs -
-            MUSIC_START_MS;
+            elapsedMs - MUSIC_START_MS;
 
         const uint32_t duration =
-            PEAK_TIME_MS -
-            MUSIC_START_MS;
+            PEAK_TIME_MS - MUSIC_START_MS;
 
         float progress =
-            static_cast<float>(
-                elapsed
-            )
-            /
-            static_cast<float>(
-                duration
-            );
+            static_cast<float>(elapsed) /
+            static_cast<float>(duration);
 
-        progress =
-            std::max(
-                0.0f,
-                std::min(
-                    1.0f,
-                    progress
-                )
-            );
+        progress = std::max(
+            0.0f,
+            std::min(1.0f, progress)
+        );
 
-        volume =
-            0.30f *
-            progress;
+        volume = 0.30f * progress;
     }
-
-    // --------------------------------------------------------
     // 25:00 -> 26:00
-    //
-    // 30 -> 100%
-    // --------------------------------------------------------
-
+    // 30% -> 100%
     else
     {
         const uint32_t elapsed =
-            elapsedMs -
-            PEAK_TIME_MS;
+            elapsedMs - PEAK_TIME_MS;
 
         float progress =
-            static_cast<float>(
-                elapsed
-            )
-            /
-            static_cast<float>(
-                FULL_VOLUME_RAMP_MS
-            );
+            static_cast<float>(elapsed) /
+            static_cast<float>(FULL_VOLUME_RAMP_MS);
 
-        progress =
-            std::max(
-                0.0f,
-                std::min(
-                    1.0f,
-                    progress
-                )
-            );
+        progress = std::max(
+            0.0f,
+            std::min(1.0f, progress)
+        );
 
-        volume =
-            0.30f +
-            (
-                0.70f *
-                progress
-            );
+        volume = 0.30f + 0.70f * progress;
     }
 
     // --------------------------------------------------------
-    // Set generator volume
+    // UPDATE GENERATOR VOLUME
     // --------------------------------------------------------
 
     _music.setVolume(
@@ -436,233 +320,52 @@ void AlarmEffects::updateSunriseAudio(
     );
 
     // --------------------------------------------------------
-    // Generate PCM
+    // GENERATE MONO PCM
     // --------------------------------------------------------
 
     _music.generateBlock(
-        _audioBuffer,
+        _monoAudioBuffer,
         AUDIO_SAMPLES
     );
 
     // --------------------------------------------------------
-    // Send PCM through I2SManager
+    // MONO -> STEREO
+    //
+    // I2S stereo expects interleaved L/R samples:
+    // L0, R0, L1, R1, ...
+    // --------------------------------------------------------
+
+    for (size_t i = 0; i < AUDIO_SAMPLES; ++i)
+    {
+        const int16_t sample =
+            _monoAudioBuffer[i];
+
+        _stereoAudioBuffer[i * 2] = sample;
+        _stereoAudioBuffer[i * 2 + 1] = sample;
+    }
+
+    // --------------------------------------------------------
+    // WRITE STEREO PCM TO I2S
     // --------------------------------------------------------
 
     size_t bytesWritten = 0;
 
-    _i2s.writeSpeaker(
-        reinterpret_cast<
-            const uint8_t*
-        >(
-            _audioBuffer
-        ),
+    const bool writeResult =
+        _i2s.writeSpeaker(
+            reinterpret_cast<const uint8_t*>(
+                _stereoAudioBuffer
+            ),
+            sizeof(_stereoAudioBuffer),
+            bytesWritten,
+            20
+        );
 
-        sizeof(
-            _audioBuffer
-        ),
-
-        bytesWritten,
-
-        20
-    );
-}
-
-// ============================================================
-// SAVE OUTPUTS
-// ============================================================
-
-void AlarmEffects::saveOutputs()
-{
-    Serial0.printf("[AlarmEffects] saveOutputs()\n");
-
-    // --------------------------------------------------------
-    // MATRIX
-    // --------------------------------------------------------
-
-    _savedMatrixOn =
-        _matrix.isOn();
-
-    _savedMatrixBrightness =
-        _matrix.brightness();
-
-    _savedMatrixEffect =
-        _matrix.effect();
-
-    _savedMatrixEffectSpeed =
-        _matrix.effectSpeed();
-
-    _savedMatrixTransitionTime =
-        _matrix.transitionTime();
-
-    // --------------------------------------------------------
-    // COB
-    // --------------------------------------------------------
-
-    _savedCobEnabled =
-        _cob.isEnabled();
-
-    _savedCobEffect =
-        _cob.effect();
-
-    _savedCobSpeed =
-        _cob.speed();
-
-    for (uint8_t i = 0; i < 4; ++i)
+    if (!writeResult)
     {
-        _savedCobBrightness[i] =
-            _cob.get(i + 1);
-    }
-
-    _controlTaken = true;
-
-    Serial0.printf("[AlarmEffects] saveOutputs() done\n");
-}
-
-// ============================================================
-// TAKE CONTROL
-// ============================================================
-
-void AlarmEffects::takeControl()
-{
-    Serial0.printf("[AlarmEffects] takeControl()\n");
-
-    // --------------------------------------------------------
-    // MATRIX
-    // --------------------------------------------------------
-
-    /*
-     * Очень важно:
-     *
-     * LedMatrixManager::update()
-     * продолжает выполнять обычный effect.
-     *
-     * Поэтому останавливаем normal effect.
-     */
-
-    _matrix.stopEffect();
-
-    _matrix.setBrightness(
-        255
-    );
-
-    _matrix.on();
-
-    _matrix.clear();
-
-    // --------------------------------------------------------
-    // COB
-    // --------------------------------------------------------
-
-    /*
-     * Отключаем обычный COB effect.
-     *
-     * Иначе CobEffects::update()
-     * может перезаписать brightness.
-     */
-
-    _cob.setEnabled(
-        false
-    );
-
-    _cob.offAll();
-
-    // --------------------------------------------------------
-    // AUDIO
-    // --------------------------------------------------------
-
-    if (_i2s.isSpeakerInitialized())
-    {
-        _i2s.stopSpeaker();
-        _i2s.clearSpeaker();
-    }
-}
-
-// ============================================================
-// RESTORE
-// ============================================================
-
-void AlarmEffects::restoreOutputs()
-{
-    if (!_controlTaken)
-        return;
-
-    Serial0.printf("[AlarmEffects] restoreOutputs()\n");
-
-    // --------------------------------------------------------
-    // MATRIX
-    // --------------------------------------------------------
-
-    _matrix.clear();
-
-    _matrix.setBrightness(
-        _savedMatrixBrightness
-    );
-
-    _matrix.setEffectSpeed(
-        _savedMatrixEffectSpeed
-    );
-
-    _matrix.setTransitionTime(
-        _savedMatrixTransitionTime
-    );
-
-    _matrix.setEffect(
-        _savedMatrixEffect
-    );
-
-    if (_savedMatrixOn)
-        _matrix.on();
-    else
-        _matrix.off();
-
-    // --------------------------------------------------------
-    // COB
-    // --------------------------------------------------------
-
-    /*
-     * Сначала восстанавливаем brightness.
-     */
-
-    _cob.setEnabled(
-        false
-    );
-
-    for (uint8_t i = 0; i < 4; ++i)
-    {
-        _cob.set(
-            i + 1,
-            _savedCobBrightness[i]
+        Serial0.printf(
+            "[AlarmEffects] I2S write failed\n"
         );
     }
-
-    _cob.setSpeed(
-        _savedCobSpeed
-    );
-
-    _cob.setEffect(
-        _savedCobEffect
-    );
-
-    if (_savedCobEnabled)
-    {
-        _cob.setEnabled(
-            true
-        );
-    }
-    else
-    {
-        _cob.setEnabled(
-            false
-        );
-    }
-
-    // --------------------------------------------------------
-    // CONTROL
-    // --------------------------------------------------------
-
-    _controlTaken = false;
-
-    Serial0.printf("[AlarmEffects] restoreOutputs() done\n");
 }
 
 // ============================================================
@@ -674,10 +377,12 @@ void AlarmEffects::stop()
     if (!_active)
         return;
 
-    Serial0.printf("[AlarmEffects] stop()\n");
+    Serial0.printf(
+        "[AlarmEffects] stop()\n"
+    );
 
     // --------------------------------------------------------
-    // STOP MUSIC
+    // STOP MUSIC GENERATOR
     // --------------------------------------------------------
 
     _music.stop();
@@ -701,21 +406,21 @@ void AlarmEffects::stop()
     _sunrise.stop();
 
     // --------------------------------------------------------
-    // Restore normal outputs
+    // RESTORE LIGHTING SETTINGS
     // --------------------------------------------------------
 
-    restoreOutputs();
+    _lighting.endAlarmOverride();
 
     // --------------------------------------------------------
-    // State
+    // RESET STATE
     // --------------------------------------------------------
 
-    _effect =
-        EffectType::None;
-
+    _effect = EffectType::None;
     _active = false;
 
-    Serial0.printf("[AlarmEffects] stop() done\n");
+    Serial0.printf(
+        "[AlarmEffects] stop() done\n"
+    );
 }
 
 // ============================================================
@@ -733,8 +438,7 @@ bool AlarmEffects::isSunriseActive() const
 {
     return
         _active &&
-        _effect ==
-            EffectType::Sunrise;
+        _effect == EffectType::Sunrise;
 }
 
 // ============================================================

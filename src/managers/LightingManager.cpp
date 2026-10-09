@@ -1,11 +1,11 @@
+
 #include "LightingManager.h"
 
 #include "Pins.h"
 #include "Config.h"
 
-
 // ============================================================
-// Constructor
+// CONSTRUCTOR
 // ============================================================
 
 LightingManager::LightingManager(
@@ -13,9 +13,9 @@ LightingManager::LightingManager(
 )
     : _settings(settings),
 
-      // ======================================================
+      // ------------------------------------------------------
       // COB
-      // ======================================================
+      // ------------------------------------------------------
 
       _cob1(
           PIN_COB1,
@@ -57,9 +57,9 @@ LightingManager::LightingManager(
       _cobSpeed(0),
       _cobEnabled(false),
 
-      // ======================================================
+      // ------------------------------------------------------
       // MATRIX
-      // ======================================================
+      // ------------------------------------------------------
 
       _matrix(
           PIN_MATRIX
@@ -70,35 +70,38 @@ LightingManager::LightingManager(
       _matrixSpeed(0),
       _matrixEnabled(false),
 
-      // ======================================================
+      // ------------------------------------------------------
       // STATE
-      // ======================================================
+      // ------------------------------------------------------
 
       _initialized(false),
-      _firstApply(true)
+      _firstApply(true),
+      _alarmOverride(false)
 {
 }
 
-
 // ============================================================
-// Begin
+// BEGIN
 // ============================================================
 
 bool LightingManager::begin()
 {
+    if (_initialized)
+        return true;
+
     _cob.begin();
     _matrix.begin();
 
     _initialized = true;
+    _firstApply = true;
 
     apply();
 
     return true;
 }
 
-
 // ============================================================
-// Update
+// UPDATE
 // ============================================================
 
 void LightingManager::update()
@@ -106,27 +109,29 @@ void LightingManager::update()
     if (!_initialized)
         return;
 
-    // Сначала применяем изменения настроек.
+    // Временно передали управление рассвету.
+    // Нельзя применять обычные настройки или запускать
+    // обычные световые эффекты до завершения override.
+    if (_alarmOverride)
+        return;
+
     apply();
 
-    // Затем запускаем эффекты.
     _cob.update();
     _matrix.update();
 }
 
-
 // ============================================================
-// Apply settings
+// APPLY SETTINGS
 // ============================================================
 
 void LightingManager::apply()
 {
-    if (!_initialized)
+    if (!_initialized || _alarmOverride)
         return;
 
-
     // ========================================================
-    // COB SETTINGS
+    // READ COB SETTINGS
     // ========================================================
 
     const uint8_t cobBrightness =
@@ -155,9 +160,8 @@ void LightingManager::apply()
             Param::COB_ENABLED
         ) != 0;
 
-
     // ========================================================
-    // MATRIX SETTINGS
+    // READ MATRIX SETTINGS
     // ========================================================
 
     const uint8_t matrixBrightness =
@@ -186,31 +190,23 @@ void LightingManager::apply()
             Param::MATRIX_ENABLED
         ) != 0;
 
-
     // ========================================================
-    // FIRST APPLY
+    // FIRST APPLY OR RESTORE
     // ========================================================
 
     if (_firstApply)
     {
-        // ----------------------------------------------------
-        // COB
-        // ----------------------------------------------------
-
         _cobBrightness = cobBrightness;
         _cobEffect = cobEffect;
         _cobSpeed = cobSpeed;
         _cobEnabled = cobEnabled;
 
+        _cob.setEnabled(false);
+        _cob.offAll();
         _cob.setAll(_cobBrightness);
-        _cob.setEffect(_cobEffect);
         _cob.setSpeed(_cobSpeed);
+        _cob.setEffect(_cobEffect);
         _cob.setEnabled(_cobEnabled);
-
-
-        // ----------------------------------------------------
-        // MATRIX
-        // ----------------------------------------------------
 
         _matrixBrightness = matrixBrightness;
         _matrixEffect = matrixEffect;
@@ -218,11 +214,13 @@ void LightingManager::apply()
         _matrixEnabled = matrixEnabled;
 
         _matrix.setBrightness(_matrixBrightness);
+
         _matrix.setEffect(
             static_cast<LedMatrixManager::Effect>(
                 _matrixEffect
             )
         );
+
         _matrix.setEffectSpeed(_matrixSpeed);
 
         if (_matrixEnabled)
@@ -230,12 +228,10 @@ void LightingManager::apply()
         else
             _matrix.off();
 
-
         _firstApply = false;
 
         return;
     }
-
 
     // ========================================================
     // COB BRIGHTNESS
@@ -250,7 +246,6 @@ void LightingManager::apply()
         );
     }
 
-
     // ========================================================
     // COB EFFECT
     // ========================================================
@@ -263,7 +258,6 @@ void LightingManager::apply()
             _cobEffect
         );
     }
-
 
     // ========================================================
     // COB SPEED
@@ -278,7 +272,6 @@ void LightingManager::apply()
         );
     }
 
-
     // ========================================================
     // COB ENABLED
     // ========================================================
@@ -292,7 +285,6 @@ void LightingManager::apply()
         );
     }
 
-
     // ========================================================
     // MATRIX BRIGHTNESS
     // ========================================================
@@ -305,7 +297,6 @@ void LightingManager::apply()
             _matrixBrightness
         );
     }
-
 
     // ========================================================
     // MATRIX EFFECT
@@ -322,7 +313,6 @@ void LightingManager::apply()
         );
     }
 
-
     // ========================================================
     // MATRIX SPEED
     // ========================================================
@@ -335,7 +325,6 @@ void LightingManager::apply()
             _matrixSpeed
         );
     }
-
 
     // ========================================================
     // MATRIX ENABLED
@@ -350,4 +339,109 @@ void LightingManager::apply()
         else
             _matrix.off();
     }
+}
+
+// ============================================================
+// BEGIN ALARM OVERRIDE
+// ============================================================
+
+void LightingManager::beginAlarmOverride()
+{
+    if (!_initialized || _alarmOverride)
+        return;
+
+    _alarmOverride = true;
+
+    // Останавливаем обычный эффект матрицы.
+    _matrix.stopEffect();
+
+    // Отключаем обычное управление COB.
+    _cob.setEnabled(false);
+    _cob.offAll();
+
+    // Готовим матрицу к непосредственному управлению.
+    _matrix.setBrightness(255);
+    _matrix.on();
+    _matrix.clear();
+    _matrix.show();
+}
+
+// ============================================================
+// SET ALARM MATRIX
+// ============================================================
+
+void LightingManager::setAlarmMatrix(
+    uint8_t brightness,
+    uint8_t red,
+    uint8_t green,
+    uint8_t blue
+)
+{
+    if (!_initialized || !_alarmOverride)
+        return;
+
+    _matrix.on();
+
+    _matrix.setBrightness(
+        brightness
+    );
+
+    _matrix.fill(
+        red,
+        green,
+        blue
+    );
+
+    _matrix.show();
+}
+
+// ============================================================
+// SET ALARM COB
+// ============================================================
+
+void LightingManager::setAlarmCob(
+    uint8_t brightness
+)
+{
+    if (!_initialized || !_alarmOverride)
+        return;
+
+    _cob.setEnabled(true);
+
+    for (uint8_t channel = 1; channel <= 4; ++channel)
+    {
+        _cob.set(
+            channel,
+            brightness
+        );
+    }
+}
+
+// ============================================================
+// END ALARM OVERRIDE
+// ============================================================
+
+void LightingManager::endAlarmOverride()
+{
+    if (!_initialized || !_alarmOverride)
+        return;
+
+    // Сначала прекращаем временное управление.
+    _alarmOverride = false;
+
+    // Принудительно применяем актуальные настройки.
+    // Это важно, поскольку внутренние кэши могут содержать
+    // значения, которые были до рассвета.
+    _firstApply = true;
+
+    apply();
+}
+
+// ============================================================
+// STATE
+// ============================================================
+
+bool LightingManager::isAlarmOverrideActive() const
+{
+    return _alarmOverride;
 }

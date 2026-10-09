@@ -1,10 +1,11 @@
+
 #pragma once
 
 #include <Arduino.h>
 #include <stdint.h>
+#include <stddef.h>
 
-#include "./managers/LedMatrixManager.h"
-#include "./managers/CobLedManager.h"
+#include "./managers/LightingManager.h"
 #include "./managers/I2SManager.h"
 #include "./hardware/SunriseLightEffect.h"
 #include "./hardware/MusicGenerator.h"
@@ -12,7 +13,6 @@
 class AlarmEffects
 {
 public:
-
     enum class EffectType : uint8_t
     {
         None = 0,
@@ -20,8 +20,7 @@ public:
     };
 
     AlarmEffects(
-        LedMatrixManager& matrix,
-        CobLedManager& cob,
+        LightingManager& lighting,
         I2SManager& i2s
     );
 
@@ -33,10 +32,6 @@ public:
 
     void stop();
 
-    // --------------------------------------------------------
-    // EFFECTS
-    // --------------------------------------------------------
-
     void startSunrise();
 
     bool isActive() const;
@@ -46,10 +41,9 @@ public:
     EffectType effect() const;
 
 private:
-
-    // --------------------------------------------------------
+    // ========================================================
     // SUNRISE
-    // --------------------------------------------------------
+    // ========================================================
 
     void updateSunrise(
         uint32_t elapsedMs
@@ -61,50 +55,18 @@ private:
         uint32_t elapsedMs
     );
 
-    // --------------------------------------------------------
-    // MATRIX
-    // --------------------------------------------------------
-
-    void applyMatrix();
-
-    // --------------------------------------------------------
-    // COB
-    // --------------------------------------------------------
-
     void applyAuxiliaryLeds();
 
-    void setAuxiliaryLeds(
-        uint8_t brightness
-    );
-
-    // --------------------------------------------------------
-    // AUDIO
-    // --------------------------------------------------------
-
-    void updateAudio();
-
-    // --------------------------------------------------------
-    // CONTROL
-    // --------------------------------------------------------
-
-    void saveOutputs();
-
-    void takeControl();
-
-    void restoreOutputs();
-
 private:
-
     // ========================================================
-    // HARDWARE
+    // MANAGERS
     // ========================================================
 
-    LedMatrixManager& _matrix;
-    CobLedManager& _cob;
+    LightingManager& _lighting;
     I2SManager& _i2s;
 
     // ========================================================
-    // EFFECT
+    // STATE
     // ========================================================
 
     EffectType _effect;
@@ -113,11 +75,10 @@ private:
     bool _active;
 
     // ========================================================
-    // EFFECT OBJECTS
+    // EFFECTS
     // ========================================================
 
     SunriseLightEffect _sunrise;
-
     MusicGenerator _music;
 
     // ========================================================
@@ -131,10 +92,11 @@ private:
 
     static constexpr size_t AUDIO_CHANNELS = 2;
 
-    static constexpr size_t AUDIO_BUFFER_SIZE =
-        AUDIO_SAMPLES * AUDIO_CHANNELS;
+    int16_t _monoAudioBuffer[AUDIO_SAMPLES]{};
 
-    int16_t _audioBuffer[AUDIO_BUFFER_SIZE];
+    int16_t _stereoAudioBuffer[
+        AUDIO_SAMPLES * AUDIO_CHANNELS
+    ]{};
 
     bool _audioStarted;
 
@@ -150,42 +112,4 @@ private:
 
     static constexpr uint32_t FULL_VOLUME_RAMP_MS =
         60UL * 1000UL;
-
-    // ========================================================
-    // COB
-    // ========================================================
-
-    static constexpr uint8_t AUXILIARY_BRIGHTNESS_PERCENT = 15;
-
-    // ========================================================
-    // MATRIX SAVED STATE
-    // ========================================================
-
-    bool _savedMatrixOn;
-
-    uint8_t _savedMatrixBrightness;
-
-    LedMatrixManager::Effect _savedMatrixEffect;
-
-    uint8_t _savedMatrixEffectSpeed;
-
-    uint16_t _savedMatrixTransitionTime;
-
-    // ========================================================
-    // COB SAVED STATE
-    // ========================================================
-
-    bool _savedCobEnabled;
-
-    uint8_t _savedCobEffect;
-
-    uint8_t _savedCobSpeed;
-
-    uint8_t _savedCobBrightness[4];
-
-    // ========================================================
-    // CONTROL
-    // ========================================================
-
-    bool _controlTaken;
 };
