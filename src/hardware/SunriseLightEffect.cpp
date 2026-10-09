@@ -4,6 +4,55 @@
 #include <math.h>
 
 // ============================================================
+// INTERNAL HELPERS
+// ============================================================
+
+namespace
+{
+    constexpr float FLOAT_EPSILON = 0.0001f;
+
+    // Brightness curve:
+    // - rises faster than a linear curve at the beginning;
+    // - gradually slows down near the target;
+    // - does not introduce abrupt changes at the end.
+    //
+    // Input:  0.0 ... 1.0
+    // Output: 0.0 ... 1.0
+    float easeOutBrightness(float progress)
+    {
+        if (progress <= 0.0f)
+            return 0.0f;
+
+        if (progress >= 1.0f)
+            return 1.0f;
+
+        const float inverse = 1.0f - progress;
+
+        return 1.0f - inverse * inverse;
+    }
+
+    // Clamp a floating-point value to the specified range.
+    float clampFloat(float value, float minimum, float maximum)
+    {
+        if (value < minimum)
+            return minimum;
+
+        if (value > maximum)
+            return maximum;
+
+        return value;
+    }
+
+    // Convert a floating-point percentage into an integer percentage.
+    uint8_t percentToByte(float value)
+    {
+        value = clampFloat(value, 0.0f, 100.0f);
+
+        return static_cast<uint8_t>(value + 0.5f);
+    }
+}
+
+// ============================================================
 // CONSTRUCTOR
 // ============================================================
 
@@ -35,16 +84,14 @@ SunriseLightEffect::SunriseLightEffect()
 void SunriseLightEffect::begin()
 {
     if (_begun)
-    {
-        Serial0.println("[SUNRISE] begin(): already initialized");
         return;
-    }
 
     reset();
 
     _begun = true;
 
     Serial0.println("[SUNRISE] Initialized");
+
     Serial0.printf(
         "[SUNRISE] Duration: %lu ms\n",
         static_cast<unsigned long>(_durationMs)
@@ -67,6 +114,10 @@ void SunriseLightEffect::begin()
     Serial0.printf(
         "[SUNRISE] Gamma: %.2f\n",
         static_cast<double>(SunriseConfig::GAMMA)
+    );
+
+    Serial0.println(
+        "[SUNRISE] Brightness curve: smooth ease-out"
     );
 }
 
@@ -91,15 +142,39 @@ void SunriseLightEffect::start()
     _perceivedBrightness =
         SunriseConfig::PHASE_1_START_BRIGHTNESS;
 
-    _brightness = 0;
+    // Start with the brightness calculated from the initial
+    // perceived brightness, rather than forcing the output to zero.
+    const float initialPercent =
+        static_cast<float>(_perceivedBrightness);
+
+    const float normalized =
+        initialPercent / 100.0f;
+
+    const float gamma =
+        SunriseConfig::GAMMA > FLOAT_EPSILON
+            ? SunriseConfig::GAMMA
+            : 2.2f;
+
+    const float corrected =
+        powf(normalized, 1.0f / gamma);
+
+    int initialOutput =
+        static_cast<int>(corrected * 255.0f + 0.5f);
+
+    if (initialOutput < 0)
+        initialOutput = 0;
+
+    if (initialOutput > 255)
+        initialOutput = 255;
+
+    _brightness = static_cast<uint8_t>(initialOutput);
 
     _auxiliaryEnabled = false;
     _auxiliaryFlashState = false;
-
     _lastAuxiliaryToggleUs = micros();
 
     Serial0.println("[SUNRISE] START");
-    Serial0.println("[SUNRISE] State: Stopped -> Running");
+    Serial0.println("[SUNRISE] State: Running");
     Serial0.println("[SUNRISE] Phase: 1");
 
     Serial0.printf(
@@ -132,19 +207,14 @@ void SunriseLightEffect::update(uint32_t elapsedMs)
         return;
 
     const State previousState = _state;
-
-    const uint8_t previousRed = _red;
-    const uint8_t previousGreen = _green;
-    const uint8_t previousBlue = _blue;
+    const uint8_t previousPhase = _currentPhase;
 
     const uint8_t previousBrightness = _brightness;
-
     const uint8_t previousPerceivedBrightness =
         _perceivedBrightness;
 
-    const uint8_t previousPhase = _currentPhase;
-
-    const bool previousAuxiliaryEnabled = _auxiliaryEnabled;
+    const bool previousAuxiliaryEnabled =
+        _auxiliaryEnabled;
 
     _elapsedMs = elapsedMs;
 
@@ -163,7 +233,7 @@ void SunriseLightEffect::update(uint32_t elapsedMs)
     }
 
     // --------------------------------------------------------
-    // STATE CHANGES
+    // STATE CHANGE
     // --------------------------------------------------------
 
     if (previousState != _state)
@@ -178,7 +248,7 @@ void SunriseLightEffect::update(uint32_t elapsedMs)
     }
 
     // --------------------------------------------------------
-    // PHASE CHANGES
+    // PHASE CHANGE
     // --------------------------------------------------------
 
     if (previousPhase != _currentPhase)
@@ -191,20 +261,38 @@ void SunriseLightEffect::update(uint32_t elapsedMs)
     }
 
     // --------------------------------------------------------
-    // RGB CHANGES
+    // BRIGHTNESS LOGGING
+    // --------------------------------------------------------
+    //
+    // Avoid printing on every RGB change. Excessive serial output
+    // can interfere with timing and make debugging less reliable.
+    //
+    // Log when the output moves by approximately 8 levels, or
+    // when the perceived percentage changes by at least 5 points.
     // --------------------------------------------------------
 
+    const int outputDifference =
+        static_cast<int>(_brightness) -
+        static_cast<int>(previousBrightness);
+
+    const int perceivedDifference =
+        static_cast<int>(_perceivedBrightness) -
+        static_cast<int>(previousPerceivedBrightness);
+
     if (
-        previousRed != _red ||
-        previousGreen != _green ||
-        previousBlue != _blue
+        abs(outputDifference) >= 8 ||
+        abs(perceivedDifference) >= 5 ||
+        previousState != _state
     )
     {
         Serial0.printf(
-            "[SUNRISE] RGB changed: (%u,%u,%u) -> (%u,%u,%u)\n",
-            static_cast<unsigned>(previousRed),
-            static_cast<unsigned>(previousGreen),
-            static_cast<unsigned>(previousBlue),
+            "[SUNRISE] t=%lu ms, phase=%u, "
+            "perceived=%u%%, output=%u/255, "
+            "RGB=(%u,%u,%u)\n",
+            static_cast<unsigned long>(_elapsedMs),
+            static_cast<unsigned>(_currentPhase),
+            static_cast<unsigned>(_perceivedBrightness),
+            static_cast<unsigned>(_brightness),
             static_cast<unsigned>(_red),
             static_cast<unsigned>(_green),
             static_cast<unsigned>(_blue)
@@ -212,26 +300,7 @@ void SunriseLightEffect::update(uint32_t elapsedMs)
     }
 
     // --------------------------------------------------------
-    // BRIGHTNESS CHANGES
-    // --------------------------------------------------------
-
-    if (
-        previousBrightness != _brightness ||
-        previousPerceivedBrightness != _perceivedBrightness
-    )
-    {
-        Serial0.printf(
-            "[SUNRISE] Brightness changed: perceived %u%% -> %u%%, "
-            "output %u -> %u/255\n",
-            static_cast<unsigned>(previousPerceivedBrightness),
-            static_cast<unsigned>(_perceivedBrightness),
-            static_cast<unsigned>(previousBrightness),
-            static_cast<unsigned>(_brightness)
-        );
-    }
-
-    // --------------------------------------------------------
-    // AUXILIARY LIGHT CHANGES
+    // AUXILIARY LIGHT CHANGE
     // --------------------------------------------------------
 
     if (previousAuxiliaryEnabled != _auxiliaryEnabled)
@@ -276,9 +345,6 @@ void SunriseLightEffect::stop()
     );
 
     Serial0.println("[SUNRISE] Stopped");
-    Serial0.println("[SUNRISE] RGB reset to (0,0,0)");
-    Serial0.println("[SUNRISE] Brightness reset to 0");
-    Serial0.println("[SUNRISE] Auxiliary lighting disabled");
 }
 
 // ============================================================
@@ -305,10 +371,6 @@ void SunriseLightEffect::reset()
     _lastAuxiliaryToggleUs = micros();
 
     Serial0.println("[SUNRISE] Reset");
-    Serial0.println("[SUNRISE] State: Stopped");
-    Serial0.println("[SUNRISE] RGB: (0,0,0)");
-    Serial0.println("[SUNRISE] Brightness: 0");
-    Serial0.println("[SUNRISE] Auxiliary lighting: OFF");
 }
 
 // ============================================================
@@ -330,10 +392,11 @@ void SunriseLightEffect::updateSunrise()
         _currentPhase = 3;
     }
 
+    // Colour and brightness are calculated independently.
     calculateColor();
     calculateBrightness();
 
-    // The auxiliary lights are reserved for the peak state.
+    // Auxiliary lighting is reserved for the peak state.
     _auxiliaryEnabled = false;
     _auxiliaryFlashState = false;
 }
@@ -361,6 +424,7 @@ void SunriseLightEffect::updatePeak()
         _lastAuxiliaryToggleUs = micros();
 
         Serial0.println("[SUNRISE] Peak reached");
+
         Serial0.printf(
             "[SUNRISE] Peak RGB: (%u,%u,%u)\n",
             static_cast<unsigned>(_red),
@@ -371,7 +435,7 @@ void SunriseLightEffect::updatePeak()
         Serial0.println("[SUNRISE] Peak brightness: 100%");
 
         Serial0.printf(
-            "[SUNRISE] Auxiliary flash enabled: %lu Hz, duty %u%%\n",
+            "[SUNRISE] Auxiliary flash: %lu Hz, duty %u%%\n",
             static_cast<unsigned long>(
                 SunriseConfig::AUX_FLASH_FREQUENCY_HZ
             ),
@@ -382,7 +446,9 @@ void SunriseLightEffect::updatePeak()
 
         Serial0.printf(
             "[SUNRISE] Auxiliary brightness: %u%%\n",
-            static_cast<unsigned>(_auxiliaryBrightnessPercent)
+            static_cast<unsigned>(
+                _auxiliaryBrightnessPercent
+            )
         );
     }
 
@@ -492,7 +558,6 @@ void SunriseLightEffect::calculateColor()
 // BRIGHTNESS CALCULATION
 // ============================================================
 
-
 void SunriseLightEffect::calculateBrightness()
 {
     float progress = 0.0f;
@@ -500,9 +565,9 @@ void SunriseLightEffect::calculateBrightness()
     uint8_t startBrightness = 0;
     uint8_t endBrightness = 0;
 
-    // ========================================================
-    // SELECT PHASE BRIGHTNESS RANGE
-    // ========================================================
+    // --------------------------------------------------------
+    // SELECT THE CURRENT PHASE'S BRIGHTNESS RANGE
+    // --------------------------------------------------------
 
     switch (_currentPhase)
     {
@@ -562,34 +627,75 @@ void SunriseLightEffect::calculateBrightness()
         }
     }
 
-    // ========================================================
-    // INTERPOLATE PERCEIVED BRIGHTNESS (0-100%)
-    // ========================================================
+    progress = clampFloat(progress, 0.0f, 1.0f);
 
-    _perceivedBrightness = interpolate(
-        startBrightness,
-        endBrightness,
-        progress
-    );
+    // --------------------------------------------------------
+    // SMOOTH BRIGHTNESS CURVE
+    // --------------------------------------------------------
+    //
+    // Colour continues to use linear phase progress.
+    // Brightness uses its own eased progress, allowing the
+    // illumination to rise sooner than the colour transition.
+    //
+    // Do not convert the interpolated percentage to uint8_t
+    // until after calculating the output brightness.
+    // --------------------------------------------------------
 
-    // ========================================================
+    const float easedProgress =
+        easeOutBrightness(progress);
+
+    const float startPercent =
+        static_cast<float>(startBrightness);
+
+    const float endPercent =
+        static_cast<float>(endBrightness);
+
+    const float perceivedPercent =
+        startPercent +
+        (endPercent - startPercent) * easedProgress;
+
+    const float clampedPercent =
+        clampFloat(perceivedPercent, 0.0f, 100.0f);
+
+    // Integer percentage is retained for the existing getter
+    // and diagnostic output only.
+    _perceivedBrightness = percentToByte(clampedPercent);
+
+    // --------------------------------------------------------
     // GAMMA CORRECTION
-    // ========================================================
+    // --------------------------------------------------------
+    //
+    // Use the floating-point percentage rather than the rounded
+    // integer percentage. This avoids quantizing the brightness
+    // twice during the calculation.
+    //
+    // Inverse gamma makes small perceived percentages produce
+    // useful output levels on the 8-bit brightness scale.
+    // --------------------------------------------------------
 
-const float normalized =
-    static_cast<float>(_perceivedBrightness) / 100.0f;
+    const float normalized =
+        clampedPercent / 100.0f;
 
-const float corrected =
-    powf(normalized, 1.0f / SunriseConfig::GAMMA);
+    const float gamma =
+        SunriseConfig::GAMMA > FLOAT_EPSILON
+            ? SunriseConfig::GAMMA
+            : 2.2f;
 
-int output = static_cast<int>(corrected * 255.0f + 0.5f);
+    const float corrected =
+        powf(normalized, 1.0f / gamma);
 
-if (output < 0)
-    output = 0;
-else if (output > 255)
-    output = 255;
+    const float outputFloat =
+        corrected * 255.0f;
 
-_brightness = static_cast<uint8_t>(output);
+    int output =
+        static_cast<int>(outputFloat + 0.5f);
+
+    if (output < 0)
+        output = 0;
+    else if (output > 255)
+        output = 255;
+
+    _brightness = static_cast<uint8_t>(output);
 }
 
 // ============================================================
@@ -605,7 +711,8 @@ void SunriseLightEffect::updateAuxiliaryFlash()
         1000000UL / SunriseConfig::AUX_FLASH_FREQUENCY_HZ;
 
     constexpr uint32_t ON_TIME_US =
-        PERIOD_US * SunriseConfig::AUX_FLASH_DUTY_PERCENT / 100UL;
+        PERIOD_US *
+        SunriseConfig::AUX_FLASH_DUTY_PERCENT / 100UL;
 
     constexpr uint32_t OFF_TIME_US =
         PERIOD_US - ON_TIME_US;
@@ -616,17 +723,18 @@ void SunriseLightEffect::updateAuxiliaryFlash()
         static_cast<uint32_t>(now - _lastAuxiliaryToggleUs);
 
     const uint32_t requiredInterval =
-        _auxiliaryFlashState ? ON_TIME_US : OFF_TIME_US;
+        _auxiliaryFlashState
+            ? ON_TIME_US
+            : OFF_TIME_US;
 
     if (elapsedUs < requiredInterval)
         return;
 
     _lastAuxiliaryToggleUs = now;
-
     _auxiliaryFlashState = !_auxiliaryFlashState;
 
     Serial0.printf(
-        "[SUNRISE][COB] Flash state changed: %s\n",
+        "[SUNRISE][COB] Flash state: %s\n",
         _auxiliaryFlashState ? "ON" : "OFF"
     );
 }
@@ -655,8 +763,12 @@ float SunriseLightEffect::calculateProgress(
     const uint32_t phaseDuration =
         endMs - startMs;
 
-    return static_cast<float>(elapsedInPhase) /
-           static_cast<float>(phaseDuration);
+    return clampFloat(
+        static_cast<float>(elapsedInPhase) /
+        static_cast<float>(phaseDuration),
+        0.0f,
+        1.0f
+    );
 }
 
 // ============================================================
@@ -669,11 +781,7 @@ uint8_t SunriseLightEffect::interpolate(
     float progress
 )
 {
-    if (progress < 0.0f)
-        progress = 0.0f;
-
-    if (progress > 1.0f)
-        progress = 1.0f;
+    progress = clampFloat(progress, 0.0f, 1.0f);
 
     const float value =
         static_cast<float>(start) +
@@ -682,7 +790,8 @@ uint8_t SunriseLightEffect::interpolate(
             static_cast<float>(start)
         ) * progress;
 
-    int result = static_cast<int>(value + 0.5f);
+    int result =
+        static_cast<int>(value + 0.5f);
 
     if (result < 0)
         result = 0;
@@ -694,7 +803,7 @@ uint8_t SunriseLightEffect::interpolate(
 }
 
 // ============================================================
-// CLAMP
+// CLAMP PERCENT
 // ============================================================
 
 uint8_t SunriseLightEffect::clampPercent(uint8_t value)
@@ -715,7 +824,7 @@ void SunriseLightEffect::setDuration(uint32_t durationMs)
         durationMs = SunriseConfig::MIN_DURATION_MS;
 
         Serial0.printf(
-            "[SUNRISE][WARNING] Requested duration is too short; "
+            "[SUNRISE][WARNING] Duration too short; "
             "using minimum %lu ms\n",
             static_cast<unsigned long>(durationMs)
         );
