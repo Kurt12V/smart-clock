@@ -116,7 +116,7 @@ void LedMatrixManager::setBrightness(
             LedMatrix::MAX_BRIGHTNESS;
     }
 
-    Serial0.printf("[LedMatrixManager] setBrightness(%u)\n", (unsigned)brightness);
+    // Serial0.printf("[LedMatrixManager] setBrightness(%u)\n", (unsigned)brightness);
 
     _brightness = brightness;
 

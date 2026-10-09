@@ -170,6 +170,23 @@ void AlarmEffects::updateSunrise(
 
 void AlarmEffects::updateSunriseLight()
 {
+    {
+    static uint8_t lastBrightness = 200;
+
+    const uint8_t brightness = _sunrise.brightness();
+
+    if (brightness != lastBrightness)
+    {
+        Serial0.printf(
+            "[AlarmEffects] Sunrise brightness: %u, RGB=(%u,%u,%u)\n",
+            static_cast<unsigned>(brightness),
+            static_cast<unsigned>(_sunrise.red()),
+            static_cast<unsigned>(_sunrise.green()),
+            static_cast<unsigned>(_sunrise.blue())
+        );
+
+        lastBrightness = brightness;
+    }
     _lighting.setAlarmMatrix(
         _sunrise.brightness(),
         _sunrise.red(),
