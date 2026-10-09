@@ -104,20 +104,20 @@ void setup()
     // SERIAL
     // --------------------------------------------------------
 
-    Serial.begin(115200);
+    Serial0.begin(115200);
 
     delay(1000);
 
-    Serial.println();
-    Serial.println(
+    Serial0.println();
+    Serial0.println(
         "============================================"
     );
 
-    Serial.println(
+    Serial0.println(
         "SMART CLOCK - ALARM EFFECT TEST"
     );
 
-    Serial.println(
+    Serial0.println(
         "============================================"
     );
 
@@ -125,7 +125,7 @@ void setup()
     // MATRIX
     // --------------------------------------------------------
 
-    Serial.println(
+    Serial0.println(
         "[TEST] Starting LedMatrixManager..."
     );
 
@@ -135,7 +135,7 @@ void setup()
     // COB
     // --------------------------------------------------------
 
-    Serial.println(
+    Serial0.println(
         "[TEST] Starting CobLedManager..."
     );
 
@@ -145,19 +145,19 @@ void setup()
     // I2S
     // --------------------------------------------------------
 
-    Serial.println(
+    Serial0.println(
         "[TEST] Starting I2SManager..."
     );
 
     if (!g_i2s.begin())
     {
-        Serial.println(
+        Serial0.println(
             "[TEST][ERROR] I2SManager failed"
         );
     }
     else
     {
-        Serial.println(
+        Serial0.println(
             "[TEST] I2SManager READY"
         );
     }
@@ -166,13 +166,13 @@ void setup()
     // ALARM EFFECTS
     // --------------------------------------------------------
 
-    Serial.println(
+    Serial0.println(
         "[TEST] Starting AlarmEffects..."
     );
 
     g_alarmEffects.begin();
 
-    Serial.println(
+    Serial0.println(
         "[TEST] AlarmEffects READY"
     );
 
@@ -182,28 +182,28 @@ void setup()
 
     delay(1000);
 
-    Serial.println();
-    Serial.println(
+    Serial0.println();
+    Serial0.println(
         "[TEST] Starting SUNRISE"
     );
 
-    Serial.println(
+    Serial0.println(
         "[TEST] Duration: 25 minutes"
     );
 
-    Serial.println(
+    Serial0.println(
         "[TEST] Music starts: 21 minutes"
     );
 
-    Serial.println(
+    Serial0.println(
         "[TEST] Peak: 25 minutes"
     );
 
-    Serial.println(
+    Serial0.println(
         "[TEST] Auxiliary LEDs: 40 Hz after peak"
     );
 
-    Serial.println();
+    Serial0.println();
 
     g_alarmEffects.startSunrise();
 
@@ -279,7 +279,7 @@ void loop()
         const uint32_t remainingSeconds =
             seconds % 60;
 
-        Serial.printf(
+        Serial0.printf(
             "[TEST] Sunrise %02lu:%02lu | "
             "Active=%d | "
             "Audio=%d\n",

@@ -25,7 +25,7 @@ SunriseLightEffect::SunriseLightEffect()
       _lastAuxiliaryToggleUs(0),
       _currentPhase(0)
 {
-    Serial.println("[SUNRISE] Object created");
+    Serial0.println("[SUNRISE] Object created");
 }
 
 // ============================================================
@@ -36,7 +36,7 @@ void SunriseLightEffect::begin()
 {
     if (_begun)
     {
-        Serial.println("[SUNRISE] begin(): already initialized");
+        Serial0.println("[SUNRISE] begin(): already initialized");
         return;
     }
 
@@ -44,27 +44,27 @@ void SunriseLightEffect::begin()
 
     _begun = true;
 
-    Serial.println("[SUNRISE] Initialized");
-    Serial.printf(
+    Serial0.println("[SUNRISE] Initialized");
+    Serial0.printf(
         "[SUNRISE] Duration: %lu ms\n",
         static_cast<unsigned long>(_durationMs)
     );
 
-    Serial.printf(
+    Serial0.printf(
         "[SUNRISE] Phase 1 ends: %lu ms\n",
         static_cast<unsigned long>(
             SunriseConfig::PHASE_1_END_MS
         )
     );
 
-    Serial.printf(
+    Serial0.printf(
         "[SUNRISE] Phase 2 ends: %lu ms\n",
         static_cast<unsigned long>(
             SunriseConfig::PHASE_2_END_MS
         )
     );
 
-    Serial.printf(
+    Serial0.printf(
         "[SUNRISE] Gamma: %.2f\n",
         static_cast<double>(SunriseConfig::GAMMA)
     );
@@ -98,28 +98,28 @@ void SunriseLightEffect::start()
 
     _lastAuxiliaryToggleUs = micros();
 
-    Serial.println("[SUNRISE] START");
-    Serial.println("[SUNRISE] State: Stopped -> Running");
-    Serial.println("[SUNRISE] Phase: 1");
+    Serial0.println("[SUNRISE] START");
+    Serial0.println("[SUNRISE] State: Stopped -> Running");
+    Serial0.println("[SUNRISE] Phase: 1");
 
-    Serial.printf(
+    Serial0.printf(
         "[SUNRISE] RGB: (%u,%u,%u)\n",
         static_cast<unsigned>(_red),
         static_cast<unsigned>(_green),
         static_cast<unsigned>(_blue)
     );
 
-    Serial.printf(
+    Serial0.printf(
         "[SUNRISE] Perceived brightness: %u%%\n",
         static_cast<unsigned>(_perceivedBrightness)
     );
 
-    Serial.printf(
+    Serial0.printf(
         "[SUNRISE] Output brightness: %u/255\n",
         static_cast<unsigned>(_brightness)
     );
 
-    Serial.println("[SUNRISE] Auxiliary lighting: OFF");
+    Serial0.println("[SUNRISE] Auxiliary lighting: OFF");
 }
 
 // ============================================================
@@ -168,7 +168,7 @@ void SunriseLightEffect::update(uint32_t elapsedMs)
 
     if (previousState != _state)
     {
-        Serial.printf(
+        Serial0.printf(
             "[SUNRISE] State changed: %s -> %s\n",
             previousState == State::Running ? "Running" :
             previousState == State::Peak ? "Peak" : "Stopped",
@@ -183,7 +183,7 @@ void SunriseLightEffect::update(uint32_t elapsedMs)
 
     if (previousPhase != _currentPhase)
     {
-        Serial.printf(
+        Serial0.printf(
             "[SUNRISE] Phase changed: %u -> %u\n",
             static_cast<unsigned>(previousPhase),
             static_cast<unsigned>(_currentPhase)
@@ -200,7 +200,7 @@ void SunriseLightEffect::update(uint32_t elapsedMs)
         previousBlue != _blue
     )
     {
-        Serial.printf(
+        Serial0.printf(
             "[SUNRISE] RGB changed: (%u,%u,%u) -> (%u,%u,%u)\n",
             static_cast<unsigned>(previousRed),
             static_cast<unsigned>(previousGreen),
@@ -220,7 +220,7 @@ void SunriseLightEffect::update(uint32_t elapsedMs)
         previousPerceivedBrightness != _perceivedBrightness
     )
     {
-        Serial.printf(
+        Serial0.printf(
             "[SUNRISE] Brightness changed: perceived %u%% -> %u%%, "
             "output %u -> %u/255\n",
             static_cast<unsigned>(previousPerceivedBrightness),
@@ -236,7 +236,7 @@ void SunriseLightEffect::update(uint32_t elapsedMs)
 
     if (previousAuxiliaryEnabled != _auxiliaryEnabled)
     {
-        Serial.printf(
+        Serial0.printf(
             "[SUNRISE] Auxiliary lighting: %s -> %s\n",
             previousAuxiliaryEnabled ? "ON" : "OFF",
             _auxiliaryEnabled ? "ON" : "OFF"
@@ -269,16 +269,16 @@ void SunriseLightEffect::stop()
 
     _lastAuxiliaryToggleUs = micros();
 
-    Serial.printf(
+    Serial0.printf(
         "[SUNRISE] State changed: %s -> Stopped\n",
         previousState == State::Running ? "Running" :
         previousState == State::Peak ? "Peak" : "Stopped"
     );
 
-    Serial.println("[SUNRISE] Stopped");
-    Serial.println("[SUNRISE] RGB reset to (0,0,0)");
-    Serial.println("[SUNRISE] Brightness reset to 0");
-    Serial.println("[SUNRISE] Auxiliary lighting disabled");
+    Serial0.println("[SUNRISE] Stopped");
+    Serial0.println("[SUNRISE] RGB reset to (0,0,0)");
+    Serial0.println("[SUNRISE] Brightness reset to 0");
+    Serial0.println("[SUNRISE] Auxiliary lighting disabled");
 }
 
 // ============================================================
@@ -304,11 +304,11 @@ void SunriseLightEffect::reset()
 
     _lastAuxiliaryToggleUs = micros();
 
-    Serial.println("[SUNRISE] Reset");
-    Serial.println("[SUNRISE] State: Stopped");
-    Serial.println("[SUNRISE] RGB: (0,0,0)");
-    Serial.println("[SUNRISE] Brightness: 0");
-    Serial.println("[SUNRISE] Auxiliary lighting: OFF");
+    Serial0.println("[SUNRISE] Reset");
+    Serial0.println("[SUNRISE] State: Stopped");
+    Serial0.println("[SUNRISE] RGB: (0,0,0)");
+    Serial0.println("[SUNRISE] Brightness: 0");
+    Serial0.println("[SUNRISE] Auxiliary lighting: OFF");
 }
 
 // ============================================================
@@ -360,17 +360,17 @@ void SunriseLightEffect::updatePeak()
 
         _lastAuxiliaryToggleUs = micros();
 
-        Serial.println("[SUNRISE] Peak reached");
-        Serial.printf(
+        Serial0.println("[SUNRISE] Peak reached");
+        Serial0.printf(
             "[SUNRISE] Peak RGB: (%u,%u,%u)\n",
             static_cast<unsigned>(_red),
             static_cast<unsigned>(_green),
             static_cast<unsigned>(_blue)
         );
 
-        Serial.println("[SUNRISE] Peak brightness: 100%");
+        Serial0.println("[SUNRISE] Peak brightness: 100%");
 
-        Serial.printf(
+        Serial0.printf(
             "[SUNRISE] Auxiliary flash enabled: %lu Hz, duty %u%%\n",
             static_cast<unsigned long>(
                 SunriseConfig::AUX_FLASH_FREQUENCY_HZ
@@ -380,7 +380,7 @@ void SunriseLightEffect::updatePeak()
             )
         );
 
-        Serial.printf(
+        Serial0.printf(
             "[SUNRISE] Auxiliary brightness: %u%%\n",
             static_cast<unsigned>(_auxiliaryBrightnessPercent)
         );
@@ -607,7 +607,7 @@ void SunriseLightEffect::updateAuxiliaryFlash()
 
     _auxiliaryFlashState = !_auxiliaryFlashState;
 
-    Serial.printf(
+    Serial0.printf(
         "[SUNRISE][COB] Flash state changed: %s\n",
         _auxiliaryFlashState ? "ON" : "OFF"
     );
@@ -696,7 +696,7 @@ void SunriseLightEffect::setDuration(uint32_t durationMs)
     {
         durationMs = SunriseConfig::MIN_DURATION_MS;
 
-        Serial.printf(
+        Serial0.printf(
             "[SUNRISE][WARNING] Requested duration is too short; "
             "using minimum %lu ms\n",
             static_cast<unsigned long>(durationMs)
@@ -708,7 +708,7 @@ void SunriseLightEffect::setDuration(uint32_t durationMs)
 
     _durationMs = durationMs;
 
-    Serial.printf(
+    Serial0.printf(
         "[SUNRISE] Duration changed: %lu -> %lu ms\n",
         static_cast<unsigned long>(previousDuration),
         static_cast<unsigned long>(_durationMs)
@@ -736,7 +736,7 @@ void SunriseLightEffect::setAuxiliaryBrightness(uint8_t percent)
 
     _auxiliaryBrightnessPercent = percent;
 
-    Serial.printf(
+    Serial0.printf(
         "[SUNRISE][COB] Brightness changed: %u%% -> %u%%\n",
         static_cast<unsigned>(previous),
         static_cast<unsigned>(_auxiliaryBrightnessPercent)

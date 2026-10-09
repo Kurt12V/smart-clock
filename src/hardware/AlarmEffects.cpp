@@ -1,6 +1,7 @@
 #include "AlarmEffects.h"
 
 #include <algorithm>
+#include <Arduino.h>
 
 // ============================================================
 // CONSTRUCTOR
@@ -53,6 +54,8 @@ void AlarmEffects::begin()
     if (_begun)
         return;
 
+    Serial0.printf("[AlarmEffects] begin()\n");
+
     _music.begin(
         AUDIO_SAMPLE_RATE
     );
@@ -60,6 +63,8 @@ void AlarmEffects::begin()
     _sunrise.begin();
 
     _begun = true;
+
+    Serial0.printf("[AlarmEffects] begin() done\n");
 }
 
 // ============================================================
@@ -68,6 +73,8 @@ void AlarmEffects::begin()
 
 void AlarmEffects::startSunrise()
 {
+    Serial0.printf("[AlarmEffects] startSunrise()\n");
+
     if (!_begun)
         begin();
 
@@ -115,6 +122,8 @@ void AlarmEffects::startSunrise()
 
     _effect = EffectType::Sunrise;
     _active = true;
+
+    Serial0.printf("[AlarmEffects] Sunrise started\n");
 }
 
 // ============================================================
@@ -307,6 +316,8 @@ void AlarmEffects::updateSunriseAudio(
 
     if (!_audioStarted)
     {
+        Serial0.printf("[AlarmEffects] Starting I2S speaker for sunrise audio\n");
+
         if (!_i2s.isSpeakerInitialized())
         {
             if (
@@ -315,6 +326,7 @@ void AlarmEffects::updateSunriseAudio(
                 )
             )
             {
+                Serial0.printf("[AlarmEffects] beginSpeaker() failed\n");
                 return;
             }
         }
@@ -323,10 +335,13 @@ void AlarmEffects::updateSunriseAudio(
             !_i2s.startSpeaker()
         )
         {
+            Serial0.printf("[AlarmEffects] startSpeaker() failed\n");
             return;
         }
 
         _audioStarted = true;
+
+        Serial0.printf("[AlarmEffects] I2S speaker started\n");
     }
 
     // --------------------------------------------------------
@@ -458,6 +473,8 @@ void AlarmEffects::updateSunriseAudio(
 
 void AlarmEffects::saveOutputs()
 {
+    Serial0.printf("[AlarmEffects] saveOutputs()\n");
+
     // --------------------------------------------------------
     // MATRIX
     // --------------------------------------------------------
@@ -497,6 +514,8 @@ void AlarmEffects::saveOutputs()
     }
 
     _controlTaken = true;
+
+    Serial0.printf("[AlarmEffects] saveOutputs() done\n");
 }
 
 // ============================================================
@@ -505,6 +524,8 @@ void AlarmEffects::saveOutputs()
 
 void AlarmEffects::takeControl()
 {
+    Serial0.printf("[AlarmEffects] takeControl()\n");
+
     // --------------------------------------------------------
     // MATRIX
     // --------------------------------------------------------
@@ -564,6 +585,8 @@ void AlarmEffects::restoreOutputs()
 {
     if (!_controlTaken)
         return;
+
+    Serial0.printf("[AlarmEffects] restoreOutputs()\n");
 
     // --------------------------------------------------------
     // MATRIX
@@ -638,6 +661,8 @@ void AlarmEffects::restoreOutputs()
     // --------------------------------------------------------
 
     _controlTaken = false;
+
+    Serial0.printf("[AlarmEffects] restoreOutputs() done\n");
 }
 
 // ============================================================
@@ -648,6 +673,8 @@ void AlarmEffects::stop()
 {
     if (!_active)
         return;
+
+    Serial0.printf("[AlarmEffects] stop()\n");
 
     // --------------------------------------------------------
     // STOP MUSIC
@@ -687,6 +714,8 @@ void AlarmEffects::stop()
         EffectType::None;
 
     _active = false;
+
+    Serial0.printf("[AlarmEffects] stop() done\n");
 }
 
 // ============================================================

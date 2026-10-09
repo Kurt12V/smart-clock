@@ -1,5 +1,7 @@
 #include "LedMatrixManager.h"
 
+#include <Arduino.h>
+
 // ============================================================
 // CONSTRUCTOR
 // ============================================================
@@ -23,6 +25,8 @@ LedMatrixManager::LedMatrixManager(
 
 void LedMatrixManager::begin()
 {
+    Serial0.printf("[LedMatrixManager] begin()\n");
+
     _matrix.begin();
 
     _matrix.setBrightness(
@@ -35,6 +39,8 @@ void LedMatrixManager::begin()
     _matrix.show();
 
     _isOn = true;
+
+    Serial0.printf("[LedMatrixManager] begin() done\n");
 }
 
 // ============================================================
@@ -58,6 +64,8 @@ void LedMatrixManager::on()
     if (_isOn)
         return;
 
+    Serial0.printf("[LedMatrixManager] on()\n");
+
     _isOn = true;
 
     _matrix.setBrightness(
@@ -71,6 +79,8 @@ void LedMatrixManager::off()
 {
     if (!_isOn)
         return;
+
+    Serial0.printf("[LedMatrixManager] off()\n");
 
     _isOn = false;
 
@@ -105,6 +115,8 @@ void LedMatrixManager::setBrightness(
         brightness =
             LedMatrix::MAX_BRIGHTNESS;
     }
+
+    Serial0.printf("[LedMatrixManager] setBrightness(%u)\n", (unsigned)brightness);
 
     _brightness = brightness;
 
@@ -185,6 +197,8 @@ void LedMatrixManager::setEffect(
     Effect effect
 )
 {
+    Serial0.printf("[LedMatrixManager] setEffect(%d)\n", (int)effect);
+
     _effects.setEffect(
         effect
     );
@@ -198,6 +212,8 @@ LedMatrixManager::effect() const
 
 void LedMatrixManager::stopEffect()
 {
+    Serial0.printf("[LedMatrixManager] stopEffect()\n");
+
     _effects.setEffect(
         Effect::None
     );
@@ -211,6 +227,8 @@ void LedMatrixManager::setEffectSpeed(
     uint8_t speed
 )
 {
+    Serial0.printf("[LedMatrixManager] setEffectSpeed(%u)\n", (unsigned)speed);
+
     _effects.setSpeed(
         speed
     );
@@ -229,6 +247,8 @@ void LedMatrixManager::setTransitionTime(
     uint16_t milliseconds
 )
 {
+    Serial0.printf("[LedMatrixManager] setTransitionTime(%u)\n", (unsigned)milliseconds);
+
     _effects.setTransitionTime(
         milliseconds
     );

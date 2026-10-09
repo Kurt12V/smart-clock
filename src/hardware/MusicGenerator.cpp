@@ -111,7 +111,7 @@ void MusicGenerator::begin(uint32_t sampleRate)
 {
     if (sampleRate == 0)
     {
-        Serial.printf(
+        Serial0.printf(
             "[MUSIC][WARNING] Invalid sample rate: %lu. Using %lu.\n",
             static_cast<unsigned long>(sampleRate),
             static_cast<unsigned long>(DEFAULT_SAMPLE_RATE)
@@ -135,21 +135,21 @@ void MusicGenerator::begin(uint32_t sampleRate)
 
     _initialized = true;
 
-    Serial.println("[MUSIC] Initialized");
-    Serial.printf(
+    Serial0.println("[MUSIC] Initialized");
+    Serial0.printf(
         "[MUSIC] Sample rate: %lu Hz\n",
         static_cast<unsigned long>(_sampleRate)
     );
-    Serial.printf("[MUSIC] BPM: %.1f\n", _bpm);
-    Serial.printf("[MUSIC] Volume: %.2f\n", _targetVolume);
-    Serial.printf("[MUSIC] Channels: %u\n",
+    Serial0.printf("[MUSIC] BPM: %.1f\n", _bpm);
+    Serial0.printf("[MUSIC] Volume: %.2f\n", _targetVolume);
+    Serial0.printf("[MUSIC] Channels: %u\n",
                   static_cast<unsigned>(CHANNELS));
-    Serial.printf("[MUSIC] Voices: %u\n",
+    Serial0.printf("[MUSIC] Voices: %u\n",
                   static_cast<unsigned>(MAX_VOICES));
 
     if (previousSampleRate != _sampleRate)
     {
-        Serial.printf(
+        Serial0.printf(
             "[MUSIC] Sample rate changed: %lu -> %lu Hz\n",
             static_cast<unsigned long>(previousSampleRate),
             static_cast<unsigned long>(_sampleRate)
@@ -165,7 +165,7 @@ void MusicGenerator::end()
 {
     if (!_initialized)
     {
-        Serial.println("[MUSIC] end(): already stopped");
+        Serial0.println("[MUSIC] end(): already stopped");
         return;
     }
 
@@ -173,7 +173,7 @@ void MusicGenerator::end()
 
     _initialized = false;
 
-    Serial.println("[MUSIC] Deinitialized");
+    Serial0.println("[MUSIC] Deinitialized");
 }
 
 bool MusicGenerator::isInitialized() const
@@ -189,7 +189,7 @@ void MusicGenerator::start()
 {
     if (!_initialized)
     {
-        Serial.println(
+        Serial0.println(
             "[MUSIC][WARNING] start() ignored: generator not initialized"
         );
         return;
@@ -197,7 +197,7 @@ void MusicGenerator::start()
 
     if (_playing)
     {
-        Serial.println("[MUSIC] start(): already playing");
+        Serial0.println("[MUSIC] start(): already playing");
         return;
     }
 
@@ -209,9 +209,9 @@ void MusicGenerator::start()
 
     _playing = true;
 
-    Serial.println("[MUSIC] Playback started");
-    Serial.printf("[MUSIC] BPM: %.1f\n", _bpm);
-    Serial.printf("[MUSIC] Volume: %.2f\n", _targetVolume);
+    Serial0.println("[MUSIC] Playback started");
+    Serial0.printf("[MUSIC] BPM: %.1f\n", _bpm);
+    Serial0.printf("[MUSIC] Volume: %.2f\n", _targetVolume);
 }
 
 // ============================================================
@@ -232,11 +232,11 @@ void MusicGenerator::stop()
 
     if (wasPlaying)
     {
-        Serial.println("[MUSIC] Playback stopped");
+        Serial0.println("[MUSIC] Playback stopped");
     }
     else
     {
-        Serial.println("[MUSIC] Stop requested while idle");
+        Serial0.println("[MUSIC] Stop requested while idle");
     }
 }
 
@@ -253,7 +253,7 @@ void MusicGenerator::setVolume(float volume)
 {
     if (!std::isfinite(volume))
     {
-        Serial.println("[MUSIC][WARNING] Ignored non-finite volume");
+        Serial0.println("[MUSIC][WARNING] Ignored non-finite volume");
         return;
     }
 
@@ -266,7 +266,7 @@ void MusicGenerator::setVolume(float volume)
 
     _targetVolume = volume;
 
-    Serial.printf(
+    Serial0.printf(
         "[MUSIC] Target volume changed: %.3f -> %.3f\n",
         previousVolume,
         _targetVolume
@@ -286,7 +286,7 @@ void MusicGenerator::setBpm(float bpm)
 {
     if (!std::isfinite(bpm))
     {
-        Serial.println("[MUSIC][WARNING] Ignored non-finite BPM");
+        Serial0.println("[MUSIC][WARNING] Ignored non-finite BPM");
         return;
     }
 
@@ -303,7 +303,7 @@ void MusicGenerator::setBpm(float bpm)
 
     updateTiming();
 
-    Serial.printf(
+    Serial0.printf(
         "[MUSIC] BPM changed: %.2f -> %.2f\n",
         previousBpm,
         _bpm
@@ -311,7 +311,7 @@ void MusicGenerator::setBpm(float bpm)
 
     if (requestedBpm != bpm)
     {
-        Serial.printf(
+        Serial0.printf(
             "[MUSIC] BPM clamped to range %.0f-%.0f\n",
             MIN_BPM,
             MAX_BPM
@@ -339,14 +339,14 @@ void MusicGenerator::updateTiming()
     {
         _samplesPerBeat = 0.0f;
 
-        Serial.println("[MUSIC][ERROR] Invalid timing parameters");
+        Serial0.println("[MUSIC][ERROR] Invalid timing parameters");
         return;
     }
 
     _samplesPerBeat =
         static_cast<float>(_sampleRate) * 60.0f / _bpm;
 
-    Serial.printf(
+    Serial0.printf(
         "[MUSIC] Samples per beat: %.2f\n",
         _samplesPerBeat
     );
@@ -425,7 +425,7 @@ void MusicGenerator::triggerBeat()
     if (_beat == 0)
     {
         _melodyIndex = 0;
-        Serial.println("[MUSIC] Loop started");
+        Serial0.println("[MUSIC] Loop started");
     }
 
     // Chord changes every four bars = 16 beats.
@@ -444,7 +444,7 @@ void MusicGenerator::triggerBeat()
         _beat = 0;
         _melodyIndex = 0;
 
-        Serial.println("[MUSIC] Loop completed");
+        Serial0.println("[MUSIC] Loop completed");
     }
 }
 
@@ -485,7 +485,7 @@ void MusicGenerator::triggerHarmony()
     const uint32_t chordIndex = _beat / 16U;
     const Chord chord = chordForBar(chordIndex);
 
-    Serial.printf(
+    Serial0.printf(
         "[MUSIC] Chord changed: %s\n",
         chordIndex % 4U == 0U ? "Cmaj7" :
         chordIndex % 4U == 1U ? "Am7" :
