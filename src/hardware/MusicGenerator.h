@@ -1,290 +1,156 @@
+
 #pragma once
 
 #include <Arduino.h>
-#include <stdint.h>
-#include <stddef.h>
+#include <cstddef>
+#include <cstdint>
 
-/**
- * ============================================================
- * MusicGenerator
- * ============================================================
- *
- * Генератор PCM-аудио для alarm effects.
- *
- * ВАЖНО:
- *
- * Этот класс НЕ знает:
- *   - I2S
- *   - MAX98357A
- *   - Pins.h
- *   - AlarmEffects
- *   - SoundManager
- *
- * Он только генерирует PCM samples.
- *
- * AlarmEffects получает PCM через:
- *
- *     generateBlock()
- *
- * и самостоятельно отправляет его в I2S.
- *
- * ============================================================
- */
+// ============================================================
+// MUSIC GENERATOR — ESP32-S3
+//
+// Mono signed 16-bit PCM.
+// Static memory allocation.
+// No I2S driver dependency.
+// ============================================================
+
 class MusicGenerator
 {
 public:
-
-    // --------------------------------------------------------
-    // CONSTANTS
-    // --------------------------------------------------------
-
     static constexpr uint32_t DEFAULT_SAMPLE_RATE = 44100;
+    static constexpr float DEFAULT_BPM = 96.0f;
 
-    static constexpr float DEFAULT_BPM = 110.0f;
+    static constexpr size_t CHANNELS = 1;
+    static constexpr size_t BLOCK_SAMPLES = 512;
 
-    static constexpr size_t BLOCK_SAMPLES = 128;
+    static constexpr uint32_t LOOP_BEATS = 64;
+    static constexpr uint32_t BARS_PER_LOOP = 16;
+    static constexpr size_t MAX_VOICES = 24;
 
-    static constexpr size_t CHANNELS = 2;
-
-    // --------------------------------------------------------
-    // PRESET
-    // --------------------------------------------------------
-
-    enum class Preset : uint8_t
+    enum class VoiceType : uint8_t
     {
-        SunriseSoft = 0,
-        SunriseAmbient,
-        SunrisePiano
+        Piano,
+        Bass,
+        Pad,
+        Harp,
+        Bell
     };
-
-    // --------------------------------------------------------
-    // NOTE
-    // --------------------------------------------------------
 
     struct NoteEvent
     {
-        int note;
-        uint8_t beats;
+        uint8_t beat;
+        uint8_t note;
+        uint8_t duration;
         float velocity;
     };
 
-    // --------------------------------------------------------
-    // CONSTRUCTOR
-    // --------------------------------------------------------
-
     MusicGenerator();
 
-    // --------------------------------------------------------
-    // INITIALIZATION
-    // --------------------------------------------------------
-
-    void begin(
-        uint32_t sampleRate = DEFAULT_SAMPLE_RATE
-    );
-
+    // Lifecycle
+    void begin(uint32_t sampleRate = DEFAULT_SAMPLE_RATE);
     void end();
 
     bool isInitialized() const;
 
-    // --------------------------------------------------------
-    // PLAYBACK
-    // --------------------------------------------------------
-
-    void start(
-        Preset preset = Preset::SunriseSoft
-    );
-
+    // Playback
+    void start();
     void stop();
 
     bool isPlaying() const;
 
-    // --------------------------------------------------------
-    // UPDATE
-    // --------------------------------------------------------
+    // Audio
+    void generateBlock(int16_t* buffer, size_t sampleCount);
 
-    /**
-     * Генерирует один PCM block.
-     *
-     * buffer должен содержать:
-     *
-     * BLOCK_SAMPLES * CHANNELS
-     *
-     * int16_t элементов.
-     *
-     * Формат:
-     *
-     * L R L R L R ...
-     */
-    void generateBlock(
-        int16_t* buffer,
-        size_t sampleCount
-    );
-
-    // --------------------------------------------------------
-    // VOLUME
-    // --------------------------------------------------------
-
-    void setVolume(
-        float volume01
-    );
-
+    // Parameters
+    void setVolume(float volume);
     float volume() const;
 
-    // --------------------------------------------------------
-    // BPM
-    // --------------------------------------------------------
-
-    void setBpm(
-        float bpm
-    );
-
+    void setBpm(float bpm);
     float bpm() const;
-
-    // --------------------------------------------------------
-    // SAMPLE RATE
-    // --------------------------------------------------------
 
     uint32_t sampleRate() const;
 
 private:
-
     // --------------------------------------------------------
     // VOICE
     // --------------------------------------------------------
 
     struct Voice
     {
-        float frequency = 0.0f;
+        VoiceType type = VoiceType::Piano;
+        bool active = false;
+
+        float frequency = 440.0f;
         float phase = 0.0f;
 
-        float level = 0.0f;
+        float velocity = 0.0f;
+        float sustainLevel = 0.0f;
 
-        uint32_t ageSamples = 0;
-        uint32_t lifeSamples = 0;
+        uint64_t ageSamples = 0;
+        uint64_t durationSamples = 0;
 
-        float attack = 0.0f;
-        float release = 0.0f;
+        uint32_t attackSamples = 1;
+        uint32_t decaySamples = 1;
+        uint32_t releaseSamples = 1;
+    };
 
-        bool active = false;
+    struct Chord
+    {
+        uint8_t root;
+        uint8_t third;
+        uint8_t fifth;
+        uint8_t seventh;
     };
 
     // --------------------------------------------------------
-    // TIMING
+    // INTERNAL METHODS
     // --------------------------------------------------------
 
     void updateTiming();
 
-    // --------------------------------------------------------
-    // AUDIO
-    // --------------------------------------------------------
+    void triggerBeat();
+    void triggerMelody();
+    void triggerHarmony();
+    void triggerBass();
+    void triggerHarp();
+    void triggerBell();
+
+    void triggerNote(
+        uint8_t midiNote,
+        float durationBeats,
+        float velocity,
+        VoiceType type
+    );
 
     float renderSample();
+    float renderVoice(Voice& voice);
+    float envelope(const Voice& voice) const;
 
-    float renderVoice(
-        Voice& voice
-    );
+    void clearVoices();
 
-    // --------------------------------------------------------
-    // BEAT
-    // --------------------------------------------------------
-
-    void triggerBeat();
-
-    void triggerMelody();
-
-    void triggerHarmony();
-
-    void triggerBass();
-
-    // --------------------------------------------------------
-    // PATTERN
-    // --------------------------------------------------------
-
-    const NoteEvent* melodyPattern(
-        size_t& count
-    ) const;
-
-    // --------------------------------------------------------
-    // CHORD
-    // --------------------------------------------------------
-
-    void selectChord(
-        int& root,
-        int& third,
-        int& fifth
-    ) const;
-
-    // --------------------------------------------------------
-    // HELPERS
-    // --------------------------------------------------------
-
-    static float midiToFrequency(
-        int midi
-    );
-
-    static float sine(
-        float phase
-    );
-
-    static float clamp01(
-        float value
-    );
-
-    static float smoothStep(
-        float value
-    );
-
-private:
+    static float midiToFrequency(uint8_t midiNote);
+    static float clamp01(float value);
+    static Chord chordForBar(uint32_t barIndex);
 
     // --------------------------------------------------------
     // STATE
     // --------------------------------------------------------
 
-    bool _initialized;
-    bool _playing;
+    bool _initialized = false;
+    bool _playing = false;
 
-    Preset _preset;
+    uint32_t _sampleRate = DEFAULT_SAMPLE_RATE;
 
-    // --------------------------------------------------------
-    // AUDIO
-    // --------------------------------------------------------
+    float _bpm = DEFAULT_BPM;
+    float _samplesPerBeat = 0.0f;
+    float _samplesUntilBeat = 0.0f;
 
-    uint32_t _sampleRate;
+    float _volume = 0.8f;
+    float _targetVolume = 0.8f;
 
-    float _bpm;
+    uint32_t _beat = 0;
+    size_t _melodyIndex = 0;
 
-    float _volume;
-    float _targetVolume;
+    Voice _voices[MAX_VOICES];
 
-    // --------------------------------------------------------
-    // TIMING
-    // --------------------------------------------------------
-
-    uint32_t _beatSamples;
-
-    uint32_t _samplePosition;
-
-    uint32_t _nextBeatSample;
-
-    uint32_t _beat;
-
-    uint32_t _bar;
-
-    int _melodyIndex;
-
-    // --------------------------------------------------------
-    // VOICES
-    // --------------------------------------------------------
-
-    Voice _melody;
-    Voice _bass;
-    Voice _pad1;
-    Voice _pad2;
-
-    // --------------------------------------------------------
-    // CONSTANTS
-    // --------------------------------------------------------
-
-    // static constexpr float TWO_PI =
-    //     6.28318530717958647692f;
+    // static constexpr float TWO_PI = 6.28318530717958647692f;
 };

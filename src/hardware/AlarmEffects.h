@@ -37,10 +37,7 @@ public:
     // EFFECTS
     // --------------------------------------------------------
 
-    void startSunrise(
-        MusicGenerator::Preset preset =
-            MusicGenerator::Preset::SunriseSoft
-    );
+    void startSunrise();
 
     bool isActive() const;
 

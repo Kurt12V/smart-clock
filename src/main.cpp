@@ -205,9 +205,7 @@ void setup()
 
     Serial.println();
 
-    g_alarmEffects.startSunrise(
-        MusicGenerator::Preset::SunriseSoft
-    );
+    g_alarmEffects.startSunrise();
 
     g_testStartMs =
         millis();

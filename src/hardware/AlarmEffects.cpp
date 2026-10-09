@@ -66,9 +66,7 @@ void AlarmEffects::begin()
 // START SUNRISE
 // ============================================================
 
-void AlarmEffects::startSunrise(
-    MusicGenerator::Preset preset
-)
+void AlarmEffects::startSunrise()
 {
     if (!_begun)
         begin();
@@ -103,9 +101,7 @@ void AlarmEffects::startSunrise(
     // Actual I2S output starts later at 21 minutes.
     // --------------------------------------------------------
 
-    _music.start(
-        preset
-    );
+    _music.start();
 
     _music.setVolume(
         0.0f

@@ -1,133 +1,160 @@
+
 #include "MusicGenerator.h"
 
+#include <cmath>
 #include <algorithm>
-#include <math.h>
 
 // ============================================================
-// MELODY PATTERNS
+// CONFIGURATION
 // ============================================================
 
 namespace
 {
+    constexpr float VOLUME_SMOOTHING = 0.0005f;
+    constexpr float MIX_GAIN = 0.78f;
 
-// ------------------------------------------------------------
-// Sunrise Soft
-// ------------------------------------------------------------
+    constexpr float MIN_BPM = 40.0f;
+    constexpr float MAX_BPM = 180.0f;
 
-constexpr MusicGenerator::NoteEvent SOFT_MELODY[] =
-{
-    {72, 1, 0.55f},
-    {76, 1, 0.50f},
-    {79, 2, 0.52f},
+    // Ограничение PCM перед преобразованием в int16_t.
+    constexpr float PCM_LIMIT = 0.98f;
 
-    {76, 1, 0.45f},
-    {74, 1, 0.48f},
-    {72, 2, 0.52f},
+    constexpr float VOICE_EPSILON = 0.00001f;
 
-    {69, 1, 0.42f},
-    {72, 1, 0.45f},
-    {74, 2, 0.48f},
+    // --------------------------------------------------------
+    // MELODY — 16 BARS / 64 BEATS
+    // --------------------------------------------------------
 
-    {76, 1, 0.50f},
-    {79, 1, 0.52f},
-    {81, 2, 0.48f},
+    constexpr MusicGenerator::NoteEvent MELODY[] =
+    {
+        // INTRO — bars 1-4
+        {  0, 76, 2, 0.62f },
+        {  2, 79, 1, 0.52f },
+        {  3, 81, 2, 0.58f },
+        {  5, 79, 1, 0.46f },
+        {  6, 76, 2, 0.54f },
 
-    {79, 1, 0.48f},
-    {76, 1, 0.45f},
-    {74, 2, 0.44f},
+        {  8, 72, 2, 0.48f },
+        { 10, 76, 2, 0.54f },
+        { 12, 79, 4, 0.62f },
 
-    {72, 2, 0.50f}
-};
+        // THEME — bars 5-8
+        { 16, 81, 2, 0.59f },
+        { 18, 84, 2, 0.66f },
+        { 20, 81, 1, 0.50f },
+        { 21, 79, 3, 0.56f },
 
-// ------------------------------------------------------------
-// Sunrise Ambient
-// ------------------------------------------------------------
+        { 24, 76, 2, 0.53f },
+        { 26, 79, 2, 0.58f },
+        { 28, 81, 4, 0.64f },
 
-constexpr MusicGenerator::NoteEvent AMBIENT_MELODY[] =
-{
-    {72, 2, 0.45f},
-    {76, 2, 0.42f},
-    {79, 4, 0.45f},
+        // DEVELOPMENT — bars 9-12
+        { 32, 79, 2, 0.58f },
+        { 34, 76, 2, 0.51f },
+        { 36, 72, 2, 0.46f },
+        { 38, 76, 2, 0.54f },
 
-    {74, 2, 0.40f},
-    {77, 2, 0.42f},
-    {81, 4, 0.44f},
+        { 40, 79, 2, 0.57f },
+        { 42, 81, 2, 0.61f },
+        { 44, 84, 4, 0.66f },
 
-    {79, 2, 0.42f},
-    {76, 2, 0.40f},
-    {72, 4, 0.44f}
-};
+        // RETURN — bars 13-16
+        { 48, 81, 2, 0.59f },
+        { 50, 79, 2, 0.54f },
+        { 52, 76, 2, 0.50f },
+        { 54, 72, 2, 0.46f },
 
-// ------------------------------------------------------------
-// Sunrise Piano
-// ------------------------------------------------------------
+        { 56, 74, 2, 0.48f },
+        { 58, 76, 2, 0.52f },
+        { 60, 72, 4, 0.58f }
+    };
 
-constexpr MusicGenerator::NoteEvent PIANO_MELODY[] =
-{
-    {72, 1, 0.60f},
-    {74, 1, 0.52f},
-    {76, 1, 0.58f},
-    {79, 1, 0.52f},
+    constexpr size_t MELODY_COUNT =
+        sizeof(MELODY) / sizeof(MELODY[0]);
 
-    {81, 2, 0.58f},
-    {79, 1, 0.48f},
-    {76, 1, 0.54f},
-    {74, 2, 0.48f},
+    const char* voiceTypeName(MusicGenerator::VoiceType type)
+    {
+        switch (type)
+        {
+            case MusicGenerator::VoiceType::Piano:
+                return "Piano";
 
-    {72, 1, 0.55f},
-    {76, 1, 0.52f},
-    {79, 2, 0.55f},
-    {76, 2, 0.50f}
-};
+            case MusicGenerator::VoiceType::Bass:
+                return "Bass";
 
+            case MusicGenerator::VoiceType::Pad:
+                return "Pad";
+
+            case MusicGenerator::VoiceType::Harp:
+                return "Harp";
+
+            case MusicGenerator::VoiceType::Bell:
+                return "Bell";
+
+            default:
+                return "Unknown";
+        }
+    }
 }
 
 // ============================================================
 // CONSTRUCTOR
 // ============================================================
 
-MusicGenerator::MusicGenerator()
-    : _initialized(false),
-      _playing(false),
-      _preset(Preset::SunriseSoft),
-
-      _sampleRate(DEFAULT_SAMPLE_RATE),
-      _bpm(DEFAULT_BPM),
-
-      _volume(0.0f),
-      _targetVolume(0.0f),
-
-      _beatSamples(0),
-      _samplePosition(0),
-      _nextBeatSample(0),
-
-      _beat(0),
-      _bar(0),
-      _melodyIndex(0),
-
-      _melody(),
-      _bass(),
-      _pad1(),
-      _pad2()
-{
-}
+MusicGenerator::MusicGenerator() = default;
 
 // ============================================================
 // BEGIN
 // ============================================================
 
-void MusicGenerator::begin(
-    uint32_t sampleRate
-)
+void MusicGenerator::begin(uint32_t sampleRate)
 {
     if (sampleRate == 0)
+    {
+        Serial.printf(
+            "[MUSIC][WARNING] Invalid sample rate: %lu. Using %lu.\n",
+            static_cast<unsigned long>(sampleRate),
+            static_cast<unsigned long>(DEFAULT_SAMPLE_RATE)
+        );
+
         sampleRate = DEFAULT_SAMPLE_RATE;
+    }
+
+    const uint32_t previousSampleRate = _sampleRate;
 
     _sampleRate = sampleRate;
 
     updateTiming();
+    clearVoices();
+
+    _playing = false;
+    _beat = 0;
+    _melodyIndex = 0;
+    _samplesUntilBeat = 0.0f;
+    _volume = _targetVolume;
 
     _initialized = true;
+
+    Serial.println("[MUSIC] Initialized");
+    Serial.printf(
+        "[MUSIC] Sample rate: %lu Hz\n",
+        static_cast<unsigned long>(_sampleRate)
+    );
+    Serial.printf("[MUSIC] BPM: %.1f\n", _bpm);
+    Serial.printf("[MUSIC] Volume: %.2f\n", _targetVolume);
+    Serial.printf("[MUSIC] Channels: %u\n",
+                  static_cast<unsigned>(CHANNELS));
+    Serial.printf("[MUSIC] Voices: %u\n",
+                  static_cast<unsigned>(MAX_VOICES));
+
+    if (previousSampleRate != _sampleRate)
+    {
+        Serial.printf(
+            "[MUSIC] Sample rate changed: %lu -> %lu Hz\n",
+            static_cast<unsigned long>(previousSampleRate),
+            static_cast<unsigned long>(_sampleRate)
+        );
+    }
 }
 
 // ============================================================
@@ -136,14 +163,18 @@ void MusicGenerator::begin(
 
 void MusicGenerator::end()
 {
+    if (!_initialized)
+    {
+        Serial.println("[MUSIC] end(): already stopped");
+        return;
+    }
+
     stop();
 
     _initialized = false;
-}
 
-// ============================================================
-// STATE
-// ============================================================
+    Serial.println("[MUSIC] Deinitialized");
+}
 
 bool MusicGenerator::isInitialized() const
 {
@@ -154,29 +185,33 @@ bool MusicGenerator::isInitialized() const
 // START
 // ============================================================
 
-void MusicGenerator::start(
-    Preset preset
-)
+void MusicGenerator::start()
 {
     if (!_initialized)
+    {
+        Serial.println(
+            "[MUSIC][WARNING] start() ignored: generator not initialized"
+        );
         return;
+    }
 
-    _preset = preset;
+    if (_playing)
+    {
+        Serial.println("[MUSIC] start(): already playing");
+        return;
+    }
+
+    clearVoices();
+
+    _beat = 0;
+    _melodyIndex = 0;
+    _samplesUntilBeat = 0.0f;
 
     _playing = true;
 
-    _samplePosition = 0;
-    _nextBeatSample = 0;
-
-    _beat = 0;
-    _bar = 0;
-
-    _melodyIndex = 0;
-
-    _melody = {};
-    _bass = {};
-    _pad1 = {};
-    _pad2 = {};
+    Serial.println("[MUSIC] Playback started");
+    Serial.printf("[MUSIC] BPM: %.1f\n", _bpm);
+    Serial.printf("[MUSIC] Volume: %.2f\n", _targetVolume);
 }
 
 // ============================================================
@@ -185,20 +220,25 @@ void MusicGenerator::start(
 
 void MusicGenerator::stop()
 {
+    const bool wasPlaying = _playing;
+
     _playing = false;
 
-    _targetVolume = 0.0f;
-    _volume = 0.0f;
+    clearVoices();
 
-    _melody.active = false;
-    _bass.active = false;
-    _pad1.active = false;
-    _pad2.active = false;
+    _beat = 0;
+    _melodyIndex = 0;
+    _samplesUntilBeat = 0.0f;
+
+    if (wasPlaying)
+    {
+        Serial.println("[MUSIC] Playback stopped");
+    }
+    else
+    {
+        Serial.println("[MUSIC] Stop requested while idle");
+    }
 }
-
-// ============================================================
-// PLAYING
-// ============================================================
 
 bool MusicGenerator::isPlaying() const
 {
@@ -209,51 +249,80 @@ bool MusicGenerator::isPlaying() const
 // VOLUME
 // ============================================================
 
-void MusicGenerator::setVolume(
-    float volume01
-)
+void MusicGenerator::setVolume(float volume)
 {
-    _targetVolume =
-        clamp01(volume01);
-}
+    if (!std::isfinite(volume))
+    {
+        Serial.println("[MUSIC][WARNING] Ignored non-finite volume");
+        return;
+    }
 
-// ============================================================
+    volume = clamp01(volume);
+
+    if (std::fabs(_targetVolume - volume) < 0.0001f)
+        return;
+
+    const float previousVolume = _targetVolume;
+
+    _targetVolume = volume;
+
+    Serial.printf(
+        "[MUSIC] Target volume changed: %.3f -> %.3f\n",
+        previousVolume,
+        _targetVolume
+    );
+}
 
 float MusicGenerator::volume() const
 {
-    return _volume;
+    return _targetVolume;
 }
 
 // ============================================================
 // BPM
 // ============================================================
 
-void MusicGenerator::setBpm(
-    float bpm
-)
+void MusicGenerator::setBpm(float bpm)
 {
-    _bpm =
-        std::max(
-            40.0f,
-            std::min(
-                180.0f,
-                bpm
-            )
-        );
+    if (!std::isfinite(bpm))
+    {
+        Serial.println("[MUSIC][WARNING] Ignored non-finite BPM");
+        return;
+    }
+
+    const float requestedBpm = bpm;
+
+    bpm = std::max(MIN_BPM, std::min(MAX_BPM, bpm));
+
+    if (std::fabs(_bpm - bpm) < 0.001f)
+        return;
+
+    const float previousBpm = _bpm;
+
+    _bpm = bpm;
 
     updateTiming();
-}
 
-// ============================================================
+    Serial.printf(
+        "[MUSIC] BPM changed: %.2f -> %.2f\n",
+        previousBpm,
+        _bpm
+    );
+
+    if (requestedBpm != bpm)
+    {
+        Serial.printf(
+            "[MUSIC] BPM clamped to range %.0f-%.0f\n",
+            MIN_BPM,
+            MAX_BPM
+        );
+    }
+}
 
 float MusicGenerator::bpm() const
 {
     return _bpm;
 }
-
-// ============================================================
-// SAMPLE RATE
-// ============================================================
 
 uint32_t MusicGenerator::sampleRate() const
 {
@@ -266,27 +335,25 @@ uint32_t MusicGenerator::sampleRate() const
 
 void MusicGenerator::updateTiming()
 {
-    if (_sampleRate == 0)
+    if (_sampleRate == 0 || _bpm <= 0.0f)
+    {
+        _samplesPerBeat = 0.0f;
+
+        Serial.println("[MUSIC][ERROR] Invalid timing parameters");
         return;
+    }
 
-    _beatSamples =
-        static_cast<uint32_t>(
-            (
-                60.0f /
-                _bpm
-            )
-            *
-            static_cast<float>(
-                _sampleRate
-            )
-        );
+    _samplesPerBeat =
+        static_cast<float>(_sampleRate) * 60.0f / _bpm;
 
-    if (_beatSamples == 0)
-        _beatSamples = 1;
+    Serial.printf(
+        "[MUSIC] Samples per beat: %.2f\n",
+        _samplesPerBeat
+    );
 }
 
 // ============================================================
-// GENERATE BLOCK
+// GENERATE PCM BLOCK
 // ============================================================
 
 void MusicGenerator::generateBlock(
@@ -294,233 +361,59 @@ void MusicGenerator::generateBlock(
     size_t sampleCount
 )
 {
-    if (buffer == nullptr)
+    if (buffer == nullptr || sampleCount == 0)
         return;
 
-    if (sampleCount == 0)
-        return;
-
-    const float volumeStep =
-        (
-            _targetVolume -
-            _volume
-        )
-        /
-        static_cast<float>(
-            sampleCount
-        );
-
-    for (size_t i = 0;
-         i < sampleCount;
-         ++i)
+    if (!_initialized || !_playing || _samplesPerBeat <= 0.0f)
     {
-        _volume += volumeStep;
+        for (size_t i = 0; i < sampleCount; ++i)
+            buffer[i] = 0;
 
-        float sample = 0.0f;
+        return;
+    }
 
-        if (_playing)
+    for (size_t i = 0; i < sampleCount; ++i)
+    {
+        // ----------------------------------------------------
+        // BEAT SCHEDULER
+        // ----------------------------------------------------
+
+        if (_samplesUntilBeat <= 0.0f)
         {
-            if (
-                _samplePosition >=
-                _nextBeatSample
-            )
-            {
-                triggerBeat();
-
-                _nextBeatSample +=
-                    _beatSamples;
-            }
-
-            sample = renderSample();
+            triggerBeat();
+            _samplesUntilBeat += _samplesPerBeat;
         }
 
+        _samplesUntilBeat -= 1.0f;
+
+        // ----------------------------------------------------
+        // MASTER VOLUME RAMP
+        // ----------------------------------------------------
+
+        _volume +=
+            (_targetVolume - _volume) * VOLUME_SMOOTHING;
+
+        if (std::fabs(_targetVolume - _volume) < 0.00001f)
+            _volume = _targetVolume;
+
+        // ----------------------------------------------------
+        // RENDER MIX
+        // ----------------------------------------------------
+
+        float sample = renderSample();
+
         sample *= _volume;
+        sample *= MIX_GAIN;
 
-        sample =
-            std::max(
-                -0.95f,
-                std::min(
-                    0.95f,
-                    sample
-                )
-            );
-
-        const int16_t pcm =
-            static_cast<int16_t>(
-                sample *
-                32767.0f
-            );
-
-        buffer[i * 2] = pcm;
-        buffer[i * 2 + 1] = pcm;
-
-        ++_samplePosition;
-    }
-}
-
-// ============================================================
-// RENDER
-// ============================================================
-
-float MusicGenerator::renderSample()
-{
-    float sample = 0.0f;
-
-    sample +=
-        renderVoice(
-            _melody
-        )
-        *
-        0.34f;
-
-    sample +=
-        renderVoice(
-            _bass
-        )
-        *
-        0.18f;
-
-    sample +=
-        renderVoice(
-            _pad1
-        )
-        *
-        0.20f;
-
-    sample +=
-        renderVoice(
-            _pad2
-        )
-        *
-        0.16f;
-
-    return sample;
-}
-
-// ============================================================
-// VOICE
-// ============================================================
-
-float MusicGenerator::renderVoice(
-    Voice& voice
-)
-{
-    if (!voice.active)
-        return 0.0f;
-
-    if (voice.frequency <= 0.0f)
-        return 0.0f;
-
-    ++voice.ageSamples;
-
-    const float age =
-        static_cast<float>(
-            voice.ageSamples
-        )
-        /
-        static_cast<float>(
-            _sampleRate
+        sample = std::max(
+            -PCM_LIMIT,
+            std::min(PCM_LIMIT, sample)
         );
 
-    const float life =
-        static_cast<float>(
-            voice.lifeSamples
-        )
-        /
-        static_cast<float>(
-            _sampleRate
+        buffer[i] = static_cast<int16_t>(
+            sample * 32767.0f
         );
-
-    float envelope = 1.0f;
-
-    // --------------------------------------------------------
-    // ATTACK
-    // --------------------------------------------------------
-
-    if (
-        voice.attack > 0.0f &&
-        age < voice.attack
-    )
-    {
-        envelope =
-            age /
-            voice.attack;
-
-        envelope =
-            smoothStep(
-                envelope
-            );
     }
-
-    // --------------------------------------------------------
-    // RELEASE
-    // --------------------------------------------------------
-
-    else if (
-        voice.release > 0.0f &&
-        age >
-            life -
-            voice.release
-    )
-    {
-        const float remaining =
-            std::max(
-                0.0f,
-                life - age
-            );
-
-        envelope =
-            remaining /
-            voice.release;
-
-        envelope =
-            smoothStep(
-                envelope
-            );
-    }
-
-    // --------------------------------------------------------
-    // FINISHED
-    // --------------------------------------------------------
-
-    if (
-        voice.ageSamples >=
-        voice.lifeSamples
-    )
-    {
-        voice.active = false;
-
-        return 0.0f;
-    }
-
-    // --------------------------------------------------------
-    // OSCILLATOR
-    // --------------------------------------------------------
-
-    const float value =
-        sine(
-            voice.phase
-        );
-
-    voice.phase +=
-        TWO_PI *
-        voice.frequency /
-        static_cast<float>(
-            _sampleRate
-        );
-
-    if (
-        voice.phase >=
-        TWO_PI
-    )
-    {
-        voice.phase -= TWO_PI;
-    }
-
-    return
-        value *
-        envelope *
-        voice.level;
 }
 
 // ============================================================
@@ -529,168 +422,80 @@ float MusicGenerator::renderVoice(
 
 void MusicGenerator::triggerBeat()
 {
-    triggerMelody();
-
-    if ((_beat % 2) == 0)
+    if (_beat == 0)
     {
-        triggerBass();
+        _melodyIndex = 0;
+        Serial.println("[MUSIC] Loop started");
     }
 
-    triggerHarmony();
+    // Chord changes every four bars = 16 beats.
+    if ((_beat % 16U) == 0U)
+        triggerHarmony();
+
+    triggerBass();
+    triggerHarp();
+    triggerMelody();
+    triggerBell();
 
     ++_beat;
 
-    if (_beat >= 16)
+    if (_beat >= LOOP_BEATS)
     {
         _beat = 0;
-        ++_bar;
-    }
-}
-
-// ============================================================
-// MELODY
-// ============================================================
-
-void MusicGenerator::triggerMelody()
-{
-    size_t count = 0;
-
-    const NoteEvent* pattern =
-        melodyPattern(
-            count
-        );
-
-    if (!pattern || count == 0)
-        return;
-
-    const NoteEvent& event =
-        pattern[
-            _melodyIndex %
-            static_cast<int>(
-                count
-            )
-        ];
-
-    ++_melodyIndex;
-
-    if (
-        _melodyIndex >=
-        static_cast<int>(
-            count
-        )
-    )
-    {
         _melodyIndex = 0;
+
+        Serial.println("[MUSIC] Loop completed");
     }
-
-    _melody.frequency =
-        midiToFrequency(
-            event.note
-        );
-
-    _melody.phase = 0.0f;
-
-    _melody.level =
-        event.velocity;
-
-    _melody.ageSamples = 0;
-
-    const float duration =
-        (
-            60.0f /
-            _bpm
-        )
-        *
-        static_cast<float>(
-            event.beats
-        )
-        *
-        0.90f;
-
-    _melody.lifeSamples =
-        std::max<uint32_t>(
-            1,
-            static_cast<uint32_t>(
-                duration *
-                static_cast<float>(
-                    _sampleRate
-                )
-            )
-        );
-
-    _melody.attack = 0.035f;
-
-    _melody.release =
-        std::min(
-            0.35f,
-            duration * 0.45f
-        );
-
-    _melody.active = true;
 }
 
 // ============================================================
-// HARMONY
+// CHORD PROGRESSION
+// ============================================================
+
+MusicGenerator::Chord MusicGenerator::chordForBar(
+    uint32_t barIndex
+)
+{
+    switch (barIndex % 4U)
+    {
+        case 0:
+            // Cmaj7
+            return { 60, 64, 67, 71 };
+
+        case 1:
+            // Am7
+            return { 57, 60, 64, 67 };
+
+        case 2:
+            // Fmaj7
+            return { 53, 57, 60, 64 };
+
+        default:
+            // G7
+            return { 55, 59, 62, 65 };
+    }
+}
+
+// ============================================================
+// HARMONY / PAD
 // ============================================================
 
 void MusicGenerator::triggerHarmony()
 {
-    int root = 60;
-    int third = 64;
-    int fifth = 67;
+    const uint32_t chordIndex = _beat / 16U;
+    const Chord chord = chordForBar(chordIndex);
 
-    selectChord(
-        root,
-        third,
-        fifth
+    Serial.printf(
+        "[MUSIC] Chord changed: %s\n",
+        chordIndex % 4U == 0U ? "Cmaj7" :
+        chordIndex % 4U == 1U ? "Am7" :
+        chordIndex % 4U == 2U ? "Fmaj7" : "G7"
     );
 
-    const bool alternate =
-        (
-            (
-                _bar +
-                _beat / 4
-            )
-            % 2
-        ) != 0;
-
-    _pad1.frequency =
-        midiToFrequency(
-            alternate
-                ? third
-                : root
-        );
-
-    _pad2.frequency =
-        midiToFrequency(
-            alternate
-                ? fifth
-                : third
-        );
-
-    _pad1.phase = 0.0f;
-    _pad2.phase = 0.0f;
-
-    _pad1.level = 0.20f;
-    _pad2.level = 0.16f;
-
-    _pad1.ageSamples = 0;
-    _pad2.ageSamples = 0;
-
-    _pad1.lifeSamples =
-        _beatSamples * 4;
-
-    _pad2.lifeSamples =
-        _beatSamples * 4;
-
-    _pad1.attack = 0.12f;
-    _pad2.attack = 0.18f;
-
-    _pad1.release = 0.40f;
-    _pad2.release = 0.45f;
-
-    _pad1.active = true;
-    _pad2.active = true;
+    triggerNote(chord.root + 12, 16.0f, 0.15f, VoiceType::Pad);
+    triggerNote(chord.third + 12, 16.0f, 0.115f, VoiceType::Pad);
+    triggerNote(chord.fifth + 12, 16.0f, 0.10f, VoiceType::Pad);
+    triggerNote(chord.seventh + 12, 16.0f, 0.075f, VoiceType::Pad);
 }
 
 // ============================================================
@@ -699,196 +504,412 @@ void MusicGenerator::triggerHarmony()
 
 void MusicGenerator::triggerBass()
 {
-    int root = 48;
-    int third = 52;
-    int fifth = 55;
+    if ((_beat % 2U) != 0U)
+        return;
 
-    selectChord(
-        root,
-        third,
-        fifth
+    // The chord changes every four bars.
+    const uint32_t chordIndex = _beat / 16U;
+    const Chord chord = chordForBar(chordIndex);
+
+    triggerNote(
+        chord.root - 12,
+        1.5f,
+        0.20f,
+        VoiceType::Bass
+    );
+}
+
+// ============================================================
+// MELODY
+// ============================================================
+
+void MusicGenerator::triggerMelody()
+{
+    while (_melodyIndex < MELODY_COUNT)
+    {
+        const NoteEvent& event = MELODY[_melodyIndex];
+
+        if (event.beat < _beat)
+        {
+            ++_melodyIndex;
+            continue;
+        }
+
+        if (event.beat > _beat)
+            break;
+
+        triggerNote(
+            event.note,
+            static_cast<float>(event.duration),
+            event.velocity,
+            VoiceType::Piano
+        );
+
+        ++_melodyIndex;
+    }
+}
+
+// ============================================================
+// HARP
+// ============================================================
+
+void MusicGenerator::triggerHarp()
+{
+    const uint32_t beatInBar = _beat % 4U;
+
+    if (beatInBar >= 3U)
+        return;
+
+    const uint32_t chordIndex = _beat / 16U;
+    const Chord chord = chordForBar(chordIndex);
+
+    uint8_t note = chord.root;
+
+    switch (beatInBar)
+    {
+        case 0:
+            note = chord.root;
+            break;
+
+        case 1:
+            note = chord.third;
+            break;
+
+        case 2:
+            note = chord.fifth;
+            break;
+
+        default:
+            return;
+    }
+
+    triggerNote(
+        note + 12,
+        0.85f,
+        beatInBar == 0U ? 0.16f : 0.12f,
+        VoiceType::Harp
+    );
+}
+
+// ============================================================
+// BELL
+// ============================================================
+
+void MusicGenerator::triggerBell()
+{
+    const uint32_t position = _beat % 16U;
+
+    if (position != 14U)
+        return;
+
+    const uint32_t chordIndex = _beat / 16U;
+    const Chord chord = chordForBar(chordIndex);
+
+    triggerNote(
+        chord.fifth + 24,
+        1.8f,
+        0.075f,
+        VoiceType::Bell
+    );
+}
+
+// ============================================================
+// TRIGGER NOTE
+// ============================================================
+
+void MusicGenerator::triggerNote(
+    uint8_t midiNote,
+    float durationBeats,
+    float velocity,
+    VoiceType type
+)
+{
+    if (!_initialized || _sampleRate == 0)
+        return;
+
+    Voice* voice = nullptr;
+
+    // Find a free voice.
+    for (size_t i = 0; i < MAX_VOICES; ++i)
+    {
+        if (!_voices[i].active)
+        {
+            voice = &_voices[i];
+            break;
+        }
+    }
+
+    // Steal the quietest voice when all voices are occupied.
+    if (voice == nullptr)
+    {
+        voice = &_voices[0];
+
+        float lowestLevel = voice->velocity;
+
+        for (size_t i = 1; i < MAX_VOICES; ++i)
+        {
+            if (_voices[i].velocity < lowestLevel)
+            {
+                lowestLevel = _voices[i].velocity;
+                voice = &_voices[i];
+            }
+        }
+    }
+
+    *voice = Voice{};
+
+    voice->active = true;
+    voice->type = type;
+    voice->frequency = midiToFrequency(midiNote);
+    voice->phase = 0.0f;
+    voice->velocity = clamp01(velocity);
+
+    const float safeDuration = std::max(0.1f, durationBeats);
+
+    voice->durationSamples = static_cast<uint64_t>(
+        safeDuration * _samplesPerBeat
     );
 
-    _bass.frequency =
-        midiToFrequency(
-            root
-        );
+    float attackSeconds = 0.01f;
+    float decaySeconds = 0.15f;
+    float releaseSeconds = 0.20f;
+    float sustain = 0.35f;
 
-    _bass.phase = 0.0f;
-
-    _bass.level = 0.20f;
-
-    _bass.ageSamples = 0;
-
-    _bass.lifeSamples =
-        _beatSamples * 2;
-
-    _bass.attack = 0.025f;
-    _bass.release = 0.30f;
-
-    _bass.active = true;
-}
-
-// ============================================================
-// PATTERN
-// ============================================================
-
-const MusicGenerator::NoteEvent*
-MusicGenerator::melodyPattern(
-    size_t& count
-) const
-{
-    switch (_preset)
+    switch (type)
     {
-        case Preset::SunriseAmbient:
-
-            count =
-                sizeof(AMBIENT_MELODY) /
-                sizeof(AMBIENT_MELODY[0]);
-
-            return AMBIENT_MELODY;
-
-        case Preset::SunrisePiano:
-
-            count =
-                sizeof(PIANO_MELODY) /
-                sizeof(PIANO_MELODY[0]);
-
-            return PIANO_MELODY;
-
-        case Preset::SunriseSoft:
-
-        default:
-
-            count =
-                sizeof(SOFT_MELODY) /
-                sizeof(SOFT_MELODY[0]);
-
-            return SOFT_MELODY;
-    }
-}
-
-// ============================================================
-// CHORD
-// ============================================================
-
-void MusicGenerator::selectChord(
-    int& root,
-    int& third,
-    int& fifth
-) const
-{
-    switch (_bar % 4)
-    {
-        // C major
-        case 0:
-
-            root = 48;
-            third = 52;
-            fifth = 55;
-
+        case VoiceType::Piano:
+            attackSeconds = 0.008f;
+            decaySeconds = 0.18f;
+            releaseSeconds = 0.24f;
+            sustain = 0.22f;
             break;
 
-        // A minor
-        case 1:
-
-            root = 45;
-            third = 48;
-            fifth = 52;
-
+        case VoiceType::Bass:
+            attackSeconds = 0.025f;
+            decaySeconds = 0.12f;
+            releaseSeconds = 0.20f;
+            sustain = 0.42f;
             break;
 
-        // F major
-        case 2:
-
-            root = 41;
-            third = 45;
-            fifth = 48;
-
+        case VoiceType::Pad:
+            attackSeconds = 1.20f;
+            decaySeconds = 1.50f;
+            releaseSeconds = 0.85f;
+            sustain = 0.72f;
             break;
 
-        // G major
-        default:
+        case VoiceType::Harp:
+            attackSeconds = 0.006f;
+            decaySeconds = 0.12f;
+            releaseSeconds = 0.28f;
+            sustain = 0.12f;
+            break;
 
-            root = 43;
-            third = 47;
-            fifth = 50;
-
+        case VoiceType::Bell:
+            attackSeconds = 0.003f;
+            decaySeconds = 0.35f;
+            releaseSeconds = 0.90f;
+            sustain = 0.025f;
             break;
     }
+
+    voice->attackSamples = std::max<uint32_t>(
+        1U,
+        static_cast<uint32_t>(attackSeconds * _sampleRate)
+    );
+
+    voice->decaySamples = std::max<uint32_t>(
+        1U,
+        static_cast<uint32_t>(decaySeconds * _sampleRate)
+    );
+
+    voice->releaseSamples = std::max<uint32_t>(
+        1U,
+        static_cast<uint32_t>(releaseSeconds * _sampleRate)
+    );
+
+    voice->sustainLevel = sustain;
 }
 
 // ============================================================
-// MIDI
+// RENDER SAMPLE
 // ============================================================
 
-float MusicGenerator::midiToFrequency(
-    int midi
-)
+float MusicGenerator::renderSample()
 {
-    return
-        440.0f *
-        powf(
-            2.0f,
-            (
-                static_cast<float>(
-                    midi
-                )
-                -
-                69.0f
-            )
-            /
-            12.0f
-        );
+    float mix = 0.0f;
+
+    for (size_t i = 0; i < MAX_VOICES; ++i)
+    {
+        Voice& voice = _voices[i];
+
+        if (voice.active)
+            mix += renderVoice(voice);
+    }
+
+    return mix;
 }
 
 // ============================================================
-// SINE
+// ENVELOPE
 // ============================================================
 
-float MusicGenerator::sine(
-    float phase
-)
+float MusicGenerator::envelope(const Voice& voice) const
 {
-    return sinf(phase);
+    const uint64_t age = voice.ageSamples;
+    const uint64_t attack = voice.attackSamples;
+    const uint64_t decay = voice.decaySamples;
+    const uint64_t duration = voice.durationSamples;
+
+    // Release starts at the requested note duration.
+    if (age >= duration)
+    {
+        const uint64_t releaseAge = age - duration;
+
+        if (releaseAge >= voice.releaseSamples)
+            return 0.0f;
+
+        const float progress =
+            static_cast<float>(releaseAge) /
+            static_cast<float>(voice.releaseSamples);
+
+        return voice.sustainLevel * (1.0f - clamp01(progress));
+    }
+
+    // Attack.
+    if (age < attack)
+    {
+        return static_cast<float>(age) /
+               static_cast<float>(attack);
+    }
+
+    // Decay.
+    const uint64_t decayEnd = attack + decay;
+
+    if (age < decayEnd)
+    {
+        const float progress =
+            static_cast<float>(age - attack) /
+            static_cast<float>(decay);
+
+        return 1.0f -
+            (1.0f - voice.sustainLevel) * clamp01(progress);
+    }
+
+    // Sustain.
+    return voice.sustainLevel;
+}
+
+// ============================================================
+// RENDER VOICE
+// ============================================================
+
+float MusicGenerator::renderVoice(Voice& voice)
+{
+    const float env = envelope(voice);
+
+    if (
+        env <= VOICE_EPSILON &&
+        voice.ageSamples >=
+            voice.durationSamples + voice.releaseSamples
+    )
+    {
+        voice.active = false;
+        return 0.0f;
+    }
+
+    const float phase = voice.phase;
+    const float fundamental = sinf(phase);
+
+    float signal = fundamental;
+
+    switch (voice.type)
+    {
+        case VoiceType::Piano:
+            signal =
+                fundamental * 0.72f +
+                sinf(phase * 2.0f) * 0.22f +
+                sinf(phase * 3.0f) * 0.10f +
+                sinf(phase * 4.0f) * 0.045f;
+            break;
+
+        case VoiceType::Bass:
+            signal =
+                fundamental * 0.86f +
+                sinf(phase * 2.0f) * 0.12f +
+                sinf(phase * 3.0f) * 0.035f;
+            break;
+
+        case VoiceType::Pad:
+            signal =
+                fundamental * 0.78f +
+                sinf(phase * 2.0f) * 0.16f +
+                sinf(phase * 3.0f) * 0.045f;
+            break;
+
+        case VoiceType::Harp:
+            signal =
+                fundamental * 0.76f +
+                sinf(phase * 2.0f) * 0.19f +
+                sinf(phase * 3.0f) * 0.05f;
+            break;
+
+        case VoiceType::Bell:
+            signal =
+                fundamental * 0.48f +
+                sinf(phase * 2.76f) * 0.32f +
+                sinf(phase * 5.40f) * 0.15f +
+                sinf(phase * 8.10f) * 0.05f;
+            break;
+    }
+
+    const float phaseStep =
+        TWO_PI * voice.frequency /
+        static_cast<float>(_sampleRate);
+
+    voice.phase += phaseStep;
+
+    if (voice.phase >= TWO_PI)
+        voice.phase = fmodf(voice.phase, TWO_PI);
+
+    ++voice.ageSamples;
+
+    return signal * env * voice.velocity;
+}
+
+// ============================================================
+// MIDI TO FREQUENCY
+// ============================================================
+
+float MusicGenerator::midiToFrequency(uint8_t midiNote)
+{
+    return 440.0f * powf(
+        2.0f,
+        (static_cast<float>(midiNote) - 69.0f) / 12.0f
+    );
 }
 
 // ============================================================
 // CLAMP
 // ============================================================
 
-float MusicGenerator::clamp01(
-    float value
-)
+float MusicGenerator::clamp01(float value)
 {
-    return std::max(
-        0.0f,
-        std::min(
-            1.0f,
-            value
-        )
-    );
+    if (value < 0.0f)
+        return 0.0f;
+
+    if (value > 1.0f)
+        return 1.0f;
+
+    return value;
 }
 
 // ============================================================
-// SMOOTH STEP
+// CLEAR VOICES
 // ============================================================
 
-float MusicGenerator::smoothStep(
-    float value
-)
+void MusicGenerator::clearVoices()
 {
-    value =
-        clamp01(
-            value
-        );
-
-    return
-        value *
-        value *
-        (
-            3.0f -
-            2.0f *
-            value
-        );
+    for (size_t i = 0; i < MAX_VOICES; ++i)
+        _voices[i] = Voice{};
 }
