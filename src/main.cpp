@@ -6,7 +6,6 @@
 #include "./managers/SettingsManager.h"
 #include "./managers/LightingManager.h"
 #include "./managers/I2SManager.h"
-#include "./managers/SDManager.h"
 #include "./managers/SoundManager.h"
 
 #include "./hardware/AlarmEffects.h"
