@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include <Arduino.h>
@@ -11,131 +12,132 @@
 class SoundManager
 {
 public:
-
-    // ========================================================
-    // STATE / STREAM / CURVE
-    // ========================================================
-
     enum class State : uint8_t
     {
         STOPPED,
         PLAYING,
         PAUSED,
-        FADING_OUT,      // ещё играет, но громкость падает
+        FADING_OUT
     };
 
     enum class AudioStream : uint8_t
     {
-        Media,           // музыка с SD
-        Alarm,           // будильник
-        System,          // стартовый звук, клики
+        Media,
+        Alarm,
+        System
     };
 
     enum class FadeCurve : uint8_t
     {
         Linear,
         Exponential,
-        Logarithmic,
+        Logarithmic
     };
-
-    // ========================================================
-    // PLAY OPTIONS
-    // ========================================================
 
     struct PlayOptions
     {
-        AudioStream stream       = AudioStream::Media;
-        uint8_t     localPercent = 100;      // 0..100 поверх громкости стрима
-        uint32_t    fadeInMs     = 0;        // 0 = без плавного старта
-        uint32_t    fadeOutMs    = 0;        // 0 = без плавного завершения
-        FadeCurve   curve        = FadeCurve::Linear;
+        AudioStream stream = AudioStream::Media;
+        uint8_t localPercent = 100;
+        uint32_t fadeInMs = 0;
+        uint32_t fadeOutMs = 0;
+        FadeCurve curve = FadeCurve::Linear;
     };
 
-    // ========================================================
-    // LIFECYCLE
-    // ========================================================
+    // PCM callback должен записать не более sampleCapacity
+    // моно-сэмплов int16_t и вернуть число записанных сэмплов.
+    // Возврат 0 означает завершение источника.
+    using PcmSourceCallback =
+        size_t (*)(void* context, int16_t* output, size_t sampleCapacity);
+
+    using FinishedCallback =
+        void (*)(void* context);
 
     SoundManager(
-        SDManager&       sdManager,
+        SDManager& sdManager,
         SettingsManager& settings,
-        I2SManager&      i2sManager
+        I2SManager& i2sManager
     );
 
     bool begin();
     void end();
     void update();
 
-    // ========================================================
-    // PLAYBACK
-    // ========================================================
+    // WAV playback
+    bool play(const char* path);
+    bool play(const char* path, const PlayOptions& opts);
 
-    bool play(const char* path);                              // defaults
-    bool play(const char* path, const PlayOptions& opts);     // full API
+    // Generated PCM playback
+    bool playSource(
+        PcmSourceCallback source,
+        void* context,
+        uint32_t sampleRate,
+        AudioStream stream = AudioStream::Alarm,
+        FinishedCallback finished = nullptr
+    );
+
+    // Buffered PCM playback
+    bool beginPCM(
+        uint32_t sampleRate,
+        AudioStream stream = AudioStream::Alarm
+    );
+
+    bool submitPCM(const int16_t* samples, size_t sampleCount);
+    size_t availablePCM() const;
 
     bool pause();
     bool resume();
 
-    void stop();                                 // мгновенный стоп
-    void stop(uint32_t fadeOutMs);               // плавный стоп
+    void stop();
+    void stop(uint32_t fadeOutMs);
 
-    // ========================================================
-    // STATUS
-    // ========================================================
+    bool isInitialized() const;
+    bool isPlaying() const;
+    bool isPaused() const;
+    bool isActive() const;
 
-    bool        isInitialized() const;
-    bool        isPlaying() const;
-    bool        isPaused() const;
-    bool        isActive() const;
-    State       getState() const;
+    State getState() const;
     const char* getStateString() const;
 
     const char* getCurrentPath() const;
     AudioStream getCurrentStream() const;
 
-    // ========================================================
-    // POSITION / DURATION
-    // ========================================================
-
     uint32_t getPositionMs() const;
     uint32_t getDurationMs() const;
 
-    // ========================================================
-    // VOLUME
-    // ========================================================
+    uint8_t streamVolume(AudioStream stream) const;
+    void setStreamVolume(AudioStream stream, uint8_t volume);
 
-    uint8_t streamVolume(AudioStream s) const;
-
-    void    setStreamVolume(AudioStream s, uint8_t v);
-    uint8_t getStreamVolume(AudioStream s) const
+    uint8_t getStreamVolume(AudioStream stream) const
     {
-        return streamVolume(s);
+        return streamVolume(stream);
     }
 
     uint8_t getLocalPercent() const;
-    uint8_t getEffectiveVolume() const;   // с учётом фейда
+    void setLocalPercent(uint8_t percent);
 
-    // ========================================================
-    // DEBUG
-    // ========================================================
+    uint8_t getEffectiveVolume() const;
 
     void printStatus();
 
 private:
-
-    // ========================================================
-    // WAV
-    // ========================================================
+    enum class SourceMode : uint8_t
+    {
+        None,
+        Wav,
+        CallbackPCM,
+        BufferedPCM
+    };
 
     struct WavInfo
     {
-        uint16_t audioFormat;
-        uint16_t channels;
-        uint32_t sampleRate;
-        uint32_t byteRate;
-        uint16_t blockAlign;
-        uint16_t bitsPerSample;
-        uint32_t dataOffset;
-        uint32_t dataSize;
+        uint16_t audioFormat = 0;
+        uint16_t channels = 0;
+        uint32_t sampleRate = 0;
+        uint32_t byteRate = 0;
+        uint16_t blockAlign = 0;
+        uint16_t bitsPerSample = 0;
+        uint32_t dataOffset = 0;
+        uint32_t dataSize = 0;
     };
 
     bool openWav(const char* path);
@@ -143,72 +145,71 @@ private:
     bool validateWav() const;
 
     bool readAndPlayChunk();
+    bool readWavChunk();
+    bool readPcmChunk();
+
+    bool writeSamples(int16_t* samples, size_t sampleCount);
     void finishPlayback();
 
-    // ========================================================
-    // VOLUME / FADE
-    // ========================================================
-
-    void  applyVolume(
+    void applyVolume(
         int16_t* samples,
-        size_t   sampleCount,
-        uint8_t  volume
+        size_t sampleCount,
+        uint8_t volume
     );
 
-    uint8_t calculateBaseVolume() const;       // stream * local
-    float   calculateFadeMultiplier() const;   // 0..1
+    uint8_t calculateBaseVolume() const;
+    float calculateFadeMultiplier() const;
+    float applyFadeCurve(float value) const;
 
-    float   applyFadeCurve(float value) const;
+    bool startPcmOutput(uint32_t sampleRate);
+    void resetPcmQueue();
 
-    // ========================================================
-    // MEMBERS
-    // ========================================================
-
-    SDManager&       _sdManager;
+    SDManager& _sdManager;
     SettingsManager& _settings;
-    I2SManager&      _i2sManager;
+    I2SManager& _i2sManager;
 
-    bool  _initialized;
+    bool _initialized;
     State _state;
+    SourceMode _sourceMode;
 
-    File    _file;
+    File _file;
     WavInfo _wav;
 
-    String      _currentPath;
+    String _currentPath;
     AudioStream _currentStream;
 
     uint32_t _positionBytes;
     uint32_t _durationMs;
-
     uint8_t _localPercent;
 
-    // --------------------------------------------------------
-    // FADE IN / OUT (natural end of track)
-    // --------------------------------------------------------
-
-    bool      _fadeInEnabled;
-    bool      _fadeOutEnabled;
-    uint32_t  _fadeInMs;
-    uint32_t  _fadeOutMs;
-    uint32_t  _fadeStartMs;
+    bool _fadeInEnabled;
+    bool _fadeOutEnabled;
+    uint32_t _fadeInMs;
+    uint32_t _fadeOutMs;
+    uint32_t _fadeStartMs;
     FadeCurve _fadeCurve;
 
-    // --------------------------------------------------------
-    // FADE OUT on explicit stop()
-    // --------------------------------------------------------
-
-    bool     _stopFadeActive;
+    bool _stopFadeActive;
     uint32_t _stopFadeStartMs;
     uint32_t _stopFadeDurationMs;
 
     uint32_t _lastStatusMs;
+    uint32_t _lastUpdateMs;
 
-    // --------------------------------------------------------
-    // BUFFERS
-    // --------------------------------------------------------
+    // PCM callback source
+    PcmSourceCallback _pcmSource;
+    void* _pcmContext;
+    FinishedCallback _finishedCallback;
+    uint32_t _pcmSampleRate;
+
+    // PCM ring buffer
+    static constexpr size_t PCM_QUEUE_CAPACITY = 4096;
+    int16_t _pcmQueue[PCM_QUEUE_CAPACITY];
+    size_t _pcmHead;
+    size_t _pcmTail;
+    size_t _pcmCount;
 
     static constexpr size_t BUFFER_BYTES = 1024;
-
     uint8_t _inputBuffer[BUFFER_BYTES];
     int16_t _outputBuffer[BUFFER_BYTES / sizeof(int16_t)];
 };

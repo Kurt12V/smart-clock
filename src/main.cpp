@@ -1,3 +1,4 @@
+
 #include <Arduino.h>
 
 #include "Pins.h"
@@ -8,6 +9,7 @@
 #include "./managers/I2SManager.h"
 #include "./managers/SoundManager.h"
 
+#include "./hardware/MusicGenerator.h"
 #include "./hardware/AlarmEffects.h"
 
 // ============================================================
@@ -47,28 +49,34 @@ SoundManager g_sound(
 );
 
 // ============================================================
+// MUSIC GENERATOR
+// ============================================================
+
+MusicGenerator g_musicGenerator;
+
+// ============================================================
 // ALARM EFFECTS
 // ============================================================
 
 AlarmEffects g_alarmEffects(
     g_lighting,
-    g_sound
+    g_sound,
+    g_musicGenerator
 );
 
 // ============================================================
 // TEST CONFIGURATION
 // ============================================================
 
-// Полная продолжительность теста.
-// 27 минут позволяют проверить:
-// - старт музыки на 21-й минуте;
-// - достижение 30% громкости на 25-й минуте;
-// - достижение 100% громкости на 26-й минуте.
+// Полная продолжительность теста: 27 минут.
+// Музыка должна стартовать на 21-й минуте.
+// Настройки громкости задаются в SunriseLightEffect.
 
 static constexpr uint32_t TEST_DURATION_MS =
     27UL * 60UL * 1000UL;
 
 // Интервал отладочного вывода.
+
 static constexpr uint32_t DEBUG_INTERVAL_MS =
     1000UL;
 
@@ -80,6 +88,7 @@ uint32_t g_testStartMs = 0;
 uint32_t g_lastDebugMs = 0;
 
 bool g_testStarted = false;
+bool g_systemReady = false;
 
 // ============================================================
 // SETUP
@@ -191,6 +200,17 @@ void setup()
     );
 
     // --------------------------------------------------------
+    // MUSIC GENERATOR
+    // --------------------------------------------------------
+
+    Serial0.println(
+        "[TEST] MusicGenerator READY"
+    );
+
+    // MusicGenerator is initialized when sunrise audio starts.
+    // Do not start it here, otherwise music may begin early.
+
+    // --------------------------------------------------------
     // ALARM EFFECTS
     // --------------------------------------------------------
 
@@ -222,7 +242,7 @@ void setup()
     );
 
     Serial0.println(
-        "[TEST] Music file: /alarms/sunrise.wav"
+        "[TEST] Audio source: MusicGenerator"
     );
 
     Serial0.println(
@@ -230,11 +250,7 @@ void setup()
     );
 
     Serial0.println(
-        "[TEST] Volume reaches 30%: 25:00"
-    );
-
-    Serial0.println(
-        "[TEST] Volume reaches 100%: 26:00"
+        "[TEST] Volume phases: SunriseLightEffect"
     );
 
     Serial0.println(
@@ -252,6 +268,7 @@ void setup()
     g_testStartMs = millis();
     g_lastDebugMs = g_testStartMs;
 
+    g_systemReady = true;
     g_testStarted = true;
 
     g_alarmEffects.startSunrise();
@@ -269,10 +286,10 @@ void setup()
 void loop()
 {
     // --------------------------------------------------------
-    // WAIT IF TEST IS NOT RUNNING
+    // WAIT IF SYSTEM IS NOT READY
     // --------------------------------------------------------
 
-    if (!g_testStarted)
+    if (!g_systemReady || !g_testStarted)
     {
         delay(10);
         return;
@@ -282,6 +299,16 @@ void loop()
 
     const uint32_t elapsedMs =
         now - g_testStartMs;
+
+    // --------------------------------------------------------
+    // UPDATE SOUND MANAGER
+    // --------------------------------------------------------
+    // IMPORTANT:
+    // SoundManager::update() must be called exactly once
+    // per loop iteration. It services both WAV playback
+    // and generated PCM audio.
+
+    g_sound.update();
 
     // --------------------------------------------------------
     // UPDATE ALARM EFFECTS
@@ -296,13 +323,6 @@ void loop()
     // --------------------------------------------------------
 
     g_lighting.update();
-
-    // SoundManager::update() is managed by AlarmEffects
-    // during sunrise audio playback.
-    //
-    // Do not call g_sound.update() here as well, because
-    // servicing the same audio stream twice can disrupt
-    // WAV playback.
 
     // --------------------------------------------------------
     // AUTOMATIC TEST STOP

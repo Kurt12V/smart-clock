@@ -1,3 +1,4 @@
+
 #include "AlarmEffects.h"
 
 #include <algorithm>
@@ -18,8 +19,6 @@ AlarmEffects::AlarmEffects(
       _begun(false),
       _active(false),
       _audioStarted(false),
-      _audioAttempted(false),
-      _elapsedMs(0),
       _sunrise()
 {
 }
@@ -33,13 +32,13 @@ void AlarmEffects::begin()
     if (_begun)
         return;
 
-    Serial0.println("[AlarmEffects] Initializing");
+    Serial0.println("[AlarmEffects] begin()");
 
     _sunrise.begin();
 
     _begun = true;
 
-    Serial0.println("[AlarmEffects] Ready");
+    Serial0.println("[AlarmEffects] ready");
 }
 
 // ============================================================
@@ -51,32 +50,41 @@ void AlarmEffects::startSunrise()
     if (!_begun)
         begin();
 
-    // Остановить предыдущий сценарий, если он запущен.
+    // --------------------------------------------------------
+    // STOP PREVIOUS EFFECT
+    // --------------------------------------------------------
+
     stop();
 
-    // Остановить предыдущее воспроизведение.
+    // Stop audio owned by SoundManager.
     _sound.stop();
 
-    // Сбросить генератор перед новым сценарием.
+    // Reset generator state.
     _music.stop();
     _music.end();
 
-    _elapsedMs = 0;
-
     _audioStarted = false;
-    _audioAttempted = false;
 
-    // Получить временный контроль над освещением.
+    // --------------------------------------------------------
+    // TAKE LIGHTING CONTROL
+    // --------------------------------------------------------
+
     _lighting.beginAlarmOverride();
 
-    // Перезапустить сценарий рассвета.
+    // --------------------------------------------------------
+    // START LIGHT EFFECT
+    // --------------------------------------------------------
+
     _sunrise.start();
+
+    // --------------------------------------------------------
+    // STATE
+    // --------------------------------------------------------
 
     _effect = EffectType::Sunrise;
     _active = true;
 
     Serial0.println("[AlarmEffects] Sunrise started");
-    Serial0.println("[AlarmEffects] Generated music starts at 21:00");
 }
 
 // ============================================================
@@ -106,28 +114,17 @@ void AlarmEffects::update(uint32_t elapsedMs)
 
 void AlarmEffects::updateSunrise(uint32_t elapsedMs)
 {
-    // Накапливаем длительность сценария.
-    // elapsedMs — дельта времени текущего обновления.
-    if (UINT32_MAX - _elapsedMs < elapsedMs)
-        _elapsedMs = UINT32_MAX;
-    else
-        _elapsedMs += elapsedMs;
-
-    // Обновляем внутренние фазы рассвета.
     _sunrise.update(elapsedMs);
 
-    // Применяем состояние освещения.
     updateSunriseLight();
 
-    // Обновляем вспомогательные COB-светодиоды.
     applyAuxiliaryLeds();
 
-    // Запускаем музыку и передаём ей текущую громкость.
-    updateSunriseAudio();
+    updateSunriseAudio(elapsedMs);
 }
 
 // ============================================================
-// UPDATE MATRIX
+// SUNRISE LIGHT
 // ============================================================
 
 void AlarmEffects::updateSunriseLight()
@@ -141,7 +138,7 @@ void AlarmEffects::updateSunriseLight()
 }
 
 // ============================================================
-// UPDATE AUXILIARY COB
+// AUXILIARY COB
 // ============================================================
 
 void AlarmEffects::applyAuxiliaryLeds()
@@ -153,88 +150,98 @@ void AlarmEffects::applyAuxiliaryLeds()
         return;
     }
 
-    const uint8_t percent =
-        _sunrise.auxiliaryBrightness();
+    // SunriseLightEffect returns brightness as 0–100%.
+    // LightingManager expects brightness from 0 to 255.
 
     const uint8_t brightness =
         static_cast<uint8_t>(
-            (static_cast<uint16_t>(percent) * 255U) / 100U
+            static_cast<uint16_t>(
+                _sunrise.auxiliaryBrightness()
+            ) * 255U / 100U
         );
 
     _lighting.setAlarmCob(brightness);
 }
 
 // ============================================================
-// UPDATE AUDIO
+// SUNRISE AUDIO
 // ============================================================
 
-void AlarmEffects::updateSunriseAudio()
+void AlarmEffects::updateSunriseAudio(uint32_t elapsedMs)
 {
-    // До начала музыкальной фазы звук не запускаем.
-    if (_elapsedMs < MUSIC_START_MS)
+    // --------------------------------------------------------
+    // WAIT FOR AUDIO START
+    // --------------------------------------------------------
+
+    if (elapsedMs < MUSIC_START_MS)
         return;
 
-    // Запуск генерации выполняется только один раз.
-    if (!_audioAttempted)
-    {
-        _audioAttempted = true;
-        startGeneratedMusic();
-    }
+    // --------------------------------------------------------
+    // START GENERATED MUSIC
+    // --------------------------------------------------------
 
     if (!_audioStarted)
-        return;
+    {
+        if (!startGeneratedMusic())
+            return;
 
-    // Источник громкости — SunriseLightEffect.
-    // SoundManager применит этот процент при выводе PCM.
-    _sound.setLocalPercent(_sunrise.soundPercent());
+        _audioStarted = true;
+
+        Serial0.println(
+            "[AlarmEffects] Generated music started"
+        );
+    }
+
+    // --------------------------------------------------------
+    // APPLY SUNRISE VOLUME
+    // --------------------------------------------------------
+
+    // soundPercent() is the percentage configured by
+    // SunriseLightEffect for the current phase.
+
+    const uint8_t volumePercent =
+        std::min<uint8_t>(
+            _sunrise.soundPercent(),
+            100
+        );
+
+    _sound.setLocalPercent(volumePercent);
 }
 
 // ============================================================
 // START GENERATED MUSIC
 // ============================================================
 
-void AlarmEffects::startGeneratedMusic()
+bool AlarmEffects::startGeneratedMusic()
 {
-    Serial0.println("[AlarmEffects] Starting generated music");
+    // Initialize the generator before starting playback.
 
-    // Подготовить генератор на частоте, совпадающей с I2S.
-    _music.begin(MUSIC_SAMPLE_RATE);
+    _music.begin(AUDIO_SAMPLE_RATE);
     _music.start();
 
-    // Передавать сгенерированные PCM-сэмплы в SoundManager.
     const bool started = _sound.playSource(
         &AlarmEffects::readGeneratedMusic,
         &_music,
-        MUSIC_SAMPLE_RATE,
-        SoundManager::AudioStream::Alarm,
-        &AlarmEffects::isGeneratedMusicFinished
+        AUDIO_SAMPLE_RATE,
+        SoundManager::AudioStream::Alarm
     );
 
     if (!started)
     {
         _music.stop();
-        _audioStarted = false;
 
         Serial0.println(
-            "[AlarmEffects] ERROR: generated audio could not start"
+            "[AlarmEffects] playSource() failed"
         );
 
-        return;
+        return false;
     }
 
-    _audioStarted = true;
-
-    // Начальная громкость берётся из текущей фазы рассвета.
-    _sound.setLocalPercent(_sunrise.soundPercent());
-
-    Serial0.printf(
-        "[AlarmEffects] Generated audio started, volume=%u%%\n",
-        _sunrise.soundPercent()
-    );
+    return true;
 }
 
 // ============================================================
-// MUSIC GENERATOR CALLBACK
+// PCM SOURCE CALLBACK
 // ============================================================
 
 size_t AlarmEffects::readGeneratedMusic(
@@ -243,48 +250,25 @@ size_t AlarmEffects::readGeneratedMusic(
     size_t sampleCount
 )
 {
-    auto* music = static_cast<MusicGenerator*>(context);
-
-    if (music == nullptr ||
+    if (context == nullptr ||
         buffer == nullptr ||
-        sampleCount == 0 ||
-        !music->isPlaying())
+        sampleCount == 0)
     {
         return 0;
     }
 
-    // MusicGenerator записывает sampleCount монофонических
-    // сэмплов int16_t, а не количество байтов.
-    music->generateBlock(buffer, sampleCount);
+    auto* music =
+        static_cast<MusicGenerator*>(context);
+
+    if (!music->isPlaying())
+        return 0;
+
+    music->generateBlock(
+        buffer,
+        sampleCount
+    );
 
     return sampleCount;
-}
-
-// ============================================================
-// MUSIC FINISHED CALLBACK
-// ============================================================
-
-bool AlarmEffects::isGeneratedMusicFinished(void* context)
-{
-    auto* music = static_cast<MusicGenerator*>(context);
-
-    return music == nullptr || !music->isPlaying();
-}
-
-// ============================================================
-// STOP AUDIO
-// ============================================================
-
-void AlarmEffects::stopAudio()
-{
-    if (_audioStarted || _audioAttempted)
-        _sound.stop();
-
-    _music.stop();
-    _music.end();
-
-    _audioStarted = false;
-    _audioAttempted = false;
 }
 
 // ============================================================
@@ -296,23 +280,39 @@ void AlarmEffects::stop()
     if (!_active)
         return;
 
-    Serial0.println("[AlarmEffects] Stopping");
+    Serial0.println("[AlarmEffects] stop()");
 
-    stopAudio();
+    // --------------------------------------------------------
+    // STOP AUDIO
+    // --------------------------------------------------------
+
+    _sound.stop();
+
+    _music.stop();
+    _music.end();
+
+    _audioStarted = false;
+
+    // --------------------------------------------------------
+    // STOP LIGHT EFFECT
+    // --------------------------------------------------------
 
     _sunrise.stop();
 
-    // Выключить вспомогательные светодиоды перед
-    // возвратом управления обычному освещению.
-    _lighting.setAlarmCob(0);
+    // --------------------------------------------------------
+    // RESTORE LIGHTING SETTINGS
+    // --------------------------------------------------------
+
     _lighting.endAlarmOverride();
 
-    _elapsedMs = 0;
+    // --------------------------------------------------------
+    // RESET STATE
+    // --------------------------------------------------------
 
     _effect = EffectType::None;
     _active = false;
 
-    Serial0.println("[AlarmEffects] Stopped");
+    Serial0.println("[AlarmEffects] stopped");
 }
 
 // ============================================================
@@ -324,11 +324,15 @@ bool AlarmEffects::isActive() const
     return _active;
 }
 
+// ============================================================
+
 bool AlarmEffects::isSunriseActive() const
 {
     return _active &&
            _effect == EffectType::Sunrise;
 }
+
+// ============================================================
 
 AlarmEffects::EffectType AlarmEffects::effect() const
 {
