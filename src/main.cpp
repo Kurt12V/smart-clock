@@ -68,14 +68,14 @@ namespace
 
 static void printSeparator()
 {
-    Serial.println(F("============================================"));
+    Serial0.println(F("============================================"));
 }
 
 static void printHeader()
 {
-    Serial.println();
+    Serial0.println();
     printSeparator();
-    Serial.println(F("       SmartClock - Sunrise Test"));
+    Serial0.println(F("       SmartClock - Sunrise Test"));
     printSeparator();
 }
 
@@ -85,7 +85,7 @@ static void printHeader()
 
 static void initSettings()
 {
-    Serial.println(F("[SETTINGS] Initializing..."));
+    Serial0.println(F("[SETTINGS] Initializing..."));
 
     g_settings.begin();
 
@@ -103,7 +103,7 @@ static void initSettings()
             SettingsManager::Param::VOLUME_ALARM
         );
 
-    Serial.printf(
+    Serial0.printf(
         "[SETTINGS] Alarm volume: %d%%\n",
         actualVolume
     );
@@ -127,77 +127,77 @@ static bool initializeSystem()
     // SPI
     // --------------------------------------------------------
 
-    Serial.println(F("[SPI] Initializing..."));
+    Serial0.println(F("[SPI] Initializing..."));
 
     g_spiManager.begin();
 
-    Serial.println(F("[SPI] Ready."));
+    Serial0.println(F("[SPI] Ready."));
 
     // --------------------------------------------------------
     // I2S
     // --------------------------------------------------------
 
-    Serial.println(F("[I2S] Initializing..."));
+    Serial0.println(F("[I2S] Initializing..."));
 
     g_i2sManager.begin();
 
-    Serial.println(F("[I2S] Ready."));
+    Serial0.println(F("[I2S] Ready."));
 
     // --------------------------------------------------------
     // SD CARD
     // --------------------------------------------------------
 
-    Serial.println(F("[SD] Initializing..."));
+    Serial0.println(F("[SD] Initializing..."));
 
     if (!g_sd.begin(PIN_SD_CS))
     {
-        Serial.println(F("[ERROR] SD initialization failed."));
+        Serial0.println(F("[ERROR] SD initialization failed."));
         return false;
     }
 
-    Serial.println(F("[SD] Ready."));
+    Serial0.println(F("[SD] Ready."));
 
     // --------------------------------------------------------
     // SOUND
     // --------------------------------------------------------
 
-    Serial.println(F("[SOUND] Initializing..."));
+    Serial0.println(F("[SOUND] Initializing..."));
 
     g_sound.begin();
 
-    Serial.println(F("[SOUND] Ready."));
+    Serial0.println(F("[SOUND] Ready."));
 
     // --------------------------------------------------------
     // LIGHTING
     // --------------------------------------------------------
 
-    Serial.println(F("[LIGHTING] Initializing..."));
+    Serial0.println(F("[LIGHTING] Initializing..."));
 
     g_lighting.begin();
 
-    Serial.println(F("[LIGHTING] Ready."));
+    Serial0.println(F("[LIGHTING] Ready."));
 
     // --------------------------------------------------------
     // MUSIC GENERATOR
     // --------------------------------------------------------
 
-    Serial.println(F("[MUSIC] Initializing..."));
+    Serial0.println(F("[MUSIC] Initializing..."));
 
     g_musicGenerator.begin(
         MusicGenerator::DEFAULT_SAMPLE_RATE
     );
 
-    Serial.println(F("[MUSIC] Ready."));
+    Serial0.println(F("[MUSIC] Ready."));
 
     // --------------------------------------------------------
     // ALARM EFFECTS
     // --------------------------------------------------------
 
-    Serial.println(F("[ALARM] Initializing..."));
+    Serial0.println(F("[ALARM] Initializing..."));
 
     g_alarmEffects.begin();
 
-    Serial.println(F("[ALARM] Ready."));
+    Serial0.println(F("[ALARM] Ready."));
 
     return true;
 }
@@ -210,23 +210,23 @@ static void printTestConfiguration()
 {
     printSeparator();
 
-    Serial.println(F("[TEST] Configuration"));
+    Serial0.println(F("[TEST] Configuration"));
 
-    Serial.printf(
+    Serial0.printf(
         "[TEST] Duration: %lu minutes\n",
         static_cast<unsigned long>(
             TEST_DURATION_MS / 60000UL
         )
     );
 
-    Serial.printf(
+    Serial0.printf(
         "[TEST] Alarm volume: %d%%\n",
         g_settings.get(
             SettingsManager::Param::VOLUME_ALARM
         )
     );
 
-    Serial.printf(
+    Serial0.printf(
         "[TEST] Sample rate: %lu Hz\n",
         static_cast<unsigned long>(
             MusicGenerator::DEFAULT_SAMPLE_RATE
@@ -244,7 +244,7 @@ static void startTest()
 {
     printTestConfiguration();
 
-    Serial.println(F("[TEST] Starting sunrise effect..."));
+    Serial0.println(F("[TEST] Starting sunrise effect..."));
 
     g_testStartMs = millis();
     g_lastDebugMs = g_testStartMs;
@@ -254,7 +254,7 @@ static void startTest()
 
     g_testStarted = true;
 
-    Serial.println(F("[TEST] Sunrise started."));
+    Serial0.println(F("[TEST] Sunrise started."));
 }
 
 // ============================================================
@@ -263,7 +263,7 @@ static void startTest()
 
 static void printTestStatus(uint32_t elapsedMs)
 {
-    Serial.printf(
+    Serial0.printf(
         "[TEST] Elapsed: %lu s | Sound: %s | Effects: %s\n",
         static_cast<unsigned long>(elapsedMs / 1000UL),
         g_sound.isActive() ? "ACTIVE" : "IDLE",
@@ -277,15 +277,15 @@ static void printTestStatus(uint32_t elapsedMs)
 
 static void finishTest()
 {
-    Serial.println();
-    Serial.println(F("[TEST] Test duration reached."));
+    Serial0.println();
+    Serial0.println(F("[TEST] Test duration reached."));
 
     g_alarmEffects.stop();
 
     g_testFinished = true;
 
-    Serial.println(F("[TEST] Sunrise stopped."));
-    Serial.println(F("[TEST] Test finished."));
+    Serial0.println(F("[TEST] Sunrise stopped."));
+    Serial0.println(F("[TEST] Test finished."));
 }
 
 // ============================================================
@@ -294,12 +294,12 @@ static void finishTest()
 
 void setup()
 {
-    Serial.begin(115200);
+    Serial0.begin(115200);
     delay(500);
 
     if (!initializeSystem())
     {
-        Serial.println(F("[FATAL] Initialization failed."));
+        Serial0.println(F("[FATAL] Initialization failed."));
         return;
     }
 
