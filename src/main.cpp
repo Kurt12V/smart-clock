@@ -1,62 +1,42 @@
-
 #include <Arduino.h>
 
-#include "Pins.h"
 #include "Config.h"
+#include "Pins.h"
+#include "Constants.h"
 
 #include "./managers/SettingsManager.h"
-#include "./managers/LightingManager.h"
+#include "./managers/SPIManager.h"
 #include "./managers/I2SManager.h"
+#include "./managers/SDManager.h"
 #include "./managers/SoundManager.h"
+#include "./managers/LightingManager.h"
 
 #include "./hardware/MusicGenerator.h"
 #include "./hardware/AlarmEffects.h"
 
 // ============================================================
-// SETTINGS
+// MANAGERS
 // ============================================================
 
 SettingsManager g_settings;
 
-// ============================================================
-// LIGHTING
-// ============================================================
+SPIManager g_spiManager;
+
+I2SManager g_i2sManager;
+
+SDManager g_sd;
+
+SoundManager g_sound(
+    g_sd,
+    g_settings,
+    g_i2sManager
+);
 
 LightingManager g_lighting(
     g_settings
 );
 
-// ============================================================
-// AUDIO HARDWARE
-// ============================================================
-
-I2SManager g_i2s;
-
-// ============================================================
-// SD CARD
-// ============================================================
-
-SDManager g_sd;
-
-// ============================================================
-// SOUND MANAGER
-// ============================================================
-
-SoundManager g_sound(
-    g_sd,
-    g_settings,
-    g_i2s
-);
-
-// ============================================================
-// MUSIC GENERATOR
-// ============================================================
-
 MusicGenerator g_musicGenerator;
-
-// ============================================================
-// ALARM EFFECTS
-// ============================================================
 
 AlarmEffects g_alarmEffects(
     g_lighting,
@@ -68,27 +48,155 @@ AlarmEffects g_alarmEffects(
 // TEST CONFIGURATION
 // ============================================================
 
-// Полная продолжительность теста: 27 минут.
-// Музыка должна стартовать на 21-й минуте.
-// Настройки громкости задаются в SunriseLightEffect.
-
 static constexpr uint32_t TEST_DURATION_MS =
     27UL * 60UL * 1000UL;
 
-// Интервал отладочного вывода.
-
 static constexpr uint32_t DEBUG_INTERVAL_MS =
     1000UL;
+
+static constexpr uint32_t MUSIC_SAMPLE_RATE =
+    44100UL;
 
 // ============================================================
 // TEST STATE
 // ============================================================
 
-uint32_t g_testStartMs = 0;
-uint32_t g_lastDebugMs = 0;
+static uint32_t g_testStartMs = 0;
+static uint32_t g_lastDebugMs = 0;
 
-bool g_testStarted = false;
-bool g_systemReady = false;
+static bool g_testStarted = false;
+
+// ============================================================
+// INITIALIZATION: SETTINGS
+// ============================================================
+
+static bool initSettings()
+{
+    Serial.println("[INIT] Settings");
+
+    if (!g_settings.begin())
+    {
+        Serial.println("[ERROR] Settings initialization failed");
+        return false;
+    }
+
+    Serial.println("[INIT] Settings ready");
+
+    return true;
+}
+
+// ============================================================
+// INITIALIZATION: SPI
+// ============================================================
+
+static bool initSPI()
+{
+    Serial.println("[INIT] SPI");
+
+    if (!g_spiManager.begin())
+    {
+        Serial.println("[ERROR] SPI initialization failed");
+        return false;
+    }
+
+    Serial.println("[INIT] SPI ready");
+
+    return true;
+}
+
+// ============================================================
+// INITIALIZATION: I2S
+// ============================================================
+
+static bool initI2S()
+{
+    Serial.println("[INIT] I2S");
+
+    if (!g_i2sManager.begin())
+    {
+        Serial.println("[ERROR] I2S initialization failed");
+        return false;
+    }
+
+    Serial.println("[INIT] I2S ready");
+
+    return true;
+}
+
+// ============================================================
+// INITIALIZATION: SD
+// ============================================================
+
+static bool initSD()
+{
+    Serial.println("[INIT] SD");
+
+    // SPI должен быть инициализирован до SD.
+    if (!g_sd.begin(PIN_SD_CS))
+    {
+        Serial.println("[ERROR] SD initialization failed");
+        return false;
+    }
+
+    Serial.println("[INIT] SD ready");
+
+    return true;
+}
+
+// ============================================================
+// INITIALIZATION: SOUND
+// ============================================================
+
+static bool initSound()
+{
+    Serial.println("[INIT] Sound");
+
+    if (!g_sound.begin())
+    {
+        Serial.println("[ERROR] Sound initialization failed");
+        return false;
+    }
+
+    Serial.println("[INIT] Sound ready");
+
+    return true;
+}
+
+// ============================================================
+// INITIALIZATION: LIGHTING
+// ============================================================
+
+static bool initLighting()
+{
+    Serial.println("[INIT] Lighting");
+
+    if (!g_lighting.begin())
+    {
+        Serial.println("[ERROR] Lighting initialization failed");
+        return false;
+    }
+
+    Serial.println("[INIT] Lighting ready");
+
+    return true;
+}
+
+// ============================================================
+// INITIALIZATION: MUSIC GENERATOR / ALARM EFFECTS
+// ============================================================
+
+static bool initAlarmEffects()
+{
+    Serial.println("[INIT] MusicGenerator");
+
+    // MusicGenerator::begin() возвращает void.
+    g_musicGenerator.begin(MUSIC_SAMPLE_RATE);
+
+    Serial.println("[INIT] MusicGenerator initialized");
+    Serial.println("[INIT] AlarmEffects ready");
+
+    return true;
+}
 
 // ============================================================
 // SETUP
@@ -96,187 +204,94 @@ bool g_systemReady = false;
 
 void setup()
 {
-    // --------------------------------------------------------
-    // SERIAL
-    // --------------------------------------------------------
+    Serial.begin(115200);
 
-    Serial0.begin(115200);
+    delay(500);
 
-    delay(1000);
-
-    Serial0.println();
-    Serial0.println(
-        "============================================"
-    );
-    Serial0.println(
-        "SMART CLOCK - ALARM EFFECT TEST"
-    );
-    Serial0.println(
-        "============================================"
-    );
+    Serial.println();
+    Serial.println("========================================");
+    Serial.println(" SmartClock - Sunrise Test");
+    Serial.println("========================================");
 
     // --------------------------------------------------------
-    // LIGHTING MANAGER
+    // 1. SETTINGS
     // --------------------------------------------------------
 
-    Serial0.println(
-        "[TEST] Starting LightingManager..."
-    );
-
-    if (!g_lighting.begin())
-    {
-        Serial0.println(
-            "[TEST][ERROR] LightingManager initialization failed"
-        );
-
+    if (!initSettings())
         return;
-    }
-
-    Serial0.println(
-        "[TEST] LightingManager READY"
-    );
 
     // --------------------------------------------------------
-    // I2S MANAGER
+    // 2. SPI
     // --------------------------------------------------------
 
-    Serial0.println(
-        "[TEST] Starting I2SManager..."
-    );
-
-    if (!g_i2s.begin())
-    {
-        Serial0.println(
-            "[TEST][ERROR] I2SManager initialization failed"
-        );
-
+    if (!initSPI())
         return;
-    }
-
-    Serial0.println(
-        "[TEST] I2SManager READY"
-    );
 
     // --------------------------------------------------------
-    // SD MANAGER
+    // 3. I2S
     // --------------------------------------------------------
 
-    Serial0.println(
-        "[TEST] Starting SDManager..."
-    );
-
-    if (!g_sd.begin(PIN_SD_CS))
-    {
-        Serial0.println(
-            "[TEST][ERROR] SDManager initialization failed"
-        );
-
+    if (!initI2S())
         return;
-    }
-
-    Serial0.println(
-        "[TEST] SDManager READY"
-    );
 
     // --------------------------------------------------------
-    // SOUND MANAGER
+    // 4. SD
     // --------------------------------------------------------
 
-    Serial0.println(
-        "[TEST] Starting SoundManager..."
-    );
-
-    if (!g_sound.begin())
-    {
-        Serial0.println(
-            "[TEST][ERROR] SoundManager initialization failed"
-        );
-
+    if (!initSD())
         return;
-    }
-
-    Serial0.println(
-        "[TEST] SoundManager READY"
-    );
 
     // --------------------------------------------------------
-    // MUSIC GENERATOR
+    // 5. SOUND
     // --------------------------------------------------------
 
-    Serial0.println(
-        "[TEST] MusicGenerator READY"
-    );
-
-    // MusicGenerator is initialized when sunrise audio starts.
-    // Do not start it here, otherwise music may begin early.
+    if (!initSound())
+        return;
 
     // --------------------------------------------------------
-    // ALARM EFFECTS
+    // 6. LIGHTING
     // --------------------------------------------------------
 
-    Serial0.println(
-        "[TEST] Starting AlarmEffects..."
-    );
-
-    g_alarmEffects.begin();
-
-    Serial0.println(
-        "[TEST] AlarmEffects READY"
-    );
+    if (!initLighting())
+        return;
 
     // --------------------------------------------------------
-    // TEST INFORMATION
+    // 7. MUSIC GENERATOR / ALARM EFFECTS
     // --------------------------------------------------------
 
-    delay(1000);
+    if (!initAlarmEffects())
+        return;
 
-    Serial0.println();
-    Serial0.println(
-        "============================================"
-    );
-    Serial0.println(
-        "[TEST] SUNRISE TEST CONFIGURATION"
-    );
-    Serial0.println(
-        "============================================"
-    );
+    // --------------------------------------------------------
+    // TEST CONFIGURATION
+    // --------------------------------------------------------
 
-    Serial0.println(
-        "[TEST] Audio source: MusicGenerator"
-    );
+    Serial.println();
+    Serial.println("----------------------------------------");
+    Serial.println("[TEST] Configuration");
+    Serial.println("----------------------------------------");
 
-    Serial0.println(
-        "[TEST] Music starts: 21:00"
-    );
+    Serial.println("[TEST] Duration: 27 minutes");
+    Serial.println("[TEST] Sunrise starts immediately");
+    Serial.println("[TEST] Music starts at 21:00");
+    Serial.println("[TEST] Volume phases are controlled by the effect");
 
-    Serial0.println(
-        "[TEST] Volume phases: SunriseLightEffect"
-    );
-
-    Serial0.println(
-        "[TEST] Test duration: 27 minutes"
-    );
-
-    Serial0.println(
-        "============================================"
-    );
+    Serial.println("----------------------------------------");
+    Serial.println();
 
     // --------------------------------------------------------
     // START SUNRISE
     // --------------------------------------------------------
 
+    // AlarmEffects::startSunrise() возвращает void.
+    g_alarmEffects.startSunrise();
+
     g_testStartMs = millis();
     g_lastDebugMs = g_testStartMs;
 
-    g_systemReady = true;
     g_testStarted = true;
 
-    g_alarmEffects.startSunrise();
-
-    Serial0.println();
-    Serial0.println(
-        "[TEST] Sunrise started"
-    );
+    Serial.println("[TEST] Sunrise started");
 }
 
 // ============================================================
@@ -285,11 +300,7 @@ void setup()
 
 void loop()
 {
-    // --------------------------------------------------------
-    // WAIT IF SYSTEM IS NOT READY
-    // --------------------------------------------------------
-
-    if (!g_systemReady || !g_testStarted)
+    if (!g_testStarted)
     {
         delay(10);
         return;
@@ -301,68 +312,23 @@ void loop()
         now - g_testStartMs;
 
     // --------------------------------------------------------
-    // UPDATE SOUND MANAGER
+    // SOUND
+    // Вызывается ровно один раз за итерацию loop().
     // --------------------------------------------------------
-    // IMPORTANT:
-    // SoundManager::update() must be called exactly once
-    // per loop iteration. It services both WAV playback
-    // and generated PCM audio.
 
     g_sound.update();
 
     // --------------------------------------------------------
-    // UPDATE ALARM EFFECTS
+    // ALARM EFFECTS
     // --------------------------------------------------------
 
-    g_alarmEffects.update(
-        elapsedMs
-    );
+    g_alarmEffects.update(elapsedMs);
 
     // --------------------------------------------------------
-    // UPDATE LIGHTING
+    // LIGHTING
     // --------------------------------------------------------
 
     g_lighting.update();
-
-    // --------------------------------------------------------
-    // AUTOMATIC TEST STOP
-    // --------------------------------------------------------
-
-    if (elapsedMs >= TEST_DURATION_MS)
-    {
-        Serial0.println();
-        Serial0.println(
-            "[TEST] Test duration complete"
-        );
-
-        Serial0.println(
-            "[TEST] Stopping sunrise..."
-        );
-
-        g_alarmEffects.stop();
-
-        g_testStarted = false;
-
-        Serial0.println(
-            "[TEST] Sunrise stopped"
-        );
-
-        Serial0.printf(
-            "[TEST] Sound active: %d\n",
-            g_sound.isActive() ? 1 : 0
-        );
-
-        Serial0.printf(
-            "[TEST] Lighting override active: %d\n",
-            g_lighting.isAlarmOverrideActive() ? 1 : 0
-        );
-
-        Serial0.println(
-            "[TEST] Test finished"
-        );
-
-        return;
-    }
 
     // --------------------------------------------------------
     // DEBUG OUTPUT
@@ -372,36 +338,45 @@ void loop()
     {
         g_lastDebugMs = now;
 
-        const uint32_t totalSeconds =
+        const uint32_t elapsedSeconds =
             elapsedMs / 1000UL;
 
         const uint32_t minutes =
-            totalSeconds / 60UL;
+            elapsedSeconds / 60UL;
 
         const uint32_t seconds =
-            totalSeconds % 60UL;
+            elapsedSeconds % 60UL;
 
-        Serial0.printf(
-            "[TEST] Sunrise %02lu:%02lu | "
-            "Alarm=%d | "
-            "SoundActive=%d | "
-            "LightingOverride=%d\n",
-
+        Serial.printf(
+            "[TEST] Time: %02lu:%02lu | Sound: %s | AlarmEffects: %s\n",
             static_cast<unsigned long>(minutes),
-
             static_cast<unsigned long>(seconds),
-
-            g_alarmEffects.isActive() ? 1 : 0,
-
-            g_sound.isActive() ? 1 : 0,
-
-            g_lighting.isAlarmOverrideActive() ? 1 : 0
+            g_sound.isActive() ? "ACTIVE" : "IDLE",
+            g_alarmEffects.isActive() ? "ACTIVE" : "IDLE"
         );
     }
 
     // --------------------------------------------------------
-    // KEEP LOOP RESPONSIVE
+    // FINISH TEST
     // --------------------------------------------------------
 
-    delay(1);
+    if (elapsedMs >= TEST_DURATION_MS)
+    {
+        Serial.println();
+        Serial.println("========================================");
+        Serial.println("[TEST] 27 minutes elapsed");
+        Serial.println("[TEST] Stopping sunrise effect");
+        Serial.println("========================================");
+
+        g_alarmEffects.stop();
+
+        Serial.printf(
+            "[TEST] Sound active after stop: %s\n",
+            g_sound.isActive() ? "YES" : "NO"
+        );
+
+        Serial.println("[TEST] Sunrise test finished");
+
+        g_testStarted = false;
+    }
 }
