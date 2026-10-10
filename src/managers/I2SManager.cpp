@@ -1,3 +1,4 @@
+
 #include "I2SManager.h"
 
 #include <Arduino.h>
@@ -19,15 +20,13 @@ I2SManager::I2SManager()
 }
 
 // ============================================================
-// BEGIN
+// BEGIN / END
 // ============================================================
 
 bool I2SManager::begin()
 {
     if (_initialized)
-    {
         return true;
-    }
 
     Serial0.println();
     Serial0.println("[I2S] ========================================");
@@ -41,16 +40,10 @@ bool I2SManager::begin()
     return true;
 }
 
-// ============================================================
-// END
-// ============================================================
-
 void I2SManager::end()
 {
     if (!_initialized)
-    {
         return;
-    }
 
     endMicrophone();
     endSpeaker();
@@ -59,10 +52,6 @@ void I2SManager::end()
 
     Serial0.println("[I2S] Manager stopped");
 }
-
-// ============================================================
-// STATE
-// ============================================================
 
 bool I2SManager::isInitialized() const
 {
@@ -73,192 +62,119 @@ bool I2SManager::isInitialized() const
 // MICROPHONE
 // ============================================================
 
-bool I2SManager::beginMicrophone(
-    uint32_t sampleRate
-)
+bool I2SManager::beginMicrophone(uint32_t sampleRate)
 {
     if (_microphoneInitialized)
-    {
         return true;
-    }
 
-    if (!_initialized)
-    {
-        if (!begin())
-        {
-            return false;
-        }
-    }
+    if (!_initialized && !begin())
+        return false;
 
-    Serial0.println();
     Serial0.println("[I2S] Initializing microphone");
+
     Serial0.printf(
-        "[I2S] Port: I2S_NUM_%d\n",
+        "[I2S] Microphone port: %d\n",
         MICROPHONE_PORT
     );
+
     Serial0.printf(
-        "[I2S] Sample rate: %lu Hz\n",
+        "[I2S] Microphone rate: %lu Hz\n",
         static_cast<unsigned long>(sampleRate)
     );
 
     if (!installMicrophoneDriver(sampleRate))
     {
-        Serial0.println(
-            "[I2S] ERROR: microphone driver installation failed"
-        );
-
+        Serial0.println("[I2S][ERROR] Microphone driver installation failed");
         return false;
     }
 
     _microphoneSampleRate = sampleRate;
     _microphoneInitialized = true;
 
-    Serial0.println(
-        "[I2S] Microphone initialized"
-    );
+    Serial0.println("[I2S] Microphone initialized");
 
     return true;
 }
 
-// ============================================================
-// INSTALL MICROPHONE DRIVER
-// ============================================================
-
-bool I2SManager::installMicrophoneDriver(
-    uint32_t sampleRate
-)
+bool I2SManager::installMicrophoneDriver(uint32_t sampleRate)
 {
     const i2s_port_t port =
         static_cast<i2s_port_t>(MICROPHONE_PORT);
 
-    // --------------------------------------------------------
-    // CONFIG
-    // --------------------------------------------------------
-
     const i2s_config_t config =
     {
-        .mode =
-            static_cast<i2s_mode_t>(
-                I2S_MODE_MASTER |
-                I2S_MODE_RX
-            ),
-
+        .mode = static_cast<i2s_mode_t>(
+            I2S_MODE_MASTER | I2S_MODE_RX
+        ),
         .sample_rate = sampleRate,
-
-        .bits_per_sample =
-            I2S_BITS_PER_SAMPLE_32BIT,
-
-        .channel_format =
-            I2S_CHANNEL_FMT_ONLY_LEFT,
-
-        .communication_format =
-            I2S_COMM_FORMAT_STAND_I2S,
-
+        .bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT,
+        .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
+        .communication_format = I2S_COMM_FORMAT_STAND_I2S,
         .intr_alloc_flags = 0,
-
         .dma_buf_count = 8,
-
         .dma_buf_len = 256,
-
         .use_apll = false,
-
         .tx_desc_auto_clear = false,
-
         .fixed_mclk = 0
     };
 
-    // --------------------------------------------------------
-    // INSTALL
-    // --------------------------------------------------------
-
-    esp_err_t result =
-        i2s_driver_install(
-            port,
-            &config,
-            0,
-            nullptr
-        );
+    esp_err_t result = i2s_driver_install(
+        port,
+        &config,
+        0,
+        nullptr
+    );
 
     if (result != ESP_OK)
     {
         Serial0.printf(
-            "[I2S] ERROR: i2s_driver_install(MIC) failed: %s\n",
+            "[I2S][ERROR] MIC driver install: %s\n",
             esp_err_to_name(result)
         );
-
         return false;
     }
-
-    // --------------------------------------------------------
-    // PINS
-    // --------------------------------------------------------
 
     const i2s_pin_config_t pins =
     {
         .bck_io_num = PIN_INMP_SCK,
-
         .ws_io_num = PIN_INMP_WS,
-
         .data_out_num = I2S_PIN_NO_CHANGE,
-
         .data_in_num = PIN_INMP_SD
     };
 
-    result =
-        i2s_set_pin(
-            port,
-            &pins
-        );
+    result = i2s_set_pin(port, &pins);
 
     if (result != ESP_OK)
     {
         Serial0.printf(
-            "[I2S] ERROR: i2s_set_pin(MIC) failed: %s\n",
+            "[I2S][ERROR] MIC set pins: %s\n",
             esp_err_to_name(result)
         );
 
         i2s_driver_uninstall(port);
-
         return false;
     }
-
-    // --------------------------------------------------------
-    // CLEAR DMA
-    // --------------------------------------------------------
 
     i2s_zero_dma_buffer(port);
 
     return true;
 }
 
-// ============================================================
-// END MICROPHONE
-// ============================================================
-
 void I2SManager::endMicrophone()
 {
     if (!_microphoneInitialized)
-    {
         return;
-    }
 
     const i2s_port_t port =
         static_cast<i2s_port_t>(MICROPHONE_PORT);
 
     i2s_stop(port);
-
     i2s_driver_uninstall(port);
 
     _microphoneInitialized = false;
 
-    Serial0.println(
-        "[I2S] Microphone stopped"
-    );
+    Serial0.println("[I2S] Microphone stopped");
 }
-
-// ============================================================
-// MICROPHONE STATE
-// ============================================================
 
 bool I2SManager::isMicrophoneInitialized() const
 {
@@ -270,39 +186,26 @@ int I2SManager::microphonePort() const
     return MICROPHONE_PORT;
 }
 
-// ============================================================
-// CLEAR MICROPHONE
-// ============================================================
-
 bool I2SManager::clearMicrophone()
 {
     if (!_microphoneInitialized)
-    {
         return false;
-    }
 
-    const i2s_port_t port =
-        static_cast<i2s_port_t>(MICROPHONE_PORT);
-
-    const esp_err_t result =
-        i2s_zero_dma_buffer(port);
+    const esp_err_t result = i2s_zero_dma_buffer(
+        static_cast<i2s_port_t>(MICROPHONE_PORT)
+    );
 
     if (result != ESP_OK)
     {
         Serial0.printf(
-            "[I2S] ERROR: clear microphone failed: %s\n",
+            "[I2S][ERROR] Clear MIC buffer: %s\n",
             esp_err_to_name(result)
         );
-
         return false;
     }
 
     return true;
 }
-
-// ============================================================
-// READ MICROPHONE
-// ============================================================
 
 bool I2SManager::readMicrophone(
     void* buffer,
@@ -313,42 +216,29 @@ bool I2SManager::readMicrophone(
 {
     bytesRead = 0;
 
-    if (!_microphoneInitialized)
+    if (!_microphoneInitialized ||
+        buffer == nullptr ||
+        size == 0)
     {
         return false;
     }
 
-    if (buffer == nullptr)
-    {
-        return false;
-    }
-
-    if (size == 0)
-    {
-        return false;
-    }
-
-    const i2s_port_t port =
-        static_cast<i2s_port_t>(MICROPHONE_PORT);
-
-    const esp_err_t result =
-        i2s_read(
-            port,
-            buffer,
-            size,
-            &bytesRead,
-            pdMS_TO_TICKS(timeoutMs)
-        );
+    const esp_err_t result = i2s_read(
+        static_cast<i2s_port_t>(MICROPHONE_PORT),
+        buffer,
+        size,
+        &bytesRead,
+        pdMS_TO_TICKS(timeoutMs)
+    );
 
     if (result != ESP_OK)
     {
         Serial0.printf(
-            "[I2S] ERROR: microphone read failed: %s\n",
+            "[I2S][ERROR] MIC read: %s\n",
             esp_err_to_name(result)
         );
 
         bytesRead = 0;
-
         return false;
     }
 
@@ -359,196 +249,149 @@ bool I2SManager::readMicrophone(
 // SPEAKER
 // ============================================================
 
-bool I2SManager::beginSpeaker(
-    uint32_t sampleRate
-)
+bool I2SManager::beginSpeaker(uint32_t sampleRate)
 {
-    // Если уже установлен на той же частоте —
-    // ничего делать не нужно.
+    if (_speakerInitialized &&
+        _speakerSampleRate == sampleRate)
+    {
+        return true;
+    }
+
     if (_speakerInitialized)
-    {
-        if (_speakerSampleRate == sampleRate)
-        {
-            return true;
-        }
-
-        // Для WAV с другой частотой переустанавливаем драйвер.
         endSpeaker();
-    }
 
-    if (!_initialized)
-    {
-        if (!begin())
-        {
-            return false;
-        }
-    }
+    if (!_initialized && !begin())
+        return false;
 
     Serial0.println();
     Serial0.println("[I2S] Initializing speaker");
+
     Serial0.printf(
-        "[I2S] Port: I2S_NUM_%d\n",
+        "[I2S] Speaker port: %d\n",
         SPEAKER_PORT
     );
+
     Serial0.printf(
-        "[I2S] Sample rate: %lu Hz\n",
+        "[I2S] Speaker sample rate: %lu Hz\n",
         static_cast<unsigned long>(sampleRate)
+    );
+
+    Serial0.printf(
+        "[I2S] BCLK=%d LRCLK=%d DIN=%d\n",
+        PIN_I2S_BCLK,
+        PIN_I2S_LRCLK,
+        PIN_I2S_DIN
     );
 
     if (!installSpeakerDriver(sampleRate))
     {
-        Serial0.println(
-            "[I2S] ERROR: speaker driver installation failed"
-        );
-
+        Serial0.println("[I2S][ERROR] Speaker initialization failed");
         return false;
     }
 
     _speakerSampleRate = sampleRate;
     _speakerInitialized = true;
 
-    Serial0.println(
-        "[I2S] Speaker initialized"
-    );
+    Serial0.println("[I2S] Speaker initialized");
 
     return true;
 }
 
-// ============================================================
-// INSTALL SPEAKER DRIVER
-// ============================================================
-
-bool I2SManager::installSpeakerDriver(
-    uint32_t sampleRate
-)
+bool I2SManager::installSpeakerDriver(uint32_t sampleRate)
 {
     const i2s_port_t port =
         static_cast<i2s_port_t>(SPEAKER_PORT);
 
-    // --------------------------------------------------------
-    // CONFIG
-    // --------------------------------------------------------
-
     const i2s_config_t config =
     {
-        .mode =
-            static_cast<i2s_mode_t>(
-                I2S_MODE_MASTER |
-                I2S_MODE_TX
-            ),
-
+        .mode = static_cast<i2s_mode_t>(
+            I2S_MODE_MASTER | I2S_MODE_TX
+        ),
         .sample_rate = sampleRate,
+        .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
 
-        .bits_per_sample =
-            I2S_BITS_PER_SAMPLE_16BIT,
+        // Моно: передаём данные в левый слот.
+        // Проверь, что SD_MODE/SEL на MAX98357A
+        // настроен на приём именно левого канала.
+        .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
 
-        .channel_format =
-            I2S_CHANNEL_FMT_ONLY_LEFT,
-
-        .communication_format =
-            I2S_COMM_FORMAT_STAND_I2S,
-
+        .communication_format = I2S_COMM_FORMAT_STAND_I2S,
         .intr_alloc_flags = 0,
-
         .dma_buf_count = 8,
-
         .dma_buf_len = 256,
-
         .use_apll = false,
-
         .tx_desc_auto_clear = true,
-
         .fixed_mclk = 0
     };
 
-    // --------------------------------------------------------
-    // INSTALL
-    // --------------------------------------------------------
-
-    esp_err_t result =
-        i2s_driver_install(
-            port,
-            &config,
-            0,
-            nullptr
-        );
+    esp_err_t result = i2s_driver_install(
+        port,
+        &config,
+        0,
+        nullptr
+    );
 
     if (result != ESP_OK)
     {
         Serial0.printf(
-            "[I2S] ERROR: i2s_driver_install(SPK) failed: %s\n",
+            "[I2S][ERROR] SPK driver install: %s\n",
             esp_err_to_name(result)
         );
-
         return false;
     }
-
-    // --------------------------------------------------------
-    // PINS
-    // --------------------------------------------------------
 
     const i2s_pin_config_t pins =
     {
         .bck_io_num = PIN_I2S_BCLK,
-
         .ws_io_num = PIN_I2S_LRCLK,
-
         .data_out_num = PIN_I2S_DIN,
-
         .data_in_num = I2S_PIN_NO_CHANGE
     };
 
-    result =
-        i2s_set_pin(
-            port,
-            &pins
-        );
+    result = i2s_set_pin(port, &pins);
 
     if (result != ESP_OK)
     {
         Serial0.printf(
-            "[I2S] ERROR: i2s_set_pin(SPK) failed: %s\n",
+            "[I2S][ERROR] SPK set pins: %s\n",
             esp_err_to_name(result)
         );
 
         i2s_driver_uninstall(port);
-
         return false;
     }
 
-    i2s_zero_dma_buffer(port);
+    result = i2s_zero_dma_buffer(port);
+
+    if (result != ESP_OK)
+    {
+        Serial0.printf(
+            "[I2S][ERROR] SPK clear DMA: %s\n",
+            esp_err_to_name(result)
+        );
+
+        i2s_driver_uninstall(port);
+        return false;
+    }
 
     return true;
 }
 
-// ============================================================
-// END SPEAKER
-// ============================================================
-
 void I2SManager::endSpeaker()
 {
     if (!_speakerInitialized)
-    {
         return;
-    }
 
     const i2s_port_t port =
         static_cast<i2s_port_t>(SPEAKER_PORT);
 
     i2s_stop(port);
-
     i2s_driver_uninstall(port);
 
     _speakerInitialized = false;
 
-    Serial0.println(
-        "[I2S] Speaker stopped"
-    );
+    Serial0.println("[I2S] Speaker stopped");
 }
-
-// ============================================================
-// SPEAKER STATE
-// ============================================================
 
 bool I2SManager::isSpeakerInitialized() const
 {
@@ -560,60 +403,73 @@ int I2SManager::speakerPort() const
     return SPEAKER_PORT;
 }
 
-// ============================================================
-// START SPEAKER
-// ============================================================
-
 bool I2SManager::startSpeaker()
 {
     if (!_speakerInitialized)
     {
+        Serial0.println("[I2S][ERROR] startSpeaker: not initialized");
         return false;
     }
 
-    const i2s_port_t port =
-        static_cast<i2s_port_t>(SPEAKER_PORT);
+    const esp_err_t result = i2s_start(
+        static_cast<i2s_port_t>(SPEAKER_PORT)
+    );
 
-    return i2s_start(port) == ESP_OK;
+    if (result != ESP_OK)
+    {
+        Serial0.printf(
+            "[I2S][ERROR] Start speaker: %s\n",
+            esp_err_to_name(result)
+        );
+        return false;
+    }
+
+    Serial0.println("[I2S] Speaker started");
+
+    return true;
 }
-
-// ============================================================
-// STOP SPEAKER
-// ============================================================
 
 bool I2SManager::stopSpeaker()
 {
     if (!_speakerInitialized)
+        return false;
+
+    const esp_err_t result = i2s_stop(
+        static_cast<i2s_port_t>(SPEAKER_PORT)
+    );
+
+    if (result != ESP_OK)
     {
+        Serial0.printf(
+            "[I2S][ERROR] Stop speaker: %s\n",
+            esp_err_to_name(result)
+        );
         return false;
     }
 
-    const i2s_port_t port =
-        static_cast<i2s_port_t>(SPEAKER_PORT);
-
-    return i2s_stop(port) == ESP_OK;
+    return true;
 }
-
-// ============================================================
-// CLEAR SPEAKER
-// ============================================================
 
 bool I2SManager::clearSpeaker()
 {
     if (!_speakerInitialized)
+        return false;
+
+    const esp_err_t result = i2s_zero_dma_buffer(
+        static_cast<i2s_port_t>(SPEAKER_PORT)
+    );
+
+    if (result != ESP_OK)
     {
+        Serial0.printf(
+            "[I2S][ERROR] Clear speaker DMA: %s\n",
+            esp_err_to_name(result)
+        );
         return false;
     }
 
-    const i2s_port_t port =
-        static_cast<i2s_port_t>(SPEAKER_PORT);
-
-    return i2s_zero_dma_buffer(port) == ESP_OK;
+    return true;
 }
-
-// ============================================================
-// WRITE SPEAKER
-// ============================================================
 
 bool I2SManager::writeSpeaker(
     const uint8_t* data,
@@ -624,65 +480,54 @@ bool I2SManager::writeSpeaker(
 {
     bytesWritten = 0;
 
-    if (!_speakerInitialized)
+    if (!_speakerInitialized ||
+        data == nullptr ||
+        bytes == 0)
     {
-        return false;
-    }
-
-    if (data == nullptr)
-    {
-        return false;
-    }
-
-    if (bytes == 0)
-    {
-        return false;
-    }
-
-    const i2s_port_t port =
-        static_cast<i2s_port_t>(SPEAKER_PORT);
-
-    const esp_err_t result =
-        i2s_write(
-            port,
-            data,
-            bytes,
-            &bytesWritten,
-            pdMS_TO_TICKS(timeoutMs)
+        Serial0.println(
+            "[I2S][ERROR] writeSpeaker: invalid state or buffer"
         );
+        return false;
+    }
+
+    const esp_err_t result = i2s_write(
+        static_cast<i2s_port_t>(SPEAKER_PORT),
+        data,
+        bytes,
+        &bytesWritten,
+        pdMS_TO_TICKS(timeoutMs)
+    );
 
     if (result != ESP_OK)
     {
         Serial0.printf(
-            "[I2S] ERROR: speaker write failed: %s\n",
+            "[I2S][ERROR] Speaker write: %s\n",
             esp_err_to_name(result)
         );
 
         bytesWritten = 0;
-
         return false;
+    }
+
+    if (bytesWritten != bytes)
+    {
+        Serial0.printf(
+            "[I2S][WARN] Partial write: %u/%u bytes\n",
+            static_cast<unsigned>(bytesWritten),
+            static_cast<unsigned>(bytes)
+        );
     }
 
     return bytesWritten > 0;
 }
 
-// ============================================================
-// PORT INSTALLED
-// ============================================================
-
-bool I2SManager::isPortInstalled(
-    int port
-) const
+bool I2SManager::isPortInstalled(int port) const
 {
     if (port == MICROPHONE_PORT)
-    {
         return _microphoneInitialized;
-    }
 
     if (port == SPEAKER_PORT)
-    {
         return _speakerInitialized;
-    }
 
     return false;
 }

@@ -72,15 +72,15 @@ static bool g_testStarted = false;
 
 static bool initSettings()
 {
-    Serial.println("[INIT] Settings");
+    Serial0.println("[INIT] Settings");
 
     if (!g_settings.begin())
     {
-        Serial.println("[ERROR] Settings initialization failed");
+        Serial0.println("[ERROR] Settings initialization failed");
         return false;
     }
 
-    Serial.println("[INIT] Settings ready");
+    Serial0.println("[INIT] Settings ready");
 
     return true;
 }
@@ -91,15 +91,15 @@ static bool initSettings()
 
 static bool initSPI()
 {
-    Serial.println("[INIT] SPI");
+    Serial0.println("[INIT] SPI");
 
     if (!g_spiManager.begin())
     {
-        Serial.println("[ERROR] SPI initialization failed");
+        Serial0.println("[ERROR] SPI initialization failed");
         return false;
     }
 
-    Serial.println("[INIT] SPI ready");
+    Serial0.println("[INIT] SPI ready");
 
     return true;
 }
@@ -110,15 +110,15 @@ static bool initSPI()
 
 static bool initI2S()
 {
-    Serial.println("[INIT] I2S");
+    Serial0.println("[INIT] I2S");
 
     if (!g_i2sManager.begin())
     {
-        Serial.println("[ERROR] I2S initialization failed");
+        Serial0.println("[ERROR] I2S initialization failed");
         return false;
     }
 
-    Serial.println("[INIT] I2S ready");
+    Serial0.println("[INIT] I2S ready");
 
     return true;
 }
@@ -129,16 +129,16 @@ static bool initI2S()
 
 static bool initSD()
 {
-    Serial.println("[INIT] SD");
+    Serial0.println("[INIT] SD");
 
     // SPI должен быть инициализирован до SD.
     if (!g_sd.begin(PIN_SD_CS))
     {
-        Serial.println("[ERROR] SD initialization failed");
+        Serial0.println("[ERROR] SD initialization failed");
         return false;
     }
 
-    Serial.println("[INIT] SD ready");
+    Serial0.println("[INIT] SD ready");
 
     return true;
 }
@@ -149,15 +149,15 @@ static bool initSD()
 
 static bool initSound()
 {
-    Serial.println("[INIT] Sound");
+    Serial0.println("[INIT] Sound");
 
     if (!g_sound.begin())
     {
-        Serial.println("[ERROR] Sound initialization failed");
+        Serial0.println("[ERROR] Sound initialization failed");
         return false;
     }
 
-    Serial.println("[INIT] Sound ready");
+    Serial0.println("[INIT] Sound ready");
 
     return true;
 }
@@ -168,15 +168,15 @@ static bool initSound()
 
 static bool initLighting()
 {
-    Serial.println("[INIT] Lighting");
+    Serial0.println("[INIT] Lighting");
 
     if (!g_lighting.begin())
     {
-        Serial.println("[ERROR] Lighting initialization failed");
+        Serial0.println("[ERROR] Lighting initialization failed");
         return false;
     }
 
-    Serial.println("[INIT] Lighting ready");
+    Serial0.println("[INIT] Lighting ready");
 
     return true;
 }
@@ -187,13 +187,13 @@ static bool initLighting()
 
 static bool initAlarmEffects()
 {
-    Serial.println("[INIT] MusicGenerator");
+    Serial0.println("[INIT] MusicGenerator");
 
     // MusicGenerator::begin() возвращает void.
     g_musicGenerator.begin(MUSIC_SAMPLE_RATE);
 
-    Serial.println("[INIT] MusicGenerator initialized");
-    Serial.println("[INIT] AlarmEffects ready");
+    Serial0.println("[INIT] MusicGenerator initialized");
+    Serial0.println("[INIT] AlarmEffects ready");
 
     return true;
 }
@@ -204,14 +204,14 @@ static bool initAlarmEffects()
 
 void setup()
 {
-    Serial.begin(115200);
+    Serial0.begin(115200);
 
     delay(500);
 
-    Serial.println();
-    Serial.println("========================================");
-    Serial.println(" SmartClock - Sunrise Test");
-    Serial.println("========================================");
+    Serial0.println();
+    Serial0.println("========================================");
+    Serial0.println(" SmartClock - Sunrise Test");
+    Serial0.println("========================================");
 
     // --------------------------------------------------------
     // 1. SETTINGS
@@ -266,18 +266,18 @@ void setup()
     // TEST CONFIGURATION
     // --------------------------------------------------------
 
-    Serial.println();
-    Serial.println("----------------------------------------");
-    Serial.println("[TEST] Configuration");
-    Serial.println("----------------------------------------");
+    Serial0.println();
+    Serial0.println("----------------------------------------");
+    Serial0.println("[TEST] Configuration");
+    Serial0.println("----------------------------------------");
 
-    Serial.println("[TEST] Duration: 27 minutes");
-    Serial.println("[TEST] Sunrise starts immediately");
-    Serial.println("[TEST] Music starts at 21:00");
-    Serial.println("[TEST] Volume phases are controlled by the effect");
+    Serial0.println("[TEST] Duration: 27 minutes");
+    Serial0.println("[TEST] Sunrise starts immediately");
+    Serial0.println("[TEST] Music starts at 21:00");
+    Serial0.println("[TEST] Volume phases are controlled by the effect");
 
-    Serial.println("----------------------------------------");
-    Serial.println();
+    Serial0.println("----------------------------------------");
+    Serial0.println();
 
     // --------------------------------------------------------
     // START SUNRISE
@@ -291,7 +291,7 @@ void setup()
 
     g_testStarted = true;
 
-    Serial.println("[TEST] Sunrise started");
+    Serial0.println("[TEST] Sunrise started");
 }
 
 // ============================================================
@@ -347,7 +347,7 @@ void loop()
         const uint32_t seconds =
             elapsedSeconds % 60UL;
 
-        Serial.printf(
+        Serial0.printf(
             "[TEST] Time: %02lu:%02lu | Sound: %s | AlarmEffects: %s\n",
             static_cast<unsigned long>(minutes),
             static_cast<unsigned long>(seconds),
@@ -362,20 +362,20 @@ void loop()
 
     if (elapsedMs >= TEST_DURATION_MS)
     {
-        Serial.println();
-        Serial.println("========================================");
-        Serial.println("[TEST] 27 minutes elapsed");
-        Serial.println("[TEST] Stopping sunrise effect");
-        Serial.println("========================================");
+        Serial0.println();
+        Serial0.println("========================================");
+        Serial0.println("[TEST] 27 minutes elapsed");
+        Serial0.println("[TEST] Stopping sunrise effect");
+        Serial0.println("========================================");
 
         g_alarmEffects.stop();
 
-        Serial.printf(
+        Serial0.printf(
             "[TEST] Sound active after stop: %s\n",
             g_sound.isActive() ? "YES" : "NO"
         );
 
-        Serial.println("[TEST] Sunrise test finished");
+        Serial0.println("[TEST] Sunrise test finished");
 
         g_testStarted = false;
     }
