@@ -8,6 +8,7 @@
 SDManager::SDManager()
     : _initialized(false)
 {
+    Serial0.println("[SDManager] Constructor");
 }
 
 
@@ -19,12 +20,49 @@ bool SDManager::begin(
     uint8_t csPin
 )
 {
+    Serial0.println("[SDManager] begin()");
+    Serial0.printf(
+        "[SDManager]   CS pin: %u\n",
+        static_cast<unsigned>(csPin)
+    );
+
+
     _initialized = false;
 
+
     if (!_card.begin(csPin))
+    {
+        Serial0.println(
+            "[SDManager]   _card.begin() FAILED"
+        );
+
         return false;
+    }
+
 
     _initialized = true;
+
+
+    Serial0.println(
+        "[SDManager]   _card.begin() OK"
+    );
+
+
+    if (_card.isMounted())
+    {
+        Serial0.println(
+            "[SDManager]   Card mounted"
+        );
+    }
+    else
+    {
+        Serial0.println(
+            "[SDManager]   Card NOT mounted"
+        );
+    }
+
+
+    Serial0.println("[SDManager] begin() done");
 
     return true;
 }
@@ -36,12 +74,25 @@ bool SDManager::begin(
 
 void SDManager::end()
 {
+    Serial0.println("[SDManager] end()");
+
+
     if (!_initialized)
+    {
+        Serial0.println(
+            "[SDManager]   Not initialized, skip"
+        );
+
         return;
+    }
+
 
     _card.end();
 
     _initialized = false;
+
+
+    Serial0.println("[SDManager] end() done");
 }
 
 
@@ -51,10 +102,18 @@ void SDManager::end()
 
 bool SDManager::isReady() const
 {
-    return (
-        _initialized &&
-        _card.isMounted()
+    const bool ready =
+        (
+            _initialized &&
+            _card.isMounted()
+        );
+
+    Serial0.printf(
+        "[SDManager] isReady() -> %s\n",
+        ready ? "true" : "false"
     );
+
+    return ready;
 }
 
 
@@ -64,12 +123,16 @@ bool SDManager::isReady() const
 
 SDCard& SDManager::card()
 {
+    Serial0.println("[SDManager] card()");
+
     return _card;
 }
 
 
 const SDCard& SDManager::card() const
 {
+    Serial0.println("[SDManager] card() const");
+
     return _card;
 }
 
@@ -80,10 +143,29 @@ const SDCard& SDManager::card() const
 
 SDCardInfo SDManager::getInfo() const
 {
-    if (!_initialized)
-        return SDCardInfo{};
+    Serial0.println("[SDManager] getInfo()");
 
-    return _card.getInfo();
+
+    if (!_initialized)
+    {
+        Serial0.println(
+            "[SDManager]   Not initialized, return empty"
+        );
+
+        return SDCardInfo{};
+    }
+
+
+    const SDCardInfo info =
+        _card.getInfo();
+
+
+    Serial0.println(
+        "[SDManager]   Info retrieved"
+    );
+
+
+    return info;
 }
 
 
@@ -102,57 +184,87 @@ size_t SDManager::listFiles(
     const char* root
 ) const
 {
+    Serial0.println("[SDManager] listFiles()");
+
+    Serial0.printf(
+        "[SDManager]   root: %s\n",
+        (root != nullptr) ? root : "/"
+    );
+
+    Serial0.printf(
+        "[SDManager]   maxFiles: %u\n",
+        static_cast<unsigned>(maxFiles)
+    );
+
+    Serial0.printf(
+        "[SDManager]   maxDepth: %u\n",
+        static_cast<unsigned>(maxDepth)
+    );
+
+
     if (out == nullptr)
+    {
+        Serial0.println(
+            "[SDManager]   out == nullptr, return 0"
+        );
+
         return 0;
+    }
 
     if (maxFiles == 0)
+    {
+        Serial0.println(
+            "[SDManager]   maxFiles == 0, return 0"
+        );
+
         return 0;
+    }
 
     if (!_initialized)
+    {
+        Serial0.println(
+            "[SDManager]   Not initialized, return 0"
+        );
+
         return 0;
+    }
 
     if (!_card.isMounted())
+    {
+        Serial0.println(
+            "[SDManager]   Card not mounted, return 0"
+        );
+
         return 0;
+    }
 
     if (root == nullptr)
         root = "/";
 
 
-    return listDir(
-        root,
-        out,
-        maxFiles,
-        0,
-        0,
-        maxDepth
+    const size_t count =
+        listDir(
+            root,
+            out,
+            maxFiles,
+            0,
+            0,
+            maxDepth
+        );
+
+
+    Serial0.printf(
+        "[SDManager] listFiles() -> %u\n",
+        static_cast<unsigned>(count)
     );
+
+
+    return count;
 }
 
 
 // ============================================================
 // LIST FILES PAGE
-//
-// Пагинация.
-//
-// Пример:
-//
-// offset = 0,  maxFiles = 10
-//     → записи 0..9
-//
-// offset = 10, maxFiles = 10
-//     → записи 10..19
-//
-// offset = 20, maxFiles = 10
-//     → записи 20..29
-//
-// ВАЖНО:
-//
-// Мы НЕ создаём массив:
-//
-//     SDFileEntry[offset + maxFiles]
-//
-// SDManager просто проходит записи и пропускает первые
-// offset элементов.
 // ============================================================
 
 size_t SDManager::listFilesPage(
@@ -164,6 +276,29 @@ size_t SDManager::listFilesPage(
     const char* root
 ) const
 {
+    Serial0.println("[SDManager] listFilesPage()");
+
+    Serial0.printf(
+        "[SDManager]   root: %s\n",
+        (root != nullptr) ? root : "/"
+    );
+
+    Serial0.printf(
+        "[SDManager]   maxFiles: %u\n",
+        static_cast<unsigned>(maxFiles)
+    );
+
+    Serial0.printf(
+        "[SDManager]   offset: %u\n",
+        static_cast<unsigned>(offset)
+    );
+
+    Serial0.printf(
+        "[SDManager]   maxDepth: %u\n",
+        static_cast<unsigned>(maxDepth)
+    );
+
+
     hasMore = false;
 
 
@@ -172,16 +307,40 @@ size_t SDManager::listFilesPage(
     // ========================================================
 
     if (out == nullptr)
+    {
+        Serial0.println(
+            "[SDManager]   out == nullptr, return 0"
+        );
+
         return 0;
+    }
 
     if (maxFiles == 0)
+    {
+        Serial0.println(
+            "[SDManager]   maxFiles == 0, return 0"
+        );
+
         return 0;
+    }
 
     if (!_initialized)
+    {
+        Serial0.println(
+            "[SDManager]   Not initialized, return 0"
+        );
+
         return 0;
+    }
 
     if (!_card.isMounted())
+    {
+        Serial0.println(
+            "[SDManager]   Card not mounted, return 0"
+        );
+
         return 0;
+    }
 
     if (root == nullptr)
         root = "/";
@@ -189,8 +348,6 @@ size_t SDManager::listFilesPage(
 
     // ========================================================
     // SKIPPED
-    //
-    // Сколько записей уже пропущено.
     // ========================================================
 
     size_t skipped = 0;
@@ -200,24 +357,33 @@ size_t SDManager::listFilesPage(
     // SCAN
     // ========================================================
 
-    return listDirPage(
-        root,
-        out,
-        maxFiles,
-        0,
-        skipped,
-        offset,
-        hasMore,
-        0,
-        maxDepth
+    const size_t count =
+        listDirPage(
+            root,
+            out,
+            maxFiles,
+            0,
+            skipped,
+            offset,
+            hasMore,
+            0,
+            maxDepth
+        );
+
+
+    Serial0.printf(
+        "[SDManager] listFilesPage() -> count=%u, hasMore=%s\n",
+        static_cast<unsigned>(count),
+        hasMore ? "true" : "false"
     );
+
+
+    return count;
 }
 
 
 // ============================================================
 // LIST DIRECTORY
-//
-// Обычный полный/ограниченный обход.
 // ============================================================
 
 size_t SDManager::listDir(
@@ -239,6 +405,13 @@ size_t SDManager::listDir(
         return count;
 
 
+    Serial0.printf(
+        "[SDManager]   listDir('%s', depth=%u)\n",
+        dirname,
+        static_cast<unsigned>(depth)
+    );
+
+
     // --------------------------------------------------------
     // Открываем директорию
     // --------------------------------------------------------
@@ -247,11 +420,24 @@ size_t SDManager::listDir(
         SD.open(dirname);
 
     if (!dir)
+    {
+        Serial0.printf(
+            "[SDManager]     Cannot open '%s'\n",
+            dirname
+        );
+
         return count;
+    }
 
     if (!dir.isDirectory())
     {
+        Serial0.printf(
+            "[SDManager]     '%s' is not a directory\n",
+            dirname
+        );
+
         dir.close();
+
         return count;
     }
 
@@ -303,6 +489,15 @@ size_t SDManager::listDir(
             isDirectory;
 
 
+        Serial0.printf(
+            "[SDManager]     [%u] %s%s (%llu B)\n",
+            static_cast<unsigned>(count),
+            path.c_str(),
+            isDirectory ? "/" : "",
+            static_cast<unsigned long long>(size)
+        );
+
+
         ++count;
 
 
@@ -340,21 +535,6 @@ size_t SDManager::listDir(
 
 // ============================================================
 // LIST DIRECTORY PAGE
-//
-// Основная логика пагинации.
-//
-// Мы идём по SD последовательно:
-//
-// 1. Если запись ещё находится до offset:
-//       пропускаем.
-//
-// 2. Если offset уже достигнут:
-//       сохраняем запись.
-//
-// 3. Если страница заполнена и обнаружена ещё одна запись:
-//       hasMore = true.
-//
-// В результате не требуется хранить предыдущие страницы.
 // ============================================================
 
 size_t SDManager::listDirPage(
@@ -390,11 +570,24 @@ size_t SDManager::listDirPage(
         SD.open(dirname);
 
     if (!dir)
+    {
+        Serial0.printf(
+            "[SDManager]     Cannot open '%s'\n",
+            dirname
+        );
+
         return count;
+    }
 
     if (!dir.isDirectory())
     {
+        Serial0.printf(
+            "[SDManager]     '%s' is not a directory\n",
+            dirname
+        );
+
         dir.close();
+
         return count;
     }
 
@@ -438,19 +631,19 @@ size_t SDManager::listDirPage(
 
         // ====================================================
         // OFFSET
-        //
-        // Пока не пропустили нужное количество записей,
-        // текущая запись нам не нужна.
         // ====================================================
 
         if (skipped < offset)
         {
             ++skipped;
 
-            // ------------------------------------------------
-            // Даже пропущенная директория должна быть
-            // обработана рекурсивно.
-            // ------------------------------------------------
+
+            Serial0.printf(
+                "[SDManager]     skip [%u] %s\n",
+                static_cast<unsigned>(skipped - 1),
+                path.c_str()
+            );
+
 
             if (
                 isDirectory &&
@@ -483,16 +676,17 @@ size_t SDManager::listDirPage(
 
         // ====================================================
         // PAGE FULL
-        //
-        // Все maxFiles элементов уже собраны.
-        //
-        // Текущая запись означает, что существует ещё один
-        // элемент после страницы.
         // ====================================================
 
         if (count >= maxFiles)
         {
             hasMore = true;
+
+            Serial0.printf(
+                "[SDManager]     hasMore=true (next: %s)\n",
+                path.c_str()
+            );
+
 
             file.close();
 
@@ -514,6 +708,15 @@ size_t SDManager::listDirPage(
             isDirectory;
 
         ++count;
+
+
+        Serial0.printf(
+            "[SDManager]     page[%u] %s%s (%llu B)\n",
+            static_cast<unsigned>(count - 1),
+            path.c_str(),
+            isDirectory ? "/" : "",
+            static_cast<unsigned long long>(size)
+        );
 
 
         // ====================================================
@@ -542,24 +745,6 @@ size_t SDManager::listDirPage(
 
 
         file.close();
-
-
-        // ====================================================
-        // PAGE FULL
-        // ====================================================
-
-        if (
-            count >= maxFiles &&
-            !hasMore
-        )
-        {
-            // Пока мы ещё не знаем, есть ли следующий
-            // элемент.
-            //
-            // Поэтому продолжаем один шаг цикла.
-            //
-            // Следующая запись установит hasMore=true.
-        }
     }
 
 
@@ -581,14 +766,38 @@ bool SDManager::createDirectory(
     const String& path
 )
 {
+    Serial0.printf(
+        "[SDManager] createDirectory('%s')\n",
+        path.c_str()
+    );
+
+
     if (!_initialized)
+    {
+        Serial0.println(
+            "[SDManager]   Not initialized"
+        );
+
         return false;
+    }
 
     if (!_card.isMounted())
+    {
+        Serial0.println(
+            "[SDManager]   Card not mounted"
+        );
+
         return false;
+    }
 
     if (path.isEmpty())
+    {
+        Serial0.println(
+            "[SDManager]   Empty path"
+        );
+
         return false;
+    }
 
 
     if (
@@ -597,13 +806,27 @@ bool SDManager::createDirectory(
         )
     )
     {
+        Serial0.println(
+            "[SDManager]   Already exists"
+        );
+
         return true;
     }
 
 
-    return _card.fs().mkdir(
-        path.c_str()
+    const bool ok =
+        _card.fs().mkdir(
+            path.c_str()
+        );
+
+
+    Serial0.printf(
+        "[SDManager]   mkdir -> %s\n",
+        ok ? "OK" : "FAILED"
     );
+
+
+    return ok;
 }
 
 
@@ -615,19 +838,53 @@ bool SDManager::fileExists(
     const String& path
 ) const
 {
-    if (!_initialized)
-        return false;
-
-    if (!_card.isMounted())
-        return false;
-
-    if (path.isEmpty())
-        return false;
-
-
-    return _card.exists(
+    Serial0.printf(
+        "[SDManager] fileExists('%s')\n",
         path.c_str()
     );
+
+
+    if (!_initialized)
+    {
+        Serial0.println(
+            "[SDManager]   Not initialized"
+        );
+
+        return false;
+    }
+
+    if (!_card.isMounted())
+    {
+        Serial0.println(
+            "[SDManager]   Card not mounted"
+        );
+
+        return false;
+    }
+
+    if (path.isEmpty())
+    {
+        Serial0.println(
+            "[SDManager]   Empty path"
+        );
+
+        return false;
+    }
+
+
+    const bool exists =
+        _card.exists(
+            path.c_str()
+        );
+
+
+    Serial0.printf(
+        "[SDManager]   -> %s\n",
+        exists ? "true" : "false"
+    );
+
+
+    return exists;
 }
 
 
@@ -640,16 +897,40 @@ bool SDManager::readFile(
     String& content
 )
 {
+    Serial0.printf(
+        "[SDManager] readFile('%s')\n",
+        path.c_str()
+    );
+
+
     content = "";
 
     if (!_initialized)
+    {
+        Serial0.println(
+            "[SDManager]   Not initialized"
+        );
+
         return false;
+    }
 
     if (!_card.isMounted())
+    {
+        Serial0.println(
+            "[SDManager]   Card not mounted"
+        );
+
         return false;
+    }
 
     if (path.isEmpty())
+    {
+        Serial0.println(
+            "[SDManager]   Empty path"
+        );
+
         return false;
+    }
 
 
     File file =
@@ -660,7 +941,13 @@ bool SDManager::readFile(
 
 
     if (!file)
+    {
+        Serial0.println(
+            "[SDManager]   Open FAILED"
+        );
+
         return false;
+    }
 
 
     content =
@@ -668,6 +955,12 @@ bool SDManager::readFile(
 
 
     file.close();
+
+
+    Serial0.printf(
+        "[SDManager]   Read %u bytes\n",
+        static_cast<unsigned>(content.length())
+    );
 
 
     return true;
@@ -683,14 +976,39 @@ bool SDManager::writeFile(
     const String& content
 )
 {
+    Serial0.printf(
+        "[SDManager] writeFile('%s', %u bytes)\n",
+        path.c_str(),
+        static_cast<unsigned>(content.length())
+    );
+
+
     if (!_initialized)
+    {
+        Serial0.println(
+            "[SDManager]   Not initialized"
+        );
+
         return false;
+    }
 
     if (!_card.isMounted())
+    {
+        Serial0.println(
+            "[SDManager]   Card not mounted"
+        );
+
         return false;
+    }
 
     if (path.isEmpty())
+    {
+        Serial0.println(
+            "[SDManager]   Empty path"
+        );
+
         return false;
+    }
 
 
     File file =
@@ -701,7 +1019,13 @@ bool SDManager::writeFile(
 
 
     if (!file)
+    {
+        Serial0.println(
+            "[SDManager]   Open FAILED"
+        );
+
         return false;
+    }
 
 
     const size_t written =
@@ -711,10 +1035,19 @@ bool SDManager::writeFile(
     file.close();
 
 
-    return (
-        written ==
-        content.length()
+    const bool ok =
+        (written == content.length());
+
+
+    Serial0.printf(
+        "[SDManager]   Wrote %u / %u -> %s\n",
+        static_cast<unsigned>(written),
+        static_cast<unsigned>(content.length()),
+        ok ? "OK" : "MISMATCH"
     );
+
+
+    return ok;
 }
 
 
@@ -726,17 +1059,51 @@ bool SDManager::deleteFile(
     const String& path
 )
 {
-    if (!_initialized)
-        return false;
-
-    if (!_card.isMounted())
-        return false;
-
-    if (path.isEmpty())
-        return false;
-
-
-    return _card.fs().remove(
+    Serial0.printf(
+        "[SDManager] deleteFile('%s')\n",
         path.c_str()
     );
+
+
+    if (!_initialized)
+    {
+        Serial0.println(
+            "[SDManager]   Not initialized"
+        );
+
+        return false;
+    }
+
+    if (!_card.isMounted())
+    {
+        Serial0.println(
+            "[SDManager]   Card not mounted"
+        );
+
+        return false;
+    }
+
+    if (path.isEmpty())
+    {
+        Serial0.println(
+            "[SDManager]   Empty path"
+        );
+
+        return false;
+    }
+
+
+    const bool ok =
+        _card.fs().remove(
+            path.c_str()
+        );
+
+
+    Serial0.printf(
+        "[SDManager]   remove -> %s\n",
+        ok ? "OK" : "FAILED"
+    );
+
+
+    return ok;
 }
