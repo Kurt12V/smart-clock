@@ -4,24 +4,23 @@
 #include "Pins.h"
 #include "Constants.h"
 
-#include "./managers/SettingsManager.h"
-#include "./managers/SPIManager.h"
-#include "./managers/I2SManager.h"
-#include "./managers/SDManager.h"
-#include "./managers/SoundManager.h"
-#include "./managers/LightingManager.h"
+#include "managers/SettingsManager.h"
+#include "managers/SPIManager.h"
+#include "managers/I2SManager.h"
+#include "managers/SDManager.h"
+#include "managers/SoundManager.h"
+#include "managers/LightingManager.h"
 
-#include "./hardware/MusicGenerator.h"
-#include "./hardware/AlarmEffects.h"
+#include "hardware/MusicGenerator.h"
+#include "hardware/AlarmEffects.h"
 
 // ============================================================
-// MANAGERS
+// GLOBAL OBJECTS
 // ============================================================
 
 SettingsManager g_settings;
 
 SPIManager g_spiManager;
-
 I2SManager g_i2sManager;
 
 SDManager g_sd;
@@ -32,9 +31,7 @@ SoundManager g_sound(
     g_i2sManager
 );
 
-LightingManager g_lighting(
-    g_settings
-);
+LightingManager g_lighting(g_settings);
 
 MusicGenerator g_musicGenerator;
 
@@ -48,154 +45,247 @@ AlarmEffects g_alarmEffects(
 // TEST CONFIGURATION
 // ============================================================
 
-static constexpr uint32_t TEST_DURATION_MS =
-    27UL * 60UL * 1000UL;
-
-static constexpr uint32_t DEBUG_INTERVAL_MS =
-    1000UL;
-
-static constexpr uint32_t MUSIC_SAMPLE_RATE =
-    44100UL;
-
-// ============================================================
-// TEST STATE
-// ============================================================
-
-static uint32_t g_testStartMs = 0;
-static uint32_t g_lastDebugMs = 0;
-
-static bool g_testStarted = false;
-
-// ============================================================
-// INITIALIZATION: SETTINGS
-// ============================================================
-
-static bool initSettings()
+namespace
 {
-    Serial0.println("[INIT] Settings");
+    constexpr uint32_t TEST_DURATION_MS =
+        27UL * 60UL * 1000UL;
 
-    if (!g_settings.begin())
-    {
-        Serial0.println("[ERROR] Settings initialization failed");
-        return false;
-    }
+    constexpr uint32_t DEBUG_INTERVAL_MS = 1000UL;
 
-    Serial0.println("[INIT] Settings ready");
+    constexpr int TEST_ALARM_VOLUME = 100;
 
-    return true;
+    uint32_t g_testStartMs = 0;
+    uint32_t g_lastDebugMs = 0;
+
+    bool g_systemReady = false;
+    bool g_testStarted = false;
+    bool g_testFinished = false;
 }
 
 // ============================================================
-// INITIALIZATION: SPI
+// SERIAL LOGGING
 // ============================================================
 
-static bool initSPI()
+static void printSeparator()
 {
-    Serial0.println("[INIT] SPI");
+    Serial.println(F("============================================"));
+}
 
-    if (!g_spiManager.begin())
-    {
-        Serial0.println("[ERROR] SPI initialization failed");
-        return false;
-    }
-
-    Serial0.println("[INIT] SPI ready");
-
-    return true;
+static void printHeader()
+{
+    Serial.println();
+    printSeparator();
+    Serial.println(F("       SmartClock - Sunrise Test"));
+    printSeparator();
 }
 
 // ============================================================
-// INITIALIZATION: I2S
+// SETTINGS
 // ============================================================
 
-static bool initI2S()
+static void initSettings()
 {
-    Serial0.println("[INIT] I2S");
+    Serial.println(F("[SETTINGS] Initializing..."));
 
-    if (!g_i2sManager.begin())
-    {
-        Serial0.println("[ERROR] I2S initialization failed");
-        return false;
-    }
+    g_settings.begin();
 
-    Serial0.println("[INIT] I2S ready");
+    // Set alarm volume to 100% for this test.
+    g_settings.set(
+        SettingsManager::Param::VOLUME_ALARM,
+        TEST_ALARM_VOLUME
+    );
 
-    return true;
+    // Persist the value immediately.
+    g_settings.flush();
+
+    const int actualVolume =
+        g_settings.get(
+            SettingsManager::Param::VOLUME_ALARM
+        );
+
+    Serial.printf(
+        "[SETTINGS] Alarm volume: %d%%\n",
+        actualVolume
+    );
 }
 
 // ============================================================
-// INITIALIZATION: SD
+// SYSTEM INITIALIZATION
 // ============================================================
 
-static bool initSD()
+static bool initializeSystem()
 {
-    Serial0.println("[INIT] SD");
+    printHeader();
 
-    // SPI должен быть инициализирован до SD.
+    // --------------------------------------------------------
+    // SETTINGS
+    // --------------------------------------------------------
+
+    initSettings();
+
+    // --------------------------------------------------------
+    // SPI
+    // --------------------------------------------------------
+
+    Serial.println(F("[SPI] Initializing..."));
+
+    g_spiManager.begin();
+
+    Serial.println(F("[SPI] Ready."));
+
+    // --------------------------------------------------------
+    // I2S
+    // --------------------------------------------------------
+
+    Serial.println(F("[I2S] Initializing..."));
+
+    g_i2sManager.begin();
+
+    Serial.println(F("[I2S] Ready."));
+
+    // --------------------------------------------------------
+    // SD CARD
+    // --------------------------------------------------------
+
+    Serial.println(F("[SD] Initializing..."));
+
     if (!g_sd.begin(PIN_SD_CS))
     {
-        Serial0.println("[ERROR] SD initialization failed");
+        Serial.println(F("[ERROR] SD initialization failed."));
         return false;
     }
 
-    Serial0.println("[INIT] SD ready");
+    Serial.println(F("[SD] Ready."));
+
+    // --------------------------------------------------------
+    // SOUND
+    // --------------------------------------------------------
+
+    Serial.println(F("[SOUND] Initializing..."));
+
+    g_sound.begin();
+
+    Serial.println(F("[SOUND] Ready."));
+
+    // --------------------------------------------------------
+    // LIGHTING
+    // --------------------------------------------------------
+
+    Serial.println(F("[LIGHTING] Initializing..."));
+
+    g_lighting.begin();
+
+    Serial.println(F("[LIGHTING] Ready."));
+
+    // --------------------------------------------------------
+    // MUSIC GENERATOR
+    // --------------------------------------------------------
+
+    Serial.println(F("[MUSIC] Initializing..."));
+
+    g_musicGenerator.begin(
+        MusicGenerator::DEFAULT_SAMPLE_RATE
+    );
+
+    Serial.println(F("[MUSIC] Ready."));
+
+    // --------------------------------------------------------
+    // ALARM EFFECTS
+    // --------------------------------------------------------
+
+    Serial.println(F("[ALARM] Initializing..."));
+
+    g_alarmEffects.begin();
+
+    Serial.println(F("[ALARM] Ready."));
 
     return true;
 }
 
 // ============================================================
-// INITIALIZATION: SOUND
+// TEST CONFIGURATION LOG
 // ============================================================
 
-static bool initSound()
+static void printTestConfiguration()
 {
-    Serial0.println("[INIT] Sound");
+    printSeparator();
 
-    if (!g_sound.begin())
-    {
-        Serial0.println("[ERROR] Sound initialization failed");
-        return false;
-    }
+    Serial.println(F("[TEST] Configuration"));
 
-    Serial0.println("[INIT] Sound ready");
+    Serial.printf(
+        "[TEST] Duration: %lu minutes\n",
+        static_cast<unsigned long>(
+            TEST_DURATION_MS / 60000UL
+        )
+    );
 
-    return true;
+    Serial.printf(
+        "[TEST] Alarm volume: %d%%\n",
+        g_settings.get(
+            SettingsManager::Param::VOLUME_ALARM
+        )
+    );
+
+    Serial.printf(
+        "[TEST] Sample rate: %lu Hz\n",
+        static_cast<unsigned long>(
+            MusicGenerator::DEFAULT_SAMPLE_RATE
+        )
+    );
+
+    printSeparator();
 }
 
 // ============================================================
-// INITIALIZATION: LIGHTING
+// START TEST
 // ============================================================
 
-static bool initLighting()
+static void startTest()
 {
-    Serial0.println("[INIT] Lighting");
+    printTestConfiguration();
 
-    if (!g_lighting.begin())
-    {
-        Serial0.println("[ERROR] Lighting initialization failed");
-        return false;
-    }
+    Serial.println(F("[TEST] Starting sunrise effect..."));
 
-    Serial0.println("[INIT] Lighting ready");
+    g_testStartMs = millis();
+    g_lastDebugMs = g_testStartMs;
 
-    return true;
+    // Use the actual method provided by AlarmEffects.
+    g_alarmEffects.startSunrise();
+
+    g_testStarted = true;
+
+    Serial.println(F("[TEST] Sunrise started."));
 }
 
 // ============================================================
-// INITIALIZATION: MUSIC GENERATOR / ALARM EFFECTS
+// TEST STATUS
 // ============================================================
 
-static bool initAlarmEffects()
+static void printTestStatus(uint32_t elapsedMs)
 {
-    Serial0.println("[INIT] MusicGenerator");
+    Serial.printf(
+        "[TEST] Elapsed: %lu s | Sound: %s | Effects: %s\n",
+        static_cast<unsigned long>(elapsedMs / 1000UL),
+        g_sound.isActive() ? "ACTIVE" : "IDLE",
+        g_alarmEffects.isActive() ? "ACTIVE" : "IDLE"
+    );
+}
 
-    // MusicGenerator::begin() возвращает void.
-    g_musicGenerator.begin(MUSIC_SAMPLE_RATE);
+// ============================================================
+// FINISH TEST
+// ============================================================
 
-    Serial0.println("[INIT] MusicGenerator initialized");
-    Serial0.println("[INIT] AlarmEffects ready");
+static void finishTest()
+{
+    Serial.println();
+    Serial.println(F("[TEST] Test duration reached."));
 
-    return true;
+    g_alarmEffects.stop();
+
+    g_testFinished = true;
+
+    Serial.println(F("[TEST] Sunrise stopped."));
+    Serial.println(F("[TEST] Test finished."));
 }
 
 // ============================================================
@@ -204,94 +294,18 @@ static bool initAlarmEffects()
 
 void setup()
 {
-    Serial0.begin(115200);
-
+    Serial.begin(115200);
     delay(500);
 
-    Serial0.println();
-    Serial0.println("========================================");
-    Serial0.println(" SmartClock - Sunrise Test");
-    Serial0.println("========================================");
-
-    // --------------------------------------------------------
-    // 1. SETTINGS
-    // --------------------------------------------------------
-
-    if (!initSettings())
+    if (!initializeSystem())
+    {
+        Serial.println(F("[FATAL] Initialization failed."));
         return;
+    }
 
-    // --------------------------------------------------------
-    // 2. SPI
-    // --------------------------------------------------------
+    g_systemReady = true;
 
-    if (!initSPI())
-        return;
-
-    // --------------------------------------------------------
-    // 3. I2S
-    // --------------------------------------------------------
-
-    if (!initI2S())
-        return;
-
-    // --------------------------------------------------------
-    // 4. SD
-    // --------------------------------------------------------
-
-    if (!initSD())
-        return;
-
-    // --------------------------------------------------------
-    // 5. SOUND
-    // --------------------------------------------------------
-
-    if (!initSound())
-        return;
-
-    // --------------------------------------------------------
-    // 6. LIGHTING
-    // --------------------------------------------------------
-
-    if (!initLighting())
-        return;
-
-    // --------------------------------------------------------
-    // 7. MUSIC GENERATOR / ALARM EFFECTS
-    // --------------------------------------------------------
-
-    if (!initAlarmEffects())
-        return;
-
-    // --------------------------------------------------------
-    // TEST CONFIGURATION
-    // --------------------------------------------------------
-
-    Serial0.println();
-    Serial0.println("----------------------------------------");
-    Serial0.println("[TEST] Configuration");
-    Serial0.println("----------------------------------------");
-
-    Serial0.println("[TEST] Duration: 27 minutes");
-    Serial0.println("[TEST] Sunrise starts immediately");
-    Serial0.println("[TEST] Music starts at 21:00");
-    Serial0.println("[TEST] Volume phases are controlled by the effect");
-
-    Serial0.println("----------------------------------------");
-    Serial0.println();
-
-    // --------------------------------------------------------
-    // START SUNRISE
-    // --------------------------------------------------------
-
-    // AlarmEffects::startSunrise() возвращает void.
-    g_alarmEffects.startSunrise();
-
-    g_testStartMs = millis();
-    g_lastDebugMs = g_testStartMs;
-
-    g_testStarted = true;
-
-    Serial0.println("[TEST] Sunrise started");
+    startTest();
 }
 
 // ============================================================
@@ -300,83 +314,37 @@ void setup()
 
 void loop()
 {
-    if (!g_testStarted)
+    if (!g_systemReady || !g_testStarted || g_testFinished)
     {
         delay(10);
         return;
     }
 
-    const uint32_t now = millis();
+    // Update delayed settings persistence.
+    g_settings.update();
 
-    const uint32_t elapsedMs =
-        now - g_testStartMs;
-
-    // --------------------------------------------------------
-    // SOUND
-    // Вызывается ровно один раз за итерацию loop().
-    // --------------------------------------------------------
-
+    // Update audio playback.
     g_sound.update();
 
-    // --------------------------------------------------------
-    // ALARM EFFECTS
-    // --------------------------------------------------------
+    const uint32_t now = millis();
+    const uint32_t elapsedMs = now - g_testStartMs;
 
+    // Update sunrise effect and lighting.
     g_alarmEffects.update(elapsedMs);
-
-    // --------------------------------------------------------
-    // LIGHTING
-    // --------------------------------------------------------
-
     g_lighting.update();
 
-    // --------------------------------------------------------
-    // DEBUG OUTPUT
-    // --------------------------------------------------------
-
+    // Periodic diagnostic output.
     if (now - g_lastDebugMs >= DEBUG_INTERVAL_MS)
     {
         g_lastDebugMs = now;
-
-        const uint32_t elapsedSeconds =
-            elapsedMs / 1000UL;
-
-        const uint32_t minutes =
-            elapsedSeconds / 60UL;
-
-        const uint32_t seconds =
-            elapsedSeconds % 60UL;
-
-        Serial0.printf(
-            "[TEST] Time: %02lu:%02lu | Sound: %s | AlarmEffects: %s\n",
-            static_cast<unsigned long>(minutes),
-            static_cast<unsigned long>(seconds),
-            g_sound.isActive() ? "ACTIVE" : "IDLE",
-            g_alarmEffects.isActive() ? "ACTIVE" : "IDLE"
-        );
+        printTestStatus(elapsedMs);
     }
 
-    // --------------------------------------------------------
-    // FINISH TEST
-    // --------------------------------------------------------
-
+    // Finish after the configured test duration.
     if (elapsedMs >= TEST_DURATION_MS)
     {
-        Serial0.println();
-        Serial0.println("========================================");
-        Serial0.println("[TEST] 27 minutes elapsed");
-        Serial0.println("[TEST] Stopping sunrise effect");
-        Serial0.println("========================================");
-
-        g_alarmEffects.stop();
-
-        Serial0.printf(
-            "[TEST] Sound active after stop: %s\n",
-            g_sound.isActive() ? "YES" : "NO"
-        );
-
-        Serial0.println("[TEST] Sunrise test finished");
-
-        g_testStarted = false;
+        finishTest();
     }
+
+    delay(1);
 }
