@@ -38,7 +38,7 @@ namespace SunriseConfig
     constexpr uint8_t PHASE_1_LIGHT_START_PERCENT = 0;
     constexpr uint8_t PHASE_1_LIGHT_END_PERCENT   = 15;
 
-    constexpr uint8_t PHASE_1_SOUND_START_PERCENT = 5;
+    constexpr uint8_t PHASE_1_SOUND_START_PERCENT = 10;
     constexpr uint8_t PHASE_1_SOUND_END_PERCENT   = 50;
 
     // ========================================================

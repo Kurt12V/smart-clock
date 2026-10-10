@@ -77,7 +77,7 @@ void AlarmEffects::startSunrise()
 
     // Начальное состояние музыки.
     _music.stop();
-    _music.setVolume(0.0f);
+    _music.setVolume(0.05f);
 
     // Передаём управление освещением будильнику.
     _lighting.beginAlarmOverride();
