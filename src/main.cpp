@@ -1,12 +1,14 @@
-
 #include <Arduino.h>
 
 #include "Pins.h"
 #include "Config.h"
-#include "./managers/SettingsManager.h"
 
+#include "./managers/SettingsManager.h"
 #include "./managers/LightingManager.h"
 #include "./managers/I2SManager.h"
+#include "./managers/SDManager.h"
+#include "./managers/SoundManager.h"
+
 #include "./hardware/AlarmEffects.h"
 
 // ============================================================
@@ -24,10 +26,26 @@ LightingManager g_lighting(
 );
 
 // ============================================================
-// AUDIO
+// AUDIO HARDWARE
 // ============================================================
 
 I2SManager g_i2s;
+
+// ============================================================
+// SD CARD
+// ============================================================
+
+SDManager g_sd;
+
+// ============================================================
+// SOUND MANAGER
+// ============================================================
+
+SoundManager g_sound(
+    g_sd,
+    g_settings,
+    g_i2s
+);
 
 // ============================================================
 // ALARM EFFECTS
@@ -35,15 +53,29 @@ I2SManager g_i2s;
 
 AlarmEffects g_alarmEffects(
     g_lighting,
-    g_i2s
+    g_sound
 );
+
+// ============================================================
+// TEST CONFIGURATION
+// ============================================================
+
+// Полная продолжительность теста.
+// 27 минут позволяют проверить:
+// - старт музыки на 21-й минуте;
+// - достижение 30% громкости на 25-й минуте;
+// - достижение 100% громкости на 26-й минуте.
+
+static constexpr uint32_t TEST_DURATION_MS =
+    27UL * 60UL * 1000UL;
+
+// Интервал отладочного вывода.
+static constexpr uint32_t DEBUG_INTERVAL_MS =
+    1000UL;
 
 // ============================================================
 // TEST STATE
 // ============================================================
-
-static constexpr uint32_t TEST_DURATION_MS =
-    25UL * 60UL * 1000UL;
 
 uint32_t g_testStartMs = 0;
 uint32_t g_lastDebugMs = 0;
@@ -86,7 +118,7 @@ void setup()
     if (!g_lighting.begin())
     {
         Serial0.println(
-            "[TEST][ERROR] LightingManager failed"
+            "[TEST][ERROR] LightingManager initialization failed"
         );
 
         return;
@@ -107,7 +139,7 @@ void setup()
     if (!g_i2s.begin())
     {
         Serial0.println(
-            "[TEST][ERROR] I2SManager failed"
+            "[TEST][ERROR] I2SManager initialization failed"
         );
 
         return;
@@ -115,6 +147,48 @@ void setup()
 
     Serial0.println(
         "[TEST] I2SManager READY"
+    );
+
+    // --------------------------------------------------------
+    // SD MANAGER
+    // --------------------------------------------------------
+
+    Serial0.println(
+        "[TEST] Starting SDManager..."
+    );
+
+    if (!g_sd.begin(PIN_SD_CS))
+    {
+        Serial0.println(
+            "[TEST][ERROR] SDManager initialization failed"
+        );
+
+        return;
+    }
+
+    Serial0.println(
+        "[TEST] SDManager READY"
+    );
+
+    // --------------------------------------------------------
+    // SOUND MANAGER
+    // --------------------------------------------------------
+
+    Serial0.println(
+        "[TEST] Starting SoundManager..."
+    );
+
+    if (!g_sound.begin())
+    {
+        Serial0.println(
+            "[TEST][ERROR] SoundManager initialization failed"
+        );
+
+        return;
+    }
+
+    Serial0.println(
+        "[TEST] SoundManager READY"
     );
 
     // --------------------------------------------------------
@@ -132,39 +206,61 @@ void setup()
     );
 
     // --------------------------------------------------------
-    // START TEST
+    // TEST INFORMATION
     // --------------------------------------------------------
 
     delay(1000);
 
     Serial0.println();
     Serial0.println(
-        "[TEST] Starting SUNRISE"
+        "============================================"
+    );
+    Serial0.println(
+        "[TEST] SUNRISE TEST CONFIGURATION"
+    );
+    Serial0.println(
+        "============================================"
     );
 
     Serial0.println(
-        "[TEST] Duration: 25 minutes"
+        "[TEST] Music file: /alarms/sunrise.wav"
     );
 
     Serial0.println(
-        "[TEST] Music starts: 21 minutes"
+        "[TEST] Music starts: 21:00"
     );
 
     Serial0.println(
-        "[TEST] Volume reaches 30% at 25 minutes"
+        "[TEST] Volume reaches 30%: 25:00"
     );
 
     Serial0.println(
-        "[TEST] Volume reaches 100% at 26 minutes"
+        "[TEST] Volume reaches 100%: 26:00"
     );
 
-    Serial0.println();
+    Serial0.println(
+        "[TEST] Test duration: 27 minutes"
+    );
+
+    Serial0.println(
+        "============================================"
+    );
+
+    // --------------------------------------------------------
+    // START SUNRISE
+    // --------------------------------------------------------
 
     g_testStartMs = millis();
     g_lastDebugMs = g_testStartMs;
+
     g_testStarted = true;
 
     g_alarmEffects.startSunrise();
+
+    Serial0.println();
+    Serial0.println(
+        "[TEST] Sunrise started"
+    );
 }
 
 // ============================================================
@@ -173,6 +269,10 @@ void setup()
 
 void loop()
 {
+    // --------------------------------------------------------
+    // WAIT IF TEST IS NOT RUNNING
+    // --------------------------------------------------------
+
     if (!g_testStarted)
     {
         delay(10);
@@ -185,7 +285,7 @@ void loop()
         now - g_testStartMs;
 
     // --------------------------------------------------------
-    // UPDATE ALARM
+    // UPDATE ALARM EFFECTS
     // --------------------------------------------------------
 
     g_alarmEffects.update(
@@ -194,12 +294,16 @@ void loop()
 
     // --------------------------------------------------------
     // UPDATE LIGHTING
-    //
-    // LightingManager пропускает обычные эффекты и применение
-    // пользовательских настроек, пока активен alarm override.
     // --------------------------------------------------------
 
     g_lighting.update();
+
+    // SoundManager::update() is managed by AlarmEffects
+    // during sunrise audio playback.
+    //
+    // Do not call g_sound.update() here as well, because
+    // servicing the same audio stream twice can disrupt
+    // WAV playback.
 
     // --------------------------------------------------------
     // AUTOMATIC TEST STOP
@@ -209,7 +313,11 @@ void loop()
     {
         Serial0.println();
         Serial0.println(
-            "[TEST] Duration complete. Stopping sunrise..."
+            "[TEST] Test duration complete"
+        );
+
+        Serial0.println(
+            "[TEST] Stopping sunrise..."
         );
 
         g_alarmEffects.stop();
@@ -217,46 +325,64 @@ void loop()
         g_testStarted = false;
 
         Serial0.println(
-            "[TEST] Sunrise stopped. Lighting restored."
+            "[TEST] Sunrise stopped"
+        );
+
+        Serial0.printf(
+            "[TEST] Sound active: %d\n",
+            g_sound.isActive() ? 1 : 0
+        );
+
+        Serial0.printf(
+            "[TEST] Lighting override active: %d\n",
+            g_lighting.isAlarmOverrideActive() ? 1 : 0
+        );
+
+        Serial0.println(
+            "[TEST] Test finished"
         );
 
         return;
     }
 
     // --------------------------------------------------------
-    // DEBUG EVERY SECOND
+    // DEBUG OUTPUT
     // --------------------------------------------------------
 
-    if (now - g_lastDebugMs >= 1000)
+    if (now - g_lastDebugMs >= DEBUG_INTERVAL_MS)
     {
         g_lastDebugMs = now;
 
-        const uint32_t seconds =
-            elapsedMs / 1000;
+        const uint32_t totalSeconds =
+            elapsedMs / 1000UL;
 
         const uint32_t minutes =
-            seconds / 60;
+            totalSeconds / 60UL;
 
-        const uint32_t remainingSeconds =
-            seconds % 60;
+        const uint32_t seconds =
+            totalSeconds % 60UL;
 
         Serial0.printf(
             "[TEST] Sunrise %02lu:%02lu | "
-            "Active=%d | "
-            "Audio=%d | "
+            "Alarm=%d | "
+            "SoundActive=%d | "
             "LightingOverride=%d\n",
 
             static_cast<unsigned long>(minutes),
 
-            static_cast<unsigned long>(remainingSeconds),
+            static_cast<unsigned long>(seconds),
 
             g_alarmEffects.isActive() ? 1 : 0,
 
-            g_i2s.isSpeakerInitialized() ? 1 : 0,
+            g_sound.isActive() ? 1 : 0,
 
             g_lighting.isAlarmOverrideActive() ? 1 : 0
         );
     }
+
+    // --------------------------------------------------------
+    // KEEP LOOP RESPONSIVE
+    // --------------------------------------------------------
 
     delay(1);
 }

@@ -264,16 +264,22 @@ void SunriseLightEffect::calculateOutputs()
 {
     uint32_t startMs = 0;
     uint32_t endMs = 0;
-    uint8_t lightStart = 0, lightEnd = 0;
-    uint8_t soundStart = 0, soundEnd = 0;
+
+    uint8_t lightStart = 0;
+    uint8_t lightEnd = 0;
+
+    uint8_t soundStart = 0;
+    uint8_t soundEnd = 0;
 
     switch (_currentPhase)
     {
         case PHASE_1:
             startMs = 0;
             endMs = SunriseConfig::PHASE_1_END_MS;
+
             lightStart = SunriseConfig::PHASE_1_LIGHT_START_PERCENT;
             lightEnd = SunriseConfig::PHASE_1_LIGHT_END_PERCENT;
+
             soundStart = SunriseConfig::PHASE_1_SOUND_START_PERCENT;
             soundEnd = SunriseConfig::PHASE_1_SOUND_END_PERCENT;
             break;
@@ -281,8 +287,10 @@ void SunriseLightEffect::calculateOutputs()
         case PHASE_2:
             startMs = SunriseConfig::PHASE_1_END_MS;
             endMs = SunriseConfig::PHASE_2_END_MS;
+
             lightStart = SunriseConfig::PHASE_2_LIGHT_START_PERCENT;
             lightEnd = SunriseConfig::PHASE_2_LIGHT_END_PERCENT;
+
             soundStart = SunriseConfig::PHASE_2_SOUND_START_PERCENT;
             soundEnd = SunriseConfig::PHASE_2_SOUND_END_PERCENT;
             break;
@@ -290,8 +298,10 @@ void SunriseLightEffect::calculateOutputs()
         case PHASE_3:
             startMs = SunriseConfig::PHASE_2_END_MS;
             endMs = _durationMs;
+
             lightStart = SunriseConfig::PHASE_3_LIGHT_START_PERCENT;
             lightEnd = SunriseConfig::PHASE_3_LIGHT_END_PERCENT;
+
             soundStart = SunriseConfig::PHASE_3_SOUND_START_PERCENT;
             soundEnd = SunriseConfig::PHASE_3_SOUND_END_PERCENT;
             break;
@@ -300,11 +310,25 @@ void SunriseLightEffect::calculateOutputs()
             return;
     }
 
-    // Linear progress: no easeOut or gamma curve here.
     const float progress = calculateProgress(startMs, endMs);
 
-    _lightPercent = clampPercent(interpolate(lightStart, lightEnd, progress));
-    _soundPercent = clampPercent(interpolate(soundStart, soundEnd, progress));
+    // Свет остаётся без изменений.
+    _lightPercent = clampPercent(
+        interpolate(lightStart, lightEnd, progress)
+    );
+
+    // Громкость звука с независимыми процентами фаз.
+    const float soundProgress = clampProgress(progress);
+
+    const float soundValue =
+        static_cast<float>(soundStart) +
+        (static_cast<float>(soundEnd) -
+         static_cast<float>(soundStart)) * soundProgress;
+
+    _soundPercent = clampPercent(
+        static_cast<uint8_t>(lroundf(soundValue))
+    );
+
     _brightness = lightPercentToOutput(_lightPercent);
 }
 

@@ -119,6 +119,7 @@ public:
     // ========================================================
 
     void printStatus();
+    void setLocalPercent(uint8_t percent);
 
 private:
 

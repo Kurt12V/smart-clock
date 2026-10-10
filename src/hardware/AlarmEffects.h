@@ -3,12 +3,10 @@
 
 #include <Arduino.h>
 #include <stdint.h>
-#include <stddef.h>
 
 #include "./managers/LightingManager.h"
-#include "./managers/I2SManager.h"
+#include "./managers/SoundManager.h"
 #include "./hardware/SunriseLightEffect.h"
-#include "./hardware/MusicGenerator.h"
 
 class AlarmEffects
 {
@@ -21,95 +19,68 @@ public:
 
     AlarmEffects(
         LightingManager& lighting,
-        I2SManager& i2s
+        SoundManager& sound
     );
 
     void begin();
 
-    void update(
-        uint32_t elapsedMs
-    );
+    // elapsedMs — время с момента начала сценария рассвета.
+    void update(uint32_t elapsedMs);
 
     void stop();
 
     void startSunrise();
 
-    bool isActive() const;
+    void startSunrise(const char* musicPath);
 
+    bool isActive() const;
     bool isSunriseActive() const;
 
     EffectType effect() const;
 
 private:
-    // ========================================================
-    // SUNRISE
-    // ========================================================
-
-    void updateSunrise(
-        uint32_t elapsedMs
-    );
+    void updateSunrise(uint32_t elapsedMs);
 
     void updateSunriseLight();
-
-    void updateSunriseAudio(
-        uint32_t elapsedMs
-    );
-
+    void updateSunriseAudio(uint32_t elapsedMs);
     void applyAuxiliaryLeds();
 
+    uint8_t calculateMusicVolume(uint32_t elapsedMs) const;
+
+    void stopAudio();
+
 private:
-    // ========================================================
-    // MANAGERS
-    // ========================================================
-
+    // Managers
     LightingManager& _lighting;
-    I2SManager& _i2s;
+    SoundManager& _sound;
 
-    // ========================================================
-    // STATE
-    // ========================================================
-
+    // State
     EffectType _effect;
-
     bool _begun;
     bool _active;
 
-    // ========================================================
-    // EFFECTS
-    // ========================================================
-
+    // Sunrise effect
     SunriseLightEffect _sunrise;
-    MusicGenerator _music;
 
-    // ========================================================
-    // AUDIO
-    // ========================================================
-
-    static constexpr uint32_t AUDIO_SAMPLE_RATE = 44100;
-
-    static constexpr size_t AUDIO_SAMPLES =
-        MusicGenerator::BLOCK_SAMPLES;
-
-    static constexpr size_t AUDIO_CHANNELS = 2;
-
-    int16_t _monoAudioBuffer[AUDIO_SAMPLES]{};
-
-    int16_t _stereoAudioBuffer[
-        AUDIO_SAMPLES * AUDIO_CHANNELS
-    ]{};
-
+    // Audio
+    String _musicPath;
     bool _audioStarted;
+    bool _audioAttempted;
 
-    // ========================================================
-    // SUNRISE TIMING
-    // ========================================================
-
+    // Sunrise timing
     static constexpr uint32_t MUSIC_START_MS =
-        21UL * 60UL * 1000UL;
+        1UL * 60UL * 1000UL;
 
     static constexpr uint32_t PEAK_TIME_MS =
         25UL * 60UL * 1000UL;
 
+    static constexpr uint32_t FULL_VOLUME_TIME_MS =
+        26UL * 60UL * 1000UL;
+
     static constexpr uint32_t FULL_VOLUME_RAMP_MS =
-        60UL * 1000UL;
+        FULL_VOLUME_TIME_MS - PEAK_TIME_MS;
+
+    // Volume percentages relative to VOLUME_ALARM.
+    static constexpr uint8_t PEAK_VOLUME_PERCENT = 30;
+    static constexpr uint8_t MAX_VOLUME_PERCENT = 100;
 };

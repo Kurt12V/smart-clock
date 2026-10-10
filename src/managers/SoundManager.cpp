@@ -1420,3 +1420,14 @@ void SoundManager::printStatus()
         "[SOUND] --------------------------------"
     );
 }
+
+void SoundManager::setLocalPercent(uint8_t percent)
+{
+    _localPercent = static_cast<uint8_t>(
+        constrain(
+            static_cast<int>(percent),
+            0,
+            100
+        )
+    );
+}
