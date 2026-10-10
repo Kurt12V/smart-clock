@@ -1,7 +1,6 @@
 
 #include "AlarmEffects.h"
 
-#include <Arduino.h>
 #include <algorithm>
 
 // ============================================================
@@ -15,12 +14,7 @@ AlarmEffects::AlarmEffects(
 )
     : _lighting(lighting),
       _sound(sound),
-      _music(music),
-      _effect(EffectType::None),
-      _begun(false),
-      _active(false),
-      _audioStarted(false),
-      _sunrise()
+      _music(music)
 {
 }
 
@@ -33,8 +27,25 @@ void AlarmEffects::begin()
     if (_begun)
         return;
 
-    Serial0.println();
     Serial0.println("[AlarmEffects] Initializing");
+
+    // SoundManager владеет I2S-выходом.
+    if (!_sound.isInitialized())
+    {
+        if (!_sound.begin())
+        {
+            Serial0.println(
+                "[AlarmEffects][ERROR] SoundManager initialization failed"
+            );
+
+            return;
+        }
+    }
+
+    // В актуальном API begin() возвращает void.
+    _music.begin(AUDIO_SAMPLE_RATE);
+    _music.setVolume(0.0f);
+    _music.stop();
 
     _sunrise.begin();
 
@@ -52,28 +63,31 @@ void AlarmEffects::startSunrise()
     if (!_begun)
         begin();
 
-    Serial0.println("[AlarmEffects] Starting sunrise");
+    if (!_begun)
+    {
+        Serial0.println(
+            "[AlarmEffects][ERROR] Cannot start sunrise"
+        );
 
-    // Остановить предыдущий эффект.
+        return;
+    }
+
+    // Останавливаем предыдущий эффект.
     stop();
 
-    // Остановить старый звук.
-    _sound.stop();
-
-    // Сбросить предыдущую генерацию.
+    // Начальное состояние музыки.
     _music.stop();
-    _music.end();
+    _music.setVolume(0.0f);
 
-    _audioStarted = false;
-
-    // Передать управление освещением эффекту будильника.
+    // Передаём управление освещением будильнику.
     _lighting.beginAlarmOverride();
 
-    // Запустить рассвет.
+    // Запускаем световой сценарий.
     _sunrise.start();
 
     _effect = EffectType::Sunrise;
     _active = true;
+    _audioStarted = false;
 
     Serial0.println("[AlarmEffects] Sunrise started");
 }
@@ -100,7 +114,7 @@ void AlarmEffects::update(uint32_t elapsedMs)
 }
 
 // ============================================================
-// SUNRISE UPDATE
+// UPDATE SUNRISE
 // ============================================================
 
 void AlarmEffects::updateSunrise(uint32_t elapsedMs)
@@ -127,7 +141,7 @@ void AlarmEffects::updateSunriseLight()
 }
 
 // ============================================================
-// AUXILIARY COB LIGHT
+// AUXILIARY COB LIGHTS
 // ============================================================
 
 void AlarmEffects::applyAuxiliaryLeds()
@@ -139,108 +153,133 @@ void AlarmEffects::applyAuxiliaryLeds()
         return;
     }
 
-    // SunriseLightEffect: 0–100%.
-    // LightingManager: 0–255.
+    // auxiliaryBrightness(): 0–100%.
+    // setAlarmCob(): 0–255.
 
     const uint8_t brightness =
         static_cast<uint8_t>(
-            static_cast<uint16_t>(
-                _sunrise.auxiliaryBrightness()
-            ) * 255U / 100U
+            (
+                static_cast<uint16_t>(
+                    _sunrise.auxiliaryBrightness()
+                ) * 255U
+            ) / 100U
         );
 
     _lighting.setAlarmCob(brightness);
 }
 
 // ============================================================
-// SUNRISE AUDIO
+// CALCULATE MUSIC VOLUME
 // ============================================================
 
-void AlarmEffects::updateSunriseAudio(uint32_t elapsedMs)
+float AlarmEffects::calculateMusicVolume(
+    uint32_t elapsedMs
+)
+{
+    if (elapsedMs < MUSIC_START_MS)
+        return 0.0f;
+
+    // От начала воспроизведения до 25-й минуты:
+    // плавное увеличение громкости от 0 до 30%.
+
+    if (elapsedMs < PEAK_TIME_MS)
+    {
+        const uint32_t elapsed =
+            elapsedMs - MUSIC_START_MS;
+
+        const uint32_t duration =
+            PEAK_TIME_MS - MUSIC_START_MS;
+
+        const float progress =
+            static_cast<float>(elapsed) /
+            static_cast<float>(duration);
+
+        const float clampedProgress =
+            std::max(
+                0.0f,
+                std::min(1.0f, progress)
+            );
+
+        return 0.30f * clampedProgress;
+    }
+
+    // От 25-й до 26-й минуты:
+    // плавное увеличение громкости от 30 до 100%.
+
+    const uint32_t elapsed =
+        elapsedMs - PEAK_TIME_MS;
+
+    const float progress =
+        static_cast<float>(elapsed) /
+        static_cast<float>(FULL_VOLUME_RAMP_MS);
+
+    const float clampedProgress =
+        std::max(
+            0.0f,
+            std::min(1.0f, progress)
+        );
+
+    return 0.30f + 0.70f * clampedProgress;
+}
+
+// ============================================================
+// UPDATE SUNRISE AUDIO
+// ============================================================
+
+void AlarmEffects::updateSunriseAudio(
+    uint32_t elapsedMs
+)
 {
     if (elapsedMs < MUSIC_START_MS)
         return;
 
-    if (!_audioStarted)
-    {
-        if (!startGeneratedMusic())
-            return;
+    // Громкость задаётся в диапазоне 0.0–1.0.
+    _music.setVolume(
+        calculateMusicVolume(elapsedMs)
+    );
 
-        _audioStarted = true;
+    if (_audioStarted)
+        return;
 
-        Serial0.println(
-            "[AlarmEffects] Generated music started"
-        );
-    }
-
-    // Громкость фазы рассвета.
-    const uint8_t volumePercent =
-        std::min<uint8_t>(
-            _sunrise.soundPercent(),
-            100
-        );
-
-    _sound.setLocalPercent(volumePercent);
-
-    static uint8_t previousPercent = 255;
-
-    if (volumePercent != previousPercent)
-    {
-        previousPercent = volumePercent;
-
-        Serial0.printf(
-            "[AlarmEffects] Phase sound: %u%%\n",
-            static_cast<unsigned>(volumePercent)
-        );
-    }
-}
-
-// ============================================================
-// START GENERATED MUSIC
-// ============================================================
-
-bool AlarmEffects::startGeneratedMusic()
-{
-    Serial0.println("[AlarmEffects] Initializing music generator");
-
-    // Инициализируем генератор.
-    _music.begin(AUDIO_SAMPLE_RATE);
-
-    // Запускаем генерацию.
+    // Запускаем генератор без Preset:
+    // в текущем MusicGenerator такого API нет.
+    _music.stop();
     _music.start();
 
-    Serial0.println("[AlarmEffects] Starting SoundManager PCM");
-
+    // SoundManager вызывает musicPcmSource(),
+    // получает PCM и выводит его через свой I2SManager.
     const bool started = _sound.playSource(
-        &AlarmEffects::readGeneratedMusic,
-        &_music,
+        &AlarmEffects::musicPcmSource,
+        this,
         AUDIO_SAMPLE_RATE,
         SoundManager::AudioStream::Alarm
     );
 
     if (!started)
     {
-        Serial0.println(
-            "[AlarmEffects][ERROR] playSource failed"
-        );
-
         _music.stop();
 
-        return false;
+        _music.setVolume(0.0f);
+
+        Serial0.println(
+            "[AlarmEffects][ERROR] Failed to start music PCM source"
+        );
+
+        return;
     }
 
-    Serial0.println(
-        "[AlarmEffects] PCM playback started successfully"
-    );
+    _audioStarted = true;
 
-    return true;
+    Serial0.println(
+        "[AlarmEffects] Sunrise audio started"
+    );
 }
 
 // ============================================================
-// PCM CALLBACK
+// MUSIC PCM CALLBACK
 // ============================================================
 
-size_t AlarmEffects::readGeneratedMusic(
+size_t AlarmEffects::musicPcmSource(
     void* context,
     int16_t* buffer,
     size_t sampleCount
@@ -253,17 +292,23 @@ size_t AlarmEffects::readGeneratedMusic(
         return 0;
     }
 
-    auto* music =
-        static_cast<MusicGenerator*>(context);
+    auto* self =
+        static_cast<AlarmEffects*>(context);
 
-    if (!music->isPlaying())
+    if (!self->_active ||
+        !self->_audioStarted)
+    {
         return 0;
+    }
 
-    music->generateBlock(
+    // Актуальный MusicGenerator API:
+    // void generateBlock(int16_t*, size_t).
+    self->_music.generateBlock(
         buffer,
         sampleCount
     );
 
+    // Возвращаем количество сформированных моносэмплов.
     return sampleCount;
 }
 
@@ -273,28 +318,31 @@ size_t AlarmEffects::readGeneratedMusic(
 
 void AlarmEffects::stop()
 {
-    if (!_active)
+    if (!_active && !_audioStarted)
         return;
 
     Serial0.println("[AlarmEffects] Stopping");
 
-    // Остановить звук.
-    _sound.stop();
+    // Сначала запрещаем дальнейшую генерацию PCM.
+    _active = false;
 
-    // Остановить и сбросить генератор.
+    // SoundManager владеет I2S и останавливает его.
+    // Останавливаем его только если мы запускали музыку.
+    if (_audioStarted)
+    {
+        _sound.stop();
+    }
+
     _music.stop();
-    _music.end();
+    _music.setVolume(0.0f);
 
-    _audioStarted = false;
-
-    // Остановить световой эффект.
     _sunrise.stop();
 
-    // Вернуть управление настройкам освещения.
+    _lighting.setAlarmCob(0);
     _lighting.endAlarmOverride();
 
     _effect = EffectType::None;
-    _active = false;
+    _audioStarted = false;
 
     Serial0.println("[AlarmEffects] Stopped");
 }
