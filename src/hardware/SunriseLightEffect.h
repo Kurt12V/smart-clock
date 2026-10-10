@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include <Arduino.h>
@@ -11,9 +10,18 @@ namespace SunriseConfig
     // ========================================================
 
     constexpr uint32_t DEFAULT_DURATION_MS = 25UL * 60UL * 1000UL;
-    constexpr uint32_t PHASE_1_END_MS     = 20UL * 60UL * 1000UL;
-    constexpr uint32_t PHASE_2_END_MS     = 22UL * 60UL * 1000UL;
-    constexpr uint32_t MIN_DURATION_MS    = PHASE_2_END_MS + 1UL;
+    constexpr uint32_t PHASE_1_END_MS      = 20UL * 60UL * 1000UL;
+    constexpr uint32_t PHASE_2_END_MS      = 22UL * 60UL * 1000UL;
+    constexpr uint32_t MIN_DURATION_MS     = PHASE_2_END_MS + 1UL;
+
+    // ========================================================
+    // COLOR SPEED
+    // Color changes faster than light/sound percentages.
+    // 1.0 = same speed, 1.5 = 50% faster, 2.0 = twice as fast.
+    // The color reaches its target early, then holds until the phase ends.
+    // ========================================================
+
+    constexpr float COLOR_SPEED_MULTIPLIER = 1.5f;
 
     // ========================================================
     // PHASE 1: RED SUNRISE
@@ -27,11 +35,9 @@ namespace SunriseConfig
     constexpr uint8_t PHASE_1_END_GREEN = 140;
     constexpr uint8_t PHASE_1_END_BLUE  = 0;
 
-    // Light intensity, percent.
-    constexpr uint8_t PHASE_1_LIGHT_START_PERCENT =0;
+    constexpr uint8_t PHASE_1_LIGHT_START_PERCENT = 0;
     constexpr uint8_t PHASE_1_LIGHT_END_PERCENT   = 15;
 
-    // Audio volume, percent.
     constexpr uint8_t PHASE_1_SOUND_START_PERCENT = 0;
     constexpr uint8_t PHASE_1_SOUND_END_PERCENT   = 0;
 
@@ -78,10 +84,10 @@ namespace SunriseConfig
     constexpr uint8_t PEAK_LIGHT_PERCENT = 100;
     constexpr uint8_t PEAK_SOUND_PERCENT = 40;
 
-    // Maximum value passed to the LED matrix brightness API.
-    constexpr uint8_t MAX_OUTPUT_BRIGHTNESS = 150;
+    // brightness() is a percentage for the matrix API: 0..100.
+    constexpr uint8_t MAX_OUTPUT_BRIGHTNESS = 100;
 
-    // Gamma correction for LED output.
+    // Retained for compatibility with existing project configuration.
     constexpr float GAMMA = 2.2f;
 
     // ========================================================
@@ -118,7 +124,6 @@ public:
     uint8_t auxiliaryBrightness() const;
 
     State state() const;
-
     bool isRunning() const;
     bool isPeak() const;
     bool isStopped() const;
@@ -130,13 +135,13 @@ public:
     uint8_t green() const;
     uint8_t blue() const;
 
-    // Configured perceived light percentage: 0-100.
+    // Perceived light level in percent: 0..100.
     uint8_t lightPercent() const;
 
-    // Actual output value for LedMatrixManager::setBrightness().
+    // Matrix output brightness in percent: 0..100 (100% -> 100).
     uint8_t brightness() const;
 
-    // Desired audio volume percentage: 0-100.
+    // Desired audio volume in percent: 0..100.
     uint8_t soundPercent() const;
 
     bool auxiliaryEnabled() const;
@@ -150,17 +155,9 @@ private:
     void calculateColor();
     void calculateOutputs();
 
-    float calculateProgress(
-        uint32_t startMs,
-        uint32_t endMs
-    ) const;
-
-    static uint8_t interpolate(
-        uint8_t start,
-        uint8_t end,
-        float progress
-    );
-
+    float calculateProgress(uint32_t startMs, uint32_t endMs) const;
+    static float clampProgress(float progress);
+    static uint8_t interpolate(uint8_t start, uint8_t end, float progress);
     static uint8_t clampPercent(uint8_t value);
     static uint8_t lightPercentToOutput(float percent);
 
@@ -182,7 +179,6 @@ private:
 
     bool _auxiliaryEnabled;
     bool _auxiliaryFlashState;
-
     uint32_t _lastAuxiliaryToggleUs;
 
     uint8_t _currentPhase;
