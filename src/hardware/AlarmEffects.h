@@ -1,13 +1,10 @@
-
 #pragma once
 
 #include <Arduino.h>
 #include <stdint.h>
-#include <stddef.h>
 
 #include "./managers/LightingManager.h"
 #include "./managers/SoundManager.h"
-#include "./hardware/MusicGenerator.h"
 #include "./hardware/SunriseLightEffect.h"
 
 class AlarmEffects
@@ -21,78 +18,51 @@ public:
 
     AlarmEffects(
         LightingManager& lighting,
-        SoundManager& sound,
-        MusicGenerator& music
+        SoundManager& sound
     );
 
     void begin();
-
     void startSunrise();
     void update(uint32_t elapsedMs);
     void stop();
 
     bool isActive() const;
     bool isSunriseActive() const;
-
     EffectType effect() const;
 
 private:
-    // --------------------------------------------------------
-    // DEPENDENCIES
-    // --------------------------------------------------------
+    static constexpr char ALARM_WAV_PATH[] =
+        "/audio/alarms/alarm.wav";
 
-    LightingManager& _lighting;
-    SoundManager& _sound;
-    MusicGenerator& _music;
+    static constexpr uint32_t MUSIC_START_MS =
+        21UL * 60UL * 1000UL;
 
-    // --------------------------------------------------------
-    // STATE
-    // --------------------------------------------------------
-
-    SunriseLightEffect _sunrise;
-
-    EffectType _effect = EffectType::None;
-
-    bool _begun = false;
-    bool _active = false;
-    bool _audioStarted = false;
-
-    // --------------------------------------------------------
-    // AUDIO CONFIGURATION
-    // --------------------------------------------------------
-
-    static constexpr uint32_t AUDIO_SAMPLE_RATE = 22050;
-
-    // Музыка начинает играть через минуту после старта рассвета.
-    static constexpr uint32_t MUSIC_START_MS = 60UL * 1000UL;
-
-    // К 25-й минуте громкость достигает 30%.
     static constexpr uint32_t PEAK_TIME_MS =
         25UL * 60UL * 1000UL;
 
-    // С 25-й до 26-й минуты громкость растёт с 30% до 100%.
     static constexpr uint32_t FULL_VOLUME_RAMP_MS =
         60UL * 1000UL;
 
-    // --------------------------------------------------------
-    // SUNRISE
-    // --------------------------------------------------------
+    static constexpr uint32_t WAV_DURATION_MS =
+        40UL * 1000UL;
 
     void updateSunrise(uint32_t elapsedMs);
     void updateSunriseLight();
     void applyAuxiliaryLeds();
-
-    // --------------------------------------------------------
-    // AUDIO
-    // --------------------------------------------------------
-
     void updateSunriseAudio(uint32_t elapsedMs);
 
-    float calculateMusicVolume(uint32_t elapsedMs);
+    uint8_t calculateVolumePercent(uint32_t elapsedMs) const;
+    bool startAlarmWav(uint8_t volumePercent);
 
-    static size_t musicPcmSource(
-        void* context,
-        int16_t* buffer,
-        size_t sampleCount
-    );
+    LightingManager& _lighting;
+    SoundManager& _sound;
+
+    SunriseLightEffect _sunrise;
+
+    EffectType _effect;
+    bool _begun;
+    bool _active;
+    bool _audioStarted;
+
+    uint32_t _nextWavStartMs;
 };
