@@ -1,11 +1,15 @@
+
 #pragma once
 
 #include <Arduino.h>
-#include <stdint.h>
 
-#include "./managers/LightingManager.h"
-#include "./managers/SoundManager.h"
-#include "./hardware/SunriseLightEffect.h"
+#include "managers/LightingManager.h"
+#include "managers/SoundManager.h"
+#include "SunriseLightEffect.h"
+
+// ============================================================
+// ALARM EFFECTS
+// ============================================================
 
 class AlarmEffects
 {
@@ -16,53 +20,77 @@ public:
         Sunrise
     };
 
-    AlarmEffects(
+    explicit AlarmEffects(
         LightingManager& lighting,
         SoundManager& sound
     );
 
     void begin();
+
     void startSunrise();
+
     void update(uint32_t elapsedMs);
+
     void stop();
 
     bool isActive() const;
+
     bool isSunriseActive() const;
+
     EffectType effect() const;
 
 private:
-    static constexpr char ALARM_WAV_PATH[] =
-        "/audio/alarms/alarm.wav";
+    // --------------------------------------------------------
+    // CONFIGURATION
+    // --------------------------------------------------------
 
     static constexpr uint32_t MUSIC_START_MS =
         21UL * 60UL * 1000UL;
 
-    static constexpr uint32_t PEAK_TIME_MS =
-        25UL * 60UL * 1000UL;
+    static constexpr uint32_t AUDIO_FADE_IN_MS =
+        2UL * 60UL * 1000UL;
 
-    static constexpr uint32_t FULL_VOLUME_RAMP_MS =
-        60UL * 1000UL;
+    static constexpr const char* ALARM_WAV_PATH =
+        "/audio/alarms/alarm.wav";
 
-    static constexpr uint32_t WAV_DURATION_MS =
-        40UL * 1000UL;
-
-    void updateSunrise(uint32_t elapsedMs);
-    void updateSunriseLight();
-    void applyAuxiliaryLeds();
-    void updateSunriseAudio(uint32_t elapsedMs);
-
-    uint8_t calculateVolumePercent(uint32_t elapsedMs) const;
-    bool startAlarmWav(uint8_t volumePercent);
+    // --------------------------------------------------------
+    // DEPENDENCIES
+    // --------------------------------------------------------
 
     LightingManager& _lighting;
     SoundManager& _sound;
 
+    // --------------------------------------------------------
+    // EFFECT
+    // --------------------------------------------------------
+
     SunriseLightEffect _sunrise;
 
     EffectType _effect;
+
     bool _begun;
     bool _active;
-    bool _audioStarted;
 
-    uint32_t _nextWavStartMs;
+    // --------------------------------------------------------
+    // AUDIO STATE
+    // --------------------------------------------------------
+
+    bool _audioStarted;
+    bool _audioFadeCompleted;
+
+    uint32_t _lastAudioCheckMs;
+
+    // --------------------------------------------------------
+    // INTERNAL METHODS
+    // --------------------------------------------------------
+
+    void updateSunrise(uint32_t elapsedMs);
+
+    void updateSunriseLight();
+
+    void applyAuxiliaryLeds();
+
+    void updateSunriseAudio(uint32_t elapsedMs);
+
+    bool startAlarmWav(bool fadeIn);
 };

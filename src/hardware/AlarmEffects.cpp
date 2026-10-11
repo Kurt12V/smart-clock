@@ -1,30 +1,7 @@
+
 #include "AlarmEffects.h"
 
-#include <Arduino.h>
-#include <algorithm>
-
-// ============================================================
-// CONSTANTS
-// ============================================================
-
-namespace
-{
-    constexpr uint32_t MUSIC_START_MS =
-        21UL * 60UL * 1000UL;
-
-    constexpr uint32_t PEAK_TIME_MS =
-        25UL * 60UL * 1000UL;
-
-    constexpr uint32_t FULL_VOLUME_RAMP_MS =
-        60UL * 1000UL;
-
-    // Продолжительность alarm.wav — 40 секунд.
-    constexpr uint32_t WAV_DURATION_MS =
-        40UL * 1000UL;
-
-    constexpr uint8_t MIN_VOLUME_PERCENT = 0;
-    constexpr uint8_t MAX_VOLUME_PERCENT = 100;
-}
+#include <cstring>
 
 // ============================================================
 // CONSTRUCTOR
@@ -41,7 +18,8 @@ AlarmEffects::AlarmEffects(
       _begun(false),
       _active(false),
       _audioStarted(false),
-      _nextWavStartMs(0)
+      _audioFadeCompleted(false),
+      _lastAudioCheckMs(0)
 {
 }
 
@@ -54,16 +32,16 @@ void AlarmEffects::begin()
     if (_begun)
         return;
 
-    Serial0.printf(
-        "[AlarmEffects] begin()\n"
+    Serial0.println(
+        "[AlarmEffects] begin()"
     );
 
     _sunrise.begin();
 
     _begun = true;
 
-    Serial0.printf(
-        "[AlarmEffects] begin() done\n"
+    Serial0.println(
+        "[AlarmEffects] begin() done"
     );
 }
 
@@ -73,34 +51,48 @@ void AlarmEffects::begin()
 
 void AlarmEffects::startSunrise()
 {
-    Serial0.printf(
-        "[AlarmEffects] startSunrise()\n"
+    Serial0.println(
+        "[AlarmEffects] startSunrise()"
     );
 
     if (!_begun)
         begin();
 
-    // Остановить предыдущий эффект, если он был активен.
+    // --------------------------------------------------------
+    // STOP PREVIOUS EFFECT
+    // --------------------------------------------------------
+
     stop();
 
-    // Подготовить состояние аудио.
-    _sound.stop();
-    _sound.setLocalPercent(0);
+    // --------------------------------------------------------
+    // RESET AUDIO STATE
+    // --------------------------------------------------------
 
     _audioStarted = false;
-    _nextWavStartMs = MUSIC_START_MS;
+    _audioFadeCompleted = false;
+    _lastAudioCheckMs = 0;
 
-    // Получить управление освещением на время будильника.
+    // --------------------------------------------------------
+    // TAKE LIGHTING CONTROL
+    // --------------------------------------------------------
+
     _lighting.beginAlarmOverride();
 
-    // Запустить эффект рассвета.
+    // --------------------------------------------------------
+    // START SUNRISE LIGHT EFFECT
+    // --------------------------------------------------------
+
     _sunrise.start();
+
+    // --------------------------------------------------------
+    // STATE
+    // --------------------------------------------------------
 
     _effect = EffectType::Sunrise;
     _active = true;
 
-    Serial0.printf(
-        "[AlarmEffects] Sunrise started\n"
+    Serial0.println(
+        "[AlarmEffects] Sunrise started"
     );
 }
 
@@ -135,27 +127,42 @@ void AlarmEffects::updateSunrise(
     uint32_t elapsedMs
 )
 {
-    // Обновляем состояние самого эффекта рассвета.
+    // Keep the original elapsed-time contract.
     _sunrise.update(elapsedMs);
 
-    // Применяем основной свет.
     updateSunriseLight();
 
-    // Применяем вспомогательные COB-светодиоды.
     applyAuxiliaryLeds();
 
-    // Обновляем воспроизведение WAV.
     updateSunriseAudio(elapsedMs);
 }
 
 // ============================================================
-// SUNRISE LIGHT
+// SUNRISE MATRIX
 // ============================================================
 
 void AlarmEffects::updateSunriseLight()
 {
+    static uint8_t lastBrightness = 255;
+
+    const uint8_t brightness =
+        _sunrise.brightness();
+
+    if (brightness != lastBrightness)
+    {
+        Serial0.printf(
+            "[AlarmEffects] Brightness: %u, RGB=(%u,%u,%u)\n",
+            static_cast<unsigned>(brightness),
+            static_cast<unsigned>(_sunrise.red()),
+            static_cast<unsigned>(_sunrise.green()),
+            static_cast<unsigned>(_sunrise.blue())
+        );
+
+        lastBrightness = brightness;
+    }
+
     _lighting.setAlarmMatrix(
-        _sunrise.brightness(),
+        brightness,
         _sunrise.red(),
         _sunrise.green(),
         _sunrise.blue()
@@ -163,28 +170,26 @@ void AlarmEffects::updateSunriseLight()
 }
 
 // ============================================================
-// AUXILIARY COB
+// AUXILIARY COB LEDS
 // ============================================================
 
 void AlarmEffects::applyAuxiliaryLeds()
 {
-    // Если дополнительный свет неактивен,
-    // принудительно выключаем его.
     if (!_sunrise.auxiliaryEnabled())
     {
         _lighting.setAlarmCob(0);
         return;
     }
 
-    // Вспышка выключена в текущем кадре.
     if (!_sunrise.auxiliaryFlashState())
     {
         _lighting.setAlarmCob(0);
         return;
     }
 
-    // auxiliaryBrightness() возвращает проценты 0–100.
-    // setAlarmCob() принимает яркость 0–255.
+    // SunriseLightEffect returns brightness as 0–100%.
+    // LightingManager receives an 8-bit brightness value.
+
     const uint8_t brightness =
         static_cast<uint8_t>(
             (
@@ -205,95 +210,90 @@ void AlarmEffects::updateSunriseAudio(
     uint32_t elapsedMs
 )
 {
-    // До 21-й минуты звук не воспроизводится.
+    // --------------------------------------------------------
+    // WAIT UNTIL THE 21ST MINUTE
+    // --------------------------------------------------------
+
     if (elapsedMs < MUSIC_START_MS)
         return;
 
-    // Определяем текущую громкость.
-    const uint8_t volumePercent =
-        calculateVolumePercent(elapsedMs);
+    // --------------------------------------------------------
+    // FIRST PLAYBACK: FADE FROM 0% TO 100% IN 2 MINUTES
+    // --------------------------------------------------------
 
-    // SoundManager применяет локальный уровень громкости
-    // к воспроизводимому аудио.
-    _sound.setLocalPercent(volumePercent);
-
-    // Запускаем WAV при первом достижении времени старта
-    // и повторяем его с интервалом в 40 секунд.
-    if (!_audioStarted ||
-        elapsedMs >= _nextWavStartMs)
+    if (!_audioStarted)
     {
-        if (startAlarmWav(volumePercent))
+        Serial0.println(
+            "[AlarmEffects] Starting alarm WAV with 2-minute fade-in"
+        );
+
+        if (startAlarmWav(true))
         {
             _audioStarted = true;
+            _lastAudioCheckMs = elapsedMs;
 
-            _nextWavStartMs =
-                elapsedMs + WAV_DURATION_MS;
+            Serial0.println(
+                "[AlarmEffects] Alarm WAV started"
+            );
+        }
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // CHECK PLAYBACK PERIODICALLY
+    // --------------------------------------------------------
+
+    constexpr uint32_t AUDIO_CHECK_INTERVAL_MS = 250;
+
+    if (
+        elapsedMs - _lastAudioCheckMs <
+        AUDIO_CHECK_INTERVAL_MS
+    )
+    {
+        return;
+    }
+
+    _lastAudioCheckMs = elapsedMs;
+
+    // --------------------------------------------------------
+    // FADE-IN PERIOD
+    // --------------------------------------------------------
+
+    if (
+        elapsedMs - MUSIC_START_MS <
+        AUDIO_FADE_IN_MS
+    )
+    {
+        return;
+    }
+
+    if (!_audioFadeCompleted)
+    {
+        _audioFadeCompleted = true;
+
+        Serial0.println(
+            "[AlarmEffects] Alarm volume ramp completed: 100%"
+        );
+    }
+
+    // --------------------------------------------------------
+    // RESTART WAV WHEN PLAYBACK HAS FINISHED
+    // --------------------------------------------------------
+
+    if (!_sound.isPlaying())
+    {
+        Serial0.println(
+            "[AlarmEffects] Restarting alarm WAV at full volume"
+        );
+
+        if (startAlarmWav(false))
+        {
+            Serial0.println(
+                "[AlarmEffects] Alarm WAV restarted"
+            );
         }
     }
-}
-
-// ============================================================
-// CALCULATE VOLUME
-// ============================================================
-
-uint8_t AlarmEffects::calculateVolumePercent(
-    uint32_t elapsedMs
-) const
-{
-    float volume = 0.0f;
-
-    // --------------------------------------------------------
-    // 21:00–25:00
-    // 0% -> 30%
-    // --------------------------------------------------------
-
-    if (elapsedMs < PEAK_TIME_MS)
-    {
-        const uint32_t elapsed =
-            elapsedMs - MUSIC_START_MS;
-
-        const uint32_t duration =
-            PEAK_TIME_MS - MUSIC_START_MS;
-
-        float progress =
-            static_cast<float>(elapsed) /
-            static_cast<float>(duration);
-
-        progress = std::max(
-            0.0f,
-            std::min(1.0f, progress)
-        );
-
-        volume = 30.0f * progress;
-    }
-    // --------------------------------------------------------
-    // 25:00–26:00
-    // 30% -> 100%
-    // --------------------------------------------------------
-    else
-    {
-        const uint32_t elapsed =
-            elapsedMs - PEAK_TIME_MS;
-
-        float progress =
-            static_cast<float>(elapsed) /
-            static_cast<float>(FULL_VOLUME_RAMP_MS);
-
-        progress = std::max(
-            0.0f,
-            std::min(1.0f, progress)
-        );
-
-        volume = 30.0f + 70.0f * progress;
-    }
-
-    // После завершения нарастания сохраняем 100%.
-    volume = std::max(
-        0.0f,
-        std::min(100.0f, volume)
-    );
-
-    return static_cast<uint8_t>(volume);
 }
 
 // ============================================================
@@ -301,32 +301,47 @@ uint8_t AlarmEffects::calculateVolumePercent(
 // ============================================================
 
 bool AlarmEffects::startAlarmWav(
-    uint8_t volumePercent
+    bool fadeIn
 )
 {
-    static constexpr char ALARM_WAV_PATH[] =
-        "/audio/alarms/alarm.wav";
+    SoundManager::PlayOptions options;
 
-    const uint8_t safeVolume =
-        std::max(
-            MIN_VOLUME_PERCENT,
-            std::min(
-                MAX_VOLUME_PERCENT,
-                volumePercent
-            )
+    options.stream =
+        SoundManager::AudioStream::Alarm;
+
+    // The alarm's configured base volume should be 100%.
+    // localPercent controls this playback instance.
+
+    options.localPercent = 100;
+
+    // First playback fades in over 2 minutes.
+    // Subsequent playbacks start at full volume.
+
+    options.fadeInMs =
+        fadeIn
+            ? AUDIO_FADE_IN_MS
+            : 0;
+
+    options.fadeOutMs = 0;
+
+    // A logarithmic fade-in raises the perceived volume
+    // faster near the beginning than a linear fade.
+
+    options.curve =
+        SoundManager::FadeCurve::Logarithmic;
+
+    if (!_sound.play(
+            ALARM_WAV_PATH,
+            options
+        ))
+    {
+        Serial0.printf(
+            "[AlarmEffects] Failed to play: %s\n",
+            ALARM_WAV_PATH
         );
 
-    _sound.setLocalPercent(safeVolume);
-
-    Serial0.printf(
-        "[AlarmEffects] Playing WAV: %s, volume=%u%%\n",
-        ALARM_WAV_PATH,
-        static_cast<unsigned>(safeVolume)
-    );
-
-    // SoundManager отвечает за чтение WAV и передачу PCM
-    // в аудиотракт. MusicGenerator здесь не используется.
-    _sound.play(ALARM_WAV_PATH);
+        return false;
+    }
 
     return true;
 }
@@ -337,39 +352,44 @@ bool AlarmEffects::startAlarmWav(
 
 void AlarmEffects::stop()
 {
-    // Если эффект уже выключен, сбрасываем состояние
-    // аудио и выходим.
     if (!_active)
-    {
-        _audioStarted = false;
-        _nextWavStartMs = 0;
         return;
-    }
 
-    Serial0.printf(
-        "[AlarmEffects] stop()\n"
+    Serial0.println(
+        "[AlarmEffects] stop()"
     );
 
-    // Остановить воспроизведение WAV.
+    // --------------------------------------------------------
+    // STOP AUDIO
+    // --------------------------------------------------------
+
     _sound.stop();
-    _sound.setLocalPercent(100);
 
     _audioStarted = false;
-    _nextWavStartMs = 0;
+    _audioFadeCompleted = false;
+    _lastAudioCheckMs = 0;
 
-    // Остановить рассвет.
+    // --------------------------------------------------------
+    // STOP SUNRISE
+    // --------------------------------------------------------
+
     _sunrise.stop();
 
-    // Вернуть управление освещением обычной системе.
-    _lighting.setAlarmCob(0);
+    // --------------------------------------------------------
+    // RESTORE NORMAL LIGHTING SETTINGS
+    // --------------------------------------------------------
+
     _lighting.endAlarmOverride();
 
-    // Сбросить состояние эффекта.
+    // --------------------------------------------------------
+    // RESET STATE
+    // --------------------------------------------------------
+
     _effect = EffectType::None;
     _active = false;
 
-    Serial0.printf(
-        "[AlarmEffects] stop() done\n"
+    Serial0.println(
+        "[AlarmEffects] stop() done"
     );
 }
 
