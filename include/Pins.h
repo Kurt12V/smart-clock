@@ -1,19 +1,19 @@
 #pragma once
 
 // ============================================================
-// SPI — ДИСПЛЕИ
+// SPI — ДИСПЛЕИ 
 // ============================================================
 #define PIN_SCLK    12      // SPI Clock
 #define PIN_MOSI    11      // SPI MOSI
 #define PIN_TFT_DC       2      // Data / Command
 #define PIN_TFT_CS1       7    // Дисплей №1
-#define PIN_TFT_CS2       37   // Дисплей №2
+#define PIN_TFT_CS2       39   // Дисплей №2
 #define PIN_TFT_CS3      38      // Дисплей №3
-#define PIN_TFT_CS4      39      // Дисплей №4
+#define PIN_TFT_CS4      37      // Дисплей №4
 #define PIN_TFT_RST1     42      // Дисплей №1
-#define PIN_TFT_RST2    13      // Дисплей №2
-#define PIN_TFT_RST3    10      // Дисплей №3
-#define PIN_TFT_RST4    3      // Дисплей №4
+#define PIN_TFT_RST2    3      // Дисплей №2
+#define PIN_TFT_RST3    10       // Дисплей №3
+#define PIN_TFT_RST4    13      // Дисплей №4
 #define PIN_TFT_BL       1      // Общая подсветка, PWM
 
 // ============================================================
@@ -35,13 +35,6 @@
 
 // ============================================================
 // AUDIO — MAX98357A
-// ============================================================
-// Два MAX98357A работают в СТЕРЕО.
-// ESP32-S3 передаёт один стерео I2S поток:
-//                 ┌─> MAX98357A #1 → LEFT
-// ESP32-S3 I2S ───┤
-//                 └─> MAX98357A #2 → RIGHT
-// BCLK / LRC / DIN являются ОБЩИМИ.
 // ============================================================
 #define PIN_I2S_BCLK    5     // I2S Bit Clock
 #define PIN_I2S_LRCLK  6     // I2S Left / Right Clock
