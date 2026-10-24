@@ -5,7 +5,7 @@
 #include <cmath>
 #include <cstring>
 
-#include "./managers/I2SManager.h"
+#include "./managers/I2S/I2SManager.h"
 
 // ============================================================
 // CONFIG

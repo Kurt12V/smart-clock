@@ -2,10 +2,10 @@
 
 #include <Arduino.h>
 
-#include "./managers/SPIManager.h"
-#include "./managers/LVGLManager.h"
-#include "./managers/ScreenManager.h"
-#include "./managers/SettingsManager.h"
+#include "./managers/SPI/SPIManager.h"
+#include "./managers/Display/LVGLManager.h"
+#include "./managers/Display/ScreenManager.h"
+#include "./managers/Setting/SettingsManager.h"
 
 class ClockSystem;
 class SensorManager;

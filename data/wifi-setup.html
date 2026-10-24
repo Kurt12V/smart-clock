@@ -1,6 +1,6 @@
-
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
     <meta charset="UTF-8">
 
@@ -77,12 +77,13 @@
             </div>
 
             <h1>
-                Подключение к Wi-Fi
+                Первоначальная настройка
             </h1>
 
             <p>
-                SmartClock пока не подключён к домашней сети.
-                Выберите вашу Wi-Fi сеть и введите пароль.
+                Подключите SmartClock к домашней Wi-Fi сети,
+                установите часовой пояс и задайте текущие дату
+                и время в UTC.
             </p>
 
         </section>
@@ -193,6 +194,7 @@
                         name="ssid"
                         type="text"
                         readonly
+                        required
                     >
 
                 </div>
@@ -230,6 +232,146 @@
                 </div>
 
 
+                <!-- =================================================
+                     TIME SETTINGS
+                     ================================================= -->
+
+                <div class="time-settings-divider"></div>
+
+                <div class="card-header time-settings-header">
+
+                    <div>
+                        <h2>
+                            Дата и время
+                        </h2>
+
+                        <p>
+                            Укажите текущие дату и время в UTC.
+                            Эти значения будут записаны в часы.
+                        </p>
+                    </div>
+
+                </div>
+
+
+                <!-- UTC OFFSET -->
+
+                <div class="field">
+
+                    <label for="utcOffset">
+                        Часовой пояс
+                    </label>
+
+                    <select
+                        id="utcOffset"
+                        name="utcOffset"
+                        required
+                    >
+                        <option value="-12">UTC−12:00</option>
+                        <option value="-11">UTC−11:00</option>
+                        <option value="-10">UTC−10:00</option>
+                        <option value="-9">UTC−09:00</option>
+                        <option value="-8">UTC−08:00</option>
+                        <option value="-7">UTC−07:00</option>
+                        <option value="-6">UTC−06:00</option>
+                        <option value="-5">UTC−05:00</option>
+                        <option value="-4">UTC−04:00</option>
+                        <option value="-3">UTC−03:00</option>
+                        <option value="-2">UTC−02:00</option>
+                        <option value="-1">UTC−01:00</option>
+                        <option value="0">UTC±00:00</option>
+                        <option value="1">UTC+01:00</option>
+                        <option value="2">UTC+02:00</option>
+                        <option value="3" selected>UTC+03:00</option>
+                        <option value="4">UTC+04:00</option>
+                        <option value="5">UTC+05:00</option>
+                        <option value="6">UTC+06:00</option>
+                        <option value="7">UTC+07:00</option>
+                        <option value="8">UTC+08:00</option>
+                        <option value="9">UTC+09:00</option>
+                        <option value="10">UTC+10:00</option>
+                        <option value="11">UTC+11:00</option>
+                        <option value="12">UTC+12:00</option>
+                        <option value="13">UTC+13:00</option>
+                        <option value="14">UTC+14:00</option>
+                    </select>
+
+                    <small class="field-hint">
+                        Допустимое смещение: от UTC−12 до UTC+14.
+                        Используется для отображения местного времени.
+                    </small>
+
+                </div>
+
+
+                <!-- UTC DATE -->
+
+                <div class="field">
+
+                    <label for="utcDate">
+                        Текущая дата (UTC)
+                    </label>
+
+                    <input
+                        id="utcDate"
+                        name="utcDate"
+                        type="date"
+                        required
+                    >
+
+                    <small class="field-hint">
+                        Укажите дату по UTC, а не местную дату.
+                    </small>
+
+                </div>
+
+
+                <!-- UTC TIME -->
+
+                <div class="field">
+
+                    <label for="utcTime">
+                        Текущее время (UTC)
+                    </label>
+
+                    <input
+                        id="utcTime"
+                        name="utcTime"
+                        type="time"
+                        step="1"
+                        required
+                    >
+
+                    <small class="field-hint">
+                        Формат 24 часа. Например, 12:30:00 UTC.
+                    </small>
+
+                </div>
+
+
+                <!-- UTC EXPLANATION -->
+
+                <div class="time-info">
+
+                    <div class="time-info-title">
+                        Как это работает
+                    </div>
+
+                    <p>
+                        SmartClock сохраняет дату и время в UTC
+                        во внутренние часы DS3231. Выбранное смещение
+                        применяется отдельно при отображении времени
+                        на экранах.
+                    </p>
+
+                    <p id="localTimePreview">
+                        Местное время будет рассчитано автоматически
+                        после ввода даты, времени и часового пояса.
+                    </p>
+
+                </div>
+
+
                 <!-- FORM ERROR -->
 
                 <div
@@ -246,7 +388,7 @@
                     type="submit"
                 >
                     <span id="connectText">
-                        Подключить SmartClock
+                        Сохранить и подключить SmartClock
                     </span>
                 </button>
 
@@ -273,8 +415,9 @@
             </h2>
 
             <p>
-                SmartClock сейчас перезагрузится и попробует
-                подключиться к выбранной сети.
+                SmartClock сейчас перезагрузится, сохранит
+                установленное время и попробует подключиться
+                к выбранной сети.
             </p>
 
             <div class="reboot-info">
@@ -336,11 +479,12 @@
 
                     <div>
                         <strong>
-                            Введите пароль
+                            Установите время
                         </strong>
 
                         <span>
-                            Пароль будет сохранён во внутренней памяти SmartClock.
+                            Выберите UTC-смещение и введите
+                            текущие дату и время именно в UTC.
                         </span>
                     </div>
 
@@ -355,11 +499,12 @@
 
                     <div>
                         <strong>
-                            SmartClock перезагрузится
+                            Подключите часы
                         </strong>
 
                         <span>
-                            После перезагрузки часы подключатся к вашей сети.
+                            SmartClock сохранит настройки,
+                            перезагрузится и подключится к сети.
                         </span>
                     </div>
 

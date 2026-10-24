@@ -346,3 +346,35 @@ namespace Config
     constexpr uint32_t SLEEP_SAVE_INTERVAL_MS =
         60000;
 }
+
+namespace Config
+{
+ // --- День ---
+    constexpr int AUTO_DAY_MIN               = 35;
+    constexpr int AUTO_DAY_MAX               = 100;
+    constexpr int AUTO_DAY_BASE              = 65;
+
+    // --- Вечер ---
+    constexpr int AUTO_EVENING_MIN           = 15;
+    constexpr int AUTO_EVENING_MAX           = 60;
+    constexpr int AUTO_EVENING_BASE          = 30;
+
+    // --- Ночь ---
+    constexpr int AUTO_NIGHT_MIN             = 5;
+    constexpr int AUTO_NIGHT_MAX             = 25;
+    constexpr int AUTO_NIGHT_BASE            = 10;
+
+    // --- Границы профилей (в минутах от полуночи) ---
+    constexpr uint16_t AUTO_DAY_START_MIN    = 7  * 60;   // 07:00
+    constexpr uint16_t AUTO_NIGHT_START_MIN  = 22 * 60;   // 22:00
+    constexpr uint16_t AUTO_EVENING_DURATION = 120;       // 2 часа
+
+    // --- Поправка / гистерезис / сглаживание ---
+    constexpr int   AUTO_OFFSET_DEFAULT      = 0;         // -100..100
+    constexpr int   AUTO_HYSTERESIS_PCT      = 3;
+    constexpr float AUTO_SMOOTHING_ALPHA     = 0.2f;
+
+    // --- Калибровка датчика света ---
+    constexpr float AUTO_LUX_MIN             = 1.0f;
+    constexpr float AUTO_LUX_MAX             = 1000.0f;
+}

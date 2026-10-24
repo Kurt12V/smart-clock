@@ -1,46 +1,40 @@
 #pragma once
 
 #include <Arduino.h>
+#include <WebServer.h>
 
 // ============================================================
-// CORE MANAGERS
+// MANAGERS
 // ============================================================
 
-#include "./managers/SettingsManager.h"
-#include "./managers/SPIManager.h"
-#include "./managers/I2SManager.h"
-#include "./managers/SDManager.h"
-#include "./managers/SoundManager.h"
-#include "./managers/SensorsManager.h"
-#include "./managers/LightingManager.h"
-#include "./managers/WiFiManager.h"
-
-// ============================================================
-// CORE SYSTEMS
-// ============================================================
-
+#include "./managers/Setting/SettingsManager.h"
+#include "./managers/SPI/SPIManager.h"
+#include "./managers/I2S/I2SManager.h"
+#include "./managers/SD/SDManager.h"
+#include "./managers/Sound/SoundManager.h"
+#include "./managers/Sensors/SensorsManager.h"
 #include "./core/ClockSystem.h"
+#include "./managers/Led/LightingManager.h"
+#include "./managers/Alarm/AlarmManager.h"
+#include "./managers/Alarm/AlarmController.h"
+#include "./managers/WiFi/WiFiManager.h"
+
+// ============================================================
+// SYSTEMS
+// ============================================================
+
 #include "./core/DisplaySystem.h"
-
-// ============================================================
-// ALARM
-// ============================================================
-
-#include "./managers/AlarmManager.h"
-#include "./managers/AlarmController.h"
 
 // ============================================================
 // WEB
 // ============================================================
 
-#include "./managers/WebServerManager.h"
-#include "./managers/WebPageManager.h"
-#include "./managers/WebSettingsManager.h"
-#include "./managers/WebSDManager.h"
-#include "./managers/WebAudioManager.h"
-#include "./managers/WebAlarmManager.h"
-#include "./managers/WebWiFiManager.h"
+#include "./managers/WEB/WebWiFiManager.h"
 
+
+// ============================================================
+// APP
+// ============================================================
 
 class App
 {
@@ -90,13 +84,11 @@ private:
 
     bool initWiFi();
 
-    bool initWebServer();
+    bool initWebWiFi();
 
-
-private:
 
     // ========================================================
-    // CORE
+    // CORE MANAGERS
     // ========================================================
 
     SettingsManager _settings;
@@ -117,8 +109,6 @@ private:
 
     DisplaySystem _displaySystem;
 
-    WiFiManager _wifiManager;
-
 
     // ========================================================
     // ALARM
@@ -130,22 +120,16 @@ private:
 
 
     // ========================================================
-    // WEB MODULES
+    // NETWORK
     // ========================================================
 
-    WebPageManager _webPageManager;
+    WiFiManager _wifiManager;
 
-    WebSettingsManager _webSettingsManager;
+    // HTTP server on port 80.
+    WebServer _webServer;
 
-    WebSDManager _webSDManager;
-
-    WebAudioManager _webAudioManager;
-
-    WebAlarmManager _webAlarmManager;
-
+    // Wi-Fi HTTP API.
     WebWiFiManager _webWiFiManager;
-
-    WebServerManager _webServer;
 
 
     // ========================================================

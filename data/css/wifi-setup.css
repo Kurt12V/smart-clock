@@ -872,3 +872,98 @@ footer {
         display: none;
     }
 }
+/* ============================================================
+   TIME SETTINGS
+   ============================================================ */
+
+.time-settings-divider {
+    height: 1px;
+    margin: 28px 0;
+    background: #252a36;
+}
+
+.time-settings-header {
+    margin-bottom: 22px;
+}
+
+.field select {
+    width: 100%;
+    height: 46px;
+    padding: 0 14px;
+
+    border-radius: 10px;
+    border: 1px solid #2a303d;
+    outline: none;
+
+    background: #0d1016;
+    color: #eef1f6;
+
+    font-family: inherit;
+    font-size: 14px;
+
+    cursor: pointer;
+
+    transition:
+        border-color 0.15s ease,
+        background 0.15s ease;
+}
+
+.field select:focus {
+    border-color: #596274;
+    background: #10141b;
+}
+
+.field select option {
+    background: #11141b;
+    color: #eef1f6;
+}
+
+.field-hint {
+    display: block;
+    margin-top: 8px;
+
+    color: #737c8e;
+    font-size: 11px;
+    line-height: 1.6;
+}
+
+.time-info {
+    margin-bottom: 20px;
+    padding: 16px;
+
+    border-radius: 12px;
+    border: 1px solid #252b38;
+
+    background: #0d1016;
+}
+
+.time-info-title {
+    margin-bottom: 9px;
+
+    color: #dce1e9;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.time-info p {
+    margin: 0;
+
+    color: #858d9e;
+    font-size: 12px;
+    line-height: 1.7;
+}
+
+.time-info p + p {
+    margin-top: 10px;
+    color: #c5cad4;
+}
+
+@media (max-width: 650px) {
+    .time-settings-divider {
+        margin: 22px 0;
+    }
+
+    .time-info {
+        padding: 14px;
+    }
+}

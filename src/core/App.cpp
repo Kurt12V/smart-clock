@@ -1,92 +1,46 @@
 #include "App.h"
+#include "Pins.h"
 
-#include "./Config.h"
-#include "./Pins.h"
-#include "./Constants.h"
-#include "./Version.h"
-
+#include <Arduino.h>
 
 // ============================================================
 // CONSTRUCTOR
 // ============================================================
 
 App::App()
-    : _settings(),
-
-      _spiManager(),
-
-      _i2sManager(),
-
-      _sdManager(),
-
-      _soundManager(
-          _sdManager,
-          _settings,
-          _i2sManager
-      ),
-
-      _sensorManager(),
-
-      _clockSystem(
-          _settings
-      ),
-
-      _lighting(
-          _settings
-      ),
-
-      _displaySystem(
-          _settings,
-          _clockSystem,
-          _sensorManager,
-          _spiManager
-      ),
-
-      _wifiManager(),
-
-      _alarmManager(
-          _sdManager,
-          _clockSystem
-      ),
-
-      _alarmController(
-          _alarmManager
-      ),
-
-      // --------------------------------------------------------
-      // WEB MODULES
-      // --------------------------------------------------------
-
-      _webPageManager(),
-
-      _webSettingsManager(
-          _settings
-      ),
-
-      _webSDManager(
-          _sdManager
-      ),
-
-      _webAudioManager(
-          _soundManager,
-          _sdManager
-      ),
-
-      _webAlarmManager(
-          _alarmManager,
-          _alarmController
-      ),
-
-      _webWiFiManager(
-          _wifiManager
-      ),
-
-      _webServer(),
-
-      _initialized(false)
+    : _settings()
+    , _spiManager()
+    , _i2sManager()
+    , _sdManager()
+    , _soundManager(
+        _sdManager,
+        _settings,
+        _i2sManager
+    )
+    , _sensorManager()
+    , _clockSystem(_settings)
+    , _lighting(_settings)
+    , _displaySystem(
+        _settings,
+        _clockSystem,
+        _sensorManager,
+        _spiManager
+    )
+    , _alarmManager(
+        _sdManager,
+        _clockSystem
+    )
+    , _alarmController(_alarmManager)
+    , _wifiManager()
+    , _webServer(80)
+    , _webWiFiManager(
+        _wifiManager,
+        _settings,
+        _clockSystem
+    )
+    , _initialized(false)
 {
 }
-
 
 // ============================================================
 // BEGIN
@@ -94,111 +48,37 @@ App::App()
 
 bool App::begin()
 {
-    // --------------------------------------------------------
-    // SETTINGS
-    // --------------------------------------------------------
+    if (_initialized)
+    {
+        return true;
+    }
 
-    if (!initSettings())
-        return false;
+    if (!initSettings()) return false;
+    if (!initSPI()) return false;
+    if (!initI2S()) return false;
+    if (!initSD()) return false;
+    if (!initSound()) return false;
+    if (!initClock()) return false;
+    if (!initSensors()) return false;
+    if (!initLighting()) return false;
+    if (!initDisplay()) return false;
+    if (!initAlarm()) return false;
 
+    // Wi-Fi: подключение или создание точки доступа.
+    if (!initWiFi()) return false;
 
-    // --------------------------------------------------------
-    // SPI
-    // --------------------------------------------------------
-
-    if (!initSPI())
-        return false;
-
-
-    // --------------------------------------------------------
-    // I2S
-    // --------------------------------------------------------
-
-    if (!initI2S())
-        return false;
-
-
-    // --------------------------------------------------------
-    // SD
-    // --------------------------------------------------------
-
-    if (!initSD())
-        return false;
-
-
-    // --------------------------------------------------------
-    // SOUND
-    // --------------------------------------------------------
-
-    if (!initSound())
-        return false;
-
-
-    // --------------------------------------------------------
-    // CLOCK
-    // --------------------------------------------------------
-
-    if (!initClock())
-        return false;
-
-
-    // --------------------------------------------------------
-    // SENSORS
-    // --------------------------------------------------------
-
-    if (!initSensors())
-        return false;
-
-
-    // --------------------------------------------------------
-    // LIGHTING
-    // --------------------------------------------------------
-
-    if (!initLighting())
-        return false;
-
-
-    // --------------------------------------------------------
-    // DISPLAY
-    // --------------------------------------------------------
-
-    if (!initDisplay())
-        return false;
-
-
-    // --------------------------------------------------------
-    // ALARM
-    // --------------------------------------------------------
-
-    if (!initAlarm())
-        return false;
-
-
-    // --------------------------------------------------------
-    // WIFI
-    // --------------------------------------------------------
-
-    if (!initWiFi())
-        return false;
-
-
-    // --------------------------------------------------------
-    // WEB SERVER
-    // --------------------------------------------------------
-
-    if (!initWebServer())
-        return false;
-
-
-    // --------------------------------------------------------
-    // READY
-    // --------------------------------------------------------
+    // HTTP: регистрация маршрутов и запуск сервера.
+    if (!initWebWiFi()) return false;
 
     _initialized = true;
 
+    Serial0.println();
+    Serial0.println("============================================");
+    Serial0.println("[APP] Initialization complete");
+    Serial0.println("============================================");
+
     return true;
 }
-
 
 // ============================================================
 // UPDATE
@@ -207,29 +87,16 @@ bool App::begin()
 void App::update()
 {
     if (!_initialized)
+    {
         return;
-
+    }
 
     // --------------------------------------------------------
-    // SETTINGS
+    // SETTINGS AND CLOCK
     // --------------------------------------------------------
 
     _settings.update();
-
-
-    // --------------------------------------------------------
-    // WIFI
-    // --------------------------------------------------------
-
-    _wifiManager.update();
-
-
-    // --------------------------------------------------------
-    // CLOCK
-    // --------------------------------------------------------
-
     _clockSystem.update();
-
 
     // --------------------------------------------------------
     // SENSORS
@@ -237,44 +104,38 @@ void App::update()
 
     _sensorManager.update();
 
-
     // --------------------------------------------------------
-    // LIGHTING
+    // LIGHTING AND DISPLAY
     // --------------------------------------------------------
 
     _lighting.update();
-
-
-    // --------------------------------------------------------
-    // DISPLAY
-    // --------------------------------------------------------
-
     _displaySystem.update();
 
-
     // --------------------------------------------------------
-    // SOUND
+    // AUDIO
     // --------------------------------------------------------
 
     _soundManager.update();
 
-
     // --------------------------------------------------------
-    // ALARM
+    // ALARMS
     // --------------------------------------------------------
 
     _alarmManager.update();
-
     _alarmController.update();
 
+    // --------------------------------------------------------
+    // WI-FI
+    // --------------------------------------------------------
+
+    _wifiManager.update();
 
     // --------------------------------------------------------
-    // WEB
+    // WEB SERVER
     // --------------------------------------------------------
 
-    _webServer.update();
+    _webServer.handleClient();
 }
-
 
 // ============================================================
 // SETTINGS
@@ -285,7 +146,6 @@ bool App::initSettings()
     return _settings.begin();
 }
 
-
 // ============================================================
 // SPI
 // ============================================================
@@ -294,7 +154,6 @@ bool App::initSPI()
 {
     return _spiManager.begin();
 }
-
 
 // ============================================================
 // I2S
@@ -305,18 +164,14 @@ bool App::initI2S()
     return _i2sManager.begin();
 }
 
-
 // ============================================================
 // SD
 // ============================================================
 
 bool App::initSD()
 {
-    return _sdManager.begin(
-        PIN_SD_CS
-    );
+    return _sdManager.begin(PIN_SD_CS);
 }
-
 
 // ============================================================
 // SOUND
@@ -327,7 +182,6 @@ bool App::initSound()
     return _soundManager.begin();
 }
 
-
 // ============================================================
 // CLOCK
 // ============================================================
@@ -336,7 +190,6 @@ bool App::initClock()
 {
     return _clockSystem.begin();
 }
-
 
 // ============================================================
 // SENSORS
@@ -347,7 +200,6 @@ bool App::initSensors()
     return _sensorManager.begin();
 }
 
-
 // ============================================================
 // LIGHTING
 // ============================================================
@@ -356,7 +208,6 @@ bool App::initLighting()
 {
     return _lighting.begin();
 }
-
 
 // ============================================================
 // DISPLAY
@@ -367,25 +218,17 @@ bool App::initDisplay()
     return _displaySystem.begin();
 }
 
-
 // ============================================================
 // ALARM
 // ============================================================
 
 bool App::initAlarm()
 {
-    if (!_alarmManager.begin())
-        return false;
-
-
-    _alarmController.begin();
-
-    return true;
+    return _alarmManager.begin();
 }
 
-
 // ============================================================
-// WIFI
+// WI-FI
 // ============================================================
 
 bool App::initWiFi()
@@ -393,52 +236,20 @@ bool App::initWiFi()
     return _wifiManager.begin();
 }
 
-
 // ============================================================
-// WEB SERVER
+// WEB WI-FI
 // ============================================================
 
-bool App::initWebServer()
+bool App::initWebWiFi()
 {
-    // --------------------------------------------------------
-    // Register web modules
-    // --------------------------------------------------------
+    // Регистрируем маршруты управления Wi-Fi.
+    _webWiFiManager.setupRoutes(_webServer);
 
-    _webServer.setPageManager(
-        _webPageManager
-    );
+    // Запускаем HTTP-сервер.
+    _webServer.begin();
 
+    Serial0.println("[APP] HTTP server started");
+    Serial0.println("[APP] Port: 80");
 
-    _webServer.setSettingsManager(
-        _webSettingsManager
-    );
-
-
-    _webServer.setSDManager(
-        _webSDManager
-    );
-
-
-    _webServer.setAudioManager(
-        _webAudioManager
-    );
-
-
-    _webServer.setAlarmManager(
-        _webAlarmManager
-    );
-
-
-    _webServer.setWiFiManager(
-        _webWiFiManager
-    );
-
-
-    // --------------------------------------------------------
-    // Start server
-    // --------------------------------------------------------
-
-    return _webServer.begin(
-        _settings
-    );
+    return true;
 }

@@ -8,8 +8,8 @@
 #include "Settings.h"
 
 #include "./hardware/rtc/RTC.h"
-#include "./managers/ClockManager.h"
-#include "./managers/SettingsManager.h"
+#include "./managers/Clock/ClockManager.h"
+#include "./managers/Setting/SettingsManager.h"
 
 class ClockSystem
 {

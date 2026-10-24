@@ -1,85 +1,51 @@
 #include <Arduino.h>
+#include <Preferences.h>
 
-#include "SettingsManager.h"
-#include "SPIManager.h"
-#include "SensorManager.h"
-#include "ClockSystem.h"
-#include "DisplaySystem.h"
+#include "core/App.h"
 
+static App app;
 
-// ============================================================
-// MODULES
-// ============================================================
+static void clearWiFiCredentials()
+{
+    Preferences preferences;
 
-SettingsManager settings;
+    if (!preferences.begin("wifi", false))
+    {
+        Serial0.println("[TEST] ERROR: Failed to open Wi-Fi preferences");
+        return;
+    }
 
-SPIManager spiManager;
+    // Очищаем сохранённые SSID и пароль.
+    preferences.putString("ssid", "");
+    preferences.putString("pass", "");
 
-SensorManager sensorManager;
+    preferences.end();
 
-ClockSystem clockSystem(
-    settings
-);
-
-DisplaySystem displaySystem(
-    settings,
-    clockSystem,
-    sensorManager,
-    spiManager
-);
-
-
-// ============================================================
-// STATE
-// ============================================================
-
-bool initialized = false;
-
-
-// ============================================================
-// SETUP
-// ============================================================
+    Serial0.println("[TEST] Wi-Fi SSID cleared");
+    Serial0.println("[TEST] Wi-Fi password cleared");
+}
 
 void setup()
 {
-    // SETTINGS
-    if (!settings.begin())
-        return;
+    Serial0.begin(115200);
+    delay(300);
 
-    // SPI
-    if (!spiManager.begin())
-        return;
+    Serial0.println();
+    Serial0.println("========================================");
+    Serial0.println("          SmartClock");
+    Serial0.println("       Wi-Fi connection test");
+    Serial0.println("========================================");
 
-    // CLOCK
-    if (!clockSystem.begin())
-        return;
+    // Очищаем Wi-Fi-данные до запуска приложения.
+    clearWiFiCredentials();
 
-    // SENSORS
-    if (!sensorManager.begin())
-        return;
+    Serial0.println("[APP] Starting SmartClock...");
 
-    // DISPLAY
-    if (!displaySystem.begin())
-        return;
-
-    initialized = true;
+    app.begin();
 }
-
-
-// ============================================================
-// LOOP
-// ============================================================
 
 void loop()
 {
-    if (!initialized)
-        return;
-
-    settings.update();
-
-    clockSystem.update();
-
-    sensorManager.update();
-
-    displaySystem.update();
+    app.update();
+    delay(1);
 }
