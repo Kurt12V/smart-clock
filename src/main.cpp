@@ -5,42 +5,25 @@
 #include "Pins.h"
 
 // ============================================================
-// НАСТРОЙКИ ТЕСТА SD-КАРТЫ
+// SD CARD TEST CONFIGURATION
 // ============================================================
 
 static constexpr uint32_t SD_SPI_FREQUENCY = 400000;
 
+static constexpr char TEST_FILE_PATH[] = "/sd_test.txt";
+static constexpr char TEST_FILE_CONTENT[] = "ESP32-S3 SD card test";
+
 // ============================================================
-// ИНИЦИАЛИЗАЦИЯ И ТЕСТ SD-КАРТЫ
+// SPI INITIALIZATION
 // ============================================================
 
-static void testSDCard()
+static bool initializeSPI()
 {
     Serial0.println();
-    Serial0.println("========================================");
-    Serial0.println("[TEST] SD CARD DIAGNOSTIC");
-    Serial0.println("========================================");
-
-    Serial0.printf("[TEST] SCLK: %d\n", PIN_SCLK);
-    Serial0.printf("[TEST] MOSI: %d\n", PIN_MOSI);
-    Serial0.printf("[TEST] MISO: %d\n", PIN_SD_MISO);
-    Serial0.printf("[TEST] CS:   %d\n", PIN_SD_CS);
-    Serial0.printf("[TEST] SPI frequency: %lu Hz\n",
-                   static_cast<unsigned long>(SD_SPI_FREQUENCY));
-
-    // --------------------------------------------------------
-    // 1. Настройка CS
-    // --------------------------------------------------------
+    Serial0.println("[TEST] Initializing SPI...");
 
     pinMode(PIN_SD_CS, OUTPUT);
     digitalWrite(PIN_SD_CS, HIGH);
-
-    // --------------------------------------------------------
-    // 2. Инициализация SPI
-    // --------------------------------------------------------
-
-    Serial0.println();
-    Serial0.println("[TEST] Initializing SPI...");
 
     SPI.begin(
         PIN_SCLK,
@@ -53,10 +36,15 @@ static void testSDCard()
 
     Serial0.println("[TEST] SPI initialized");
 
-    // --------------------------------------------------------
-    // 3. Инициализация SD-карты
-    // --------------------------------------------------------
+    return true;
+}
 
+// ============================================================
+// SD CARD INITIALIZATION
+// ============================================================
+
+static bool initializeSD()
+{
     Serial0.println();
     Serial0.println("[TEST] Mounting SD card...");
 
@@ -64,205 +52,288 @@ static void testSDCard()
     {
         Serial0.println("[TEST] ERROR: SD.begin() failed");
         Serial0.println("[TEST] Card was not mounted");
-        Serial0.println("[TEST] Check the SPI pins, CS and power");
 
-        SPI.end();
-
-        while (true)
-        {
-            delay(1000);
-        }
+        return false;
     }
 
     Serial0.println("[TEST] SD card mounted successfully!");
 
-    // --------------------------------------------------------
-    // 4. Информация о карте
-    // --------------------------------------------------------
+    return true;
+}
 
-    uint8_t cardType = SD.cardType();
+// ============================================================
+// CARD INFORMATION
+// ============================================================
 
+static void printCardInfo()
+{
     Serial0.println();
     Serial0.println("----------- CARD INFO -----------");
+
+    const uint8_t cardType = SD.cardType();
 
     if (cardType == CARD_NONE)
     {
         Serial0.println("[TEST] ERROR: No SD card detected");
+        return;
     }
-    else
+
+    Serial0.print("[TEST] Card type: ");
+
+    switch (cardType)
     {
-        Serial0.print("[TEST] Card type: ");
+        case CARD_MMC:
+            Serial0.println("MMC");
+            break;
 
-        switch (cardType)
-        {
-            case CARD_MMC:
-                Serial0.println("MMC");
-                break;
+        case CARD_SD:
+            Serial0.println("SDSC");
+            break;
 
-            case CARD_SD:
-                Serial0.println("SDSC");
-                break;
+        case CARD_SDHC:
+            Serial0.println("SDHC / SDXC");
+            break;
 
-            case CARD_SDHC:
-                Serial0.println("SDHC / SDXC");
-                break;
-
-            default:
-                Serial0.println("Unknown");
-                break;
-        }
-
-        uint64_t cardSize = SD.cardSize();
-
-        Serial0.printf(
-            "[TEST] Card size: %llu MB\n",
-            static_cast<unsigned long long>(
-                cardSize / (1024ULL * 1024ULL)
-            )
-        );
-
-        Serial0.printf(
-            "[TEST] Total space: %llu MB\n",
-            static_cast<unsigned long long>(
-                SD.totalBytes() / (1024ULL * 1024ULL)
-            )
-        );
-
-        Serial0.printf(
-            "[TEST] Used space: %llu MB\n",
-            static_cast<unsigned long long>(
-                SD.usedBytes() / (1024ULL * 1024ULL)
-            )
-        );
+        default:
+            Serial0.println("Unknown");
+            break;
     }
 
-    // --------------------------------------------------------
-    // 5. Проверка файловой системы
-    // --------------------------------------------------------
+    const uint64_t cardSize = SD.cardSize();
+    const uint64_t totalBytes = SD.totalBytes();
+    const uint64_t usedBytes = SD.usedBytes();
 
+    Serial0.printf(
+        "[TEST] Card size: %llu MB\n",
+        static_cast<unsigned long long>(
+            cardSize / (1024ULL * 1024ULL)
+        )
+    );
+
+    Serial0.printf(
+        "[TEST] Total space: %llu MB\n",
+        static_cast<unsigned long long>(
+            totalBytes / (1024ULL * 1024ULL)
+        )
+    );
+
+    Serial0.printf(
+        "[TEST] Used space: %llu MB\n",
+        static_cast<unsigned long long>(
+            usedBytes / (1024ULL * 1024ULL)
+        )
+    );
+}
+
+// ============================================================
+// DIRECTORY LISTING
+// ============================================================
+
+static void listDirectory(const char* path)
+{
     Serial0.println();
     Serial0.println("----------- FILESYSTEM -----------");
 
-    File root = SD.open("/");
+    File directory = SD.open(path);
 
-    if (!root)
+    if (!directory)
     {
-        Serial0.println("[TEST] ERROR: Cannot open root directory");
+        Serial0.println("[TEST] ERROR: Cannot open directory");
+        return;
     }
-    else if (!root.isDirectory())
+
+    if (!directory.isDirectory())
     {
-        Serial0.println("[TEST] ERROR: Root is not a directory");
-        root.close();
+        Serial0.println("[TEST] ERROR: Path is not a directory");
+        directory.close();
+        return;
     }
-    else
+
+    Serial0.printf("[TEST] Directory: %s\n", path);
+
+    size_t entryCount = 0;
+
+    File entry = directory.openNextFile();
+
+    while (entry)
     {
-        Serial0.println("[TEST] Root directory opened");
+        Serial0.print("[TEST] ");
 
-        File file = root.openNextFile();
-
-        if (!file)
+        if (entry.isDirectory())
         {
-            Serial0.println("[TEST] Directory is empty");
-        }
-
-        while (file)
-        {
-            Serial0.print("[TEST] ");
-
-            if (file.isDirectory())
-            {
-                Serial0.print("[DIR]  ");
-            }
-            else
-            {
-                Serial0.print("[FILE] ");
-            }
-
-            Serial0.print(file.name());
-
-            if (!file.isDirectory())
-            {
-                Serial0.printf(
-                    " (%llu bytes)",
-                    static_cast<unsigned long long>(file.size())
-                );
-            }
-
-            Serial0.println();
-
-            file.close();
-            file = root.openNextFile();
-        }
-
-        root.close();
-    }
-
-    // --------------------------------------------------------
-    // 6. Проверка записи и чтения тестового файла
-    // --------------------------------------------------------
-
-    Serial0.println();
-    Serial0.println("----------- WRITE / READ TEST -----------");
-
-    const char* testPath = "/sd_test.txt";
-    const char* testText = "ESP32-S3 SD card test";
-
-    File writeFile = SD.open(testPath, FILE_WRITE);
-
-    if (!writeFile)
-    {
-        Serial0.println("[TEST] ERROR: Cannot open file for writing");
-    }
-    else
-    {
-        size_t written = writeFile.println(testText);
-        writeFile.close();
-
-        if (written == 0)
-        {
-            Serial0.println("[TEST] ERROR: Failed to write test data");
+            Serial0.print("[DIR]  ");
         }
         else
         {
-            Serial0.println("[TEST] Write operation completed");
+            Serial0.print("[FILE] ");
+        }
 
-            File readFile = SD.open(testPath, FILE_READ);
+        Serial0.print(entry.name());
 
-            if (!readFile)
-            {
-                Serial0.println("[TEST] ERROR: Cannot open file for reading");
-            }
-            else
-            {
-                String content = readFile.readStringUntil('\n');
-                readFile.close();
+        if (!entry.isDirectory())
+        {
+            Serial0.printf(
+                " (%llu bytes)",
+                static_cast<unsigned long long>(entry.size())
+            );
+        }
 
-                Serial0.print("[TEST] Read result: ");
-                Serial0.println(content);
+        Serial0.println();
 
-                if (content == testText)
-                {
-                    Serial0.println("[TEST] PASS: Write/read successful");
-                }
-                else
-                {
-                    Serial0.println("[TEST] ERROR: Read data mismatch");
-                }
-            }
+        entry.close();
+        ++entryCount;
+
+        entry = directory.openNextFile();
+    }
+
+    directory.close();
+
+    if (entryCount == 0)
+    {
+        Serial0.println("[TEST] Directory is empty");
+    }
+    else
+    {
+        Serial0.printf(
+            "[TEST] Total entries: %u\n",
+            static_cast<unsigned>(entryCount)
+        );
+    }
+}
+
+// ============================================================
+// WRITE TEST FILE
+// ============================================================
+
+static bool writeTestFile()
+{
+    Serial0.println();
+    Serial0.println("----------- WRITE TEST -----------");
+
+    // Удаляем файл от предыдущего запуска,
+    // чтобы результат теста не зависел от старого содержимого.
+    if (SD.exists(TEST_FILE_PATH))
+    {
+        Serial0.println("[TEST] Removing previous test file...");
+
+        if (!SD.remove(TEST_FILE_PATH))
+        {
+            Serial0.println("[TEST] ERROR: Cannot remove previous file");
+            return false;
         }
     }
 
-    // --------------------------------------------------------
-    // 7. Завершение теста
-    // --------------------------------------------------------
+    File file = SD.open(TEST_FILE_PATH, FILE_WRITE);
 
-    Serial0.println();
-    Serial0.println("========================================");
-    Serial0.println("[TEST] SD CARD DIAGNOSTIC FINISHED");
-    Serial0.println("========================================");
+    if (!file)
+    {
+        Serial0.println("[TEST] ERROR: Cannot open file for writing");
+        return false;
+    }
 
-    // Оставляем карту смонтированной до перезагрузки.
+    const size_t expectedBytes = sizeof(TEST_FILE_CONTENT) - 1;
+
+    const size_t written = file.print(TEST_FILE_CONTENT);
+
+    file.flush();
+    file.close();
+
+    Serial0.printf(
+        "[TEST] Expected bytes: %u\n",
+        static_cast<unsigned>(expectedBytes)
+    );
+
+    Serial0.printf(
+        "[TEST] Written bytes: %u\n",
+        static_cast<unsigned>(written)
+    );
+
+    if (written != expectedBytes)
+    {
+        Serial0.println("[TEST] ERROR: Incomplete write");
+        return false;
+    }
+
+    Serial0.println("[TEST] Write operation completed");
+
+    return true;
 }
+
+// ============================================================
+// READ TEST FILE
+// ============================================================
+
+static bool readTestFile()
+{
+    Serial0.println();
+    Serial0.println("----------- READ TEST -----------");
+
+    File file = SD.open(TEST_FILE_PATH, FILE_READ);
+
+    if (!file)
+    {
+        Serial0.println("[TEST] ERROR: Cannot open file for reading");
+        return false;
+    }
+
+    const size_t fileSize = file.size();
+
+    Serial0.printf(
+        "[TEST] File size: %u bytes\n",
+        static_cast<unsigned>(fileSize)
+    );
+
+    if (fileSize == 0)
+    {
+        Serial0.println("[TEST] ERROR: File is empty");
+        file.close();
+        return false;
+    }
+
+    // Читаем ровно размер записанного файла.
+    char buffer[sizeof(TEST_FILE_CONTENT)] = {};
+
+    const size_t bytesRead = file.read(
+        reinterpret_cast<uint8_t*>(buffer),
+        sizeof(buffer) - 1
+    );
+
+    file.close();
+
+    Serial0.printf(
+        "[TEST] Bytes read: %u\n",
+        static_cast<unsigned>(bytesRead)
+    );
+
+    Serial0.print("[TEST] Content: [");
+    Serial0.write(
+        reinterpret_cast<const uint8_t*>(buffer),
+        bytesRead
+    );
+    Serial0.println("]");
+
+    const size_t expectedBytes = sizeof(TEST_FILE_CONTENT) - 1;
+
+    if (bytesRead != expectedBytes)
+    {
+        Serial0.println("[TEST] FAIL: Incorrect number of bytes read");
+        return false;
+    }
+
+    if (memcmp(buffer, TEST_FILE_CONTENT, expectedBytes) != 0)
+    {
+        Serial0.println("[TEST] FAIL: Content mismatch");
+        return false;
+    }
+
+    Serial0.println("[TEST] PASS: Write/read successful");
+
+    return true;
+}
+
+// ============================================================
+// SETUP
+// ============================================================
 
 void setup()
 {
@@ -270,13 +341,69 @@ void setup()
     delay(1500);
 
     Serial0.println();
-    Serial0.println("[TEST] Starting standalone SD test");
+    Serial0.println("========================================");
+    Serial0.println("[TEST] ESP32-S3 SD CARD DIAGNOSTIC");
+    Serial0.println("========================================");
 
-    testSDCard();
+    Serial0.printf("[TEST] SCLK: %d\n", PIN_SCLK);
+    Serial0.printf("[TEST] MOSI: %d\n", PIN_MOSI);
+    Serial0.printf("[TEST] MISO: %d\n", PIN_SD_MISO);
+    Serial0.printf("[TEST] CS:   %d\n", PIN_SD_CS);
+
+    Serial0.printf(
+        "[TEST] SPI frequency: %lu Hz\n",
+        static_cast<unsigned long>(SD_SPI_FREQUENCY)
+    );
+
+    initializeSPI();
+
+    if (!initializeSD())
+    {
+        Serial0.println();
+        Serial0.println("[TEST] RESULT: SD INITIALIZATION FAILED");
+        SPI.end();
+        return;
+    }
+
+    printCardInfo();
+
+    listDirectory("/");
+
+    const bool writeOK = writeTestFile();
+
+    bool readOK = false;
+
+    if (writeOK)
+    {
+        readOK = readTestFile();
+    }
+    else
+    {
+        Serial0.println("[TEST] Read test skipped because write failed");
+    }
+
+    Serial0.println();
+    Serial0.println("========================================");
+
+    if (writeOK && readOK)
+    {
+        Serial0.println("[TEST] RESULT: ALL TESTS PASSED");
+    }
+    else
+    {
+        Serial0.println("[TEST] RESULT: TEST FAILED");
+    }
+
+    Serial0.println("========================================");
+
+    // Карту не отключаем: оставляем смонтированной.
 }
+
+// ============================================================
+// LOOP
+// ============================================================
 
 void loop()
 {
-    // Другие компоненты приложения не запускаются.
     delay(1000);
 }
