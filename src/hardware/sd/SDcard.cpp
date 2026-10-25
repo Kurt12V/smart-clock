@@ -21,24 +21,26 @@ bool SDCard::begin(uint8_t csPin)
 
     _csPin = csPin;
 
-    /*
-        SPI.begin() здесь НЕ вызываем.
+    // Убедимся, что SD-карта не выбрана до начала обмена.
+    pinMode(_csPin, OUTPUT);
+    digitalWrite(_csPin, HIGH);
 
-        SPI-шина общая для:
-        - ST7789
-        - SD
+    // Низкая частота для первичной диагностики.
+    constexpr uint32_t SD_SPI_FREQUENCY = 400000;
 
-        SPI должна быть инициализирована один раз
-        через SPIManager.
-    */
-
-    if (!SD.begin(_csPin, SPI))
+    if (!SD.begin(_csPin, SPI, SD_SPI_FREQUENCY))
     {
         _mounted = false;
+
+        Serial0.println("[SD] ERROR: SD.begin() failed");
+        Serial0.println("[SD] Check wiring, card module and SPI signals");
+
         return false;
     }
 
     _mounted = true;
+
+    Serial0.println("[SD] Card mounted successfully");
 
     return true;
 }
