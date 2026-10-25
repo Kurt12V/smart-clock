@@ -12,7 +12,7 @@
 #include "./managers/I2S/I2SManager.h"
 #include "./managers/Sound/SoundManager.h"
 #include "./managers/Sensors/SensorsManager.h"
-#include "./core/ClockSystem.h"
+#include "./managers/Display/BrightnessManager.h"
 #include "./managers/Led/LightingManager.h"
 #include "./managers/Alarm/AlarmManager.h"
 #include "./managers/Alarm/AlarmController.h"
@@ -22,6 +22,7 @@
 // SYSTEMS
 // ============================================================
 
+#include "./core/ClockSystem.h"
 #include "./core/DisplaySystem.h"
 
 // ============================================================
@@ -37,21 +38,32 @@
 class App
 {
 public:
+
+    // ========================================================
+    // CONSTRUCTOR
+    // ========================================================
+
     App();
 
-    // Initialize all application components.
+    // ========================================================
+    // LIFECYCLE
+    // ========================================================
+
     bool begin();
 
-    // Update all active components.
     void update();
 
-    // Application status.
+    // ========================================================
+    // STATUS
+    // ========================================================
+
     bool isInitialized() const
     {
         return _initialized;
     }
 
 private:
+
     // ========================================================
     // INITIALIZATION
     // ========================================================
@@ -63,6 +75,7 @@ private:
     bool initSensors();
     bool initLighting();
     bool initDisplay();
+    bool initBrightness();
     bool initSound();
     bool initAlarm();
     bool initWiFi();
@@ -87,6 +100,8 @@ private:
     LightingManager _lighting;
 
     DisplaySystem _displaySystem;
+
+    BrightnessManager _brightnessManager;
 
     // ========================================================
     // ALARMS

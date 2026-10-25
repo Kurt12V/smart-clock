@@ -10,22 +10,18 @@
 #include "Config.h"
 
 // ============================================================
-// CONSTANTS
+// CONSTANTS AND HELPERS
 // ============================================================
 
 namespace
 {
     constexpr char WIFI_SETUP_PAGE[] = "/wifi-setup.html";
+    constexpr char WIFI_SETUP_CSS[]  = "/css/wifi-setup.css";
+    constexpr char WIFI_SETUP_JS[]   = "/js/wifi-setup.js";
 
-    constexpr char WIFI_SETUP_CSS[] =
-        "/css/wifi-setup.css";
-
-    constexpr char WIFI_SETUP_JS[] =
-        "/js/wifi-setup.js";
-
-    // ========================================================
-    // DATE VALIDATION
-    // ========================================================
+    // --------------------------------------------------------
+    // Date validation
+    // --------------------------------------------------------
 
     bool isLeapYear(uint16_t year)
     {
@@ -34,10 +30,7 @@ namespace
             (year % 400 == 0);
     }
 
-    uint8_t daysInMonth(
-        uint16_t year,
-        uint8_t month
-    )
+    uint8_t daysInMonth(uint16_t year, uint8_t month)
     {
         switch (month)
         {
@@ -74,120 +67,73 @@ namespace
     )
     {
         if (year < 2000 || year > 2099)
-        {
             return false;
-        }
 
         if (month < 1 || month > 12)
-        {
             return false;
-        }
 
-        if (
-            day < 1 ||
-            day > daysInMonth(year, month)
-        )
-        {
+        if (day < 1 || day > daysInMonth(year, month))
             return false;
-        }
 
         if (hour > 23 || minute > 59 || second > 59)
-        {
             return false;
-        }
 
         return true;
     }
 
-    // ========================================================
-    // STATIC FILE MIME TYPES
-    // ========================================================
+    // --------------------------------------------------------
+    // MIME types
+    // --------------------------------------------------------
 
-    const char* getContentType(
-        const String& path
-    )
+    const char* getContentType(const String& path)
     {
         if (path.endsWith(".html"))
-        {
             return "text/html; charset=utf-8";
-        }
 
         if (path.endsWith(".css"))
-        {
             return "text/css; charset=utf-8";
-        }
 
         if (path.endsWith(".js"))
-        {
             return "application/javascript; charset=utf-8";
-        }
 
         if (path.endsWith(".json"))
-        {
             return "application/json; charset=utf-8";
-        }
 
         if (path.endsWith(".svg"))
-        {
             return "image/svg+xml";
-        }
 
         if (path.endsWith(".png"))
-        {
             return "image/png";
-        }
 
-        if (
-            path.endsWith(".jpg") ||
-            path.endsWith(".jpeg")
-        )
-        {
+        if (path.endsWith(".jpg") || path.endsWith(".jpeg"))
             return "image/jpeg";
-        }
 
         if (path.endsWith(".ico"))
-        {
             return "image/x-icon";
-        }
 
         if (path.endsWith(".woff2"))
-        {
             return "font/woff2";
-        }
 
         if (path.endsWith(".woff"))
-        {
             return "font/woff";
-        }
 
         if (path.endsWith(".ttf"))
-        {
             return "font/ttf";
-        }
 
         if (path.endsWith(".webp"))
-        {
             return "image/webp";
-        }
 
         if (path.endsWith(".txt"))
-        {
             return "text/plain; charset=utf-8";
-        }
 
         return "application/octet-stream";
     }
 
-    // ========================================================
-    // STATIC FILE ACCESS CONTROL
-    //
-    // Allow only the known page, CSS and JS files.
-    // This prevents arbitrary LittleFS file access.
-    // ========================================================
+    // --------------------------------------------------------
+    // Allow only known static files
+    // --------------------------------------------------------
 
-    bool isAllowedStaticFile(
-        const String& path
-    )
+    bool isAllowedStaticFile(const String& path)
     {
         return
             path == WIFI_SETUP_PAGE ||
@@ -195,9 +141,9 @@ namespace
             path == WIFI_SETUP_JS;
     }
 
-    // ========================================================
-    // SEND STATIC FILE
-    // ========================================================
+    // --------------------------------------------------------
+    // Serve a static file from LittleFS
+    // --------------------------------------------------------
 
     bool serveStaticFile(
         WebServer& server,
@@ -205,23 +151,17 @@ namespace
     )
     {
         if (!isAllowedStaticFile(path))
-        {
             return false;
-        }
 
         if (!LittleFS.exists(path))
-        {
             return false;
-        }
 
         File file = LittleFS.open(path, "r");
 
         if (!file || file.isDirectory())
         {
             if (file)
-            {
                 file.close();
-            }
 
             return false;
         }
@@ -231,8 +171,6 @@ namespace
             "nosniff"
         );
 
-        // HTML is always revalidated so changes to the page
-        // appear after a reload.
         if (path.endsWith(".html"))
         {
             server.sendHeader(
@@ -240,42 +178,28 @@ namespace
                 "no-cache, no-store, must-revalidate"
             );
 
-            server.sendHeader(
-                "Pragma",
-                "no-cache"
-            );
-
-            server.sendHeader(
-                "Expires",
-                "-1"
-            );
+            server.sendHeader("Pragma", "no-cache");
+            server.sendHeader("Expires", "-1");
         }
         else
         {
-            // CSS and JS can be revalidated by the browser.
             server.sendHeader(
                 "Cache-Control",
                 "no-cache"
             );
         }
 
-        server.streamFile(
-            file,
-            getContentType(path)
-        );
-
+        server.streamFile(file, getContentType(path));
         file.close();
 
         return true;
     }
 
-    // ========================================================
-    // JSON ERROR RESPONSE
-    // ========================================================
+    // --------------------------------------------------------
+    // Send JSON error for unknown routes
+    // --------------------------------------------------------
 
-    void sendRouteNotFound(
-        WebServer& server
-    )
+    void sendRouteNotFound(WebServer& server)
     {
         JsonDocument doc;
 
@@ -284,7 +208,6 @@ namespace
         doc["uri"] = server.uri();
 
         String response;
-
         serializeJson(doc, response);
 
         server.send(
@@ -311,172 +234,114 @@ WebWiFiManager::WebWiFiManager(
 }
 
 // ============================================================
-// ROUTES
+// ROUTE REGISTRATION
 // ============================================================
 
-void WebWiFiManager::setupRoutes(
-    WebServer& server
-)
+void WebWiFiManager::setupRoutes(WebServer& server)
 {
-    // ========================================================
-    // MAIN PAGE
-    // GET /
-    // ========================================================
+    // --------------------------------------------------------
+    // Main page
+    // --------------------------------------------------------
 
-    server.on(
-        "/",
-        HTTP_GET,
-        [&server]()
+    server.on("/", HTTP_GET, [&server]()
+    {
+        if (!serveStaticFile(server, WIFI_SETUP_PAGE))
         {
-            if (!serveStaticFile(server, WIFI_SETUP_PAGE))
-            {
-                server.send(
-                    500,
-                    "text/plain; charset=utf-8",
-                    "Cannot load /wifi-setup.html from LittleFS"
-                );
-            }
+            server.send(
+                500,
+                "text/plain; charset=utf-8",
+                "Cannot load /wifi-setup.html from LittleFS"
+            );
         }
-    );
+    });
 
-    // ========================================================
-    // DIRECT PAGE ACCESS
-    // GET /wifi-setup.html
-    // ========================================================
+    // --------------------------------------------------------
+    // Direct HTML access
+    // --------------------------------------------------------
 
-    server.on(
-        "/wifi-setup.html",
-        HTTP_GET,
-        [&server]()
+    server.on("/wifi-setup.html", HTTP_GET, [&server]()
+    {
+        if (!serveStaticFile(server, WIFI_SETUP_PAGE))
         {
-            if (!serveStaticFile(server, WIFI_SETUP_PAGE))
-            {
-                server.send(
-                    404,
-                    "text/plain; charset=utf-8",
-                    "wifi-setup.html not found in LittleFS"
-                );
-            }
+            server.send(
+                404,
+                "text/plain; charset=utf-8",
+                "wifi-setup.html not found in LittleFS"
+            );
         }
-    );
+    });
 
-    // ========================================================
-    // WIFI STATUS
-    // GET /api/wifi
-    // ========================================================
+    // --------------------------------------------------------
+    // Wi-Fi status
+    // --------------------------------------------------------
 
-    server.on(
-        "/api/wifi",
-        HTTP_GET,
-        [this, &server]()
+    server.on("/api/wifi", HTTP_GET, [this, &server]()
+    {
+        handleStatus(server);
+    });
+
+    // --------------------------------------------------------
+    // Scan networks
+    // --------------------------------------------------------
+
+    server.on("/api/wifi/scan", HTTP_GET, [this, &server]()
+    {
+        handleScan(server);
+    });
+
+    // --------------------------------------------------------
+    // Connect Wi-Fi
+    // --------------------------------------------------------
+
+    server.on("/api/wifi/connect", HTTP_POST, [this, &server]()
+    {
+        handleConnect(server);
+    });
+
+    // --------------------------------------------------------
+    // Forget Wi-Fi
+    // --------------------------------------------------------
+
+    server.on("/api/wifi/forget", HTTP_POST, [this, &server]()
+    {
+        handleForget(server);
+    });
+
+    // --------------------------------------------------------
+    // Start setup mode
+    // --------------------------------------------------------
+
+    server.on("/api/wifi/setup", HTTP_POST, [this, &server]()
+    {
+        handleSetup(server);
+    });
+
+    // --------------------------------------------------------
+    // Static assets and unknown routes
+    // --------------------------------------------------------
+
+    server.onNotFound([&server]()
+    {
+        if (server.method() == HTTP_GET)
         {
-            handleStatus(server);
+            if (serveStaticFile(server, server.uri()))
+                return;
         }
-    );
 
-    // ========================================================
-    // SCAN NETWORKS
-    // GET /api/wifi/scan
-    // ========================================================
+        sendRouteNotFound(server);
+    });
 
-    server.on(
-        "/api/wifi/scan",
-        HTTP_GET,
-        [this, &server]()
-        {
-            handleScan(server);
-        }
-    );
-
-    // ========================================================
-    // CONNECT WIFI
-    // POST /api/wifi/connect
-    // ========================================================
-
-    server.on(
-        "/api/wifi/connect",
-        HTTP_POST,
-        [this, &server]()
-        {
-            handleConnect(server);
-        }
-    );
-
-    // ========================================================
-    // FORGET WIFI
-    // POST /api/wifi/forget
-    // ========================================================
-
-    server.on(
-        "/api/wifi/forget",
-        HTTP_POST,
-        [this, &server]()
-        {
-            handleForget(server);
-        }
-    );
-
-    // ========================================================
-    // START SETUP MODE
-    // POST /api/wifi/setup
-    // ========================================================
-
-    server.on(
-        "/api/wifi/setup",
-        HTTP_POST,
-        [this, &server]()
-        {
-            handleSetup(server);
-        }
-    );
-
-    // ========================================================
-    // STATIC FILES AND UNKNOWN ROUTES
-    //
-    // WebServer calls onNotFound for paths without a
-    // registered route, including CSS and JavaScript.
-    // ========================================================
-
-    server.onNotFound(
-        [&server]()
-        {
-            const String uri = server.uri();
-
-            // Only allow GET requests for static resources.
-            if (server.method() == HTTP_GET)
-            {
-                if (serveStaticFile(server, uri))
-                {
-                    return;
-                }
-            }
-
-            sendRouteNotFound(server);
-        }
-    );
-
-    Serial0.println();
     Serial0.println("[WEB][WIFI] Routes registered");
-
     Serial0.println("[WEB][WIFI] Page: /");
-    Serial0.println("[WEB][WIFI] HTML: /wifi-setup.html");
     Serial0.println("[WEB][WIFI] CSS: /css/wifi-setup.css");
     Serial0.println("[WEB][WIFI] JS: /js/wifi-setup.js");
-
-    Serial0.println("[WEB][WIFI] API: /api/wifi");
-    Serial0.println("[WEB][WIFI] API: /api/wifi/scan");
-    Serial0.println("[WEB][WIFI] API: /api/wifi/connect");
-    Serial0.println("[WEB][WIFI] API: /api/wifi/forget");
-    Serial0.println("[WEB][WIFI] API: /api/wifi/setup");
 }
 
 // ============================================================
-// DYNAMIC REQUEST
+// DYNAMIC REQUEST CHECK
 // ============================================================
 
-bool WebWiFiManager::handleDynamicRequest(
-    WebServer& server
-)
+bool WebWiFiManager::handleDynamicRequest(WebServer& server)
 {
     const String uri = server.uri();
 
@@ -486,20 +351,15 @@ bool WebWiFiManager::handleDynamicRequest(
 }
 
 // ============================================================
-// STATUS
+// WIFI STATUS
 // ============================================================
 
-void WebWiFiManager::handleStatus(
-    WebServer& server
-)
+void WebWiFiManager::handleStatus(WebServer& server)
 {
     JsonDocument doc;
 
-    const bool connected =
-        _wifiManager.isConnected();
-
-    const bool setup =
-        _wifiManager.isSetupMode();
+    const bool connected = _wifiManager.isConnected();
+    const bool setup = _wifiManager.isSetupMode();
 
     doc["ok"] = true;
     doc["connected"] = connected;
@@ -510,25 +370,17 @@ void WebWiFiManager::handleStatus(
         connected ? "connected" :
         "disconnected";
 
-    doc["hostname"] =
-        _wifiManager.getHostname();
-
-    doc["ssid"] =
-        _wifiManager.getSSID();
-
-    doc["utcOffset"] =
-        _settings.get(Param::UTC_OFFSET);
+    doc["hostname"] = _wifiManager.getHostname();
+    doc["ssid"] = _wifiManager.getSSID();
+    doc["utcOffset"] = _settings.get(Param::UTC_OFFSET);
 
     if (connected)
     {
-        doc["ip"] =
-            _wifiManager.getIP();
+        doc["ip"] = _wifiManager.getIP();
+        doc["rssi"] = _wifiManager.getRSSI();
 
-        doc["rssi"] =
-            _wifiManager.getRSSI();
-
-        doc["url"] =
-            "http://smartclock.local";
+        // No mDNS dependency. The IP is the actual address.
+        doc["url"] = "http://" + _wifiManager.getIP();
     }
     else
     {
@@ -539,18 +391,12 @@ void WebWiFiManager::handleStatus(
 
     if (setup)
     {
-        doc["setup"]["ssid"] =
-            _wifiManager.getSetupSSID();
-
-        doc["setup"]["password"] =
-            _wifiManager.getSetupPassword();
-
-        doc["setup"]["ip"] =
-            _wifiManager.getAPIP();
+        doc["setup"]["ssid"] = _wifiManager.getSetupSSID();
+        doc["setup"]["password"] = _wifiManager.getSetupPassword();
+        doc["setup"]["ip"] = _wifiManager.getAPIP();
     }
 
     String response;
-
     serializeJson(doc, response);
 
     server.send(
@@ -564,37 +410,25 @@ void WebWiFiManager::handleStatus(
 // SCAN WIFI NETWORKS
 // ============================================================
 
-void WebWiFiManager::handleScan(
-    WebServer& server
-)
+void WebWiFiManager::handleScan(WebServer& server)
 {
-    const int count =
-        _wifiManager.scanNetworks();
+    const int count = _wifiManager.scanNetworks();
 
     JsonDocument doc;
-
     doc["ok"] = true;
 
-    JsonArray networks =
-        doc["networks"].to<JsonArray>();
+    JsonArray networks = doc["networks"].to<JsonArray>();
 
     for (int i = 0; i < count; ++i)
     {
-        JsonObject network =
-            networks.add<JsonObject>();
+        JsonObject network = networks.add<JsonObject>();
 
-        network["ssid"] =
-            _wifiManager.getScanSSID(i);
-
-        network["rssi"] =
-            _wifiManager.getScanRSSI(i);
-
-        network["encrypted"] =
-            _wifiManager.getScanEncrypted(i);
+        network["ssid"] = _wifiManager.getScanSSID(i);
+        network["rssi"] = _wifiManager.getScanRSSI(i);
+        network["encrypted"] = _wifiManager.getScanEncrypted(i);
     }
 
     String response;
-
     serializeJson(doc, response);
 
     server.send(
@@ -605,72 +439,49 @@ void WebWiFiManager::handleScan(
 }
 
 // ============================================================
-// CONNECT WIFI + INITIAL UTC CONFIGURATION
+// CONNECT WIFI + SET INITIAL TIME
 // ============================================================
 
-void WebWiFiManager::handleConnect(
-    WebServer& server
-)
+void WebWiFiManager::handleConnect(WebServer& server)
 {
     // --------------------------------------------------------
-    // 1. Validate request body
+    // Validate request body
     // --------------------------------------------------------
 
     if (!server.hasArg("plain"))
     {
-        sendError(
-            server,
-            400,
-            "Request body is required"
-        );
-
+        sendError(server, 400, "Request body is required");
         return;
     }
 
     JsonDocument doc;
 
     const DeserializationError error =
-        deserializeJson(
-            doc,
-            server.arg("plain")
-        );
+        deserializeJson(doc, server.arg("plain"));
 
     if (error)
     {
-        sendError(
-            server,
-            400,
-            "Invalid JSON"
-        );
-
+        sendError(server, 400, "Invalid JSON");
         return;
     }
 
     // --------------------------------------------------------
-    // 2. Read Wi-Fi credentials
+    // Read Wi-Fi credentials
     // --------------------------------------------------------
 
-    String ssid =
-        doc["ssid"] | "";
-
-    String password =
-        doc["password"] | "";
+    String ssid = doc["ssid"] | "";
+    String password = doc["password"] | "";
 
     ssid.trim();
 
     if (ssid.isEmpty())
     {
-        sendError(
-            server,
-            400,
-            "SSID is required"
-        );
-
+        sendError(server, 400, "SSID is required");
         return;
     }
 
     // --------------------------------------------------------
-    // 3. Validate required date/time fields
+    // Validate required UTC fields
     // --------------------------------------------------------
 
     if (
@@ -692,29 +503,16 @@ void WebWiFiManager::handleConnect(
         return;
     }
 
-    const int offsetValue =
-        doc["utcOffset"].as<int>();
-
-    const int yearValue =
-        doc["utcYear"].as<int>();
-
-    const int monthValue =
-        doc["utcMonth"].as<int>();
-
-    const int dayValue =
-        doc["utcDay"].as<int>();
-
-    const int hourValue =
-        doc["utcHour"].as<int>();
-
-    const int minuteValue =
-        doc["utcMinute"].as<int>();
-
-    const int secondValue =
-        doc["utcSecond"].as<int>();
+    const int offsetValue = doc["utcOffset"].as<int>();
+    const int yearValue = doc["utcYear"].as<int>();
+    const int monthValue = doc["utcMonth"].as<int>();
+    const int dayValue = doc["utcDay"].as<int>();
+    const int hourValue = doc["utcHour"].as<int>();
+    const int minuteValue = doc["utcMinute"].as<int>();
+    const int secondValue = doc["utcSecond"].as<int>();
 
     // --------------------------------------------------------
-    // 4. Validate UTC offset
+    // Validate UTC offset
     // --------------------------------------------------------
 
     if (
@@ -722,32 +520,21 @@ void WebWiFiManager::handleConnect(
         offsetValue > Config::UTC_OFFSET_MAX
     )
     {
-        sendError(
-            server,
-            400,
-            "UTC offset is out of range"
-        );
-
+        sendError(server, 400, "UTC offset is out of range");
         return;
     }
 
     // --------------------------------------------------------
-    // 5. Validate date/time numeric ranges
+    // Validate date/time ranges
     // --------------------------------------------------------
 
     if (
-        yearValue < 2000 ||
-        yearValue > 2099 ||
-        monthValue < 1 ||
-        monthValue > 12 ||
-        dayValue < 1 ||
-        dayValue > 31 ||
-        hourValue < 0 ||
-        hourValue > 23 ||
-        minuteValue < 0 ||
-        minuteValue > 59 ||
-        secondValue < 0 ||
-        secondValue > 59
+        yearValue < 2000 || yearValue > 2099 ||
+        monthValue < 1 || monthValue > 12 ||
+        dayValue < 1 || dayValue > 31 ||
+        hourValue < 0 || hourValue > 23 ||
+        minuteValue < 0 || minuteValue > 59 ||
+        secondValue < 0 || secondValue > 59
     )
     {
         sendError(
@@ -759,65 +546,28 @@ void WebWiFiManager::handleConnect(
         return;
     }
 
-    const uint16_t year =
-        static_cast<uint16_t>(yearValue);
+    const uint16_t year = static_cast<uint16_t>(yearValue);
+    const uint8_t month = static_cast<uint8_t>(monthValue);
+    const uint8_t day = static_cast<uint8_t>(dayValue);
+    const uint8_t hour = static_cast<uint8_t>(hourValue);
+    const uint8_t minute = static_cast<uint8_t>(minuteValue);
+    const uint8_t second = static_cast<uint8_t>(secondValue);
 
-    const uint8_t month =
-        static_cast<uint8_t>(monthValue);
-
-    const uint8_t day =
-        static_cast<uint8_t>(dayValue);
-
-    const uint8_t hour =
-        static_cast<uint8_t>(hourValue);
-
-    const uint8_t minute =
-        static_cast<uint8_t>(minuteValue);
-
-    const uint8_t second =
-        static_cast<uint8_t>(secondValue);
-
-    if (
-        !isValidUTCDateTime(
-            year,
-            month,
-            day,
-            hour,
-            minute,
-            second
-        )
-    )
+    if (!isValidUTCDateTime(year, month, day, hour, minute, second))
     {
-        sendError(
-            server,
-            400,
-            "Invalid UTC date or time"
-        );
-
+        sendError(server, 400, "Invalid UTC date or time");
         return;
     }
 
     // --------------------------------------------------------
-    // 6. Save Wi-Fi credentials
+    // Save Wi-Fi credentials
     // --------------------------------------------------------
 
-    Serial0.println();
-    Serial0.println(
-        "[WEB][WIFI] Initial setup received"
-    );
-
-    Serial0.print(
-        "[WEB][WIFI] SSID: "
-    );
-
+    Serial0.println("[WEB][WIFI] Initial setup received");
+    Serial0.print("[WEB][WIFI] SSID: ");
     Serial0.println(ssid);
 
-    if (
-        !_wifiManager.connect(
-            ssid,
-            password
-        )
-    )
+    if (!_wifiManager.connect(ssid, password))
     {
         sendError(
             server,
@@ -829,76 +579,69 @@ void WebWiFiManager::handleConnect(
     }
 
     // --------------------------------------------------------
-    // 7. Save UTC offset
+    // Save UTC offset only when it has changed
     // --------------------------------------------------------
 
     const int previousOffset =
         _settings.get(Param::UTC_OFFSET);
 
-    if (
-        !_settings.set(
-            Param::UTC_OFFSET,
-            offsetValue
-        )
-    )
+    if (offsetValue != previousOffset)
     {
-        sendError(
-            server,
-            500,
-            "Failed to update UTC offset"
-        );
+        if (!_settings.set(Param::UTC_OFFSET, offsetValue))
+        {
+            sendError(
+                server,
+                500,
+                "Failed to update UTC offset"
+            );
 
-        return;
+            return;
+        }
+
+        if (!_settings.save(Param::UTC_OFFSET))
+        {
+            // Attempt to restore the previous value.
+            _settings.set(
+                Param::UTC_OFFSET,
+                previousOffset
+            );
+
+            _settings.save(
+                Param::UTC_OFFSET
+            );
+
+            sendError(
+                server,
+                500,
+                "Failed to save UTC offset"
+            );
+
+            return;
+        }
+
+        Serial0.println("[WEB][WIFI] UTC offset changed and saved");
+    }
+    else
+    {
+        Serial0.println("[WEB][WIFI] UTC offset unchanged");
     }
 
-    if (
-        !_settings.save(
-            Param::UTC_OFFSET
-        )
-    )
-    {
-        _settings.set(
-            Param::UTC_OFFSET,
-            previousOffset
-        );
-
-        _settings.save(
-            Param::UTC_OFFSET
-        );
-
-        sendError(
-            server,
-            500,
-            "Failed to save UTC offset"
-        );
-
-        return;
-    }
+    Serial0.print("[WEB][WIFI] UTC offset: ");
+    Serial0.println(offsetValue);
 
     // --------------------------------------------------------
-    // 8. Set RTC to UTC
+    // Set RTC to UTC
     // --------------------------------------------------------
 
-    if (
-        !_clock.setUTCDateTime(
+    if (!_clock.setUTCDateTime(
             year,
             month,
             day,
             hour,
             minute,
             second
-        )
-    )
+        ))
     {
-        _settings.set(
-            Param::UTC_OFFSET,
-            previousOffset
-        );
-
-        _settings.save(
-            Param::UTC_OFFSET
-        );
-
         sendError(
             server,
             500,
@@ -908,22 +651,10 @@ void WebWiFiManager::handleConnect(
         return;
     }
 
-    Serial0.println(
-        "[WEB][WIFI] UTC offset saved"
-    );
-
-    Serial0.print(
-        "[WEB][WIFI] UTC offset: "
-    );
-
-    Serial0.println(offsetValue);
-
-    Serial0.println(
-        "[WEB][WIFI] RTC UTC time updated"
-    );
+    Serial0.println("[WEB][WIFI] RTC UTC time updated");
 
     // --------------------------------------------------------
-    // 9. Send response before restarting
+    // Send response before restart
     // --------------------------------------------------------
 
     JsonDocument responseDoc;
@@ -932,13 +663,10 @@ void WebWiFiManager::handleConnect(
     responseDoc["saved"] = true;
     responseDoc["restarting"] = true;
 
-    responseDoc["utcOffset"] =
-        offsetValue;
-
+    responseDoc["utcOffset"] = offsetValue;
     responseDoc["utcYear"] = year;
     responseDoc["utcMonth"] = month;
     responseDoc["utcDay"] = day;
-
     responseDoc["utcHour"] = hour;
     responseDoc["utcMinute"] = minute;
     responseDoc["utcSecond"] = second;
@@ -947,11 +675,7 @@ void WebWiFiManager::handleConnect(
         "WiFi and UTC settings saved. Restarting.";
 
     String response;
-
-    serializeJson(
-        responseDoc,
-        response
-    );
+    serializeJson(responseDoc, response);
 
     server.send(
         200,
@@ -961,10 +685,7 @@ void WebWiFiManager::handleConnect(
 
     delay(500);
 
-    Serial0.println(
-        "[WEB][WIFI] Restarting ESP32..."
-    );
-
+    Serial0.println("[WEB][WIFI] Restarting ESP32...");
     ESP.restart();
 }
 
@@ -972,13 +693,9 @@ void WebWiFiManager::handleConnect(
 // FORGET WIFI
 // ============================================================
 
-void WebWiFiManager::handleForget(
-    WebServer& server
-)
+void WebWiFiManager::handleForget(WebServer& server)
 {
-    Serial0.println(
-        "[WEB][WIFI] Forgetting WiFi credentials"
-    );
+    Serial0.println("[WEB][WIFI] Forgetting WiFi credentials");
 
     _wifiManager.clearCredentials();
 
@@ -986,12 +703,10 @@ void WebWiFiManager::handleForget(
 
     doc["ok"] = true;
     doc["restarting"] = true;
-
     doc["message"] =
         "WiFi credentials cleared. ESP32 is restarting.";
 
     String response;
-
     serializeJson(doc, response);
 
     server.send(
@@ -1001,7 +716,6 @@ void WebWiFiManager::handleForget(
     );
 
     delay(500);
-
     ESP.restart();
 }
 
@@ -1009,22 +723,13 @@ void WebWiFiManager::handleForget(
 // START SETUP MODE
 // ============================================================
 
-void WebWiFiManager::handleSetup(
-    WebServer& server
-)
+void WebWiFiManager::handleSetup(WebServer& server)
 {
-    Serial0.println(
-        "[WEB][WIFI] Starting setup mode"
-    );
+    Serial0.println("[WEB][WIFI] Starting setup mode");
 
     if (!_wifiManager.startSetupMode())
     {
-        sendError(
-            server,
-            500,
-            "Failed to start setup mode"
-        );
-
+        sendError(server, 500, "Failed to start setup mode");
         return;
     }
 
@@ -1032,18 +737,11 @@ void WebWiFiManager::handleSetup(
 
     doc["ok"] = true;
     doc["setupMode"] = true;
-
-    doc["ssid"] =
-        _wifiManager.getSetupSSID();
-
-    doc["password"] =
-        _wifiManager.getSetupPassword();
-
-    doc["ip"] =
-        _wifiManager.getAPIP();
+    doc["ssid"] = _wifiManager.getSetupSSID();
+    doc["password"] = _wifiManager.getSetupPassword();
+    doc["ip"] = _wifiManager.getAPIP();
 
     String response;
-
     serializeJson(doc, response);
 
     server.send(
@@ -1069,7 +767,6 @@ void WebWiFiManager::sendError(
     doc["message"] = message;
 
     String response;
-
     serializeJson(doc, response);
 
     server.send(

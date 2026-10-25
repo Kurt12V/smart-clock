@@ -27,6 +27,7 @@ App::App()
         _sensorManager,
         _spiManager
     )
+    , _brightnessManager()
     , _alarmManager(
         _clockSystem
     )
@@ -76,7 +77,7 @@ bool App::begin()
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 1/11: Settings"
+        "[APP] Step 1/12: Settings"
     );
 
     if (!initSettings())
@@ -97,7 +98,7 @@ bool App::begin()
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 2/11: SPI"
+        "[APP] Step 2/12: SPI"
     );
 
     if (!initSPI())
@@ -118,7 +119,7 @@ bool App::begin()
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 3/11: I2S"
+        "[APP] Step 3/12: I2S"
     );
 
     if (!initI2S())
@@ -139,7 +140,7 @@ bool App::begin()
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 4/11: Clock"
+        "[APP] Step 4/12: Clock"
     );
 
     if (!initClock())
@@ -160,7 +161,7 @@ bool App::begin()
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 5/11: Sensors"
+        "[APP] Step 5/12: Sensors"
     );
 
     if (!initSensors())
@@ -181,7 +182,7 @@ bool App::begin()
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 6/11: Lighting"
+        "[APP] Step 6/12: Lighting"
     );
 
     if (!initLighting())
@@ -202,7 +203,7 @@ bool App::begin()
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 7/11: Displays"
+        "[APP] Step 7/12: Displays"
     );
 
     if (!initDisplay())
@@ -219,11 +220,32 @@ bool App::begin()
     );
 
     // --------------------------------------------------------
-    // STEP 8: SOUND
+    // STEP 8: BRIGHTNESS
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 8/11: Sound"
+        "[APP] Step 8/12: Brightness"
+    );
+
+    if (!initBrightness())
+    {
+        Serial0.println(
+            "[APP][ERROR] Brightness initialization failed"
+        );
+
+        return false;
+    }
+
+    Serial0.println(
+        "[APP] Brightness initialized"
+    );
+
+    // --------------------------------------------------------
+    // STEP 9: SOUND
+    // --------------------------------------------------------
+
+    Serial0.println(
+        "[APP] Step 9/12: Sound"
     );
 
     if (!initSound())
@@ -240,11 +262,11 @@ bool App::begin()
     );
 
     // --------------------------------------------------------
-    // STEP 9: ALARMS
+    // STEP 10: ALARMS
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 9/11: Alarms"
+        "[APP] Step 10/12: Alarms"
     );
 
     if (!initAlarm())
@@ -261,11 +283,11 @@ bool App::begin()
     );
 
     // --------------------------------------------------------
-    // STEP 10: WI-FI
+    // STEP 11: WI-FI
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 10/11: Wi-Fi"
+        "[APP] Step 11/12: Wi-Fi"
     );
 
     if (!initWiFi())
@@ -282,11 +304,11 @@ bool App::begin()
     );
 
     // --------------------------------------------------------
-    // STEP 11: WEB / WI-FI CONFIGURATION
+    // STEP 12: WEB INTERFACE
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 11/11: Web interface"
+        "[APP] Step 12/12: Web interface"
     );
 
     if (!initWebWiFi())
@@ -350,6 +372,20 @@ void App::update()
     // --------------------------------------------------------
 
     _sensorManager.update();
+
+    // --------------------------------------------------------
+    // BRIGHTNESS
+    // --------------------------------------------------------
+    //
+    // Обновляем после часов и датчиков.
+    // Менеджер рассчитывает яркость и записывает новое
+    // значение через SettingsManager.
+    //
+    // Физическим управлением дисплеями этот менеджер
+    // не занимается.
+    // --------------------------------------------------------
+
+    _brightnessManager.update();
 
     // --------------------------------------------------------
     // LIGHTING
@@ -483,6 +519,38 @@ bool App::initDisplay()
     );
 
     return _displaySystem.begin();
+}
+
+// ============================================================
+// BRIGHTNESS
+// ============================================================
+
+bool App::initBrightness()
+{
+    Serial0.println(
+        "[APP] Initializing BrightnessManager..."
+    );
+
+    _brightnessManager.begin(
+        &_settings,
+        &_sensorManager,
+        &_clockSystem
+    );
+
+    if (!_brightnessManager.isInitialized())
+    {
+        Serial0.println(
+            "[APP][ERROR] BrightnessManager initialization failed"
+        );
+
+        return false;
+    }
+
+    Serial0.println(
+        "[APP] BrightnessManager initialized"
+    );
+
+    return true;
 }
 
 // ============================================================

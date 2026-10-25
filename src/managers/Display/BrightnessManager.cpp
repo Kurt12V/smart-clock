@@ -1,7 +1,5 @@
 #include "BrightnessManager.h"
 
-#include "Config.h"
-
 #include <math.h>
 
 // ============================================================
@@ -9,58 +7,34 @@
 // ============================================================
 
 BrightnessManager::BrightnessManager()
-    : _settings(nullptr),
-      _sensors(nullptr),
-      _clock(nullptr),
-      _sink(nullptr),
-      _mode(Mode::AUTO),
-      _config{},
-      _manualBrightness(::Config::DISPLAY_DEFAULT_BRIGHTNESS),
-      _brightness(::Config::DISPLAY_DEFAULT_BRIGHTNESS),
-      _sensorTarget(0),
-      _profileTarget(0),
-      _initialized(false),
-      _hasAutoTarget(false),
-      _lastUpdateMs(0)
+    : _settings(nullptr)
+    , _sensors(nullptr)
+    , _clock(nullptr)
+    , _initialized(false)
+    , _mode(Mode::AUTO)
+    , _config{
+        7,                  // dayStartHour
+        22,                 // nightStartHour
+        120,                // eveningDurationMinutes
+        0,                  // offset
+        3,                  // hysteresisPct
+        0.2f,               // smoothingAlpha
+        1500,               // smoothingTimeMs
+        1.0f,               // luxMin
+        1000.0f,            // luxMax
+
+        {35, 100, 65},      // day
+        {15, 60, 30},       // evening
+        {5, 25, 10}         // night
+    }
+    , _manualBrightness(50)
+    , _brightness(50)
+    , _sensorTarget(50)
+    , _hasAutoTarget(false)
+    , _lastUpdateMs(0)
+    , _lastLogMs(0)
+    , _smoothedBrightness(50.0f)
 {
-    // --------------------------------------------------------
-    // TIME PROFILES
-    // --------------------------------------------------------
-
-    _config.dayStartMinute     = 7 * 60;
-    _config.nightStartMinute   = 22 * 60;
-    _config.eveningDurationMin = 120;
-
-    _config.day = {
-        35, 100, 65
-    };
-
-    _config.evening = {
-        15, 60, 30
-    };
-
-    _config.night = {
-        5, 25, 10
-    };
-
-    // --------------------------------------------------------
-    // FILTER CONFIGURATION
-    // --------------------------------------------------------
-
-    _config.offset         = 0;
-    _config.hysteresisPct  = 3;
-    _config.smoothingAlpha = 0.2f;
-
-    // Время, за которое яркость приближается
-    // к целевому значению.
-    _config.smoothingTimeMs = 1500;
-
-    // --------------------------------------------------------
-    // LIGHT SENSOR CALIBRATION
-    // --------------------------------------------------------
-
-    _config.luxMin = 1.0f;
-    _config.luxMax = 1000.0f;
 }
 
 // ============================================================
@@ -68,52 +42,98 @@ BrightnessManager::BrightnessManager()
 // ============================================================
 
 void BrightnessManager::begin(
-    SettingsManager*        settings,
-    SensorManager*          sensors,
-    ClockSystem*            clock,
-    IScreenBrightnessSink*  sink
+    SettingsManager* settings,
+    SensorManager* sensors,
+    ClockSystem* clock
 )
 {
-    _settings = settings;
-    _sensors  = sensors;
-    _clock    = clock;
-    _sink     = sink;
-
-    // --------------------------------------------------------
-    // LOAD MANUAL BRIGHTNESS
-    // --------------------------------------------------------
-
-    if (_settings != nullptr && _settings->initialized())
-    {
-        _manualBrightness = clampBrightness(
-            _settings->get(Param::BRIGHTNESS)
-        );
-    }
-    else
-    {
-        _manualBrightness = clampBrightness(
-            _manualBrightness
-        );
-    }
-
-    // --------------------------------------------------------
-    // INITIAL STATE
-    // --------------------------------------------------------
-
-    _brightness = clampBrightness(
-        _manualBrightness
+    Serial0.println();
+    Serial0.println(
+        "[BRIGHTNESS] Initializing..."
     );
 
-    _sensorTarget  = _brightness;
-    _profileTarget = _brightness;
+    if (settings == nullptr)
+    {
+        Serial0.println(
+            "[BRIGHTNESS][ERROR] SettingsManager is null"
+        );
 
+        return;
+    }
+
+    if (sensors == nullptr)
+    {
+        Serial0.println(
+            "[BRIGHTNESS][WARN] SensorManager is null"
+        );
+    }
+
+    if (clock == nullptr)
+    {
+        Serial0.println(
+            "[BRIGHTNESS][WARN] ClockSystem is null"
+        );
+    }
+
+    _settings = settings;
+    _sensors = sensors;
+    _clock = clock;
+
+    loadSettings();
+
+    _lastUpdateMs = millis();
+    _lastLogMs = _lastUpdateMs;
+
+    _smoothedBrightness = static_cast<float>(
+        _brightness
+    );
+
+    _sensorTarget = _brightness;
     _hasAutoTarget = false;
-    _lastUpdateMs  = millis();
 
     _initialized = true;
 
-    // Начальное состояние дисплея.
-    applyBrightness(_brightness);
+    // --------------------------------------------------------
+    // INITIAL BRIGHTNESS
+    // --------------------------------------------------------
+
+    if (_mode == Mode::AUTO)
+    {
+        const uint8_t target = calculateAutoTarget();
+
+        _sensorTarget = target;
+        _smoothedBrightness = static_cast<float>(
+            target
+        );
+
+        _hasAutoTarget = true;
+
+        applyBrightness(target);
+
+        logState("AUTO initialization");
+    }
+    else
+    {
+        applyBrightness(_manualBrightness);
+
+        logState("MANUAL initialization");
+    }
+
+    Serial0.println(
+        "[BRIGHTNESS] Initialization complete"
+    );
+
+    Serial0.printf(
+        "[BRIGHTNESS] Mode: %s\n",
+        _mode == Mode::AUTO ? "AUTO" : "MANUAL"
+    );
+
+    Serial0.printf(
+        "[BRIGHTNESS] Current: %u%%\n",
+        static_cast<unsigned>(_brightness)
+    );
+
+    Serial0.println();
 }
 
 // ============================================================
@@ -123,22 +143,11 @@ void BrightnessManager::begin(
 void BrightnessManager::update()
 {
     if (!_initialized)
+    {
         return;
+    }
 
     const uint32_t now = millis();
-
-    // Безопасно работает и при переполнении millis().
-    uint32_t deltaTimeMs = now - _lastUpdateMs;
-
-    _lastUpdateMs = now;
-
-    // Ограничиваем скачок времени после длительной
-    // блокировки основного цикла.
-    //
-    // Это не позволяет сглаживанию мгновенно перескочить
-    // к цели после длительной паузы.
-    if (deltaTimeMs > 1000)
-        deltaTimeMs = 1000;
 
     // --------------------------------------------------------
     // MANUAL MODE
@@ -146,17 +155,12 @@ void BrightnessManager::update()
 
     if (_mode == Mode::MANUAL)
     {
-        _hasAutoTarget = false;
-
-        const int target = clampBrightness(
-            _manualBrightness
-        );
-
-        if (_brightness != target)
+        if (_brightness != _manualBrightness)
         {
-            _brightness = target;
-            applyBrightness(_brightness);
+            applyBrightness(_manualBrightness);
         }
+
+        _lastUpdateMs = now;
 
         return;
     }
@@ -165,576 +169,752 @@ void BrightnessManager::update()
     // AUTO MODE
     // --------------------------------------------------------
 
-    const int target = calculateAutoTarget();
-
-    // При первом автоматическом расчёте не нужно плавно
-    // переходить от ранее сохранённой ручной яркости.
-    //
-    // Это позволяет избежать временного применения
-    // слишком яркого значения после запуска.
-    if (!_hasAutoTarget)
-    {
-        _brightness = clampBrightness(target);
-
-        _hasAutoTarget = true;
-
-        applyBrightness(_brightness);
-
-        return;
-    }
+    const uint8_t calculatedTarget =
+        calculateAutoTarget();
 
     // --------------------------------------------------------
     // HYSTERESIS
     // --------------------------------------------------------
 
-    if (!applyHysteresis(target, _brightness))
-        return;
-
-    // --------------------------------------------------------
-    // TIME-BASED SMOOTHING
-    // --------------------------------------------------------
-
-    const int smoothed = applySmoothing(
-        target,
-        deltaTimeMs
-    );
-
-    const int nextBrightness = clampBrightness(
-        smoothed
-    );
-
-    if (nextBrightness != _brightness)
+    if (!_hasAutoTarget)
     {
-        _brightness = nextBrightness;
+        _sensorTarget = calculatedTarget;
+        _hasAutoTarget = true;
 
-        applyBrightness(_brightness);
+        _smoothedBrightness = static_cast<float>(
+            _brightness
+        );
+    }
+    else if (applyHysteresis(calculatedTarget))
+    {
+        _sensorTarget = calculatedTarget;
+
+        Serial0.printf(
+            "[BRIGHTNESS][TARGET] New target: %u%%\n",
+            static_cast<unsigned>(_sensorTarget)
+        );
+    }
+
+    // --------------------------------------------------------
+    // SMOOTHING
+    // --------------------------------------------------------
+
+    const uint8_t smoothed = applySmoothing(
+        _sensorTarget
+    );
+
+    // --------------------------------------------------------
+    // APPLY
+    // --------------------------------------------------------
+
+    if (smoothed != _brightness)
+    {
+        applyBrightness(smoothed);
+    }
+
+    _lastUpdateMs = now;
+
+    // --------------------------------------------------------
+    // PERIODIC LOGGING
+    // --------------------------------------------------------
+
+    if (now - _lastLogMs >= 2000)
+    {
+        bool luxValid = false;
+
+        const float lux = readLux(luxValid);
+
+        logAutoStatus(
+            lux,
+            luxValid,
+            _sensorTarget
+        );
+
+        _lastLogMs = now;
     }
 }
 
 // ============================================================
-// MODE
+// LOAD SETTINGS
+// ============================================================
+
+void BrightnessManager::loadSettings()
+{
+    if (_settings == nullptr)
+    {
+        return;
+    }
+
+    // --------------------------------------------------------
+    // BRIGHTNESS
+    // --------------------------------------------------------
+
+    const int savedBrightness = _settings->get(
+        SettingsManager::Param::BRIGHTNESS
+    );
+
+    _manualBrightness = clampBrightness(
+        savedBrightness
+    );
+
+    _brightness = _manualBrightness;
+
+    // --------------------------------------------------------
+    // MODE
+    // --------------------------------------------------------
+
+    const int savedMode = _settings->get(
+        SettingsManager::Param::BRIGHTNESS_MODE
+    );
+
+    _mode = savedMode == 1
+        ? Mode::AUTO
+        : Mode::MANUAL;
+
+    Serial0.printf(
+        "[BRIGHTNESS][SETTINGS] Loaded brightness: %u%%\n",
+        static_cast<unsigned>(_manualBrightness)
+    );
+
+    Serial0.printf(
+        "[BRIGHTNESS][SETTINGS] Loaded mode: %s\n",
+        _mode == Mode::AUTO ? "AUTO" : "MANUAL"
+    );
+}
+
+// ============================================================
+// SAVE MODE
+// ============================================================
+
+void BrightnessManager::saveMode()
+{
+    if (_settings == nullptr)
+    {
+        return;
+    }
+
+    const int value = _mode == Mode::AUTO ? 1 : 0;
+
+    _settings->set(
+        SettingsManager::Param::BRIGHTNESS_MODE,
+        value
+    );
+
+    Serial0.printf(
+        "[BRIGHTNESS][SETTINGS] Mode queued for saving: %s\n",
+        _mode == Mode::AUTO ? "AUTO" : "MANUAL"
+    );
+}
+
+// ============================================================
+// SET MODE
 // ============================================================
 
 void BrightnessManager::setMode(Mode mode)
 {
-    if (_mode == mode)
+    if (!_initialized)
+    {
+        Serial0.println(
+            "[BRIGHTNESS][WARN] setMode called before begin()"
+        );
+
         return;
+    }
+
+    if (mode != Mode::MANUAL && mode != Mode::AUTO)
+    {
+        Serial0.println(
+            "[BRIGHTNESS][WARN] Invalid mode"
+        );
+
+        return;
+    }
+
+    if (_mode == mode)
+    {
+        return;
+    }
+
+    Serial0.printf(
+        "[BRIGHTNESS][MODE] %s -> %s\n",
+        _mode == Mode::AUTO ? "AUTO" : "MANUAL",
+        mode == Mode::AUTO ? "AUTO" : "MANUAL"
+    );
 
     _mode = mode;
 
-    _hasAutoTarget = false;
-    _lastUpdateMs  = millis();
+    saveMode();
 
-    // При переходе в MANUAL применяем ручное значение.
+    _lastUpdateMs = millis();
+
     if (_mode == Mode::MANUAL)
     {
-        _brightness = clampBrightness(
+        // Последнее применённое значение яркости
+        // используется при переходе в ручной режим.
+        if (_settings != nullptr)
+        {
+            _manualBrightness = clampBrightness(
+                _settings->get(
+                    SettingsManager::Param::BRIGHTNESS
+                )
+            );
+        }
+
+        _smoothedBrightness = static_cast<float>(
             _manualBrightness
         );
 
-        applyBrightness(_brightness);
-    }
+        applyBrightness(_manualBrightness);
 
-    // При переходе в AUTO целевое значение будет рассчитано
-    // при следующем update().
+        logState("Switched to MANUAL");
+    }
+    else
+    {
+        _hasAutoTarget = false;
+
+        _smoothedBrightness = static_cast<float>(
+            _brightness
+        );
+
+        logState("Switched to AUTO");
+    }
 }
 
 // ============================================================
-// MANUAL BRIGHTNESS
+// GET MODE
 // ============================================================
 
-void BrightnessManager::setManualBrightness(int value)
+BrightnessManager::Mode BrightnessManager::getMode() const
 {
-    value = clampBrightness(value);
+    return _mode;
+}
 
-    _manualBrightness = value;
+// ============================================================
+// SET MANUAL BRIGHTNESS
+// ============================================================
 
-    // Сохраняем пользовательское значение.
-    //
-    // В соответствии с исходным поведением проекта
-    // applyBrightness() также сохраняет применённую
-    // яркость в SettingsManager.
-    if (_settings != nullptr && _settings->initialized())
+void BrightnessManager::setManualBrightness(
+    uint8_t brightness
+)
+{
+    if (!_initialized)
     {
-        _settings->set(
-            Param::BRIGHTNESS,
-            value
+        Serial0.println(
+            "[BRIGHTNESS][WARN] setManualBrightness called before begin()"
         );
+
+        return;
     }
+
+    brightness = clampBrightness(
+        static_cast<int>(brightness)
+    );
+
+    _manualBrightness = brightness;
+
+    Serial0.printf(
+        "[BRIGHTNESS][MANUAL] Requested brightness: %u%%\n",
+        static_cast<unsigned>(brightness)
+    );
 
     if (_mode == Mode::MANUAL)
     {
-        if (_brightness != value)
-        {
-            _brightness = value;
+        _smoothedBrightness = static_cast<float>(
+            brightness
+        );
 
-            applyBrightness(_brightness);
+        applyBrightness(brightness);
+    }
+    else
+    {
+        // В AUTO сохраняем ручное значение как текущее
+        // заданное значение в настройках.
+        // При следующем обновлении AUTO применит
+        // рассчитанную по датчику яркость.
+        if (_settings != nullptr)
+        {
+            _settings->set(
+                SettingsManager::Param::BRIGHTNESS,
+                static_cast<int>(brightness)
+            );
         }
     }
 }
 
 // ============================================================
-// PROFILE NORMALIZATION
+// GET MANUAL BRIGHTNESS
 // ============================================================
 
-BrightnessManager::Profile
-BrightnessManager::normalizeProfile(
-    const Profile& profile
-) const
+uint8_t BrightnessManager::getManualBrightness() const
 {
-    Profile result = profile;
+    return _manualBrightness;
+}
 
-    result.min = clampBrightness(result.min);
-    result.max = clampBrightness(result.max);
+// ============================================================
+// GET CURRENT BRIGHTNESS
+// ============================================================
 
-    if (result.min > result.max)
+uint8_t BrightnessManager::getBrightness() const
+{
+    return _brightness;
+}
+
+// ============================================================
+// GET TARGET BRIGHTNESS
+// ============================================================
+
+uint8_t BrightnessManager::getTargetBrightness() const
+{
+    return _mode == Mode::AUTO
+        ? _sensorTarget
+        : _manualBrightness;
+}
+
+// ============================================================
+// SET OFFSET
+// ============================================================
+
+void BrightnessManager::setOffset(int8_t offset)
+{
+    _config.offset = offset;
+
+    Serial0.printf(
+        "[BRIGHTNESS][CONFIG] Offset: %d%%\n",
+        static_cast<int>(_config.offset)
+    );
+}
+
+// ============================================================
+// GET OFFSET
+// ============================================================
+
+int8_t BrightnessManager::getOffset() const
+{
+    return _config.offset;
+}
+
+// ============================================================
+// SET SMOOTHING TIME
+// ============================================================
+
+void BrightnessManager::setSmoothingTime(
+    uint32_t milliseconds
+)
+{
+    _config.smoothingTimeMs = milliseconds;
+
+    Serial0.printf(
+        "[BRIGHTNESS][CONFIG] Smoothing time: %lu ms\n",
+        static_cast<unsigned long>(milliseconds)
+    );
+}
+
+// ============================================================
+// SET HYSTERESIS
+// ============================================================
+
+void BrightnessManager::setHysteresis(uint8_t percent)
+{
+    if (percent > 25)
     {
-        const int temporary = result.min;
-
-        result.min = result.max;
-        result.max = temporary;
+        percent = 25;
     }
 
-    result.base = constrain(
-        result.base,
-        result.min,
-        result.max
+    _config.hysteresisPct = percent;
+
+    Serial0.printf(
+        "[BRIGHTNESS][CONFIG] Hysteresis: %u%%\n",
+        static_cast<unsigned>(percent)
+    );
+}
+
+// ============================================================
+// IS INITIALIZED
+// ============================================================
+
+bool BrightnessManager::isInitialized() const
+{
+    return _initialized;
+}
+
+// ============================================================
+// CALCULATE AUTO TARGET
+// ============================================================
+
+uint8_t BrightnessManager::calculateAutoTarget()
+{
+    const Profile& profile = selectProfile();
+
+    bool luxValid = false;
+
+    const float lux = readLux(luxValid);
+
+    int target = profile.base;
+
+    if (luxValid)
+    {
+        const uint8_t luxPercent = luxToPercent(lux);
+
+        target = profile.min
+            + (
+                static_cast<int>(profile.max - profile.min)
+                * static_cast<int>(luxPercent)
+            ) / 100;
+    }
+
+    target += _config.offset;
+
+    const uint8_t result = clampToProfile(
+        target,
+        profile
     );
 
     return result;
 }
 
 // ============================================================
-// PROFILE SELECTION
+// LUX TO PERCENT
 // ============================================================
 
-BrightnessManager::Profile
-BrightnessManager::selectProfile(
-    uint16_t minuteOfDay
-) const
+uint8_t BrightnessManager::luxToPercent(float lux) const
 {
-    const Profile day = normalizeProfile(
-        _config.day
-    );
-
-    const Profile evening = normalizeProfile(
-        _config.evening
-    );
-
-    const Profile night = normalizeProfile(
-        _config.night
-    );
-
-    const uint16_t dayStart = static_cast<uint16_t>(
-        _config.dayStartMinute % 1440u
-    );
-
-    const uint16_t nightStart = static_cast<uint16_t>(
-        _config.nightStartMinute % 1440u
-    );
-
-    const uint16_t duration = static_cast<uint16_t>(
-        _config.eveningDurationMin > 1440
-            ? 1440
-            : _config.eveningDurationMin
-    );
-
-    const uint16_t eveningStart = static_cast<uint16_t>(
-        (nightStart + 1440u - duration) % 1440u
-    );
-
-    minuteOfDay %= 1440u;
-
-    // --------------------------------------------------------
-    // STANDARD SCHEDULE
-    // --------------------------------------------------------
-
-    if (dayStart < nightStart)
-    {
-        if (minuteOfDay < dayStart ||
-            minuteOfDay >= nightStart)
-        {
-            return night;
-        }
-
-        if (duration > 0 &&
-            minuteOfDay >= eveningStart)
-        {
-            return evening;
-        }
-
-        return day;
-    }
-
-    // --------------------------------------------------------
-    // WRAPPED DAY INTERVAL
-    // --------------------------------------------------------
-    //
-    // Поддерживаем расписание, в котором интервал дня
-    // пересекает полночь.
-    //
-    // Если расписание неоднозначно, предпочтение отдаётся
-    // безопасному ночному профилю.
-    // --------------------------------------------------------
-
-    if (dayStart > nightStart)
-    {
-        const bool isDay =
-            minuteOfDay >= dayStart ||
-            minuteOfDay < nightStart;
-
-        if (!isDay)
-            return night;
-
-        if (duration > 0 &&
-            minuteOfDay < nightStart &&
-            minuteOfDay >= eveningStart)
-        {
-            return evening;
-        }
-
-        return day;
-    }
-
-    // Одинаковые границы не образуют нормального
-    // дневного интервала. Используем ночной профиль.
-    return night;
-}
-
-// ============================================================
-// SENSOR READING
-// ============================================================
-
-bool BrightnessManager::readLux(float& lux) const
-{
-    lux = 0.0f;
-
-    if (_sensors == nullptr)
-        return false;
-
-    const SensorData& data = _sensors->getData();
-
-    if (!data.lightValid)
-        return false;
-
-    const float measuredLux = data.lightLux;
-
-    // Отклоняем NaN и бесконечные значения.
-    if (!isfinite(measuredLux))
-        return false;
-
-    // Отрицательная освещённость недопустима.
-    if (measuredLux < 0.0f)
-        return false;
-
-    lux = measuredLux;
-
-    return true;
-}
-
-// ============================================================
-// LUX -> PERCENT
-// ============================================================
-//
-// Нелинейное преобразование.
-//
-// При малой освещённости яркость растёт медленнее,
-// чем при линейном преобразовании.
-//
-// После преобразования значение всё равно ограничивается
-// профилем времени суток.
-// ============================================================
-
-int BrightnessManager::luxToPercent(float lux) const
-{
-    if (!isfinite(lux) || lux < 0.0f)
-        return 0;
-
-    const float luxMin = _config.luxMin;
-    const float luxMax = _config.luxMax;
-
-    if (!isfinite(luxMin) ||
-        !isfinite(luxMax) ||
-        luxMax <= luxMin)
+    if (!isfinite(lux))
     {
         return 0;
     }
 
-    if (lux <= luxMin)
+    if (lux <= _config.luxMin)
+    {
         return 0;
+    }
 
-    if (lux >= luxMax)
+    if (lux >= _config.luxMax)
+    {
         return 100;
+    }
 
-    const float normalized = constrain(
-        (lux - luxMin) / (luxMax - luxMin),
+    const float range = _config.luxMax - _config.luxMin;
+
+    if (range <= 0.0f)
+    {
+        return 0;
+    }
+
+    float normalized = (
+        lux - _config.luxMin
+    ) / range;
+
+    normalized = constrain(
+        normalized,
         0.0f,
         1.0f
     );
 
-    // Нелинейная характеристика.
-    //
-    // Показатель 0.6f делает зависимость менее линейной.
-    // Это начальная настройка, которую следует проверить
-    // на реальных дисплеях.
-    const float perceptual = powf(
+    const float mapped = powf(
         normalized,
         0.6f
-    );
+    ) * 100.0f;
 
-    const int result = static_cast<int>(
-        perceptual * 100.0f + 0.5f
+    return clampBrightness(
+        static_cast<int>(lroundf(mapped))
     );
-
-    return constrain(result, 0, 100);
 }
 
 // ============================================================
-// SAFE TARGET
+// READ LUX
 // ============================================================
 
-int BrightnessManager::calculateSafeTarget() const
+float BrightnessManager::readLux(bool& valid) const
 {
-    const Profile night = normalizeProfile(
-        _config.night
-    );
+    valid = false;
 
-    return clampBrightness(night.base);
+    if (_sensors == nullptr)
+    {
+        return 0.0f;
+    }
+
+    const SensorData& data = _sensors->getData();
+
+    if (!data.lightValid)
+    {
+        return 0.0f;
+    }
+
+    if (!isfinite(data.lightLux))
+    {
+        return 0.0f;
+    }
+
+    if (data.lightLux < 0.0f)
+    {
+        return 0.0f;
+    }
+
+    valid = true;
+
+    return data.lightLux;
 }
 
 // ============================================================
-// AUTOMATIC TARGET
+// SELECT PROFILE
 // ============================================================
 
-int BrightnessManager::calculateAutoTarget()
+const BrightnessManager::Profile&
+BrightnessManager::selectProfile() const
 {
-    uint16_t minuteOfDay = 0;
-
-    bool timeValid = false;
-
-    // --------------------------------------------------------
-    // TIME
-    // --------------------------------------------------------
-
-    if (_clock != nullptr && _clock->isTimeValid())
+    // Если часы недоступны, используем безопасный
+    // ночной профиль.
+    if (_clock == nullptr || !_clock->isTimeValid())
     {
-        const uint8_t hour = _clock->hour();
-        const uint8_t minute = _clock->minute();
-
-        if (hour < 24 && minute < 60)
-        {
-            minuteOfDay = static_cast<uint16_t>(
-                static_cast<uint16_t>(hour) * 60u +
-                static_cast<uint16_t>(minute)
-            );
-
-            timeValid = true;
-        }
+        return _config.night;
     }
 
-    // --------------------------------------------------------
-    // INVALID TIME
-    // --------------------------------------------------------
-    //
-    // При неизвестном времени не используем дневной профиль.
-    // Выбираем безопасную яркость на основе ночного профиля.
-    // --------------------------------------------------------
+    const int hour = _clock->hour();
+    const int minute = _clock->minute();
 
-    if (!timeValid)
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59)
     {
-        const int safeTarget = calculateSafeTarget();
-
-        _sensorTarget  = safeTarget;
-        _profileTarget = safeTarget;
-
-        return safeTarget;
+        return _config.night;
     }
 
-    // --------------------------------------------------------
-    // PROFILE
-    // --------------------------------------------------------
+    const int currentMinutes = hour * 60 + minute;
 
-    const Profile profile = selectProfile(
-        minuteOfDay
+    const int dayStart = (
+        static_cast<int>(_config.dayStartHour) * 60
     );
 
-    // --------------------------------------------------------
-    // SENSOR
-    // --------------------------------------------------------
+    const int nightStart = (
+        static_cast<int>(_config.nightStartHour) * 60
+    );
 
-    float lux = 0.0f;
+    const int eveningStart = nightStart
+        - static_cast<int>(_config.eveningDurationMinutes);
 
-    const bool sensorValid = readLux(lux);
-
-    int sensorValue = profile.base;
-
-    if (sensorValid)
+    // День: 07:00–20:00 при настройках по умолчанию.
+    if (
+        currentMinutes >= dayStart
+        && currentMinutes < eveningStart
+    )
     {
-        sensorValue = luxToPercent(lux);
+        return _config.day;
     }
 
-    _sensorTarget = sensorValue;
+    // Вечер: 20:00–22:00 при настройках по умолчанию.
+    if (
+        currentMinutes >= eveningStart
+        && currentMinutes < nightStart
+    )
+    {
+        return _config.evening;
+    }
 
-    // --------------------------------------------------------
-    // USER OFFSET
-    // --------------------------------------------------------
-
-    // Ограничиваем поправку допустимым диапазоном.
-    const int offset = constrain(
-        _config.offset,
-        -100,
-        100
-    );
-
-    const int adjustedTarget = constrain(
-        sensorValue + offset,
-        0,
-        100
-    );
-
-    // --------------------------------------------------------
-    // PROFILE LIMITS
-    // --------------------------------------------------------
-
-    // Профиль ограничивает итоговое значение ПОСЛЕ
-    // преобразования датчика и пользовательской поправки.
-    const int target = constrain(
-        adjustedTarget,
-        profile.min,
-        profile.max
-    );
-
-    _profileTarget = target;
-
-    return clampBrightness(target);
+    // Ночь: 22:00–07:00.
+    return _config.night;
 }
 
 // ============================================================
-// BRIGHTNESS CLAMP
-// ============================================================
-
-int BrightnessManager::clampBrightness(int value) const
-{
-    int minimum = ::Config::DISPLAY_MIN_BRIGHTNESS;
-    int maximum = ::Config::DISPLAY_MAX_BRIGHTNESS;
-
-    minimum = constrain(minimum, 0, 100);
-    maximum = constrain(maximum, 0, 100);
-
-    if (minimum > maximum)
-    {
-        const int temporary = minimum;
-
-        minimum = maximum;
-        maximum = temporary;
-    }
-
-    return constrain(
-        value,
-        minimum,
-        maximum
-    );
-}
-
-// ============================================================
-// HYSTERESIS
+// APPLY HYSTERESIS
 // ============================================================
 
 bool BrightnessManager::applyHysteresis(
-    int candidate,
-    int current
+    uint8_t target
 ) const
 {
-    const int zone = constrain(
-        _config.hysteresisPct,
-        0,
-        100
+    const int difference = abs(
+        static_cast<int>(target)
+        - static_cast<int>(_sensorTarget)
     );
 
-    const int difference = candidate - current;
-
-    return difference > zone ||
-           difference < -zone;
+    return difference >= static_cast<int>(
+        _config.hysteresisPct
+    );
 }
 
 // ============================================================
-// TIME-BASED SMOOTHING
-// ============================================================
-//
-// Сглаживание зависит от фактически прошедшего времени,
-// а не от количества вызовов update().
-//
-// smoothingTimeMs определяет характерную скорость реакции.
+// APPLY SMOOTHING
 // ============================================================
 
-int BrightnessManager::applySmoothing(
-    int candidate,
-    uint32_t deltaTimeMs
+uint8_t BrightnessManager::applySmoothing(
+    uint8_t target
 )
 {
-    candidate = clampBrightness(candidate);
+    const uint32_t now = millis();
 
-    if (deltaTimeMs == 0)
-        return _brightness;
+    uint32_t deltaTime = now - _lastUpdateMs;
 
-    const uint32_t smoothingTimeMs =
-        _config.smoothingTimeMs;
+    if (deltaTime > 1000)
+    {
+        deltaTime = 1000;
+    }
 
-    if (smoothingTimeMs == 0)
-        return candidate;
+    if (
+        _config.smoothingTimeMs == 0
+        || deltaTime == 0
+    )
+    {
+        if (_config.smoothingTimeMs == 0)
+        {
+            _smoothedBrightness = static_cast<float>(
+                target
+            );
+        }
 
-    // alpha = 1 - exp(-dt / tau)
-    //
-    // Чем больше dt, тем сильнее влияние нового значения.
-    const float ratio =
-        static_cast<float>(deltaTimeMs) /
-        static_cast<float>(smoothingTimeMs);
-
-    const float alpha = 1.0f - expf(-ratio);
-
-    const float smoothed =
-        static_cast<float>(_brightness) +
-        alpha *
-        (
-            static_cast<float>(candidate) -
-            static_cast<float>(_brightness)
+        return clampBrightness(
+            static_cast<int>(
+                lroundf(_smoothedBrightness)
+            )
         );
+    }
 
-    const int result = static_cast<int>(
-        smoothed + 0.5f
+    const float alpha = 1.0f - expf(
+        -static_cast<float>(deltaTime)
+        / static_cast<float>(_config.smoothingTimeMs)
     );
 
-    return clampBrightness(result);
+    _smoothedBrightness += (
+        static_cast<float>(target)
+        - _smoothedBrightness
+    ) * alpha;
+
+    return clampBrightness(
+        static_cast<int>(
+            lroundf(_smoothedBrightness)
+        )
+    );
 }
 
 // ============================================================
 // APPLY BRIGHTNESS
 // ============================================================
 
-void BrightnessManager::applyBrightness(int value)
+void BrightnessManager::applyBrightness(
+    uint8_t brightness
+)
 {
-    // Сначала синхронизируем значение с реальными
-    // ограничениями драйвера.
-    value = clampBrightness(value);
+    brightness = clampBrightness(
+        static_cast<int>(brightness)
+    );
 
-    // Защита от рассогласования состояния.
-    _brightness = value;
+    const uint8_t previous = _brightness;
 
-    // Управляем только подсветкой экранов.
-    if (_sink != nullptr)
+    _brightness = brightness;
+
+    // Сохраняем текущее применённое значение
+    // в SettingsManager.
+    //
+    // SettingsManager::update() отвечает за отложенную
+    // запись во Flash. Здесь нет прямой записи в NVS.
+    if (_settings != nullptr)
     {
-        _sink->setScreenBrightness(value);
+        const int savedBrightness = _settings->get(
+            SettingsManager::Param::BRIGHTNESS
+        );
+
+        if (savedBrightness != static_cast<int>(brightness))
+        {
+            _settings->set(
+                SettingsManager::Param::BRIGHTNESS,
+                static_cast<int>(brightness)
+            );
+        }
     }
 
-    // Сохраняем значение согласно исходному поведению.
-    //
-    // Важно: здесь сохранена исходная логика, которая
-    // допускает запись автоматической яркости в BRIGHTNESS.
-    if (_settings != nullptr && _settings->initialized())
+    if (previous != brightness)
     {
-        _settings->set(
-            Param::BRIGHTNESS,
-            value
+        Serial0.printf(
+            "[BRIGHTNESS][APPLY] %u%% -> %u%%\n",
+            static_cast<unsigned>(previous),
+            static_cast<unsigned>(brightness)
         );
     }
+}
+
+// ============================================================
+// LOG STATE
+// ============================================================
+
+void BrightnessManager::logState(
+    const char* reason
+) const
+{
+    Serial0.printf(
+        "[BRIGHTNESS][STATE] %s | mode=%s | brightness=%u%% | manual=%u%% | target=%u%% | offset=%d%%\n",
+        reason,
+        _mode == Mode::AUTO ? "AUTO" : "MANUAL",
+        static_cast<unsigned>(_brightness),
+        static_cast<unsigned>(_manualBrightness),
+        static_cast<unsigned>(_sensorTarget),
+        static_cast<int>(_config.offset)
+    );
+}
+
+// ============================================================
+// LOG AUTO STATUS
+// ============================================================
+
+void BrightnessManager::logAutoStatus(
+    float lux,
+    bool luxValid,
+    uint8_t target
+) const
+{
+    if (luxValid)
+    {
+        Serial0.printf(
+            "[BRIGHTNESS][AUTO] lux=%.2f | target=%u%% | current=%u%% | offset=%d%%\n",
+            static_cast<double>(lux),
+            static_cast<unsigned>(target),
+            static_cast<unsigned>(_brightness),
+            static_cast<int>(_config.offset)
+        );
+    }
+    else
+    {
+        Serial0.printf(
+            "[BRIGHTNESS][AUTO] lux=INVALID | profile base used | target=%u%% | current=%u%%\n",
+            static_cast<unsigned>(target),
+            static_cast<unsigned>(_brightness)
+        );
+    }
+}
+
+// ============================================================
+// CLAMP BRIGHTNESS
+// ============================================================
+
+uint8_t BrightnessManager::clampBrightness(int value)
+{
+    if (value < 0)
+    {
+        return 0;
+    }
+
+    if (value > 100)
+    {
+        return 100;
+    }
+
+    return static_cast<uint8_t>(value);
+}
+
+// ============================================================
+// CLAMP TO PROFILE
+// ============================================================
+
+uint8_t BrightnessManager::clampToProfile(
+    int value,
+    const Profile& profile
+)
+{
+    if (value < static_cast<int>(profile.min))
+    {
+        value = profile.min;
+    }
+
+    if (value > static_cast<int>(profile.max))
+    {
+        value = profile.max;
+    }
+
+    return clampBrightness(value);
 }

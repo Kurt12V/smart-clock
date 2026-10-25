@@ -2,33 +2,9 @@
 
 #include <Arduino.h>
 
-#include <math.h>
-
 #include "./managers/Setting/SettingsManager.h"
 #include "./managers/Sensors/SensorsManager.h"
 #include "./core/ClockSystem.h"
-
-// ============================================================
-// SCREEN BRIGHTNESS SINK
-// ============================================================
-//
-// Интерфейс управления подсветкой дисплеев.
-//
-// BrightnessManager не управляет COB и WS2812.
-//
-// value: 0..100
-//
-// Если все четыре дисплея используют общую подсветку,
-// реализация может применить значение ко всем одновременно.
-// ============================================================
-
-class IScreenBrightnessSink
-{
-public:
-    virtual ~IScreenBrightnessSink() = default;
-
-    virtual void setScreenBrightness(int value) = 0;
-};
 
 // ============================================================
 // BRIGHTNESS MANAGER
@@ -38,194 +14,198 @@ class BrightnessManager
 {
 public:
 
+    // ========================================================
+    // MODES
+    // ========================================================
+
     enum class Mode : uint8_t
     {
         MANUAL = 0,
-        AUTO
+        AUTO   = 1
     };
+
+    // ========================================================
+    // PROFILE
+    // ========================================================
 
     struct Profile
     {
-        int min;
-        int max;
-        int base;
+        uint8_t min;
+        uint8_t max;
+        uint8_t base;
     };
+
+    // ========================================================
+    // CONFIGURATION
+    // ========================================================
 
     struct Config
     {
-        // Время суток: минуты от полуночи.
-        uint16_t dayStartMinute;
-        uint16_t nightStartMinute;
-        uint16_t eveningDurationMin;
+        uint8_t dayStartHour;
+        uint8_t nightStartHour;
+
+        uint16_t eveningDurationMinutes;
+
+        int8_t offset;
+
+        uint8_t hysteresisPct;
+
+        float smoothingAlpha;
+        uint32_t smoothingTimeMs;
+
+        float luxMin;
+        float luxMax;
 
         Profile day;
         Profile evening;
         Profile night;
-
-        // Пользовательская поправка.
-        // После поправки результат ограничивается профилем.
-        int offset;
-
-        // Мёртвая зона гистерезиса.
-        int hysteresisPct;
-
-        // Сохраняется для совместимости конфигурации.
-        // Используется как коэффициент сглаживания
-        // при обновлении с интервалом 1000 мс.
-        float smoothingAlpha;
-
-        // Калибровка датчика освещённости.
-        float luxMin;
-        float luxMax;
-
-        // Постоянная времени сглаживания, миллисекунды.
-        uint32_t smoothingTimeMs;
     };
+
+    // ========================================================
+    // CONSTRUCTOR
+    // ========================================================
 
     BrightnessManager();
 
-    // --------------------------------------------------------
+    // ========================================================
     // LIFECYCLE
-    // --------------------------------------------------------
+    // ========================================================
 
     void begin(
-        SettingsManager*       settings,
-        SensorManager*         sensors,
-        ClockSystem*           clock,
-        IScreenBrightnessSink* sink
+        SettingsManager* settings,
+        SensorManager* sensors,
+        ClockSystem* clock
     );
 
     void update();
 
-    // --------------------------------------------------------
+    // ========================================================
     // MODE
-    // --------------------------------------------------------
-
-    Mode mode() const
-    {
-        return _mode;
-    }
+    // ========================================================
 
     void setMode(Mode mode);
 
-    // --------------------------------------------------------
+    Mode getMode() const;
+
+    // ========================================================
     // MANUAL BRIGHTNESS
-    // --------------------------------------------------------
+    // ========================================================
 
-    void setManualBrightness(int value);
+    void setManualBrightness(uint8_t brightness);
 
-    int manualBrightness() const
-    {
-        return _manualBrightness;
-    }
+    uint8_t getManualBrightness() const;
 
-    // --------------------------------------------------------
+    // ========================================================
+    // CURRENT BRIGHTNESS
+    // ========================================================
+
+    uint8_t getBrightness() const;
+
+    uint8_t getTargetBrightness() const;
+
+    // ========================================================
     // CONFIGURATION
-    // --------------------------------------------------------
+    // ========================================================
 
-    Config& config()
-    {
-        return _config;
-    }
+    void setOffset(int8_t offset);
 
-    const Config& config() const
-    {
-        return _config;
-    }
+    int8_t getOffset() const;
 
-    // --------------------------------------------------------
-    // STATE / DEBUG
-    // --------------------------------------------------------
+    void setSmoothingTime(uint32_t milliseconds);
 
-    int brightness() const
-    {
-        return _brightness;
-    }
+    void setHysteresis(uint8_t percent);
 
-    int sensorTarget() const
-    {
-        return _sensorTarget;
-    }
+    // ========================================================
+    // STATUS
+    // ========================================================
 
-    int profileTarget() const
-    {
-        return _profileTarget;
-    }
-
-    bool initialized() const
-    {
-        return _initialized;
-    }
+    bool isInitialized() const;
 
 private:
 
-    // --------------------------------------------------------
-    // PROFILE
-    // --------------------------------------------------------
-
-    Profile selectProfile(uint16_t minuteOfDay) const;
-
-    Profile normalizeProfile(const Profile& profile) const;
-
-    // --------------------------------------------------------
-    // SENSOR
-    // --------------------------------------------------------
-
-    int luxToPercent(float lux) const;
-
-    bool readLux(float& lux) const;
-
-    // --------------------------------------------------------
-    // TARGET CALCULATION
-    // --------------------------------------------------------
-
-    int calculateAutoTarget();
-
-    int calculateSafeTarget() const;
-
-    int clampBrightness(int value) const;
-
-    // --------------------------------------------------------
-    // FILTERING
-    // --------------------------------------------------------
-
-    bool applyHysteresis(int candidate, int current) const;
-
-    int applySmoothing(
-        int candidate,
-        uint32_t deltaTimeMs
-    );
-
-    // --------------------------------------------------------
-    // OUTPUT
-    // --------------------------------------------------------
-
-    void applyBrightness(int value);
-
-    // --------------------------------------------------------
+    // ========================================================
     // DEPENDENCIES
-    // --------------------------------------------------------
+    // ========================================================
 
-    SettingsManager*        _settings;
-    SensorManager*          _sensors;
-    ClockSystem*            _clock;
-    IScreenBrightnessSink*  _sink;
+    SettingsManager* _settings;
+    SensorManager* _sensors;
+    ClockSystem* _clock;
 
-    // --------------------------------------------------------
+    // ========================================================
     // STATE
-    // --------------------------------------------------------
-
-    Mode   _mode;
-    Config _config;
-
-    int _manualBrightness;
-    int _brightness;
-
-    int _sensorTarget;
-    int _profileTarget;
+    // ========================================================
 
     bool _initialized;
+
+    Mode _mode;
+
+    Config _config;
+
+    uint8_t _manualBrightness;
+    uint8_t _brightness;
+    uint8_t _sensorTarget;
+
     bool _hasAutoTarget;
 
     uint32_t _lastUpdateMs;
+    uint32_t _lastLogMs;
+
+    float _smoothedBrightness;
+
+    // ========================================================
+    // MODE / SETTINGS
+    // ========================================================
+
+    void loadSettings();
+
+    void saveMode();
+
+    // ========================================================
+    // AUTO BRIGHTNESS
+    // ========================================================
+
+    uint8_t calculateAutoTarget();
+
+    uint8_t luxToPercent(float lux) const;
+
+    float readLux(bool& valid) const;
+
+    const Profile& selectProfile() const;
+
+    // ========================================================
+    // FILTERING
+    // ========================================================
+
+    bool applyHysteresis(uint8_t target) const;
+
+    uint8_t applySmoothing(uint8_t target);
+
+    // ========================================================
+    // APPLY
+    // ========================================================
+
+    void applyBrightness(uint8_t brightness);
+
+    // ========================================================
+    // LOGGING
+    // ========================================================
+
+    void logState(const char* reason) const;
+
+    void logAutoStatus(
+        float lux,
+        bool luxValid,
+        uint8_t target
+    ) const;
+
+    // ========================================================
+    // UTILITIES
+    // ========================================================
+
+    static uint8_t clampBrightness(int value);
+
+    static uint8_t clampToProfile(
+        int value,
+        const Profile& profile
+    );
 };
