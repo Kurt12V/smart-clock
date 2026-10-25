@@ -10,7 +10,6 @@
 #include "./managers/Setting/SettingsManager.h"
 #include "./managers/SPI/SPIManager.h"
 #include "./managers/I2S/I2SManager.h"
-#include "./managers/SD/SDManager.h"
 #include "./managers/Sound/SoundManager.h"
 #include "./managers/Sensors/SensorsManager.h"
 #include "./core/ClockSystem.h"
@@ -40,11 +39,23 @@ class App
 public:
     App();
 
+    // Initialize all application components.
     bool begin();
+
+    // Update all active components.
     void update();
 
+    // Application status.
+    bool isInitialized() const
+    {
+        return _initialized;
+    }
+
 private:
-    // Initialization
+    // ========================================================
+    // INITIALIZATION
+    // ========================================================
+
     bool initSettings();
     bool initSPI();
     bool initI2S();
@@ -52,32 +63,52 @@ private:
     bool initSensors();
     bool initLighting();
     bool initDisplay();
-    bool initSD();
     bool initSound();
     bool initAlarm();
     bool initWiFi();
     bool initWebWiFi();
 
-    // Core managers
+    // ========================================================
+    // CORE MANAGERS
+    // ========================================================
+
     SettingsManager _settings;
+
     SPIManager _spiManager;
+
     I2SManager _i2sManager;
-    SDManager _sdManager;
+
     SoundManager _soundManager;
+
     SensorManager _sensorManager;
+
     ClockSystem _clockSystem;
+
     LightingManager _lighting;
+
     DisplaySystem _displaySystem;
 
-    // Alarms
+    // ========================================================
+    // ALARMS
+    // ========================================================
+
     AlarmManager _alarmManager;
+
     AlarmController _alarmController;
 
-    // Network
+    // ========================================================
+    // NETWORK
+    // ========================================================
+
     WiFiManager _wifiManager;
+
     WebServer _webServer;
+
     WebWiFiManager _webWiFiManager;
 
-    // State
-    bool _initialized;
+    // ========================================================
+    // STATE
+    // ========================================================
+
+    bool _initialized = false;
 };

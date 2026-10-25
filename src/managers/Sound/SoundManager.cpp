@@ -1,4 +1,3 @@
-
 #include "SoundManager.h"
 
 #include <algorithm>
@@ -13,38 +12,68 @@ namespace
     constexpr uint16_t WAV_PCM_FORMAT = 1;
     constexpr uint16_t WAV_BITS_PER_SAMPLE = 16;
 
-    constexpr float MIN_FADE_GAIN = 0.0f;
-    constexpr float MAX_FADE_GAIN = 1.0f;
-
     uint8_t clampPercent(uint8_t value)
     {
         return value > 100 ? 100 : value;
     }
+
+    float clampFloat(float value, float minimum, float maximum)
+    {
+        return std::max(minimum, std::min(value, maximum));
+    }
 }
 
+// ============================================================
+// CONSTRUCTOR
+// ============================================================
+
 SoundManager::SoundManager(
-    SDManager& sdManager,
     SettingsManager& settings,
     I2SManager& i2sManager
 )
-    : _sdManager(sdManager),
-      _settings(settings),
-      _i2sManager(i2sManager)
+    : _settings(settings)
+    , _i2sManager(i2sManager)
 {
 }
+
+// ============================================================
+// BEGIN / END
+// ============================================================
 
 bool SoundManager::begin()
 {
     if (_initialized)
         return true;
 
-    _initialized = true;
-    _state = State::STOPPED;
+    Serial0.println();
+    Serial0.println("[SoundManager] Initializing");
 
+    // LittleFS нужен только для локальных WAV-файлов.
+    // Ошибка монтирования не блокирует PCM-воспроизведение.
+
+    _littleFSReady = LittleFS.begin(false);
+
+    if (_littleFSReady)
+    {
+        Serial0.println("[SoundManager] LittleFS ready");
+    }
+    else
+    {
+        Serial0.println(
+            "[SoundManager][WARNING] LittleFS unavailable; "
+            "PCM playback remains available"
+        );
+    }
+
+    _state = State::STOPPED;
     _sourceMode = SourceMode::None;
+
     _localPercent = 100;
 
     resetPcmQueue();
+    resetPlaybackState();
+
+    _initialized = true;
 
     Serial0.println("[SoundManager] Initialized");
 
@@ -81,12 +110,15 @@ void SoundManager::update()
     }
 
     readAndPlayChunk();
+}
 
-    _lastUpdateMs = millis();
+bool SoundManager::isLittleFSReady() const
+{
+    return _littleFSReady;
 }
 
 // ============================================================
-// WAV PLAYBACK
+// WAV PLAYBACK FROM LITTLEFS
 // ============================================================
 
 bool SoundManager::play(const char* path)
@@ -100,8 +132,12 @@ bool SoundManager::play(
     const PlayOptions& options
 )
 {
-    if (!_initialized || path == nullptr || path[0] == '\0')
+    if (!_initialized ||
+        path == nullptr ||
+        path[0] == '\0')
+    {
         return false;
+    }
 
     stop();
 
@@ -119,13 +155,17 @@ bool SoundManager::play(
     _localPercent = clampPercent(options.localPercent);
 
     _fadeCurve = options.curve;
+
     _fadeInMs = options.fadeInMs;
     _fadeOutMs = options.fadeOutMs;
 
     _fadeStartMs = millis();
+
     _fadeInEnabled = _fadeInMs > 0;
     _fadeOutEnabled = false;
+
     _stopFadeActive = false;
+    _stopFadeDurationMs = 0;
 
     if (!startPcmOutput(_wav.sampleRate))
     {
@@ -137,8 +177,9 @@ bool SoundManager::play(
     _sourceMode = SourceMode::Wav;
     _state = State::PLAYING;
 
+    _pcmSampleRate = _wav.sampleRate;
+
     _positionBytes = 0;
-    _lastUpdateMs = millis();
 
     Serial0.printf(
         "[SoundManager] WAV started: %s, %lu Hz, %u channel(s)\n",
@@ -152,164 +193,91 @@ bool SoundManager::play(
 
 bool SoundManager::openWav(const char* path)
 {
-    // ============================================================
-    // 1. CHECK PATH
-    // ============================================================
-
-    if (path == nullptr || path[0] == '\0')
+    if (!_littleFSReady)
     {
-        Serial0.println("[SoundManager][ERROR] Empty WAV path");
+        Serial0.println(
+            "[SoundManager][ERROR] LittleFS is not mounted"
+        );
+
         return false;
     }
-
-    // ============================================================
-    // 2. CHECK SD CARD
-    // ============================================================
-
-    if (!_sdManager.isReady())
-    {
-        Serial0.println("[SoundManager][ERROR] SD card is not ready");
-        return false;
-    }
-
-    // ============================================================
-    // 3. CLOSE PREVIOUS FILE
-    // ============================================================
 
     if (_file)
-    {
         _file.close();
-    }
 
     _currentPath = "";
     _positionBytes = 0;
     _durationMs = 0;
 
-    // ============================================================
-    // 4. OPEN WAV FILE
-    // ============================================================
-
-    _file = _sdManager.card().fs().open(path, FILE_READ);
+    _file = LittleFS.open(path, FILE_READ);
 
     if (!_file)
     {
         Serial0.printf(
-            "[SoundManager][ERROR] Cannot open WAV file: %s\n",
+            "[SoundManager][ERROR] File not found: %s\n",
             path
         );
 
         return false;
     }
-
-    // ============================================================
-    // 5. PARSE WAV HEADER
-    // ============================================================
 
     if (!parseWav(_file))
     {
-        Serial0.printf(
-            "[SoundManager][ERROR] Failed to parse WAV header: %s\n",
-            path
+        Serial0.println(
+            "[SoundManager][ERROR] Invalid WAV structure"
         );
 
         _file.close();
         return false;
     }
-
-    // ============================================================
-    // 6. VALIDATE WAV FORMAT
-    // ============================================================
 
     if (!validateWav())
     {
-        Serial0.printf(
-            "[SoundManager][ERROR] Unsupported WAV format: %s\n",
-            path
+        Serial0.println(
+            "[SoundManager][ERROR] Unsupported WAV format"
         );
 
         _file.close();
         return false;
     }
-
-    // ============================================================
-    // 7. SEEK TO PCM DATA
-    // ============================================================
 
     if (!_file.seek(_wav.dataOffset))
     {
-        Serial0.printf(
-            "[SoundManager][ERROR] Cannot seek to PCM data: %s\n",
-            path
+        Serial0.println(
+            "[SoundManager][ERROR] Cannot seek to WAV data"
         );
 
         _file.close();
         return false;
     }
-
-    // ============================================================
-    // 8. INITIALIZE PLAYBACK POSITION
-    // ============================================================
-
-    _currentPath = path;
-    _positionBytes = 0;
-
-    // ============================================================
-    // 9. CALCULATE DURATION
-    // ============================================================
 
     if (_wav.byteRate == 0)
     {
-        Serial0.println(
-            "[SoundManager][ERROR] Invalid WAV byte rate"
-        );
-
         _file.close();
-        _currentPath = "";
         return false;
     }
 
+    _currentPath = path;
+
+    _positionBytes = 0;
+
     _durationMs = static_cast<uint32_t>(
-        (
-            static_cast<uint64_t>(_wav.dataSize) * 1000ULL
-        ) / _wav.byteRate
-    );
-
-    // ============================================================
-    // 10. SUCCESS
-    // ============================================================
-
-    Serial0.printf(
-        "[SoundManager] WAV opened: %s\n",
-        path
+        (static_cast<uint64_t>(_wav.dataSize) * 1000ULL)
+        / _wav.byteRate
     );
 
     Serial0.printf(
-        "[SoundManager] Data size: %lu bytes\n",
+        "[SoundManager] WAV opened: %s, %lu bytes\n",
+        path,
         static_cast<unsigned long>(_wav.dataSize)
-    );
-
-    Serial0.printf(
-        "[SoundManager] Sample rate: %lu Hz\n",
-        static_cast<unsigned long>(_wav.sampleRate)
-    );
-
-    Serial0.printf(
-        "[SoundManager] Channels: %u\n",
-        static_cast<unsigned>(_wav.channels)
-    );
-
-    Serial0.printf(
-        "[SoundManager] Bits per sample: %u\n",
-        static_cast<unsigned>(_wav.bitsPerSample)
-    );
-
-    Serial0.printf(
-        "[SoundManager] Duration: %lu ms\n",
-        static_cast<unsigned long>(_durationMs)
     );
 
     return true;
 }
+
+// ============================================================
+// WAV PARSER
+// ============================================================
 
 uint16_t SoundManager::readLE16(const uint8_t* data)
 {
@@ -343,7 +311,6 @@ bool SoundManager::parseWav(File& file)
     if (std::memcmp(header, "RIFF", 4) != 0 ||
         std::memcmp(header + 8, "WAVE", 4) != 0)
     {
-        Serial0.println("[SoundManager][ERROR] Invalid RIFF/WAVE header");
         return false;
     }
 
@@ -354,11 +321,17 @@ bool SoundManager::parseWav(File& file)
     {
         uint8_t chunkHeader[8];
 
-        if (file.read(chunkHeader, sizeof(chunkHeader)) != sizeof(chunkHeader))
+        if (file.read(chunkHeader, sizeof(chunkHeader)) !=
+            sizeof(chunkHeader))
+        {
             break;
+        }
 
-        const uint32_t chunkSize = readLE32(chunkHeader + 4);
-        const uint32_t chunkDataOffset = file.position();
+        const uint32_t chunkSize =
+            readLE32(chunkHeader + 4);
+
+        const uint32_t chunkDataOffset =
+            file.position();
 
         if (std::memcmp(chunkHeader, "fmt ", 4) == 0)
         {
@@ -367,8 +340,11 @@ bool SoundManager::parseWav(File& file)
 
             uint8_t formatData[16];
 
-            if (file.read(formatData, sizeof(formatData)) != sizeof(formatData))
+            if (file.read(formatData, sizeof(formatData)) !=
+                sizeof(formatData))
+            {
                 return false;
+            }
 
             _wav.audioFormat = readLE16(formatData);
             _wav.channels = readLE16(formatData + 2);
@@ -383,6 +359,7 @@ bool SoundManager::parseWav(File& file)
         {
             _wav.dataOffset = chunkDataOffset;
             _wav.dataSize = chunkSize;
+
             foundData = true;
         }
 
@@ -425,7 +402,7 @@ bool SoundManager::validateWav() const
 }
 
 // ============================================================
-// GENERATED PCM PLAYBACK
+// GENERATED PCM SOURCE
 // ============================================================
 
 bool SoundManager::playSource(
@@ -453,13 +430,15 @@ bool SoundManager::playSource(
     _pcmSource = source;
     _pcmContext = context;
     _finishedCallback = finished;
+
     _pcmSampleRate = sampleRate;
 
-    _currentPath = "";
     _currentStream = stream;
+    _currentPath = "";
 
     _positionBytes = 0;
     _durationMs = 0;
+
     _localPercent = 100;
 
     _fadeInEnabled = false;
@@ -468,7 +447,6 @@ bool SoundManager::playSource(
 
     _state = State::PLAYING;
 
-    _lastUpdateMs = millis();
     _lastStatusMs = millis();
     _audioBlocksWritten = 0;
 
@@ -507,6 +485,7 @@ bool SoundManager::beginPCM(
 
     _positionBytes = 0;
     _durationMs = 0;
+
     _localPercent = 100;
 
     _fadeInEnabled = false;
@@ -515,7 +494,6 @@ bool SoundManager::beginPCM(
 
     _state = State::PLAYING;
 
-    _lastUpdateMs = millis();
     _lastStatusMs = millis();
     _audioBlocksWritten = 0;
 
@@ -542,7 +520,8 @@ bool SoundManager::submitPCM(
     {
         _pcmQueue[_pcmHead] = samples[i];
 
-        _pcmHead = (_pcmHead + 1) % PCM_QUEUE_CAPACITY;
+        _pcmHead =
+            (_pcmHead + 1) % PCM_QUEUE_CAPACITY;
     }
 
     _pcmCount += sampleCount;
@@ -569,7 +548,7 @@ void SoundManager::resetPcmQueue()
 }
 
 // ============================================================
-// AUDIO OUTPUT
+// I2S
 // ============================================================
 
 bool SoundManager::startPcmOutput(uint32_t sampleRate)
@@ -581,18 +560,28 @@ bool SoundManager::startPcmOutput(uint32_t sampleRate)
 
     if (!_i2sManager.beginSpeaker(sampleRate))
     {
-        Serial0.println("[SoundManager][ERROR] I2S begin failed");
+        Serial0.println(
+            "[SoundManager][ERROR] I2S begin failed"
+        );
+
         return false;
     }
 
     if (!_i2sManager.startSpeaker())
     {
-        Serial0.println("[SoundManager][ERROR] I2S start failed");
+        Serial0.println(
+            "[SoundManager][ERROR] I2S start failed"
+        );
+
         return false;
     }
 
     return true;
 }
+
+// ============================================================
+// UPDATE AUDIO SOURCE
+// ============================================================
 
 bool SoundManager::readAndPlayChunk()
 {
@@ -664,8 +653,7 @@ bool SoundManager::readWavChunk()
             samples * sizeof(int16_t)
         );
 
-        _positionBytes +=
-            static_cast<uint32_t>(bytesRead);
+        _positionBytes += static_cast<uint32_t>(bytesRead);
 
         return writeSamples(_outputBuffer, samples);
     }
@@ -682,16 +670,13 @@ bool SoundManager::readWavChunk()
             static_cast<int16_t>((left + right) / 2);
     }
 
-    _positionBytes +=
-        static_cast<uint32_t>(bytesRead);
+    _positionBytes += static_cast<uint32_t>(bytesRead);
 
     return writeSamples(_outputBuffer, frames);
 }
 
 bool SoundManager::readPcmChunk()
 {
-    size_t sampleCount = BUFFER_SAMPLES;
-
     if (_sourceMode == SourceMode::CallbackPCM)
     {
         if (_pcmSource == nullptr)
@@ -700,71 +685,79 @@ bool SoundManager::readPcmChunk()
             return false;
         }
 
-        sampleCount = _pcmSource(
+        size_t count = _pcmSource(
             _pcmContext,
             _outputBuffer,
             BUFFER_SAMPLES
         );
 
-        if (sampleCount == 0)
+        // Для callback ноль означает завершение источника.
+        if (count == 0)
         {
-            // Для callback 0 означает завершение источника.
             finishPlayback();
             return false;
         }
 
-        if (sampleCount > BUFFER_SAMPLES)
-            sampleCount = BUFFER_SAMPLES;
+        if (count > BUFFER_SAMPLES)
+            count = BUFFER_SAMPLES;
 
-        // Не отправляем неинициализированные данные,
-        // если источник вернул неполный блок.
-        if (sampleCount < BUFFER_SAMPLES)
+        if (count < BUFFER_SAMPLES)
         {
             std::memset(
-                _outputBuffer + sampleCount,
+                _outputBuffer + count,
                 0,
-                (BUFFER_SAMPLES - sampleCount) * sizeof(int16_t)
+                (BUFFER_SAMPLES - count) * sizeof(int16_t)
             );
         }
 
         _positionBytes +=
-            static_cast<uint32_t>(sampleCount * sizeof(int16_t));
+            static_cast<uint32_t>(count * sizeof(int16_t));
 
+        // Дополняем блок тишиной, если callback вернул
+        // меньше BUFFER_SAMPLES.
         return writeSamples(_outputBuffer, BUFFER_SAMPLES);
     }
 
     if (_sourceMode == SourceMode::BufferedPCM)
     {
-        const size_t available =
+        const size_t count =
             std::min(_pcmCount, BUFFER_SAMPLES);
 
-        for (size_t i = 0; i < available; ++i)
+        for (size_t i = 0; i < count; ++i)
         {
             _outputBuffer[i] = _pcmQueue[_pcmTail];
-            _pcmTail = (_pcmTail + 1) % PCM_QUEUE_CAPACITY;
+
+            _pcmTail =
+                (_pcmTail + 1) % PCM_QUEUE_CAPACITY;
         }
 
-        _pcmCount -= available;
+        _pcmCount -= count;
 
-        // Пустая очередь — это временное отсутствие данных,
-        // а не команда завершить воспроизведение.
-        if (available < BUFFER_SAMPLES)
+        // Пустая очередь означает временное отсутствие данных,
+        // а не завершение воспроизведения.
+        if (count < BUFFER_SAMPLES)
         {
             std::memset(
-                _outputBuffer + available,
+                _outputBuffer + count,
                 0,
-                (BUFFER_SAMPLES - available) * sizeof(int16_t)
+                (BUFFER_SAMPLES - count) * sizeof(int16_t)
             );
         }
 
         _positionBytes +=
-            static_cast<uint32_t>(BUFFER_SAMPLES * sizeof(int16_t));
+            static_cast<uint32_t>(
+                BUFFER_SAMPLES * sizeof(int16_t)
+            );
 
         return writeSamples(_outputBuffer, BUFFER_SAMPLES);
     }
 
     return false;
 }
+
+// ============================================================
+// WRITE PCM SAMPLES
+// ============================================================
 
 bool SoundManager::writeSamples(
     int16_t* samples,
@@ -774,42 +767,18 @@ bool SoundManager::writeSamples(
     if (samples == nullptr || sampleCount == 0)
         return false;
 
-    applyStopFade(samples, sampleCount);
-
-    const uint8_t volume = getEffectiveVolume();
-
-    int32_t peakBefore = 0;
-
-    for (size_t i = 0; i < sampleCount; ++i)
-    {
-        const int32_t value = samples[i] < 0
-            ? -static_cast<int32_t>(samples[i])
-            : static_cast<int32_t>(samples[i]);
-
-        if (value > peakBefore)
-            peakBefore = value;
-    }
-
-    applyVolume(samples, sampleCount, volume);
-
-    int32_t peakAfter = 0;
-
-    for (size_t i = 0; i < sampleCount; ++i)
-    {
-        const int32_t value = samples[i] < 0
-            ? -static_cast<int32_t>(samples[i])
-            : static_cast<int32_t>(samples[i]);
-
-        if (value > peakAfter)
-            peakAfter = value;
-    }
+    applyVolume(
+        samples,
+        sampleCount,
+        getEffectiveVolume()
+    );
 
     size_t bytesWritten = 0;
 
     const size_t bytesToWrite =
         sampleCount * sizeof(int16_t);
 
-    const bool writeOk = _i2sManager.writeSpeaker(
+    const bool ok = _i2sManager.writeSpeaker(
         reinterpret_cast<const uint8_t*>(samples),
         bytesToWrite,
         bytesWritten,
@@ -818,14 +787,13 @@ bool SoundManager::writeSamples(
 
     ++_audioBlocksWritten;
 
-    if (!writeOk || bytesWritten != bytesToWrite)
+    if (!ok || bytesWritten != bytesToWrite)
     {
         Serial0.printf(
-            "[AUDIO][ERROR] block=%lu requested=%u written=%u status=%s\n",
+            "[AUDIO][ERROR] Block %lu: wrote %u/%u bytes\n",
             static_cast<unsigned long>(_audioBlocksWritten),
-            static_cast<unsigned>(bytesToWrite),
             static_cast<unsigned>(bytesWritten),
-            writeOk ? "PARTIAL" : "FAILED"
+            static_cast<unsigned>(bytesToWrite)
         );
 
         return false;
@@ -838,24 +806,15 @@ bool SoundManager::writeSamples(
         _lastStatusMs = now;
 
         Serial0.printf(
-            "[AUDIO] block=%lu samples=%u peakIn=%ld peakOut=%ld "
-            "volume=%u%% written=%u/%u status=OK\n",
+            "[AUDIO] Blocks=%lu Volume=%u%% Bytes=%u\n",
             static_cast<unsigned long>(_audioBlocksWritten),
-            static_cast<unsigned>(sampleCount),
-            static_cast<long>(peakBefore),
-            static_cast<long>(peakAfter),
-            static_cast<unsigned>(volume),
-            static_cast<unsigned>(bytesWritten),
-            static_cast<unsigned>(bytesToWrite)
+            static_cast<unsigned>(getEffectiveVolume()),
+            static_cast<unsigned>(bytesWritten)
         );
     }
 
     return true;
 }
-
-// ============================================================
-// VOLUME
-// ============================================================
 
 void SoundManager::applyVolume(
     int16_t* samples,
@@ -863,6 +822,8 @@ void SoundManager::applyVolume(
     uint8_t volume
 )
 {
+    volume = clampPercent(volume);
+
     if (volume >= 100)
         return;
 
@@ -877,9 +838,8 @@ void SoundManager::applyVolume(
         return;
     }
 
-    // Используем float, чтобы избежать ступенчатого
-    // целочисленного масштабирования промежуточных значений.
-    const float gain = static_cast<float>(volume) / 100.0f;
+    const float gain =
+        static_cast<float>(volume) / 100.0f;
 
     for (size_t i = 0; i < sampleCount; ++i)
     {
@@ -887,14 +847,18 @@ void SoundManager::applyVolume(
             static_cast<float>(samples[i]) * gain;
 
         samples[i] = static_cast<int16_t>(
-            constrain(
-                static_cast<int32_t>(std::lround(scaled)),
-                -32768,
-                32767
+            clampFloat(
+                std::round(scaled),
+                -32768.0f,
+                32767.0f
             )
         );
     }
 }
+
+// ============================================================
+// VOLUME
+// ============================================================
 
 uint8_t SoundManager::calculateBaseVolume() const
 {
@@ -949,7 +913,7 @@ float SoundManager::calculateFadeMultiplier() const
 
 float SoundManager::applyFadeCurve(float value) const
 {
-    value = constrain(value, 0.0f, 1.0f);
+    value = clampFloat(value, 0.0f, 1.0f);
 
     switch (_fadeCurve)
     {
@@ -969,13 +933,9 @@ float SoundManager::applyFadeCurve(float value) const
 
 uint8_t SoundManager::getEffectiveVolume() const
 {
-    const float base =
-        static_cast<float>(calculateBaseVolume());
-
-    const float fade =
+    float result =
+        static_cast<float>(calculateBaseVolume()) *
         calculateFadeMultiplier();
-
-    float result = base * fade;
 
     if (_stopFadeActive && _stopFadeDurationMs > 0)
     {
@@ -997,74 +957,9 @@ uint8_t SoundManager::getEffectiveVolume() const
         }
     }
 
-    result = constrain(result, 0.0f, 100.0f);
-
-    // Округляем, а не отбрасываем дробную часть.
-    return static_cast<uint8_t>(std::lround(result));
-}
-
-// ============================================================
-// STOP FADE
-// ============================================================
-
-void SoundManager::applyStopFade(
-    int16_t* samples,
-    size_t sampleCount
-)
-{
-    if (!_stopFadeActive || _stopFadeDurationMs == 0)
-        return;
-
-    const uint32_t elapsed =
-        millis() - _stopFadeStartMs;
-
-    if (elapsed >= _stopFadeDurationMs)
-    {
-        std::memset(
-            samples,
-            0,
-            sampleCount * sizeof(int16_t)
-        );
-
-        return;
-    }
-
-    const float gain =
-        1.0f -
-        static_cast<float>(elapsed) /
-        static_cast<float>(_stopFadeDurationMs);
-
-    for (size_t i = 0; i < sampleCount; ++i)
-    {
-        samples[i] = static_cast<int16_t>(
-            constrain(
-                static_cast<int32_t>(
-                    std::lround(samples[i] * gain)
-                ),
-                -32768,
-                32767
-            )
-        );
-    }
-}
-
-bool SoundManager::isFadeOutComplete() const
-{
-    if (_state != State::FADING_OUT)
-        return false;
-
-    if (_stopFadeActive)
-    {
-        return millis() - _stopFadeStartMs >=
-               _stopFadeDurationMs;
-    }
-
-    if (_fadeOutEnabled)
-    {
-        return millis() - _fadeStartMs >= _fadeOutMs;
-    }
-
-    return true;
+    return static_cast<uint8_t>(
+        std::lround(clampFloat(result, 0.0f, 100.0f))
+    );
 }
 
 // ============================================================
@@ -1091,19 +986,15 @@ bool SoundManager::resume()
     if (_state != State::PAUSED)
         return false;
 
-    if (_pcmSampleRate > 0)
-    {
-        if (!startPcmOutput(_pcmSampleRate))
-            return false;
-    }
-    else if (_sourceMode == SourceMode::Wav)
-    {
-        if (!startPcmOutput(_wav.sampleRate))
-            return false;
-    }
+    uint32_t sampleRate = _pcmSampleRate;
+
+    if (_sourceMode == SourceMode::Wav)
+        sampleRate = _wav.sampleRate;
+
+    if (sampleRate > 0 && !startPcmOutput(sampleRate))
+        return false;
 
     _state = State::PLAYING;
-    _lastUpdateMs = millis();
 
     return true;
 }
@@ -1136,9 +1027,27 @@ void SoundManager::stop(uint32_t fadeOutMs)
     _stopFadeActive = true;
     _stopFadeStartMs = millis();
     _stopFadeDurationMs = fadeOutMs;
-    _stopFadeInitialVolume = getEffectiveVolume();
 
     _state = State::FADING_OUT;
+}
+
+bool SoundManager::isFadeOutComplete() const
+{
+    if (_state != State::FADING_OUT)
+        return false;
+
+    if (_stopFadeActive)
+    {
+        return millis() - _stopFadeStartMs >=
+               _stopFadeDurationMs;
+    }
+
+    if (_fadeOutEnabled)
+    {
+        return millis() - _fadeStartMs >= _fadeOutMs;
+    }
+
+    return true;
 }
 
 void SoundManager::finishPlayback(bool notify)
@@ -1173,23 +1082,24 @@ void SoundManager::resetPlaybackState()
 
     _fadeInEnabled = false;
     _fadeOutEnabled = false;
+
     _fadeInMs = 0;
     _fadeOutMs = 0;
 
     _stopFadeActive = false;
     _stopFadeDurationMs = 0;
-    _stopFadeInitialVolume = 0;
 
     _pcmSource = nullptr;
     _pcmContext = nullptr;
     _finishedCallback = nullptr;
+
     _pcmSampleRate = 0;
 
     resetPcmQueue();
 }
 
 // ============================================================
-// STATUS / POSITION
+// STATUS
 // ============================================================
 
 bool SoundManager::isInitialized() const
@@ -1223,11 +1133,20 @@ const char* SoundManager::getStateString() const
 {
     switch (_state)
     {
-        case State::STOPPED:   return "stopped";
-        case State::PLAYING:   return "playing";
-        case State::PAUSED:    return "paused";
-        case State::FADING_OUT:return "fading_out";
-        default:               return "unknown";
+        case State::STOPPED:
+            return "stopped";
+
+        case State::PLAYING:
+            return "playing";
+
+        case State::PAUSED:
+            return "paused";
+
+        case State::FADING_OUT:
+            return "fading_out";
+
+        default:
+            return "unknown";
     }
 }
 
@@ -1284,17 +1203,23 @@ uint8_t SoundManager::streamVolume(AudioStream stream) const
     {
         case AudioStream::Media:
             return clampPercent(
-                _settings.get(SettingsManager::Param::VOLUME_MEDIA)
+                _settings.get(
+                    SettingsManager::Param::VOLUME_MEDIA
+                )
             );
 
         case AudioStream::Alarm:
             return clampPercent(
-                _settings.get(SettingsManager::Param::VOLUME_ALARM)
+                _settings.get(
+                    SettingsManager::Param::VOLUME_ALARM
+                )
             );
 
         case AudioStream::System:
             return clampPercent(
-                _settings.get(SettingsManager::Param::VOLUME_SYSTEM)
+                _settings.get(
+                    SettingsManager::Param::VOLUME_SYSTEM
+                )
             );
 
         default:
@@ -1347,13 +1272,15 @@ void SoundManager::setLocalPercent(uint8_t percent)
 void SoundManager::printStatus()
 {
     Serial0.printf(
-        "[SoundManager] state=%s stream=%u volume=%u%% local=%u%% "
-        "position=%lu ms duration=%lu ms\n",
+        "[SoundManager] state=%s stream=%u volume=%u%% "
+        "local=%u%% position=%lu ms duration=%lu ms "
+        "LittleFS=%s\n",
         getStateString(),
         static_cast<unsigned>(_currentStream),
         static_cast<unsigned>(streamVolume(_currentStream)),
         static_cast<unsigned>(_localPercent),
         static_cast<unsigned long>(getPositionMs()),
-        static_cast<unsigned long>(getDurationMs())
+        static_cast<unsigned long>(getDurationMs()),
+        _littleFSReady ? "ready" : "unavailable"
     );
 }
