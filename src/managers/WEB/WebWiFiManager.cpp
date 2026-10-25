@@ -1,8 +1,10 @@
 #include "WebWiFiManager.h"
 
+#include <Arduino.h>
 #include <ArduinoJson.h>
 #include <ESP.h>
 #include <LittleFS.h>
+#include <WebServer.h>
 #include <RTClib.h>
 
 #include "Config.h"
@@ -14,6 +16,12 @@
 namespace
 {
     constexpr char WIFI_SETUP_PAGE[] = "/wifi-setup.html";
+
+    constexpr char WIFI_SETUP_CSS[] =
+        "/css/wifi-setup.css";
+
+    constexpr char WIFI_SETUP_JS[] =
+        "/js/wifi-setup.js";
 
     // ========================================================
     // DATE VALIDATION
@@ -90,6 +98,201 @@ namespace
 
         return true;
     }
+
+    // ========================================================
+    // STATIC FILE MIME TYPES
+    // ========================================================
+
+    const char* getContentType(
+        const String& path
+    )
+    {
+        if (path.endsWith(".html"))
+        {
+            return "text/html; charset=utf-8";
+        }
+
+        if (path.endsWith(".css"))
+        {
+            return "text/css; charset=utf-8";
+        }
+
+        if (path.endsWith(".js"))
+        {
+            return "application/javascript; charset=utf-8";
+        }
+
+        if (path.endsWith(".json"))
+        {
+            return "application/json; charset=utf-8";
+        }
+
+        if (path.endsWith(".svg"))
+        {
+            return "image/svg+xml";
+        }
+
+        if (path.endsWith(".png"))
+        {
+            return "image/png";
+        }
+
+        if (
+            path.endsWith(".jpg") ||
+            path.endsWith(".jpeg")
+        )
+        {
+            return "image/jpeg";
+        }
+
+        if (path.endsWith(".ico"))
+        {
+            return "image/x-icon";
+        }
+
+        if (path.endsWith(".woff2"))
+        {
+            return "font/woff2";
+        }
+
+        if (path.endsWith(".woff"))
+        {
+            return "font/woff";
+        }
+
+        if (path.endsWith(".ttf"))
+        {
+            return "font/ttf";
+        }
+
+        if (path.endsWith(".webp"))
+        {
+            return "image/webp";
+        }
+
+        if (path.endsWith(".txt"))
+        {
+            return "text/plain; charset=utf-8";
+        }
+
+        return "application/octet-stream";
+    }
+
+    // ========================================================
+    // STATIC FILE ACCESS CONTROL
+    //
+    // Allow only the known page, CSS and JS files.
+    // This prevents arbitrary LittleFS file access.
+    // ========================================================
+
+    bool isAllowedStaticFile(
+        const String& path
+    )
+    {
+        return
+            path == WIFI_SETUP_PAGE ||
+            path == WIFI_SETUP_CSS ||
+            path == WIFI_SETUP_JS;
+    }
+
+    // ========================================================
+    // SEND STATIC FILE
+    // ========================================================
+
+    bool serveStaticFile(
+        WebServer& server,
+        const String& path
+    )
+    {
+        if (!isAllowedStaticFile(path))
+        {
+            return false;
+        }
+
+        if (!LittleFS.exists(path))
+        {
+            return false;
+        }
+
+        File file = LittleFS.open(path, "r");
+
+        if (!file || file.isDirectory())
+        {
+            if (file)
+            {
+                file.close();
+            }
+
+            return false;
+        }
+
+        server.sendHeader(
+            "X-Content-Type-Options",
+            "nosniff"
+        );
+
+        // HTML is always revalidated so changes to the page
+        // appear after a reload.
+        if (path.endsWith(".html"))
+        {
+            server.sendHeader(
+                "Cache-Control",
+                "no-cache, no-store, must-revalidate"
+            );
+
+            server.sendHeader(
+                "Pragma",
+                "no-cache"
+            );
+
+            server.sendHeader(
+                "Expires",
+                "-1"
+            );
+        }
+        else
+        {
+            // CSS and JS can be revalidated by the browser.
+            server.sendHeader(
+                "Cache-Control",
+                "no-cache"
+            );
+        }
+
+        server.streamFile(
+            file,
+            getContentType(path)
+        );
+
+        file.close();
+
+        return true;
+    }
+
+    // ========================================================
+    // JSON ERROR RESPONSE
+    // ========================================================
+
+    void sendRouteNotFound(
+        WebServer& server
+    )
+    {
+        JsonDocument doc;
+
+        doc["ok"] = false;
+        doc["message"] = "Route not found";
+        doc["uri"] = server.uri();
+
+        String response;
+
+        serializeJson(doc, response);
+
+        server.send(
+            404,
+            "application/json; charset=utf-8",
+            response
+        );
+    }
 }
 
 // ============================================================
@@ -116,7 +319,8 @@ void WebWiFiManager::setupRoutes(
 )
 {
     // ========================================================
-    // MAIN PAGE: /
+    // MAIN PAGE
+    // GET /
     // ========================================================
 
     server.on(
@@ -124,64 +328,20 @@ void WebWiFiManager::setupRoutes(
         HTTP_GET,
         [&server]()
         {
-            if (!LittleFS.exists(WIFI_SETUP_PAGE))
+            if (!serveStaticFile(server, WIFI_SETUP_PAGE))
             {
                 server.send(
                     500,
                     "text/plain; charset=utf-8",
-                    "Wi-Fi setup page not found in LittleFS"
+                    "Cannot load /wifi-setup.html from LittleFS"
                 );
-
-                return;
             }
-
-            File file = LittleFS.open(
-                WIFI_SETUP_PAGE,
-                "r"
-            );
-
-            if (!file || file.isDirectory())
-            {
-                if (file)
-                {
-                    file.close();
-                }
-
-                server.send(
-                    500,
-                    "text/plain; charset=utf-8",
-                    "Failed to open Wi-Fi setup page"
-                );
-
-                return;
-            }
-
-            server.sendHeader(
-                "Cache-Control",
-                "no-cache, no-store, must-revalidate"
-            );
-
-            server.sendHeader(
-                "Pragma",
-                "no-cache"
-            );
-
-            server.sendHeader(
-                "Expires",
-                "-1"
-            );
-
-            server.streamFile(
-                file,
-                "text/html; charset=utf-8"
-            );
-
-            file.close();
         }
     );
 
     // ========================================================
-    // DIRECT PAGE ACCESS: /wifi-setup.html
+    // DIRECT PAGE ACCESS
+    // GET /wifi-setup.html
     // ========================================================
 
     server.on(
@@ -189,49 +349,14 @@ void WebWiFiManager::setupRoutes(
         HTTP_GET,
         [&server]()
         {
-            if (!LittleFS.exists(WIFI_SETUP_PAGE))
+            if (!serveStaticFile(server, WIFI_SETUP_PAGE))
             {
                 server.send(
                     404,
                     "text/plain; charset=utf-8",
                     "wifi-setup.html not found in LittleFS"
                 );
-
-                return;
             }
-
-            File file = LittleFS.open(
-                WIFI_SETUP_PAGE,
-                "r"
-            );
-
-            if (!file || file.isDirectory())
-            {
-                if (file)
-                {
-                    file.close();
-                }
-
-                server.send(
-                    500,
-                    "text/plain; charset=utf-8",
-                    "Failed to open wifi-setup.html"
-                );
-
-                return;
-            }
-
-            server.sendHeader(
-                "Cache-Control",
-                "no-cache, no-store, must-revalidate"
-            );
-
-            server.streamFile(
-                file,
-                "text/html; charset=utf-8"
-            );
-
-            file.close();
         }
     );
 
@@ -306,7 +431,10 @@ void WebWiFiManager::setupRoutes(
     );
 
     // ========================================================
-    // NOT FOUND
+    // STATIC FILES AND UNKNOWN ROUTES
+    //
+    // WebServer calls onNotFound for paths without a
+    // registered route, including CSS and JavaScript.
     // ========================================================
 
     server.onNotFound(
@@ -314,35 +442,32 @@ void WebWiFiManager::setupRoutes(
         {
             const String uri = server.uri();
 
-            // Serve a clear diagnostic response for unknown routes.
-            JsonDocument doc;
+            // Only allow GET requests for static resources.
+            if (server.method() == HTTP_GET)
+            {
+                if (serveStaticFile(server, uri))
+                {
+                    return;
+                }
+            }
 
-            doc["ok"] = false;
-            doc["message"] = "Route not found";
-            doc["uri"] = uri;
-
-            String response;
-            serializeJson(doc, response);
-
-            server.send(
-                404,
-                "application/json; charset=utf-8",
-                response
-            );
+            sendRouteNotFound(server);
         }
     );
 
-    Serial0.println(
-        "[WEB][WIFI] Routes registered"
-    );
+    Serial0.println();
+    Serial0.println("[WEB][WIFI] Routes registered");
 
-    Serial0.println(
-        "[WEB][WIFI] Main page: /"
-    );
+    Serial0.println("[WEB][WIFI] Page: /");
+    Serial0.println("[WEB][WIFI] HTML: /wifi-setup.html");
+    Serial0.println("[WEB][WIFI] CSS: /css/wifi-setup.css");
+    Serial0.println("[WEB][WIFI] JS: /js/wifi-setup.js");
 
-    Serial0.println(
-        "[WEB][WIFI] Setup page: /wifi-setup.html"
-    );
+    Serial0.println("[WEB][WIFI] API: /api/wifi");
+    Serial0.println("[WEB][WIFI] API: /api/wifi/scan");
+    Serial0.println("[WEB][WIFI] API: /api/wifi/connect");
+    Serial0.println("[WEB][WIFI] API: /api/wifi/forget");
+    Serial0.println("[WEB][WIFI] API: /api/wifi/setup");
 }
 
 // ============================================================
@@ -425,6 +550,7 @@ void WebWiFiManager::handleStatus(
     }
 
     String response;
+
     serializeJson(doc, response);
 
     server.send(
@@ -435,7 +561,7 @@ void WebWiFiManager::handleStatus(
 }
 
 // ============================================================
-// SCAN
+// SCAN WIFI NETWORKS
 // ============================================================
 
 void WebWiFiManager::handleScan(
@@ -468,6 +594,7 @@ void WebWiFiManager::handleScan(
     }
 
     String response;
+
     serializeJson(doc, response);
 
     server.send(
@@ -478,7 +605,7 @@ void WebWiFiManager::handleScan(
 }
 
 // ============================================================
-// CONNECT WIFI + UTC SETTINGS
+// CONNECT WIFI + INITIAL UTC CONFIGURATION
 // ============================================================
 
 void WebWiFiManager::handleConnect(
@@ -605,7 +732,7 @@ void WebWiFiManager::handleConnect(
     }
 
     // --------------------------------------------------------
-    // 5. Validate numeric ranges before casting
+    // 5. Validate date/time numeric ranges
     // --------------------------------------------------------
 
     if (
@@ -820,6 +947,7 @@ void WebWiFiManager::handleConnect(
         "WiFi and UTC settings saved. Restarting.";
 
     String response;
+
     serializeJson(
         responseDoc,
         response
@@ -863,6 +991,7 @@ void WebWiFiManager::handleForget(
         "WiFi credentials cleared. ESP32 is restarting.";
 
     String response;
+
     serializeJson(doc, response);
 
     server.send(
@@ -914,6 +1043,7 @@ void WebWiFiManager::handleSetup(
         _wifiManager.getAPIP();
 
     String response;
+
     serializeJson(doc, response);
 
     server.send(
@@ -939,6 +1069,7 @@ void WebWiFiManager::sendError(
     doc["message"] = message;
 
     String response;
+
     serializeJson(doc, response);
 
     server.send(
