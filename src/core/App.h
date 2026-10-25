@@ -31,7 +31,6 @@
 
 #include "./managers/WEB/WebWiFiManager.h"
 
-
 // ============================================================
 // APP
 // ============================================================
@@ -39,102 +38,46 @@
 class App
 {
 public:
-
-    // ========================================================
-    // CONSTRUCTOR
-    // ========================================================
-
     App();
 
-
-    // ========================================================
-    // LIFECYCLE
-    // ========================================================
-
     bool begin();
-
     void update();
 
-
 private:
-
-    // ========================================================
-    // INITIALIZATION
-    // ========================================================
-
+    // Initialization
     bool initSettings();
-
     bool initSPI();
-
     bool initI2S();
-
-    bool initSD();
-
-    bool initSound();
-
     bool initClock();
-
     bool initSensors();
-
     bool initLighting();
-
     bool initDisplay();
-
+    bool initSD();
+    bool initSound();
     bool initAlarm();
-
     bool initWiFi();
-
     bool initWebWiFi();
 
-
-    // ========================================================
-    // CORE MANAGERS
-    // ========================================================
-
+    // Core managers
     SettingsManager _settings;
-
     SPIManager _spiManager;
-
     I2SManager _i2sManager;
-
     SDManager _sdManager;
-
     SoundManager _soundManager;
-
     SensorManager _sensorManager;
-
     ClockSystem _clockSystem;
-
     LightingManager _lighting;
-
     DisplaySystem _displaySystem;
 
-
-    // ========================================================
-    // ALARM
-    // ========================================================
-
+    // Alarms
     AlarmManager _alarmManager;
-
     AlarmController _alarmController;
 
-
-    // ========================================================
-    // NETWORK
-    // ========================================================
-
+    // Network
     WiFiManager _wifiManager;
-
-    // HTTP server on port 80.
     WebServer _webServer;
-
-    // Wi-Fi HTTP API.
     WebWiFiManager _webWiFiManager;
 
-
-    // ========================================================
-    // STATE
-    // ========================================================
-
+    // State
     bool _initialized;
 };
