@@ -54,16 +54,13 @@ bool App::begin()
         return true;
     }
 
-    Serial0.begin(115200);
-    delay(300);
-
     Serial0.println();
     Serial0.println("============================================");
     Serial0.println("          SMART CLOCK STARTUP");
     Serial0.println("============================================");
 
     // --------------------------------------------------------
-    // 1. SETTINGS
+    // STEP 1: SETTINGS
     // --------------------------------------------------------
 
     Serial0.println("[APP] Step 1/12: Settings");
@@ -77,7 +74,7 @@ bool App::begin()
     Serial0.println("[APP] Settings initialized");
 
     // --------------------------------------------------------
-    // 2. SPI
+    // STEP 2: SPI
     // --------------------------------------------------------
 
     Serial0.println("[APP] Step 2/12: SPI");
@@ -91,7 +88,7 @@ bool App::begin()
     Serial0.println("[APP] SPI initialized");
 
     // --------------------------------------------------------
-    // 3. I2S
+    // STEP 3: I2S
     // --------------------------------------------------------
 
     Serial0.println("[APP] Step 3/12: I2S");
@@ -105,7 +102,7 @@ bool App::begin()
     Serial0.println("[APP] I2S initialized");
 
     // --------------------------------------------------------
-    // 4. CLOCK
+    // STEP 4: CLOCK
     // --------------------------------------------------------
 
     Serial0.println("[APP] Step 4/12: Clock");
@@ -119,21 +116,21 @@ bool App::begin()
     Serial0.println("[APP] Clock initialized");
 
     // --------------------------------------------------------
-    // 5. SENSORS
+    // STEP 5: SENSORS
     // --------------------------------------------------------
 
     Serial0.println("[APP] Step 5/12: Sensors");
 
     if (!initSensors())
     {
-        Serial0.println("[APP][ERROR] Sensors initialization failed");
+        Serial0.println("[APP][ERROR] Sensor initialization failed");
         return false;
     }
 
     Serial0.println("[APP] Sensors initialized");
 
     // --------------------------------------------------------
-    // 6. LIGHTING
+    // STEP 6: LIGHTING
     // --------------------------------------------------------
 
     Serial0.println("[APP] Step 6/12: Lighting");
@@ -147,11 +144,8 @@ bool App::begin()
     Serial0.println("[APP] Lighting initialized");
 
     // --------------------------------------------------------
-    // 7. DISPLAY
+    // STEP 7: DISPLAYS
     // --------------------------------------------------------
-
-    // Сначала инициализируем дисплеи.
-    // SD-карта пока не монтируется.
 
     Serial0.println("[APP] Step 7/12: Displays");
 
@@ -164,28 +158,22 @@ bool App::begin()
     Serial0.println("[APP] Displays initialized");
 
     // --------------------------------------------------------
-    // 8. SD CARD
+    // STEP 8: SD CARD
     // --------------------------------------------------------
-
-    // После инициализации дисплеев проверяем SD.
-    // SPIManager должен продолжать использовать общую SPI-шину.
-    // Перед обращением к SD линии CS дисплеев должны быть HIGH.
 
     Serial0.println("[APP] Step 8/12: SD card");
 
     if (!initSD())
     {
-        Serial0.println("[APP][ERROR] SD initialization failed");
+        Serial0.println("[APP][ERROR] SD card initialization failed");
         return false;
     }
 
     Serial0.println("[APP] SD card initialized");
 
     // --------------------------------------------------------
-    // 9. SOUND
+    // STEP 9: SOUND
     // --------------------------------------------------------
-
-    // SoundManager зависит от SDManager и I2SManager.
 
     Serial0.println("[APP] Step 9/12: Sound");
 
@@ -198,7 +186,7 @@ bool App::begin()
     Serial0.println("[APP] Sound initialized");
 
     // --------------------------------------------------------
-    // 10. ALARMS
+    // STEP 10: ALARMS
     // --------------------------------------------------------
 
     Serial0.println("[APP] Step 10/12: Alarms");
@@ -209,10 +197,10 @@ bool App::begin()
         return false;
     }
 
-    Serial0.println("[APP] Alarm manager initialized");
+    Serial0.println("[APP] Alarms initialized");
 
     // --------------------------------------------------------
-    // 11. WI-FI
+    // STEP 11: WI-FI
     // --------------------------------------------------------
 
     Serial0.println("[APP] Step 11/12: Wi-Fi");
@@ -226,7 +214,7 @@ bool App::begin()
     Serial0.println("[APP] Wi-Fi initialized");
 
     // --------------------------------------------------------
-    // 12. WEB SERVER
+    // STEP 12: WEB SERVER
     // --------------------------------------------------------
 
     Serial0.println("[APP] Step 12/12: Web server");
@@ -238,16 +226,16 @@ bool App::begin()
     }
 
     // --------------------------------------------------------
-    // READY
+    // COMPLETE
     // --------------------------------------------------------
 
     _initialized = true;
 
     Serial0.println();
     Serial0.println("============================================");
+    Serial0.println("[APP] Initialization complete");
     Serial0.println("[APP] SMART CLOCK READY");
     Serial0.println("============================================");
-    Serial0.println();
 
     return true;
 }
@@ -264,15 +252,10 @@ void App::update()
     }
 
     // --------------------------------------------------------
-    // SETTINGS
+    // SETTINGS AND CLOCK
     // --------------------------------------------------------
 
     _settings.update();
-
-    // --------------------------------------------------------
-    // CLOCK
-    // --------------------------------------------------------
-
     _clockSystem.update();
 
     // --------------------------------------------------------
@@ -282,19 +265,14 @@ void App::update()
     _sensorManager.update();
 
     // --------------------------------------------------------
-    // LIGHTING
+    // LIGHTING AND DISPLAY
     // --------------------------------------------------------
 
     _lighting.update();
-
-    // --------------------------------------------------------
-    // DISPLAY
-    // --------------------------------------------------------
-
     _displaySystem.update();
 
     // --------------------------------------------------------
-    // SOUND
+    // AUDIO
     // --------------------------------------------------------
 
     _soundManager.update();
@@ -313,7 +291,7 @@ void App::update()
     _wifiManager.update();
 
     // --------------------------------------------------------
-    // HTTP SERVER
+    // WEB SERVER
     // --------------------------------------------------------
 
     _webServer.handleClient();
@@ -326,7 +304,6 @@ void App::update()
 bool App::initSettings()
 {
     Serial0.println("[APP] Initializing settings...");
-
     return _settings.begin();
 }
 
@@ -337,7 +314,6 @@ bool App::initSettings()
 bool App::initSPI()
 {
     Serial0.println("[APP] Initializing SPI...");
-
     return _spiManager.begin();
 }
 
@@ -348,7 +324,6 @@ bool App::initSPI()
 bool App::initI2S()
 {
     Serial0.println("[APP] Initializing I2S...");
-
     return _i2sManager.begin();
 }
 
@@ -359,7 +334,6 @@ bool App::initI2S()
 bool App::initClock()
 {
     Serial0.println("[APP] Initializing clock...");
-
     return _clockSystem.begin();
 }
 
@@ -370,7 +344,6 @@ bool App::initClock()
 bool App::initSensors()
 {
     Serial0.println("[APP] Initializing sensors...");
-
     return _sensorManager.begin();
 }
 
@@ -381,7 +354,6 @@ bool App::initSensors()
 bool App::initLighting()
 {
     Serial0.println("[APP] Initializing lighting...");
-
     return _lighting.begin();
 }
 
@@ -392,25 +364,101 @@ bool App::initLighting()
 bool App::initDisplay()
 {
     Serial0.println("[APP] Initializing displays...");
-
     return _displaySystem.begin();
 }
 
 // ============================================================
-// SD
+// SD CARD
 // ============================================================
 
 bool App::initSD()
 {
     Serial0.println("[APP] Initializing SD card...");
 
-    if (!_sdManager.begin(PIN_SD_CS))
+    // --------------------------------------------------------
+    // DESELECT ALL SPI DEVICES
+    // --------------------------------------------------------
+    // Все CS должны быть HIGH перед обращением к SD-карте.
+    // Это диагностическая мера для общей SPI-шины.
+
+    const int csPins[] =
     {
-        Serial0.println("[APP][ERROR] SD card mount failed");
+        PIN_TFT_CS1,
+        PIN_TFT_CS2,
+        PIN_TFT_CS3,
+        PIN_TFT_CS4,
+        PIN_SD_CS
+    };
+
+    const size_t csCount = sizeof(csPins) / sizeof(csPins[0]);
+
+    for (size_t i = 0; i < csCount; ++i)
+    {
+        pinMode(csPins[i], OUTPUT);
+        digitalWrite(csPins[i], HIGH);
+    }
+
+    delay(10);
+
+    // --------------------------------------------------------
+    // VERIFY CHIP SELECT LEVELS
+    // --------------------------------------------------------
+
+    bool csStateValid = true;
+
+    for (size_t i = 0; i < csCount; ++i)
+    {
+        const int pin = csPins[i];
+        const int level = digitalRead(pin);
+
+        Serial0.printf(
+            "[APP][SPI] CS GPIO %d = %d\n",
+            pin,
+            level
+        );
+
+        if (level != HIGH)
+        {
+            csStateValid = false;
+
+            Serial0.printf(
+                "[APP][SPI][ERROR] CS GPIO %d is not HIGH\n",
+                pin
+            );
+        }
+    }
+
+    if (!csStateValid)
+    {
+        Serial0.println(
+            "[APP][SD][ERROR] Invalid chip select state"
+        );
+
         return false;
     }
 
-    Serial0.println("[APP] SD card mounted successfully");
+    // --------------------------------------------------------
+    // INITIALIZE SD CARD
+    // --------------------------------------------------------
+
+    Serial0.println("[APP][SD] All CS pins are HIGH");
+    Serial0.println("[APP][SD] Calling SDManager::begin()...");
+
+    const bool result = _sdManager.begin(PIN_SD_CS);
+
+    if (!result)
+    {
+        Serial0.println();
+        Serial0.println("============================================");
+        Serial0.println("[APP][SD][ERROR] SD initialization failed");
+        Serial0.println("[APP][SD][ERROR] CS pin: GPIO 35");
+        Serial0.println("[APP][SD][ERROR] SPI bus may be busy");
+        Serial0.println("============================================");
+
+        return false;
+    }
+
+    Serial0.println("[APP][SD] SD card mounted successfully");
 
     return true;
 }
@@ -422,18 +470,16 @@ bool App::initSD()
 bool App::initSound()
 {
     Serial0.println("[APP] Initializing sound...");
-
     return _soundManager.begin();
 }
 
 // ============================================================
-// ALARM
+// ALARMS
 // ============================================================
 
 bool App::initAlarm()
 {
-    Serial0.println("[APP] Initializing alarm manager...");
-
+    Serial0.println("[APP] Initializing alarms...");
     return _alarmManager.begin();
 }
 
@@ -444,7 +490,6 @@ bool App::initAlarm()
 bool App::initWiFi()
 {
     Serial0.println("[APP] Initializing Wi-Fi...");
-
     return _wifiManager.begin();
 }
 
@@ -454,15 +499,16 @@ bool App::initWiFi()
 
 bool App::initWebWiFi()
 {
-    Serial0.println("[APP] Configuring web server routes...");
+    Serial0.println("[APP] Configuring web server...");
 
+    // Регистрируем маршруты управления Wi-Fi.
     _webWiFiManager.setupRoutes(_webServer);
 
-    Serial0.println("[APP] Starting HTTP server...");
-
+    // Запускаем HTTP-сервер.
     _webServer.begin();
 
-    Serial0.println("[APP] HTTP server started on port 80");
+    Serial0.println("[APP] HTTP server started");
+    Serial0.println("[APP] Port: 80");
 
     return true;
 }

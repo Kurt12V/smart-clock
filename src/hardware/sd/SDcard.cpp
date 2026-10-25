@@ -65,7 +65,7 @@ bool SDCard::begin(uint8_t csPin)
     // SPI CONFIGURATION
     // --------------------------------------------------------
 
-    constexpr uint32_t SD_SPI_FREQUENCY = 400000;
+    constexpr uint32_t SD_SPI_FREQUENCY = 20000000;
 
     Serial0.println("[SD][BEGIN] SPI configuration:");
     Serial0.printf("[SD][BEGIN]   SPI bus: SPI\n");
