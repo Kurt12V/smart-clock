@@ -32,6 +32,15 @@
 #include "./managers/WEB/WebWiFiManager.h"
 
 // ============================================================
+// AUDIO WEBSOCKET
+// ============================================================
+
+// Путь предполагает, что WebSocketAudioClient.h находится
+// непосредственно в каталоге src.
+// #include "./managers/NET/WebSocketAudioClient.h"
+
+
+// ============================================================
 // APP
 // ============================================================
 
@@ -62,6 +71,11 @@ public:
         return _initialized;
     }
 
+    // bool isAudioWebSocketConnected() const
+    // {
+    //     return _audioWebSocket.isConnected();
+    // }
+
 private:
 
     // ========================================================
@@ -80,6 +94,18 @@ private:
     bool initAlarm();
     bool initWiFi();
     bool initWebWiFi();
+
+    // ========================================================
+    // AUDIO WEBSOCKET
+    // ========================================================
+
+    // bool initAudioWebSocket();
+
+    // static void handleAudioWebSocketEvent(
+    //     WebSocketAudioClient::Event event,
+    //     const uint8_t* payload,
+    //     size_t length
+    // );
 
     // ========================================================
     // CORE MANAGERS
@@ -120,6 +146,12 @@ private:
     WebServer _webServer;
 
     WebWiFiManager _webWiFiManager;
+
+    // ========================================================
+    // AUDIO NETWORK
+    // ========================================================
+
+    // WebSocketAudioClient _audioWebSocket;
 
     // ========================================================
     // STATE

@@ -3,6 +3,24 @@
 #include <Arduino.h>
 
 // ============================================================
+// AUDIO SERVER CONFIGURATION
+// ============================================================
+
+// IP-адрес компьютера с Python WebSocket-сервером.
+// ЗАМЕНИ на реальный адрес своего компьютера.
+static constexpr char AUDIO_SERVER_HOST[] = "192.168.1.100";
+
+// Порт WebSocket-сервера.
+static constexpr uint16_t AUDIO_SERVER_PORT = 8765;
+
+// WebSocket endpoint.
+static constexpr char AUDIO_SERVER_PATH[] = "/audio";
+
+// Идентификатор устройства.
+static constexpr char AUDIO_DEVICE_ID[] = "smartclock-01";
+
+
+// ============================================================
 // CONSTRUCTOR
 // ============================================================
 
@@ -41,9 +59,11 @@ App::App()
         _settings,
         _clockSystem
     )
+    // , _audioWebSocket()
     , _initialized(false)
 {
 }
+
 
 // ============================================================
 // BEGIN
@@ -72,12 +92,13 @@ bool App::begin()
     );
     Serial0.println();
 
+
     // --------------------------------------------------------
     // STEP 1: SETTINGS
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 1/12: Settings"
+        "[APP] Step 1/13: Settings"
     );
 
     if (!initSettings())
@@ -93,12 +114,13 @@ bool App::begin()
         "[APP] Settings initialized"
     );
 
+
     // --------------------------------------------------------
     // STEP 2: SPI
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 2/12: SPI"
+        "[APP] Step 2/13: SPI"
     );
 
     if (!initSPI())
@@ -114,12 +136,13 @@ bool App::begin()
         "[APP] SPI initialized"
     );
 
+
     // --------------------------------------------------------
     // STEP 3: I2S
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 3/12: I2S"
+        "[APP] Step 3/13: I2S"
     );
 
     if (!initI2S())
@@ -135,12 +158,13 @@ bool App::begin()
         "[APP] I2S initialized"
     );
 
+
     // --------------------------------------------------------
     // STEP 4: CLOCK
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 4/12: Clock"
+        "[APP] Step 4/13: Clock"
     );
 
     if (!initClock())
@@ -156,12 +180,13 @@ bool App::begin()
         "[APP] Clock initialized"
     );
 
+
     // --------------------------------------------------------
     // STEP 5: SENSORS
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 5/12: Sensors"
+        "[APP] Step 5/13: Sensors"
     );
 
     if (!initSensors())
@@ -177,12 +202,13 @@ bool App::begin()
         "[APP] Sensors initialized"
     );
 
+
     // --------------------------------------------------------
     // STEP 6: LIGHTING
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 6/12: Lighting"
+        "[APP] Step 6/13: Lighting"
     );
 
     if (!initLighting())
@@ -198,12 +224,13 @@ bool App::begin()
         "[APP] Lighting initialized"
     );
 
+
     // --------------------------------------------------------
     // STEP 7: DISPLAYS
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 7/12: Displays"
+        "[APP] Step 7/13: Displays"
     );
 
     if (!initDisplay())
@@ -219,12 +246,13 @@ bool App::begin()
         "[APP] Displays initialized"
     );
 
+
     // --------------------------------------------------------
     // STEP 8: BRIGHTNESS
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 8/12: Brightness"
+        "[APP] Step 8/13: Brightness"
     );
 
     if (!initBrightness())
@@ -240,12 +268,13 @@ bool App::begin()
         "[APP] Brightness initialized"
     );
 
+
     // --------------------------------------------------------
     // STEP 9: SOUND
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 9/12: Sound"
+        "[APP] Step 9/13: Sound"
     );
 
     if (!initSound())
@@ -261,12 +290,13 @@ bool App::begin()
         "[APP] Sound initialized"
     );
 
+
     // --------------------------------------------------------
     // STEP 10: ALARMS
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 10/12: Alarms"
+        "[APP] Step 10/13: Alarms"
     );
 
     if (!initAlarm())
@@ -282,12 +312,13 @@ bool App::begin()
         "[APP] Alarms initialized"
     );
 
+
     // --------------------------------------------------------
     // STEP 11: WI-FI
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 11/12: Wi-Fi"
+        "[APP] Step 11/13: Wi-Fi"
     );
 
     if (!initWiFi())
@@ -303,12 +334,13 @@ bool App::begin()
         "[APP] Wi-Fi initialized"
     );
 
+
     // --------------------------------------------------------
     // STEP 12: WEB INTERFACE
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 12/12: Web interface"
+        "[APP] Step 12/13: Web interface"
     );
 
     if (!initWebWiFi())
@@ -319,6 +351,33 @@ bool App::begin()
 
         return false;
     }
+
+    Serial0.println(
+        "[APP] Web interface initialized"
+    );
+
+
+    // --------------------------------------------------------
+    // STEP 13: AUDIO WEBSOCKET
+    // --------------------------------------------------------
+
+    Serial0.println(
+        "[APP] Step 13/13: Audio WebSocket"
+    );
+
+    // if (!initAudioWebSocket())
+    // {
+    //     Serial0.println(
+    //         "[APP][ERROR] Audio WebSocket initialization failed"
+    //     );
+
+    //     return false;
+    // }
+
+    Serial0.println(
+        "[APP] Audio WebSocket initialized"
+    );
+
 
     // --------------------------------------------------------
     // INITIALIZATION COMPLETE
@@ -344,6 +403,7 @@ bool App::begin()
     return true;
 }
 
+
 // ============================================================
 // UPDATE
 // ============================================================
@@ -355,11 +415,13 @@ void App::update()
         return;
     }
 
+
     // --------------------------------------------------------
     // SETTINGS
     // --------------------------------------------------------
 
     _settings.update();
+
 
     // --------------------------------------------------------
     // CLOCK
@@ -367,25 +429,20 @@ void App::update()
 
     _clockSystem.update();
 
+
     // --------------------------------------------------------
     // SENSORS
     // --------------------------------------------------------
 
     _sensorManager.update();
 
+
     // --------------------------------------------------------
     // BRIGHTNESS
     // --------------------------------------------------------
-    //
-    // Обновляем после часов и датчиков.
-    // Менеджер рассчитывает яркость и записывает новое
-    // значение через SettingsManager.
-    //
-    // Физическим управлением дисплеями этот менеджер
-    // не занимается.
-    // --------------------------------------------------------
 
     _brightnessManager.update();
+
 
     // --------------------------------------------------------
     // LIGHTING
@@ -393,11 +450,13 @@ void App::update()
 
     _lighting.update();
 
+
     // --------------------------------------------------------
     // DISPLAYS
     // --------------------------------------------------------
 
     _displaySystem.update();
+
 
     // --------------------------------------------------------
     // SOUND
@@ -405,11 +464,13 @@ void App::update()
 
     _soundManager.update();
 
+
     // --------------------------------------------------------
     // ALARM MANAGER
     // --------------------------------------------------------
 
     _alarmManager.update();
+
 
     // --------------------------------------------------------
     // ALARM CONTROLLER
@@ -417,18 +478,35 @@ void App::update()
 
     _alarmController.update();
 
+
     // --------------------------------------------------------
     // WI-FI
     // --------------------------------------------------------
 
     _wifiManager.update();
 
+
     // --------------------------------------------------------
     // HTTP SERVER
     // --------------------------------------------------------
 
     _webServer.handleClient();
+
+
+    // --------------------------------------------------------
+    // AUDIO WEBSOCKET
+    // --------------------------------------------------------
+    //
+    // Обслуживаем соединение и получаем новые сообщения.
+    // Метод должен вызываться регулярно.
+    //
+    // Автоматическое повторное подключение выполняет
+    // библиотека WebSocketsClient.
+    // --------------------------------------------------------
+
+    // _audioWebSocket.update();
 }
+
 
 // ============================================================
 // SETTINGS
@@ -443,6 +521,7 @@ bool App::initSettings()
     return _settings.begin();
 }
 
+
 // ============================================================
 // SPI
 // ============================================================
@@ -455,6 +534,7 @@ bool App::initSPI()
 
     return _spiManager.begin();
 }
+
 
 // ============================================================
 // I2S
@@ -469,6 +549,7 @@ bool App::initI2S()
     return _i2sManager.begin();
 }
 
+
 // ============================================================
 // CLOCK
 // ============================================================
@@ -481,6 +562,7 @@ bool App::initClock()
 
     return _clockSystem.begin();
 }
+
 
 // ============================================================
 // SENSORS
@@ -495,6 +577,7 @@ bool App::initSensors()
     return _sensorManager.begin();
 }
 
+
 // ============================================================
 // LIGHTING
 // ============================================================
@@ -508,6 +591,7 @@ bool App::initLighting()
     return _lighting.begin();
 }
 
+
 // ============================================================
 // DISPLAY
 // ============================================================
@@ -520,6 +604,7 @@ bool App::initDisplay()
 
     return _displaySystem.begin();
 }
+
 
 // ============================================================
 // BRIGHTNESS
@@ -553,6 +638,7 @@ bool App::initBrightness()
     return true;
 }
 
+
 // ============================================================
 // SOUND
 // ============================================================
@@ -565,6 +651,7 @@ bool App::initSound()
 
     return _soundManager.begin();
 }
+
 
 // ============================================================
 // ALARMS
@@ -579,6 +666,7 @@ bool App::initAlarm()
     return _alarmManager.begin();
 }
 
+
 // ============================================================
 // WI-FI
 // ============================================================
@@ -591,6 +679,7 @@ bool App::initWiFi()
 
     return _wifiManager.begin();
 }
+
 
 // ============================================================
 // WEB / WI-FI CONFIGURATION
@@ -610,6 +699,7 @@ bool App::initWebWiFi()
         _webServer
     );
 
+
     // --------------------------------------------------------
     // START HTTP SERVER
     // --------------------------------------------------------
@@ -626,3 +716,195 @@ bool App::initWebWiFi()
 
     return true;
 }
+
+
+// ============================================================
+// AUDIO WEBSOCKET INITIALIZATION
+// ============================================================
+
+// bool App::initAudioWebSocket()
+// {
+//     Serial0.println(
+//         "[APP] Initializing audio WebSocket..."
+//     );
+
+//     Serial0.printf(
+//         "[APP] Audio server: %s:%u%s\n",
+//         AUDIO_SERVER_HOST,
+//         AUDIO_SERVER_PORT,
+//         AUDIO_SERVER_PATH
+//     );
+
+//     // --------------------------------------------------------
+//     // REGISTER EVENT CALLBACK
+//     // --------------------------------------------------------
+
+//     _audioWebSocket.setEventCallback(
+//         &App::handleAudioWebSocketEvent
+//     );
+
+
+//     // --------------------------------------------------------
+//     // START WEBSOCKET CLIENT
+//     // --------------------------------------------------------
+
+//     const bool result = _audioWebSocket.begin(
+//         AUDIO_SERVER_HOST,
+//         AUDIO_SERVER_PORT,
+//         AUDIO_SERVER_PATH,
+//         AUDIO_DEVICE_ID
+//     );
+
+//     if (!result)
+//     {
+//         Serial0.println(
+//             "[APP][ERROR] Failed to initialize audio WebSocket"
+//         );
+
+//         return false;
+//     }
+
+//     // begin() инициализирует клиента.
+//     // Само TCP/WebSocket-соединение устанавливается
+//     // асинхронно во время вызовов update().
+
+//     Serial0.println(
+//         "[APP] Audio WebSocket client started"
+//     );
+
+//     return true;
+// }
+
+
+// ============================================================
+// AUDIO WEBSOCKET EVENT HANDLER
+// ============================================================
+
+// void App::handleAudioWebSocketEvent(
+//     WebSocketAudioClient::Event event,
+//     const uint8_t* payload,
+//     size_t length
+// )
+// {
+//     switch (event)
+//     {
+//         // ----------------------------------------------------
+//         // CONNECTED
+//         // ----------------------------------------------------
+
+//         case WebSocketAudioClient::Event::CONNECTED:
+//         {
+//             Serial0.println(
+//                 "[APP][AUDIO] Connected to Python server"
+//             );
+
+//             break;
+//         }
+
+
+//         // ----------------------------------------------------
+//         // DISCONNECTED
+//         // ----------------------------------------------------
+
+//         case WebSocketAudioClient::Event::DISCONNECTED:
+//         {
+//             Serial0.println(
+//                 "[APP][AUDIO] Disconnected from Python server"
+//             );
+
+//             break;
+//         }
+
+
+//         // ----------------------------------------------------
+//         // TEXT RECEIVED
+//         // ----------------------------------------------------
+
+//         case WebSocketAudioClient::Event::TEXT_RECEIVED:
+//         {
+//             Serial0.printf(
+//                 "[APP][AUDIO] Server text message (%u bytes)\n",
+//                 static_cast<unsigned int>(length)
+//             );
+
+//             if (payload != nullptr && length > 0)
+//             {
+//                 Serial0.printf(
+//                     "[APP][AUDIO] Message: %.*s\n",
+//                     static_cast<int>(length),
+//                     reinterpret_cast<const char*>(payload)
+//                 );
+//             }
+
+//             // Здесь можно обрабатывать JSON-команды сервера:
+//             // start_recording, stop_recording, play_audio и т.д.
+//             //
+//             // Конкретный формат команд должен совпадать
+//             // с реализацией Python-сервера.
+
+//             break;
+//         }
+
+
+//         // ----------------------------------------------------
+//         // PCM RECEIVED
+//         // ----------------------------------------------------
+
+//         case WebSocketAudioClient::Event::PCM_RECEIVED:
+//         {
+//             // Сервер прислал бинарный аудиофрагмент.
+//             //
+//             // payload:
+//             //     PCM-данные.
+//             //
+//             // length:
+//             //     размер полученного фрагмента в байтах.
+//             //
+//             // ВАЖНО:
+//             // Здесь данные пока не воспроизводятся.
+//             // Для воспроизведения нужно передавать их
+//             // в очередь PCM-проигрывателя, который затем
+//             // пишет данные в I2S.
+//             //
+//             // Не выполняем блокирующее воспроизведение
+//             // непосредственно внутри callback.
+
+//             if (payload == nullptr || length == 0)
+//             {
+//                 break;
+//             }
+
+//             // Диагностическое сообщение на каждый 50-й
+//             // принятый PCM-фрагмент, чтобы не засорять Serial.
+
+//             static uint32_t receivedChunks = 0;
+
+//             ++receivedChunks;
+
+//             if ((receivedChunks % 50) == 0)
+//             {
+//                 Serial0.printf(
+//                     "[APP][AUDIO] Received %lu PCM chunks; last=%u bytes\n",
+//                     static_cast<unsigned long>(receivedChunks),
+//                     static_cast<unsigned int>(length)
+//                 );
+//             }
+
+//             break;
+//         }
+
+
+//         // ----------------------------------------------------
+//         // ERROR
+//         // ----------------------------------------------------
+
+//         case WebSocketAudioClient::Event::ERROR:
+//         {
+//             Serial0.println(
+//                 "[APP][AUDIO][ERROR] WebSocket error"
+//             );
+
+//             break;
+//         }
+//     }
+// }
