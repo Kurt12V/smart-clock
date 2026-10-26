@@ -65,22 +65,22 @@ void mqttCallback(
     unsigned int length
 )
 {
-    Serial.println();
-    Serial.println("========== MQTT MESSAGE ==========");
+    Serial0.println();
+    Serial0.println("========== MQTT MESSAGE ==========");
 
-    Serial.print("Topic: ");
-    Serial.println(topic);
+    Serial0.print("Topic: ");
+    Serial0.println(topic);
 
-    Serial.print("Payload: ");
+    Serial0.print("Payload: ");
 
     for (unsigned int i = 0; i < length; ++i)
     {
-        Serial.print(static_cast<char>(payload[i]));
+        Serial0.print(static_cast<char>(payload[i]));
     }
 
-    Serial.println();
-    Serial.println("==================================");
-    Serial.println();
+    Serial0.println();
+    Serial0.println("==================================");
+    Serial0.println();
 
     // Test command: ping
     if (
@@ -94,7 +94,7 @@ void mqttCallback(
             "{\"status\":\"pong\"}"
         );
 
-        Serial.println("[MQTT] Sent pong");
+        Serial0.println("[MQTT] Sent pong");
     }
 }
 
@@ -109,7 +109,7 @@ void connectWiFi()
         return;
     }
 
-    Serial.println("[WiFi] Connecting...");
+    Serial0.println("[WiFi] Connecting...");
 
     WiFi.mode(WIFI_STA);
     WiFi.begin(
@@ -137,7 +137,7 @@ void updateWiFi()
 
     lastWifiReconnectAttempt = now;
 
-    Serial.println("[WiFi] Reconnecting...");
+    Serial0.println("[WiFi] Reconnecting...");
 
     WiFi.disconnect();
     WiFi.begin(
@@ -157,15 +157,15 @@ bool connectMQTT()
         return false;
     }
 
-    Serial.println("[MQTT] Connecting to broker...");
+    Serial0.println("[MQTT] Connecting to broker...");
 
-    Serial.print("[MQTT] Broker: ");
-    Serial.print(MQTTConfig::BROKER_HOST);
-    Serial.print(':');
-    Serial.println(MQTTConfig::BROKER_PORT);
+    Serial0.print("[MQTT] Broker: ");
+    Serial0.print(MQTTConfig::BROKER_HOST);
+    Serial0.print(':');
+    Serial0.println(MQTTConfig::BROKER_PORT);
 
-    Serial.print("[MQTT] Client ID: ");
-    Serial.println(MQTTConfig::CLIENT_ID);
+    Serial0.print("[MQTT] Client ID: ");
+    Serial0.println(MQTTConfig::CLIENT_ID);
 
     if (
         mqttClient.connect(
@@ -173,7 +173,7 @@ bool connectMQTT()
         )
     )
     {
-        Serial.println("[MQTT] Connected successfully");
+        Serial0.println("[MQTT] Connected successfully");
 
         if (
             mqttClient.subscribe(
@@ -181,12 +181,12 @@ bool connectMQTT()
             )
         )
         {
-            Serial.print("[MQTT] Subscribed: ");
-            Serial.println(MQTTConfig::COMMAND_TOPIC);
+            Serial0.print("[MQTT] Subscribed: ");
+            Serial0.println(MQTTConfig::COMMAND_TOPIC);
         }
         else
         {
-            Serial.println("[MQTT] Subscribe failed");
+            Serial0.println("[MQTT] Subscribe failed");
         }
 
         mqttClient.publish(
@@ -197,8 +197,8 @@ bool connectMQTT()
         return true;
     }
 
-    Serial.print("[MQTT] Connection failed. State: ");
-    Serial.println(mqttClient.state());
+    Serial0.print("[MQTT] Connection failed. State: ");
+    Serial0.println(mqttClient.state());
 
     return false;
 }
@@ -274,12 +274,12 @@ void publishTestMessage()
 
     if (published)
     {
-        Serial.print("[MQTT] Published: ");
-        Serial.println(payload);
+        Serial0.print("[MQTT] Published: ");
+        Serial0.println(payload);
     }
     else
     {
-        Serial.println("[MQTT] Publish failed");
+        Serial0.println("[MQTT] Publish failed");
     }
 }
 
@@ -289,14 +289,14 @@ void publishTestMessage()
 
 void setup()
 {
-    Serial.begin(115200);
+    Serial0.begin(115200);
 
     delay(1000);
 
-    Serial.println();
-    Serial.println("==================================");
-    Serial.println(" SmartClock MQTT Connection Test");
-    Serial.println("==================================");
+    Serial0.println();
+    Serial0.println("==================================");
+    Serial0.println(" SmartClock MQTT Connection Test");
+    Serial0.println("==================================");
 
     mqttClient.setServer(
         MQTTConfig::BROKER_HOST,
@@ -327,16 +327,16 @@ void loop()
         {
             wifiConnectedMessagePrinted = true;
 
-            Serial.println("[WiFi] Connected");
+            Serial0.println("[WiFi] Connected");
 
-            Serial.print("[WiFi] ESP32 IP: ");
-            Serial.println(WiFi.localIP());
+            Serial0.print("[WiFi] ESP32 IP: ");
+            Serial0.println(WiFi.localIP());
 
-            Serial.print("[WiFi] Gateway: ");
-            Serial.println(WiFi.gatewayIP());
+            Serial0.print("[WiFi] Gateway: ");
+            Serial0.println(WiFi.gatewayIP());
 
-            Serial.print("[WiFi] RSSI: ");
-            Serial.println(WiFi.RSSI());
+            Serial0.print("[WiFi] RSSI: ");
+            Serial0.println(WiFi.RSSI());
 
             lastMqttReconnectAttempt = 0;
         }
@@ -353,7 +353,7 @@ void loop()
         {
             wifiDisconnectedMessagePrinted = true;
 
-            Serial.println("[WiFi] Disconnected");
+            Serial0.println("[WiFi] Disconnected");
         }
     }
 
