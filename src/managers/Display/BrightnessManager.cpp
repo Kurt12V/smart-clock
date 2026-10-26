@@ -34,6 +34,16 @@ BrightnessManager::BrightnessManager()
     , _lastUpdateMs(0)
     , _lastLogMs(0)
     , _smoothedBrightness(50.0f)
+    , _luxSamples{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}
+    , _luxSampleCount(0)
+    , _luxSampleIndex(0)
+    , _lastLuxSampleMs(0)
+    , _luxSampleIntervalMs(250)
+    , _targetCandidate(50)
+    , _targetCandidateSinceMs(0)
+    , _hasTargetCandidate(false)
+    , _targetChangeThresholdPct(12)
+    , _targetConfirmationMs(3000)
 {
 }
 
@@ -83,6 +93,13 @@ void BrightnessManager::begin(
 
     _lastUpdateMs = millis();
     _lastLogMs = _lastUpdateMs;
+
+    // Reset median filter and pending target after initialization.
+    _luxSampleCount = 0;
+    _luxSampleIndex = 0;
+    _lastLuxSampleMs = _lastUpdateMs - _luxSampleIntervalMs;
+    _hasTargetCandidate = false;
+    _targetCandidateSinceMs = 0;
 
     _smoothedBrightness = static_cast<float>(
         _brightness
@@ -169,30 +186,78 @@ void BrightnessManager::update()
     // AUTO MODE
     // --------------------------------------------------------
 
-    const uint8_t calculatedTarget =
-        calculateAutoTarget();
+    const uint8_t calculatedTarget = calculateAutoTarget();
 
     // --------------------------------------------------------
-    // HYSTERESIS
+    // LARGE-CHANGE GATE + CONFIRMATION DELAY
     // --------------------------------------------------------
 
     if (!_hasAutoTarget)
     {
         _sensorTarget = calculatedTarget;
         _hasAutoTarget = true;
+        _hasTargetCandidate = false;
 
-        _smoothedBrightness = static_cast<float>(
-            _brightness
-        );
+        _smoothedBrightness = static_cast<float>(_brightness);
     }
-    else if (applyHysteresis(calculatedTarget))
+    else
     {
-        _sensorTarget = calculatedTarget;
-
-        Serial0.printf(
-            "[BRIGHTNESS][TARGET] New target: %u%%\n",
-            static_cast<unsigned>(_sensorTarget)
+        const int differenceFromCurrent = abs(
+            static_cast<int>(calculatedTarget)
+            - static_cast<int>(_sensorTarget)
         );
+
+        // Ignore small target fluctuations completely.
+        if (differenceFromCurrent < static_cast<int>(_targetChangeThresholdPct))
+        {
+            _hasTargetCandidate = false;
+        }
+        else
+        {
+            const int differenceFromCandidate = abs(
+                static_cast<int>(calculatedTarget)
+                - static_cast<int>(_targetCandidate)
+            );
+
+            // Start or restart the confirmation timer only when the candidate
+            // changes substantially. Small sensor fluctuations do not reset it.
+            if (!_hasTargetCandidate || differenceFromCandidate > 5)
+            {
+                _targetCandidate = calculatedTarget;
+                _targetCandidateSinceMs = now;
+                _hasTargetCandidate = true;
+
+                Serial0.printf(
+                    "[BRIGHTNESS][PENDING] Candidate=%u%%; waiting %lu ms\n",
+                    static_cast<unsigned>(_targetCandidate),
+                    static_cast<unsigned long>(_targetConfirmationMs)
+                );
+            }
+            else
+            {
+                // Follow minor variations while preserving the original timer.
+                _targetCandidate = static_cast<uint8_t>(
+                    (static_cast<unsigned>(_targetCandidate) * 3U
+                     + static_cast<unsigned>(calculatedTarget)) / 4U
+                );
+            }
+
+            if (_hasTargetCandidate
+                && now - _targetCandidateSinceMs >= _targetConfirmationMs)
+            {
+                if (applyHysteresis(_targetCandidate))
+                {
+                    _sensorTarget = _targetCandidate;
+
+                    Serial0.printf(
+                        "[BRIGHTNESS][TARGET] Confirmed target: %u%%\n",
+                        static_cast<unsigned>(_sensorTarget)
+                    );
+                }
+
+                _hasTargetCandidate = false;
+            }
+        }
     }
 
     // --------------------------------------------------------
@@ -529,6 +594,41 @@ void BrightnessManager::setHysteresis(uint8_t percent)
 }
 
 // ============================================================
+// SET TARGET CHANGE THRESHOLD
+// ============================================================
+
+void BrightnessManager::setTargetChangeThreshold(uint8_t percent)
+{
+    if (percent > 50)
+    {
+        percent = 50;
+    }
+
+    _targetChangeThresholdPct = percent;
+    _hasTargetCandidate = false;
+
+    Serial0.printf(
+        "[BRIGHTNESS][CONFIG] Target change threshold: %u%%\n",
+        static_cast<unsigned>(_targetChangeThresholdPct)
+    );
+}
+
+// ============================================================
+// SET TARGET CONFIRMATION DELAY
+// ============================================================
+
+void BrightnessManager::setTargetConfirmationDelay(uint32_t milliseconds)
+{
+    _targetConfirmationMs = milliseconds;
+    _hasTargetCandidate = false;
+
+    Serial0.printf(
+        "[BRIGHTNESS][CONFIG] Target confirmation delay: %lu ms\n",
+        static_cast<unsigned long>(_targetConfirmationMs)
+    );
+}
+
+// ============================================================
 // IS INITIALIZED
 // ============================================================
 
@@ -546,8 +646,65 @@ uint8_t BrightnessManager::calculateAutoTarget()
     const Profile& profile = selectProfile();
 
     bool luxValid = false;
+    const float rawLux = readLux(luxValid);
+    float lux = rawLux;
 
-    const float lux = readLux(luxValid);
+    if (luxValid)
+    {
+        const uint32_t now = millis();
+
+        // Sample at a fixed interval so calling update() very frequently
+        // does not fill the median window with duplicate readings.
+        if (_luxSampleCount == 0
+            || now - _lastLuxSampleMs >= _luxSampleIntervalMs)
+        {
+            _luxSamples[_luxSampleIndex] = rawLux;
+            _luxSampleIndex = static_cast<uint8_t>(
+                (_luxSampleIndex + 1U) % 7U
+            );
+
+            if (_luxSampleCount < 7)
+            {
+                ++_luxSampleCount;
+            }
+
+            _lastLuxSampleMs = now;
+        }
+
+        if (_luxSampleCount > 0)
+        {
+            float sorted[7];
+
+            for (uint8_t i = 0; i < _luxSampleCount; ++i)
+            {
+                sorted[i] = _luxSamples[i];
+            }
+
+            // Insertion sort is inexpensive for a maximum of seven samples.
+            for (uint8_t i = 1; i < _luxSampleCount; ++i)
+            {
+                const float value = sorted[i];
+                int j = static_cast<int>(i) - 1;
+
+                while (j >= 0 && sorted[j] > value)
+                {
+                    sorted[j + 1] = sorted[j];
+                    --j;
+                }
+
+                sorted[j + 1] = value;
+            }
+
+            lux = sorted[_luxSampleCount / 2U];
+        }
+    }
+
+    // If the sensor temporarily reports invalid data, keep the last target
+    // instead of jumping to the profile base brightness.
+    if (!luxValid && _hasAutoTarget)
+    {
+        return _sensorTarget;
+    }
 
     int target = profile.base;
 
@@ -725,9 +882,12 @@ bool BrightnessManager::applyHysteresis(
         - static_cast<int>(_sensorTarget)
     );
 
-    return difference >= static_cast<int>(
-        _config.hysteresisPct
-    );
+    const uint8_t requiredDifference =
+        _config.hysteresisPct > _targetChangeThresholdPct
+            ? _config.hysteresisPct
+            : _targetChangeThresholdPct;
+
+    return difference >= static_cast<int>(requiredDifference);
 }
 
 // ============================================================
@@ -861,10 +1021,12 @@ void BrightnessManager::logAutoStatus(
     if (luxValid)
     {
         Serial0.printf(
-            "[BRIGHTNESS][AUTO] lux=%.2f | target=%u%% | current=%u%% | offset=%d%%\n",
+            "[BRIGHTNESS][AUTO] lux=%.2f | target=%u%% | current=%u%% | threshold=%u%% | delay=%lu ms | offset=%d%%\n",
             static_cast<double>(lux),
             static_cast<unsigned>(target),
             static_cast<unsigned>(_brightness),
+            static_cast<unsigned>(_targetChangeThresholdPct),
+            static_cast<unsigned long>(_targetConfirmationMs),
             static_cast<int>(_config.offset)
         );
     }

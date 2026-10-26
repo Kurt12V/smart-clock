@@ -7,7 +7,6 @@
 // ============================================================
 
 // IP-адрес компьютера с Python WebSocket-сервером.
-// ЗАМЕНИ на реальный адрес своего компьютера.
 static constexpr char AUDIO_SERVER_HOST[] = "192.168.1.100";
 
 // Порт WebSocket-сервера.
@@ -59,6 +58,7 @@ App::App()
         _settings,
         _clockSystem
     )
+    , _mqttClient()
     // , _audioWebSocket()
     , _initialized(false)
 {
@@ -98,7 +98,7 @@ bool App::begin()
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 1/13: Settings"
+        "[APP] Step 1/14: Settings"
     );
 
     if (!initSettings())
@@ -120,7 +120,7 @@ bool App::begin()
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 2/13: SPI"
+        "[APP] Step 2/14: SPI"
     );
 
     if (!initSPI())
@@ -142,7 +142,7 @@ bool App::begin()
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 3/13: I2S"
+        "[APP] Step 3/14: I2S"
     );
 
     if (!initI2S())
@@ -164,7 +164,7 @@ bool App::begin()
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 4/13: Clock"
+        "[APP] Step 4/14: Clock"
     );
 
     if (!initClock())
@@ -186,7 +186,7 @@ bool App::begin()
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 5/13: Sensors"
+        "[APP] Step 5/14: Sensors"
     );
 
     if (!initSensors())
@@ -208,7 +208,7 @@ bool App::begin()
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 6/13: Lighting"
+        "[APP] Step 6/14: Lighting"
     );
 
     if (!initLighting())
@@ -230,7 +230,7 @@ bool App::begin()
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 7/13: Displays"
+        "[APP] Step 7/14: Displays"
     );
 
     if (!initDisplay())
@@ -252,7 +252,7 @@ bool App::begin()
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 8/13: Brightness"
+        "[APP] Step 8/14: Brightness"
     );
 
     if (!initBrightness())
@@ -274,7 +274,7 @@ bool App::begin()
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 9/13: Sound"
+        "[APP] Step 9/14: Sound"
     );
 
     if (!initSound())
@@ -296,7 +296,7 @@ bool App::begin()
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 10/13: Alarms"
+        "[APP] Step 10/14: Alarms"
     );
 
     if (!initAlarm())
@@ -318,7 +318,7 @@ bool App::begin()
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 11/13: Wi-Fi"
+        "[APP] Step 11/14: Wi-Fi"
     );
 
     if (!initWiFi())
@@ -336,11 +336,33 @@ bool App::begin()
 
 
     // --------------------------------------------------------
-    // STEP 12: WEB INTERFACE
+    // STEP 12: MQTT
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 12/13: Web interface"
+        "[APP] Step 12/14: MQTT"
+    );
+
+    if (!initMqtt())
+    {
+        Serial0.println(
+            "[APP][ERROR] MQTT client initialization failed"
+        );
+
+        return false;
+    }
+
+    Serial0.println(
+        "[APP] MQTT client initialized"
+    );
+
+
+    // --------------------------------------------------------
+    // STEP 13: WEB INTERFACE
+    // --------------------------------------------------------
+
+    Serial0.println(
+        "[APP] Step 13/14: Web interface"
     );
 
     if (!initWebWiFi())
@@ -358,24 +380,18 @@ bool App::begin()
 
 
     // --------------------------------------------------------
-    // STEP 13: AUDIO WEBSOCKET
+    // STEP 14: AUDIO WEBSOCKET
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 13/13: Audio WebSocket"
+        "[APP] Step 14/14: Audio WebSocket"
     );
 
-    // if (!initAudioWebSocket())
-    // {
-    //     Serial0.println(
-    //         "[APP][ERROR] Audio WebSocket initialization failed"
-    //     );
-
-    //     return false;
-    // }
+    // WebSocket пока отключён.
+    // Сначала проверяем MQTT-связь с сервером.
 
     Serial0.println(
-        "[APP] Audio WebSocket initialized"
+        "[APP] Audio WebSocket is currently disabled"
     );
 
 
@@ -487,6 +503,17 @@ void App::update()
 
 
     // --------------------------------------------------------
+    // MQTT
+    // --------------------------------------------------------
+
+    // Обслуживание MQTT-клиента.
+    // Метод нужно вызывать постоянно, без больших задержек.
+    // Клиент обрабатывает входящие сообщения и соединение.
+
+    _mqttClient.update();
+
+
+    // --------------------------------------------------------
     // HTTP SERVER
     // --------------------------------------------------------
 
@@ -496,14 +523,8 @@ void App::update()
     // --------------------------------------------------------
     // AUDIO WEBSOCKET
     // --------------------------------------------------------
-    //
-    // Обслуживаем соединение и получаем новые сообщения.
-    // Метод должен вызываться регулярно.
-    //
-    // Автоматическое повторное подключение выполняет
-    // библиотека WebSocketsClient.
-    // --------------------------------------------------------
 
+    // WebSocket будет подключён отдельно после MQTT.
     // _audioWebSocket.update();
 }
 
@@ -682,6 +703,27 @@ bool App::initWiFi()
 
 
 // ============================================================
+// MQTT
+// ============================================================
+
+bool App::initMqtt()
+{
+    Serial0.println(
+        "[APP] Initializing MQTT client..."
+    );
+
+    // Адрес брокера, порт, логин, пароль и ID устройства
+    // задаются в SmartClockMqttClient.h:
+    //
+    // namespace SmartClockMqttConfig
+    //
+    // begin() использует эти настройки.
+
+    return _mqttClient.begin();
+}
+
+
+// ============================================================
 // WEB / WI-FI CONFIGURATION
 // ============================================================
 
@@ -690,6 +732,7 @@ bool App::initWebWiFi()
     Serial0.println(
         "[APP] Configuring web interface..."
     );
+
 
     // --------------------------------------------------------
     // REGISTER WI-FI ROUTES
@@ -722,189 +765,6 @@ bool App::initWebWiFi()
 // AUDIO WEBSOCKET INITIALIZATION
 // ============================================================
 
-// bool App::initAudioWebSocket()
-// {
-//     Serial0.println(
-//         "[APP] Initializing audio WebSocket..."
-//     );
-
-//     Serial0.printf(
-//         "[APP] Audio server: %s:%u%s\n",
-//         AUDIO_SERVER_HOST,
-//         AUDIO_SERVER_PORT,
-//         AUDIO_SERVER_PATH
-//     );
-
-//     // --------------------------------------------------------
-//     // REGISTER EVENT CALLBACK
-//     // --------------------------------------------------------
-
-//     _audioWebSocket.setEventCallback(
-//         &App::handleAudioWebSocketEvent
-//     );
-
-
-//     // --------------------------------------------------------
-//     // START WEBSOCKET CLIENT
-//     // --------------------------------------------------------
-
-//     const bool result = _audioWebSocket.begin(
-//         AUDIO_SERVER_HOST,
-//         AUDIO_SERVER_PORT,
-//         AUDIO_SERVER_PATH,
-//         AUDIO_DEVICE_ID
-//     );
-
-//     if (!result)
-//     {
-//         Serial0.println(
-//             "[APP][ERROR] Failed to initialize audio WebSocket"
-//         );
-
-//         return false;
-//     }
-
-//     // begin() инициализирует клиента.
-//     // Само TCP/WebSocket-соединение устанавливается
-//     // асинхронно во время вызовов update().
-
-//     Serial0.println(
-//         "[APP] Audio WebSocket client started"
-//     );
-
-//     return true;
-// }
-
-
-// ============================================================
-// AUDIO WEBSOCKET EVENT HANDLER
-// ============================================================
-
-// void App::handleAudioWebSocketEvent(
-//     WebSocketAudioClient::Event event,
-//     const uint8_t* payload,
-//     size_t length
-// )
-// {
-//     switch (event)
-//     {
-//         // ----------------------------------------------------
-//         // CONNECTED
-//         // ----------------------------------------------------
-
-//         case WebSocketAudioClient::Event::CONNECTED:
-//         {
-//             Serial0.println(
-//                 "[APP][AUDIO] Connected to Python server"
-//             );
-
-//             break;
-//         }
-
-
-//         // ----------------------------------------------------
-//         // DISCONNECTED
-//         // ----------------------------------------------------
-
-//         case WebSocketAudioClient::Event::DISCONNECTED:
-//         {
-//             Serial0.println(
-//                 "[APP][AUDIO] Disconnected from Python server"
-//             );
-
-//             break;
-//         }
-
-
-//         // ----------------------------------------------------
-//         // TEXT RECEIVED
-//         // ----------------------------------------------------
-
-//         case WebSocketAudioClient::Event::TEXT_RECEIVED:
-//         {
-//             Serial0.printf(
-//                 "[APP][AUDIO] Server text message (%u bytes)\n",
-//                 static_cast<unsigned int>(length)
-//             );
-
-//             if (payload != nullptr && length > 0)
-//             {
-//                 Serial0.printf(
-//                     "[APP][AUDIO] Message: %.*s\n",
-//                     static_cast<int>(length),
-//                     reinterpret_cast<const char*>(payload)
-//                 );
-//             }
-
-//             // Здесь можно обрабатывать JSON-команды сервера:
-//             // start_recording, stop_recording, play_audio и т.д.
-//             //
-//             // Конкретный формат команд должен совпадать
-//             // с реализацией Python-сервера.
-
-//             break;
-//         }
-
-
-//         // ----------------------------------------------------
-//         // PCM RECEIVED
-//         // ----------------------------------------------------
-
-//         case WebSocketAudioClient::Event::PCM_RECEIVED:
-//         {
-//             // Сервер прислал бинарный аудиофрагмент.
-//             //
-//             // payload:
-//             //     PCM-данные.
-//             //
-//             // length:
-//             //     размер полученного фрагмента в байтах.
-//             //
-//             // ВАЖНО:
-//             // Здесь данные пока не воспроизводятся.
-//             // Для воспроизведения нужно передавать их
-//             // в очередь PCM-проигрывателя, который затем
-//             // пишет данные в I2S.
-//             //
-//             // Не выполняем блокирующее воспроизведение
-//             // непосредственно внутри callback.
-
-//             if (payload == nullptr || length == 0)
-//             {
-//                 break;
-//             }
-
-//             // Диагностическое сообщение на каждый 50-й
-//             // принятый PCM-фрагмент, чтобы не засорять Serial.
-
-//             static uint32_t receivedChunks = 0;
-
-//             ++receivedChunks;
-
-//             if ((receivedChunks % 50) == 0)
-//             {
-//                 Serial0.printf(
-//                     "[APP][AUDIO] Received %lu PCM chunks; last=%u bytes\n",
-//                     static_cast<unsigned long>(receivedChunks),
-//                     static_cast<unsigned int>(length)
-//                 );
-//             }
-
-//             break;
-//         }
-
-
-//         // ----------------------------------------------------
-//         // ERROR
-//         // ----------------------------------------------------
-
-//         case WebSocketAudioClient::Event::ERROR:
-//         {
-//             Serial0.println(
-//                 "[APP][AUDIO][ERROR] WebSocket error"
-//             );
-
-//             break;
-//         }
-//     }
-// }
+// WebSocket пока не запускается.
+// После проверки MQTT сюда можно добавить подключение
+// WebSocket-клиента для передачи аудиоданных.

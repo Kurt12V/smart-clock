@@ -54,13 +54,13 @@ SmartClockMqttClient::SmartClockMqttClient()
 // BEGIN
 // ============================================================
 
-bool SmartClockMqttClient::begin(
-    const char* broker,
-    uint16_t port,
-    const char* deviceId,
-    const char* username,
-    const char* password
-) {
+bool SmartClockMqttClient::begin() {
+    // Адрес MQTT-брокера и параметры устройства заданы в SmartClockMqttClient.h.
+    const char* broker = SmartClockMqttConfig::BROKER_HOST;
+    const uint16_t port = SmartClockMqttConfig::BROKER_PORT;
+    const char* deviceId = SmartClockMqttConfig::DEVICE_ID;
+    const char* username = SmartClockMqttConfig::USERNAME;
+    const char* password = SmartClockMqttConfig::PASSWORD;
     Serial0.printf(
         "[MQTT] [INFO] Инициализация MQTT-клиента\n"
     );

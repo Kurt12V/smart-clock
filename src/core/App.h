@@ -19,26 +19,18 @@
 #include "./managers/WiFi/WiFiManager.h"
 
 // ============================================================
+// NETWORK MANAGERS
+// ============================================================
+
+#include "./managers/WEB/WebWiFiManager.h"
+#include "./managers/NET/SmartClockMqttClient.h"
+
+// ============================================================
 // SYSTEMS
 // ============================================================
 
 #include "./core/ClockSystem.h"
 #include "./core/DisplaySystem.h"
-
-// ============================================================
-// WEB
-// ============================================================
-
-#include "./managers/WEB/WebWiFiManager.h"
-
-// ============================================================
-// AUDIO WEBSOCKET
-// ============================================================
-
-// Путь предполагает, что WebSocketAudioClient.h находится
-// непосредственно в каталоге src.
-// #include "./managers/NET/WebSocketAudioClient.h"
-
 
 // ============================================================
 // APP
@@ -47,7 +39,6 @@
 class App
 {
 public:
-
     // ========================================================
     // CONSTRUCTOR
     // ========================================================
@@ -59,7 +50,6 @@ public:
     // ========================================================
 
     bool begin();
-
     void update();
 
     // ========================================================
@@ -71,13 +61,12 @@ public:
         return _initialized;
     }
 
-    // bool isAudioWebSocketConnected() const
-    // {
-    //     return _audioWebSocket.isConnected();
-    // }
+    bool isMqttConnected()
+    {
+        return _mqttClient.isConnected();
+    }
 
 private:
-
     // ========================================================
     // INITIALIZATION
     // ========================================================
@@ -94,39 +83,21 @@ private:
     bool initAlarm();
     bool initWiFi();
     bool initWebWiFi();
-
-    // ========================================================
-    // AUDIO WEBSOCKET
-    // ========================================================
-
-    // bool initAudioWebSocket();
-
-    // static void handleAudioWebSocketEvent(
-    //     WebSocketAudioClient::Event event,
-    //     const uint8_t* payload,
-    //     size_t length
-    // );
+    bool initMqtt();
 
     // ========================================================
     // CORE MANAGERS
     // ========================================================
 
     SettingsManager _settings;
-
     SPIManager _spiManager;
-
     I2SManager _i2sManager;
-
     SoundManager _soundManager;
-
     SensorManager _sensorManager;
 
     ClockSystem _clockSystem;
-
     LightingManager _lighting;
-
     DisplaySystem _displaySystem;
-
     BrightnessManager _brightnessManager;
 
     // ========================================================
@@ -134,7 +105,6 @@ private:
     // ========================================================
 
     AlarmManager _alarmManager;
-
     AlarmController _alarmController;
 
     // ========================================================
@@ -142,16 +112,14 @@ private:
     // ========================================================
 
     WiFiManager _wifiManager;
-
     WebServer _webServer;
-
     WebWiFiManager _webWiFiManager;
 
     // ========================================================
-    // AUDIO NETWORK
+    // MQTT
     // ========================================================
 
-    // WebSocketAudioClient _audioWebSocket;
+    SmartClockMqttClient _mqttClient;
 
     // ========================================================
     // STATE
