@@ -1,22 +1,7 @@
+
 #include "App.h"
 
 #include <Arduino.h>
-
-// ============================================================
-// AUDIO SERVER CONFIGURATION
-// ============================================================
-
-// IP-адрес компьютера с Python WebSocket-сервером.
-static constexpr char AUDIO_SERVER_HOST[] = "192.168.1.100";
-
-// Порт WebSocket-сервера.
-static constexpr uint16_t AUDIO_SERVER_PORT = 8765;
-
-// WebSocket endpoint.
-static constexpr char AUDIO_SERVER_PATH[] = "/audio";
-
-// Идентификатор устройства.
-static constexpr char AUDIO_DEVICE_ID[] = "smartclock-01";
 
 
 // ============================================================
@@ -24,44 +9,59 @@ static constexpr char AUDIO_DEVICE_ID[] = "smartclock-01";
 // ============================================================
 
 App::App()
-    : _settings()
-    , _spiManager()
-    , _i2sManager()
-    , _soundManager(
-        _settings,
-        _i2sManager
-    )
-    , _sensorManager()
-    , _clockSystem(
-        _settings
-    )
-    , _lighting(
-        _settings
-    )
-    , _displaySystem(
-        _settings,
-        _clockSystem,
-        _sensorManager,
-        _spiManager
-    )
-    , _brightnessManager()
-    , _alarmManager(
-        _clockSystem
-    )
-    , _alarmController(
-        _alarmManager
-    )
-    , _wifiManager()
-    , _webServer(80)
-    , _webWiFiManager(
-        _wifiManager,
-        _settings,
-        _clockSystem
-    )
-    , _mqttClient()
-    // , _audioWebSocket()
-    , _initialized(false)
-{
+    : _settings(),
+
+      _spiManager(),
+
+      _i2sManager(),
+
+      _soundManager(
+          _settings,
+          _i2sManager
+      ),
+
+      _sensorsManager(),
+
+      _clockSystem(
+          _settings
+      ),
+
+      _lighting(
+          _settings
+      ),
+
+      _displaySystem(
+          _settings,
+          _clockSystem,
+          _sensorsManager,
+          _spiManager
+      ),
+
+      _brightnessManager(),
+
+      _alarmManager(
+          _clockSystem
+      ),
+
+      _alarmController(
+          _alarmManager
+      ),
+
+      _wifiManager(),
+
+      _webServer(80),
+
+      _webWiFiManager(
+          _wifiManager,
+          _settings,
+          _clockSystem
+      ),
+
+      _mqttClient(),
+
+      _mqttCommandHandler(),
+
+      _initialized(false) {
 }
 
 
@@ -69,352 +69,201 @@ App::App()
 // BEGIN
 // ============================================================
 
-bool App::begin()
-{
-    if (_initialized)
-    {
-        Serial0.println(
-            "[APP] Already initialized"
-        );
-
-        return true;
-    }
+bool App::begin() {
 
     Serial0.println();
-    Serial0.println(
-        "============================================"
-    );
-    Serial0.println(
-        "          SMART CLOCK STARTUP"
-    );
-    Serial0.println(
-        "============================================"
-    );
-    Serial0.println();
+    Serial0.println("========================================");
+    Serial0.println("          SMARTCLOCK STARTUP");
+    Serial0.println("========================================");
 
 
     // --------------------------------------------------------
-    // STEP 1: SETTINGS
+    // 1. SETTINGS
     // --------------------------------------------------------
 
-    Serial0.println(
-        "[APP] Step 1/14: Settings"
-    );
+    Serial0.println("[APP] 1/15 Settings");
 
-    if (!initSettings())
-    {
-        Serial0.println(
-            "[APP][ERROR] Settings initialization failed"
-        );
-
+    if (!initSettings()) {
+        Serial0.println("[APP] Settings initialization failed");
         return false;
     }
 
-    Serial0.println(
-        "[APP] Settings initialized"
-    );
-
 
     // --------------------------------------------------------
-    // STEP 2: SPI
+    // 2. SPI
     // --------------------------------------------------------
 
-    Serial0.println(
-        "[APP] Step 2/14: SPI"
-    );
+    Serial0.println("[APP] 2/15 SPI");
 
-    if (!initSPI())
-    {
-        Serial0.println(
-            "[APP][ERROR] SPI initialization failed"
-        );
-
+    if (!initSPI()) {
+        Serial0.println("[APP] SPI initialization failed");
         return false;
     }
 
-    Serial0.println(
-        "[APP] SPI initialized"
-    );
-
 
     // --------------------------------------------------------
-    // STEP 3: I2S
+    // 3. I2S
     // --------------------------------------------------------
 
-    Serial0.println(
-        "[APP] Step 3/14: I2S"
-    );
+    Serial0.println("[APP] 3/15 I2S");
 
-    if (!initI2S())
-    {
-        Serial0.println(
-            "[APP][ERROR] I2S initialization failed"
-        );
-
+    if (!initI2S()) {
+        Serial0.println("[APP] I2S initialization failed");
         return false;
     }
 
-    Serial0.println(
-        "[APP] I2S initialized"
-    );
-
 
     // --------------------------------------------------------
-    // STEP 4: CLOCK
+    // 4. CLOCK
     // --------------------------------------------------------
 
-    Serial0.println(
-        "[APP] Step 4/14: Clock"
-    );
+    Serial0.println("[APP] 4/15 Clock");
 
-    if (!initClock())
-    {
-        Serial0.println(
-            "[APP][ERROR] Clock initialization failed"
-        );
-
+    if (!initClock()) {
+        Serial0.println("[APP] Clock initialization failed");
         return false;
     }
 
-    Serial0.println(
-        "[APP] Clock initialized"
-    );
-
 
     // --------------------------------------------------------
-    // STEP 5: SENSORS
+    // 5. SENSORS
     // --------------------------------------------------------
 
-    Serial0.println(
-        "[APP] Step 5/14: Sensors"
-    );
+    Serial0.println("[APP] 5/15 Sensors");
 
-    if (!initSensors())
-    {
-        Serial0.println(
-            "[APP][ERROR] Sensor initialization failed"
-        );
-
+    if (!initSensors()) {
+        Serial0.println("[APP] Sensors initialization failed");
         return false;
     }
 
-    Serial0.println(
-        "[APP] Sensors initialized"
-    );
-
 
     // --------------------------------------------------------
-    // STEP 6: LIGHTING
+    // 6. LIGHTING
     // --------------------------------------------------------
 
-    Serial0.println(
-        "[APP] Step 6/14: Lighting"
-    );
+    Serial0.println("[APP] 6/15 Lighting");
 
-    if (!initLighting())
-    {
-        Serial0.println(
-            "[APP][ERROR] Lighting initialization failed"
-        );
-
+    if (!initLighting()) {
+        Serial0.println("[APP] Lighting initialization failed");
         return false;
     }
 
-    Serial0.println(
-        "[APP] Lighting initialized"
-    );
-
 
     // --------------------------------------------------------
-    // STEP 7: DISPLAYS
+    // 7. DISPLAY
     // --------------------------------------------------------
 
-    Serial0.println(
-        "[APP] Step 7/14: Displays"
-    );
+    Serial0.println("[APP] 7/15 Display");
 
-    if (!initDisplay())
-    {
-        Serial0.println(
-            "[APP][ERROR] Display initialization failed"
-        );
-
+    if (!initDisplay()) {
+        Serial0.println("[APP] Display initialization failed");
         return false;
     }
 
-    Serial0.println(
-        "[APP] Displays initialized"
-    );
-
 
     // --------------------------------------------------------
-    // STEP 8: BRIGHTNESS
+    // 8. BRIGHTNESS
     // --------------------------------------------------------
 
-    Serial0.println(
-        "[APP] Step 8/14: Brightness"
-    );
+    Serial0.println("[APP] 8/15 Brightness");
 
-    if (!initBrightness())
-    {
-        Serial0.println(
-            "[APP][ERROR] Brightness initialization failed"
-        );
-
+    if (!initBrightness()) {
+        Serial0.println("[APP] Brightness initialization failed");
         return false;
     }
 
-    Serial0.println(
-        "[APP] Brightness initialized"
-    );
-
 
     // --------------------------------------------------------
-    // STEP 9: SOUND
+    // 9. SOUND
     // --------------------------------------------------------
 
-    Serial0.println(
-        "[APP] Step 9/14: Sound"
-    );
+    Serial0.println("[APP] 9/15 Sound");
 
-    if (!initSound())
-    {
-        Serial0.println(
-            "[APP][ERROR] Sound initialization failed"
-        );
-
+    if (!initSound()) {
+        Serial0.println("[APP] Sound initialization failed");
         return false;
     }
 
-    Serial0.println(
-        "[APP] Sound initialized"
-    );
-
 
     // --------------------------------------------------------
-    // STEP 10: ALARMS
+    // 10. ALARM
     // --------------------------------------------------------
 
-    Serial0.println(
-        "[APP] Step 10/14: Alarms"
-    );
+    Serial0.println("[APP] 10/15 Alarm");
 
-    if (!initAlarm())
-    {
-        Serial0.println(
-            "[APP][ERROR] Alarm initialization failed"
-        );
-
+    if (!initAlarm()) {
+        Serial0.println("[APP] Alarm initialization failed");
         return false;
     }
 
-    Serial0.println(
-        "[APP] Alarms initialized"
-    );
-
 
     // --------------------------------------------------------
-    // STEP 11: WI-FI
+    // 11. WIFI
     // --------------------------------------------------------
 
-    Serial0.println(
-        "[APP] Step 11/14: Wi-Fi"
-    );
+    Serial0.println("[APP] 11/15 WiFi");
 
-    if (!initWiFi())
-    {
-        Serial0.println(
-            "[APP][ERROR] Wi-Fi initialization failed"
-        );
-
+    if (!initWiFi()) {
+        Serial0.println("[APP] WiFi initialization failed");
         return false;
     }
 
-    Serial0.println(
-        "[APP] Wi-Fi initialized"
-    );
-
 
     // --------------------------------------------------------
-    // STEP 12: MQTT
+    // 12. MQTT
     // --------------------------------------------------------
 
-    Serial0.println(
-        "[APP] Step 12/14: MQTT"
-    );
+    Serial0.println("[APP] 12/15 MQTT");
 
-    if (!initMqtt())
-    {
-        Serial0.println(
-            "[APP][ERROR] MQTT client initialization failed"
-        );
-
+    if (!initMqtt()) {
+        Serial0.println("[APP] MQTT initialization failed");
         return false;
     }
 
-    Serial0.println(
-        "[APP] MQTT client initialized"
-    );
-
 
     // --------------------------------------------------------
-    // STEP 13: WEB INTERFACE
+    // 13. MQTT COMMAND HANDLER
     // --------------------------------------------------------
 
-    Serial0.println(
-        "[APP] Step 13/14: Web interface"
-    );
+    Serial0.println("[APP] 13/15 MQTT Command Handler");
 
-    if (!initWebWiFi())
-    {
-        Serial0.println(
-            "[APP][ERROR] Web interface initialization failed"
-        );
-
+    if (!initMqttCommandHandler()) {
+        Serial0.println("[APP] MQTT Command Handler initialization failed");
         return false;
     }
 
-    Serial0.println(
-        "[APP] Web interface initialized"
-    );
+
+    // --------------------------------------------------------
+    // 14. WEB INTERFACE
+    // --------------------------------------------------------
+
+    Serial0.println("[APP] 14/15 Web Interface");
+
+    if (!initWebWiFi()) {
+        Serial0.println("[APP] Web interface initialization failed");
+        return false;
+    }
 
 
     // --------------------------------------------------------
-    // STEP 14: AUDIO WEBSOCKET
-    // --------------------------------------------------------
-
-    Serial0.println(
-        "[APP] Step 14/14: Audio WebSocket"
-    );
-
-    // WebSocket пока отключён.
-    // Сначала проверяем MQTT-связь с сервером.
-
-    Serial0.println(
-        "[APP] Audio WebSocket is currently disabled"
-    );
-
-
-    // --------------------------------------------------------
-    // INITIALIZATION COMPLETE
+    // 15. FINISH
     // --------------------------------------------------------
 
     _initialized = true;
 
     Serial0.println();
-    Serial0.println(
-        "============================================"
+    Serial0.println("========================================");
+    Serial0.println("       SMARTCLOCK INITIALIZED");
+    Serial0.println("========================================");
+
+    Serial0.printf(
+        "[APP] MQTT: %s\n",
+        _mqttClient.isConnected()
+            ? "CONNECTED"
+            : "WAITING FOR CONNECTION"
     );
-    Serial0.println(
-        "[APP] Initialization complete"
-    );
-    Serial0.println(
-        "[APP] SMART CLOCK READY"
-    );
-    Serial0.println(
-        "============================================"
-    );
-    Serial0.println();
+
+    Serial0.println("[APP] MQTT command handler: ACTIVE");
 
     return true;
 }
@@ -424,10 +273,9 @@ bool App::begin()
 // UPDATE
 // ============================================================
 
-void App::update()
-{
-    if (!_initialized)
-    {
+void App::update() {
+
+    if (!_initialized) {
         return;
     }
 
@@ -450,7 +298,7 @@ void App::update()
     // SENSORS
     // --------------------------------------------------------
 
-    _sensorManager.update();
+    _sensorsManager.update();
 
 
     // --------------------------------------------------------
@@ -468,7 +316,7 @@ void App::update()
 
 
     // --------------------------------------------------------
-    // DISPLAYS
+    // DISPLAY
     // --------------------------------------------------------
 
     _displaySystem.update();
@@ -482,21 +330,16 @@ void App::update()
 
 
     // --------------------------------------------------------
-    // ALARM MANAGER
+    // ALARM
     // --------------------------------------------------------
 
     _alarmManager.update();
-
-
-    // --------------------------------------------------------
-    // ALARM CONTROLLER
-    // --------------------------------------------------------
 
     _alarmController.update();
 
 
     // --------------------------------------------------------
-    // WI-FI
+    // WIFI
     // --------------------------------------------------------
 
     _wifiManager.update();
@@ -506,197 +349,97 @@ void App::update()
     // MQTT
     // --------------------------------------------------------
 
-    // Обслуживание MQTT-клиента.
-    // Метод нужно вызывать постоянно, без больших задержек.
-    // Клиент обрабатывает входящие сообщения и соединение.
-
     _mqttClient.update();
 
 
     // --------------------------------------------------------
-    // HTTP SERVER
+    // WEB SERVER
     // --------------------------------------------------------
 
     _webServer.handleClient();
-
-
-    // --------------------------------------------------------
-    // AUDIO WEBSOCKET
-    // --------------------------------------------------------
-
-    // WebSocket будет подключён отдельно после MQTT.
-    // _audioWebSocket.update();
 }
 
 
 // ============================================================
-// SETTINGS
+// INITIALIZATION METHODS
 // ============================================================
 
-bool App::initSettings()
-{
-    Serial0.println(
-        "[APP] Initializing settings..."
-    );
+bool App::initSettings() {
 
     return _settings.begin();
 }
 
 
-// ============================================================
-// SPI
-// ============================================================
-
-bool App::initSPI()
-{
-    Serial0.println(
-        "[APP] Initializing SPI..."
-    );
+bool App::initSPI() {
 
     return _spiManager.begin();
 }
 
 
-// ============================================================
-// I2S
-// ============================================================
-
-bool App::initI2S()
-{
-    Serial0.println(
-        "[APP] Initializing I2S..."
-    );
+bool App::initI2S() {
 
     return _i2sManager.begin();
 }
 
 
-// ============================================================
-// CLOCK
-// ============================================================
-
-bool App::initClock()
-{
-    Serial0.println(
-        "[APP] Initializing clock..."
-    );
+bool App::initClock() {
 
     return _clockSystem.begin();
 }
 
 
-// ============================================================
-// SENSORS
-// ============================================================
+bool App::initSensors() {
 
-bool App::initSensors()
-{
-    Serial0.println(
-        "[APP] Initializing sensors..."
-    );
-
-    return _sensorManager.begin();
+    return _sensorsManager.begin();
 }
 
 
-// ============================================================
-// LIGHTING
-// ============================================================
-
-bool App::initLighting()
-{
-    Serial0.println(
-        "[APP] Initializing lighting..."
-    );
+bool App::initLighting() {
 
     return _lighting.begin();
 }
 
 
-// ============================================================
-// DISPLAY
-// ============================================================
-
-bool App::initDisplay()
-{
-    Serial0.println(
-        "[APP] Initializing displays..."
-    );
+bool App::initDisplay() {
 
     return _displaySystem.begin();
 }
 
 
-// ============================================================
-// BRIGHTNESS
-// ============================================================
-
-bool App::initBrightness()
-{
-    Serial0.println(
-        "[APP] Initializing BrightnessManager..."
-    );
+bool App::initBrightness() {
 
     _brightnessManager.begin(
         &_settings,
-        &_sensorManager,
+        &_sensorsManager,
         &_clockSystem
     );
 
-    if (!_brightnessManager.isInitialized())
-    {
-        Serial0.println(
-            "[APP][ERROR] BrightnessManager initialization failed"
-        );
-
-        return false;
-    }
-
-    Serial0.println(
-        "[APP] BrightnessManager initialized"
-    );
+    Serial0.println("[APP] Brightness manager initialized");
 
     return true;
 }
 
 
-// ============================================================
-// SOUND
-// ============================================================
-
-bool App::initSound()
-{
-    Serial0.println(
-        "[APP] Initializing sound..."
-    );
+bool App::initSound() {
 
     return _soundManager.begin();
 }
 
 
-// ============================================================
-// ALARMS
-// ============================================================
+bool App::initAlarm() {
 
-bool App::initAlarm()
-{
-    Serial0.println(
-        "[APP] Initializing alarms..."
-    );
+    if (!_alarmManager.begin()) {
+        Serial0.println("[APP] AlarmManager initialization failed");
+        return false;
+    }
 
-    return _alarmManager.begin();
+    _alarmController.begin();
+
+    return true;
 }
 
 
-// ============================================================
-// WI-FI
-// ============================================================
-
-bool App::initWiFi()
-{
-    Serial0.println(
-        "[APP] Initializing Wi-Fi..."
-    );
+bool App::initWiFi() {
 
     return _wifiManager.begin();
 }
@@ -706,55 +449,41 @@ bool App::initWiFi()
 // MQTT
 // ============================================================
 
-bool App::initMqtt()
-{
-    Serial0.println(
-        "[APP] Initializing MQTT client..."
-    );
+bool App::initMqtt() {
 
-    // Адрес брокера, порт, логин, пароль и ID устройства
-    // задаются в SmartClockMqttClient.h:
-    //
-    // namespace SmartClockMqttConfig
-    //
-    // begin() использует эти настройки.
+    if (!_mqttClient.begin()) {
+        Serial0.println("[APP] MQTT client begin failed");
+        return false;
+    }
 
-    return _mqttClient.begin();
+    Serial0.println("[APP] MQTT client initialized");
+
+    return true;
 }
 
 
 // ============================================================
-// WEB / WI-FI CONFIGURATION
+// MQTT COMMAND HANDLER
 // ============================================================
 
-bool App::initWebWiFi()
-{
-    Serial0.println(
-        "[APP] Configuring web interface..."
-    );
+bool App::initMqttCommandHandler() {
 
+    if (!_mqttCommandHandler.begin(
+            _mqttClient,
+            _settings,
+            _clockSystem,
+            _wifiManager
+        )) {
 
-    // --------------------------------------------------------
-    // REGISTER WI-FI ROUTES
-    // --------------------------------------------------------
+        Serial0.println(
+            "[APP] MQTT command handler begin failed"
+        );
 
-    _webWiFiManager.setupRoutes(
-        _webServer
-    );
-
-
-    // --------------------------------------------------------
-    // START HTTP SERVER
-    // --------------------------------------------------------
-
-    _webServer.begin();
+        return false;
+    }
 
     Serial0.println(
-        "[APP] HTTP server started"
-    );
-
-    Serial0.println(
-        "[APP] HTTP port: 80"
+        "[APP] MQTT command handler initialized"
     );
 
     return true;
@@ -762,9 +491,32 @@ bool App::initWebWiFi()
 
 
 // ============================================================
-// AUDIO WEBSOCKET INITIALIZATION
+// WEB INTERFACE
 // ============================================================
 
-// WebSocket пока не запускается.
-// После проверки MQTT сюда можно добавить подключение
-// WebSocket-клиента для передачи аудиоданных.
+bool App::initWebWiFi() {
+
+    _webWiFiManager.setupRoutes(_webServer);
+
+    _webServer.begin();
+
+    Serial0.println("[APP] Web server started");
+
+    return true;
+}
+
+
+// ============================================================
+// STATUS
+// ============================================================
+
+bool App::isInitialized() const {
+
+    return _initialized;
+}
+
+
+bool App::isMqttConnected() {
+
+    return _mqttClient.isConnected();
+}

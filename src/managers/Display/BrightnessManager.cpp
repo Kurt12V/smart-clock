@@ -1020,23 +1020,23 @@ void BrightnessManager::logAutoStatus(
 {
     if (luxValid)
     {
-        Serial0.printf(
-            "[BRIGHTNESS][AUTO] lux=%.2f | target=%u%% | current=%u%% | threshold=%u%% | delay=%lu ms | offset=%d%%\n",
-            static_cast<double>(lux),
-            static_cast<unsigned>(target),
-            static_cast<unsigned>(_brightness),
-            static_cast<unsigned>(_targetChangeThresholdPct),
-            static_cast<unsigned long>(_targetConfirmationMs),
-            static_cast<int>(_config.offset)
-        );
+        // Serial0.printf(
+        //     "[BRIGHTNESS][AUTO] lux=%.2f | target=%u%% | current=%u%% | threshold=%u%% | delay=%lu ms | offset=%d%%\n",
+        //     static_cast<double>(lux),
+        //     static_cast<unsigned>(target),
+        //     static_cast<unsigned>(_brightness),
+        //     static_cast<unsigned>(_targetChangeThresholdPct),
+        //     static_cast<unsigned long>(_targetConfirmationMs),
+        //     static_cast<int>(_config.offset)
+        // );
     }
     else
     {
-        Serial0.printf(
-            "[BRIGHTNESS][AUTO] lux=INVALID | profile base used | target=%u%% | current=%u%%\n",
-            static_cast<unsigned>(target),
-            static_cast<unsigned>(_brightness)
-        );
+        // Serial0.printf(
+        //     "[BRIGHTNESS][AUTO] lux=INVALID | profile base used | target=%u%% | current=%u%%\n",
+        //     static_cast<unsigned>(target),
+        //     static_cast<unsigned>(_brightness)
+        // );
     }
 }
 

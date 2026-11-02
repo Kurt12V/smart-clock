@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include <Arduino.h>
@@ -19,11 +20,12 @@
 #include "./managers/WiFi/WiFiManager.h"
 
 // ============================================================
-// NETWORK MANAGERS
+// NETWORK
 // ============================================================
 
 #include "./managers/WEB/WebWiFiManager.h"
 #include "./managers/NET/SmartClockMqttClient.h"
+#include "./managers/NET/MqttCommandHandler.h"
 
 // ============================================================
 // SYSTEMS
@@ -32,41 +34,37 @@
 #include "./core/ClockSystem.h"
 #include "./core/DisplaySystem.h"
 
-// ============================================================
-// APP
-// ============================================================
 
-class App
-{
+class App {
+
 public:
-    // ========================================================
-    // CONSTRUCTOR
-    // ========================================================
 
     App();
+
+    App(const App&) = delete;
+    App& operator=(const App&) = delete;
+
 
     // ========================================================
     // LIFECYCLE
     // ========================================================
 
     bool begin();
+
     void update();
+
+    bool isInitialized() const;
+
 
     // ========================================================
     // STATUS
     // ========================================================
 
-    bool isInitialized() const
-    {
-        return _initialized;
-    }
+    bool isMqttConnected();
 
-    bool isMqttConnected()
-    {
-        return _mqttClient.isConnected();
-    }
 
 private:
+
     // ========================================================
     // INITIALIZATION
     // ========================================================
@@ -74,56 +72,68 @@ private:
     bool initSettings();
     bool initSPI();
     bool initI2S();
+
     bool initClock();
     bool initSensors();
+
     bool initLighting();
     bool initDisplay();
     bool initBrightness();
+
     bool initSound();
+
     bool initAlarm();
+
     bool initWiFi();
-    bool initWebWiFi();
     bool initMqtt();
+    bool initMqttCommandHandler();
+
+    bool initWebWiFi();
+
 
     // ========================================================
-    // CORE MANAGERS
+    // MANAGERS
     // ========================================================
 
     SettingsManager _settings;
+
     SPIManager _spiManager;
     I2SManager _i2sManager;
+
     SoundManager _soundManager;
-    SensorManager _sensorManager;
+
+    SensorManager _sensorsManager;
 
     ClockSystem _clockSystem;
-    LightingManager _lighting;
-    DisplaySystem _displaySystem;
-    BrightnessManager _brightnessManager;
 
-    // ========================================================
-    // ALARMS
-    // ========================================================
+    LightingManager _lighting;
+
+    DisplaySystem _displaySystem;
+
+    BrightnessManager _brightnessManager;
 
     AlarmManager _alarmManager;
     AlarmController _alarmController;
+
+    WiFiManager _wifiManager;
+
 
     // ========================================================
     // NETWORK
     // ========================================================
 
-    WiFiManager _wifiManager;
     WebServer _webServer;
+
     WebWiFiManager _webWiFiManager;
 
-    // ========================================================
-    // MQTT
-    // ========================================================
-
     SmartClockMqttClient _mqttClient;
+
+    MqttCommandHandler _mqttCommandHandler;
+
 
     // ========================================================
     // STATE
     // ========================================================
 
-    bool _initialized = false;
+    bool _initialized;
 };
