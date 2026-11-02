@@ -1,15 +1,47 @@
 #include "MqttCommandHandler.h"
 
+#include <Arduino.h>
+#include <ESP.h>
+#include <WiFi.h>
+
+#include <cstdio>
 #include <cstring>
-#include <cstdlib>
+#include <ctime>
 
+MqttCommandHandler* MqttCommandHandler::_instance = nullptr;
 
-// ============================================================
-// STATIC INSTANCE
-// ============================================================
+namespace {
 
-MqttCommandHandler*
-    MqttCommandHandler::_instance = nullptr;
+constexpr uint32_t DEFAULT_RESTART_DELAY_MS = 500;
+constexpr uint32_t MAX_RESTART_DELAY_MS = 10000;
+
+bool readInt(
+    JsonVariantConst params,
+    const char* key,
+    int& value
+) {
+    if (params.isNull() || !params[key].is<int>()) {
+        return false;
+    }
+
+    value = params[key].as<int>();
+    return true;
+}
+
+bool readBool(
+    JsonVariantConst params,
+    const char* key,
+    bool& value
+) {
+    if (params.isNull() || !params[key].is<bool>()) {
+        return false;
+    }
+
+    value = params[key].as<bool>();
+    return true;
+}
+
+} // namespace
 
 
 // ============================================================
@@ -17,49 +49,51 @@ MqttCommandHandler*
 // ============================================================
 
 MqttCommandHandler::MqttCommandHandler()
-    : _mqttClient(nullptr) {
-
-    Serial0.printf(
-        "[COMMAND] Обработчик команд создан\n"
-    );
+    : _mqtt(nullptr),
+      _settings(nullptr),
+      _clock(nullptr),
+      _wifi(nullptr),
+      _initialized(false) {
 }
 
 
 // ============================================================
-// BEGIN
+// INITIALIZATION
 // ============================================================
 
 bool MqttCommandHandler::begin(
-    SmartClockMqttClient& mqttClient
+    SmartClockMqttClient& mqtt,
+    SettingsManager& settings,
+    ClockSystem& clock,
+    WiFiManager& wifi
 ) {
-    if (_instance != nullptr &&
-        _instance != this) {
+    if (_initialized) {
+        return true;
+    }
 
-        Serial0.printf(
-            "[COMMAND] [ERROR] Другой обработчик уже зарегистрирован\n"
-        );
-
+    if (_instance != nullptr && _instance != this) {
         return false;
     }
 
-    _mqttClient = &mqttClient;
+    _mqtt = &mqtt;
+    _settings = &settings;
+    _clock = &clock;
+    _wifi = &wifi;
 
     _instance = this;
 
-    _mqttClient->setEventCallback(
-        MqttCommandHandler::onMqttEvent
+    _mqtt->setEventCallback(
+        &MqttCommandHandler::onMqttEvent
     );
 
-    Serial0.printf(
-        "[COMMAND] Обработчик команд инициализирован\n"
-    );
+    _initialized = true;
 
     return true;
 }
 
 
 // ============================================================
-// MQTT EVENT CALLBACK
+// MQTT EVENT
 // ============================================================
 
 void MqttCommandHandler::onMqttEvent(
@@ -67,146 +101,100 @@ void MqttCommandHandler::onMqttEvent(
     const char* topic,
     const char* payload
 ) {
-    if (_instance == nullptr) {
+    (void)topic;
+
+    if (_instance == nullptr ||
+        !_instance->_initialized) {
         return;
     }
 
-    switch (event) {
+    if (event ==
+        SmartClockMqttClient::Event::COMMAND_RECEIVED) {
 
-        case SmartClockMqttClient::Event::CONNECTED:
-
-            Serial0.printf(
-                "[COMMAND] MQTT подключён\n"
-            );
-
-            break;
-
-
-        case SmartClockMqttClient::Event::DISCONNECTED:
-
-            Serial0.printf(
-                "[COMMAND] MQTT отключён\n"
-            );
-
-            break;
-
-
-        case SmartClockMqttClient::Event::COMMAND_RECEIVED:
-
-            Serial0.printf(
-                "[COMMAND] Получена команда из MQTT\n"
-            );
-
-            _instance->handleCommand(payload);
-
-            break;
-
-
-        case SmartClockMqttClient::Event::ERROR:
-
-            Serial0.printf(
-                "[COMMAND] [ERROR] Событие ошибки MQTT: %s\n",
-                topic != nullptr ? topic : ""
-            );
-
-            break;
+        _instance->handleCommand(payload);
     }
 }
 
 
 // ============================================================
-// HANDLE COMMAND
+// COMMAND DISPATCHER
 // ============================================================
 
 void MqttCommandHandler::handleCommand(
     const char* payload
 ) {
-    if (payload == nullptr ||
-        payload[0] == '\0') {
-
-        Serial0.printf(
-            "[COMMAND] [ERROR] Пустая команда\n"
-        );
-
+    if (payload == nullptr || _mqtt == nullptr) {
         return;
     }
-
-    // --------------------------------------------------------
-    // PARSE JSON
-    // --------------------------------------------------------
 
     JsonDocument document;
 
-    const DeserializationError error =
-        deserializeJson(
-            document,
-            payload
-        );
+    DeserializationError error =
+        deserializeJson(document, payload);
 
     if (error) {
-
-        Serial0.printf(
-            "[COMMAND] [ERROR] Ошибка JSON: %s\n",
-            error.c_str()
+        sendAck(
+            "",
+            "",
+            false,
+            "Invalid JSON payload"
         );
 
         return;
     }
-
-    // --------------------------------------------------------
-    // READ REQUEST ID
-    // --------------------------------------------------------
 
     const char* requestId =
         document["request_id"] | "";
 
-    // --------------------------------------------------------
-    // READ COMMAND
-    // --------------------------------------------------------
-
     const char* command =
         document["command"] | "";
 
-    if (command[0] == '\0') {
+    JsonVariantConst params =
+        document["params"];
 
-        Serial0.printf(
-            "[COMMAND] [ERROR] Отсутствует поле command\n"
-        );
+    if (requestId[0] == '\0' ||
+        command[0] == '\0') {
 
         sendAck(
             requestId,
-            "unknown",
+            command,
             false,
-            "Missing command field"
+            "Required fields: request_id, command"
         );
 
         return;
     }
 
-    Serial0.printf(
-        "[COMMAND] Выполнение: %s\n",
-        command
-    );
-
-    // --------------------------------------------------------
-    // DISPATCH COMMAND
-    // --------------------------------------------------------
-
-    if (strcmp(command, "ping") == 0) {
-
-        executePing(requestId);
-
-    } else if (strcmp(command, "get_status") == 0) {
-
-        executeGetStatus(requestId);
-
-    } else if (strcmp(command, "restart") == 0) {
-
-        executeRestart(requestId);
-
-    } else {
-
-        executeUnknownCommand(
+    if (strncmp(command, "system.", 7) == 0) {
+        systemCommand(
+            requestId,
+            command,
+            params
+        );
+    }
+    else if (strncmp(command, "clock.", 6) == 0) {
+        clockCommand(
+            requestId,
+            command,
+            params
+        );
+    }
+    else if (strncmp(command, "network.", 8) == 0) {
+        networkCommand(
+            requestId,
+            command,
+            params
+        );
+    }
+    else if (strncmp(command, "display.", 8) == 0) {
+        displayCommand(
+            requestId,
+            command,
+            params
+        );
+    }
+    else {
+        unknownCommand(
             requestId,
             command
         );
@@ -215,141 +203,972 @@ void MqttCommandHandler::handleCommand(
 
 
 // ============================================================
-// PING
+// SYSTEM COMMANDS
 // ============================================================
 
-void MqttCommandHandler::executePing(
-    const char* requestId
+void MqttCommandHandler::systemCommand(
+    const char* requestId,
+    const char* command,
+    JsonVariantConst params
 ) {
-    Serial0.printf(
-        "[COMMAND] ping: проверка связи\n"
-    );
+    // --------------------------------------------------------
+    // system.ping
+    // --------------------------------------------------------
 
-    sendAck(
-        requestId,
-        "ping",
-        true,
-        "pong"
-    );
-}
+    if (strcmp(command, "system.ping") == 0) {
+        JsonDocument data;
 
+        data["pong"] = true;
+        data["device_id"] = _mqtt->getDeviceId();
+        data["uptime_ms"] = millis();
 
-// ============================================================
-// GET STATUS
-// ============================================================
-
-void MqttCommandHandler::executeGetStatus(
-    const char* requestId
-) {
-    Serial0.printf(
-        "[COMMAND] Запрос состояния устройства\n"
-    );
-
-    if (_mqttClient == nullptr) {
-
-        Serial0.printf(
-            "[COMMAND] [ERROR] MQTT-клиент недоступен\n"
+        sendResult(
+            requestId,
+            command,
+            true,
+            "pong",
+            data
         );
 
         return;
     }
 
-    JsonDocument response;
+    // --------------------------------------------------------
+    // system.get_info
+    // --------------------------------------------------------
 
-    response["device_id"] =
-        _mqttClient->getDeviceId();
+    if (strcmp(command, "system.get_info") == 0) {
+        JsonDocument data;
 
-    response["request_id"] =
-        requestId;
+        data["device_id"] = _mqtt->getDeviceId();
+        data["chip_model"] = ESP.getChipModel();
+        data["chip_revision"] = ESP.getChipRevision();
+        data["cpu_mhz"] = ESP.getCpuFreqMHz();
+        data["flash_size"] = ESP.getFlashChipSize();
+        data["free_heap"] = ESP.getFreeHeap();
+        data["min_free_heap"] = ESP.getMinFreeHeap();
+        data["sdk_version"] = ESP.getSdkVersion();
+        data["uptime_ms"] = millis();
 
-    response["command"] =
-        "get_status";
-
-    response["status"] =
-        "success";
-
-    response["message"] =
-        "Device status retrieved";
-
-    JsonObject result =
-        response["result"].to<JsonObject>();
-
-    result["mqtt_connected"] =
-        _mqttClient->isConnected();
-
-    result["wifi_connected"] =
-        WiFi.status() == WL_CONNECTED;
-
-    result["uptime_ms"] =
-        millis();
-
-    if (WiFi.status() == WL_CONNECTED) {
-
-        result["ip"] =
-            WiFi.localIP().toString();
-
-        result["rssi"] =
-            WiFi.RSSI();
-
-    } else {
-
-        result["ip"] = "";
-
-        result["rssi"] = 0;
-    }
-
-    Serial0.printf(
-        "[COMMAND] Отправка состояния устройства\n"
-    );
-
-    if (!_mqttClient->publishAck(response)) {
-
-        Serial0.printf(
-            "[COMMAND] [ERROR] Не удалось отправить состояние\n"
-        );
-    }
-}
-
-
-// ============================================================
-// RESTART
-// ============================================================
-
-void MqttCommandHandler::executeRestart(
-    const char* requestId
-) {
-    Serial0.printf(
-        "[COMMAND] Запрошена перезагрузка устройства\n"
-    );
-
-    const bool ackSent = sendAck(
-        requestId,
-        "restart",
-        true,
-        "Device is restarting"
-    );
-
-    if (!ackSent) {
-
-        Serial0.printf(
-            "[COMMAND] [ERROR] ACK не отправлен; перезагрузка отменена\n"
+        sendResult(
+            requestId,
+            command,
+            true,
+            "Device information",
+            data
         );
 
         return;
     }
 
-    Serial0.printf(
-        "[COMMAND] Перезагрузка через 500 мс\n"
-    );
+    // --------------------------------------------------------
+    // system.get_status
+    // --------------------------------------------------------
 
-    delay(500);
+    if (strcmp(command, "system.get_status") == 0) {
+        JsonDocument data;
 
-    ESP.restart();
+        data["wifi_connected"] =
+            _wifi->isConnected();
+
+        data["mqtt_connected"] =
+            _mqtt->isConnected();
+
+        data["ip"] = _wifi->getIP();
+        data["rssi"] = _wifi->getRSSI();
+
+        data["uptime_ms"] = millis();
+
+        data["time_valid"] =
+            _clock->isTimeValid();
+
+        JsonObject settings =
+            data["settings"].to<JsonObject>();
+
+        settings["brightness"] =
+            _settings->get(Param::BRIGHTNESS);
+
+        settings["brightness_mode"] =
+            _settings->get(Param::BRIGHTNESS_MODE);
+
+        settings["matrix_enabled"] =
+            _settings->get(Param::MATRIX_ENABLED) != 0;
+
+        settings["matrix_brightness"] =
+            _settings->get(Param::MATRIX_BRIGHTNESS);
+
+        settings["cob_enabled"] =
+            _settings->get(Param::COB_ENABLED) != 0;
+
+        settings["cob_brightness"] =
+            _settings->get(Param::COB_BRIGHTNESS);
+
+        settings["volume_media"] =
+            _settings->get(Param::VOLUME_MEDIA);
+
+        settings["volume_alarm"] =
+            _settings->get(Param::VOLUME_ALARM);
+
+        settings["volume_system"] =
+            _settings->get(Param::VOLUME_SYSTEM);
+
+        settings["microphone_enabled"] =
+            _settings->get(Param::MICROPHONE_ENABLED) != 0;
+
+        settings["utc_offset"] =
+            _settings->get(Param::UTC_OFFSET);
+
+        sendResult(
+            requestId,
+            command,
+            true,
+            "Device status",
+            data
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // system.sync
+    // --------------------------------------------------------
+
+    if (strcmp(command, "system.sync") == 0) {
+        publishCurrentState();
+
+        sendAck(
+            requestId,
+            command,
+            true,
+            "Current state published"
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // system.restart
+    // --------------------------------------------------------
+
+    if (strcmp(command, "system.restart") == 0) {
+        uint32_t delayMs =
+            DEFAULT_RESTART_DELAY_MS;
+
+        if (!params.isNull() &&
+            params["delay_ms"].is<uint32_t>()) {
+
+            delayMs =
+                params["delay_ms"].as<uint32_t>();
+        }
+
+        if (delayMs > MAX_RESTART_DELAY_MS) {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "delay_ms must be between 0 and 10000"
+            );
+
+            return;
+        }
+
+        if (sendAck(
+                requestId,
+                command,
+                true,
+                "Restart scheduled")) {
+
+            delay(delayMs);
+            ESP.restart();
+        }
+
+        return;
+    }
+
+    unknownCommand(requestId, command);
 }
 
 
 // ============================================================
-// SEND ACK
+// CLOCK COMMANDS
+// ============================================================
+
+void MqttCommandHandler::clockCommand(
+    const char* requestId,
+    const char* command,
+    JsonVariantConst params
+) {
+    // --------------------------------------------------------
+    // clock.get_time
+    // --------------------------------------------------------
+
+    if (strcmp(command, "clock.get_time") == 0) {
+        JsonDocument data;
+
+        char local[24] = {};
+        char utc[24] = {};
+
+        formatTime(
+            _clock->getLocalTime(),
+            local,
+            sizeof(local)
+        );
+
+        formatTime(
+            _clock->getUTCTime(),
+            utc,
+            sizeof(utc)
+        );
+
+        data["valid"] = _clock->isTimeValid();
+        data["datetime"] = local;
+        data["utc_datetime"] = utc;
+
+        data["timezone_offset"] =
+            _settings->get(Param::UTC_OFFSET);
+
+        data["hour"] = _clock->hour();
+        data["minute"] = _clock->minute();
+        data["second"] = _clock->second();
+
+        data["day"] = _clock->day();
+        data["month"] = _clock->month();
+        data["year"] = _clock->year();
+
+        sendResult(
+            requestId,
+            command,
+            true,
+            "Current clock time",
+            data
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // clock.sync_ntp
+    // --------------------------------------------------------
+
+    if (strcmp(command, "clock.sync_ntp") == 0) {
+        const char* server =
+            params["server"] | "pool.ntp.org";
+
+        bool success =
+            _clock->syncFromNTP(server, 10);
+
+        sendAck(
+            requestId,
+            command,
+            success,
+            success
+                ? "NTP synchronization successful"
+                : "NTP synchronization failed"
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // clock.set_utc / clock.set_datetime
+    // --------------------------------------------------------
+
+    if (strcmp(command, "clock.set_utc") == 0 ||
+        strcmp(command, "clock.set_datetime") == 0) {
+
+        const char* text =
+            params["datetime"] | "";
+
+        uint16_t year;
+        uint8_t month;
+        uint8_t day;
+        uint8_t hour;
+        uint8_t minute;
+        uint8_t second;
+
+        if (!parseDateTime(
+                text,
+                year,
+                month,
+                day,
+                hour,
+                minute,
+                second)) {
+
+            sendAck(
+                requestId,
+                command,
+                false,
+                "datetime must use YYYY-MM-DDTHH:MM:SS"
+            );
+
+            return;
+        }
+
+        bool success = false;
+
+        if (strcmp(command, "clock.set_utc") == 0) {
+            success = _clock->setUTCDateTime(
+                year,
+                month,
+                day,
+                hour,
+                minute,
+                second
+            );
+        }
+        else {
+            if (params["timezone"].is<const char*>()) {
+                int offsetHours = 0;
+
+                if (!parseTimezone(
+                        params["timezone"].as<const char*>(),
+                        offsetHours)) {
+
+                    sendAck(
+                        requestId,
+                        command,
+                        false,
+                        "Invalid timezone format"
+                    );
+
+                    return;
+                }
+
+                _settings->set(
+                    Param::UTC_OFFSET,
+                    offsetHours
+                );
+
+                _settings->save(
+                    Param::UTC_OFFSET
+                );
+            }
+
+            success = _clock->setLocalDateTime(
+                year,
+                month,
+                day,
+                hour,
+                minute,
+                second
+            );
+        }
+
+        sendAck(
+            requestId,
+            command,
+            success,
+            success
+                ? "Clock updated"
+                : "Clock update failed"
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // clock.set_timezone
+    // --------------------------------------------------------
+
+    if (strcmp(command, "clock.set_timezone") == 0) {
+        const char* timezone =
+            params["timezone"] | "";
+
+        int offsetHours = 0;
+
+        if (!parseTimezone(timezone, offsetHours)) {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "Use UTC, UTC+04:00 or UTC-05:00 format"
+            );
+
+            return;
+        }
+
+        _settings->set(
+            Param::UTC_OFFSET,
+            offsetHours
+        );
+
+        bool success =
+            _settings->save(Param::UTC_OFFSET);
+
+        JsonDocument data;
+
+        data["timezone"] = timezone;
+        data["offset_hours"] = offsetHours;
+
+        sendResult(
+            requestId,
+            command,
+            success,
+            success ? "Timezone saved" : "Could not save timezone",
+            data
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // clock.get_timezone
+    // --------------------------------------------------------
+
+    if (strcmp(command, "clock.get_timezone") == 0) {
+        int offset =
+            _settings->get(Param::UTC_OFFSET);
+
+        char timezone[16];
+
+        snprintf(
+            timezone,
+            sizeof(timezone),
+            "UTC%c%02d:00",
+            offset < 0 ? '-' : '+',
+            abs(offset)
+        );
+
+        JsonDocument data;
+
+        data["timezone"] = timezone;
+        data["offset_hours"] = offset;
+
+        sendResult(
+            requestId,
+            command,
+            true,
+            "Current timezone",
+            data
+        );
+
+        return;
+    }
+
+    unknownCommand(requestId, command);
+}
+
+
+// ============================================================
+// NETWORK COMMANDS
+// ============================================================
+
+void MqttCommandHandler::networkCommand(
+    const char* requestId,
+    const char* command,
+    JsonVariantConst params
+) {
+    // --------------------------------------------------------
+    // network.get_status
+    // --------------------------------------------------------
+
+    if (strcmp(command, "network.get_status") == 0) {
+        JsonDocument data;
+
+        data["wifi_connected"] =
+            _wifi->isConnected();
+
+        data["wifi_mode"] =
+            static_cast<int>(_wifi->getMode());
+
+        data["ssid"] = _wifi->getSSID();
+        data["ip"] = _wifi->getIP();
+        data["rssi"] = _wifi->getRSSI();
+
+        data["mqtt_connected"] =
+            _mqtt->isConnected();
+
+        sendResult(
+            requestId,
+            command,
+            true,
+            "Network status",
+            data
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // network.get_ip
+    // --------------------------------------------------------
+
+    if (strcmp(command, "network.get_ip") == 0) {
+        JsonDocument data;
+
+        data["ip"] = _wifi->getIP();
+        data["connected"] = _wifi->isConnected();
+
+        sendResult(
+            requestId,
+            command,
+            true,
+            "Network IP",
+            data
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // network.scan_wifi
+    // --------------------------------------------------------
+
+    if (strcmp(command, "network.scan_wifi") == 0) {
+        int count = _wifi->scanNetworks();
+
+        JsonDocument data;
+
+        data["count"] = count;
+
+        JsonArray networks =
+            data["networks"].to<JsonArray>();
+
+        for (int i = 0; i < count; ++i) {
+            JsonObject network =
+                networks.add<JsonObject>();
+
+            network["ssid"] =
+                _wifi->getScanSSID(i);
+
+            network["rssi"] =
+                _wifi->getScanRSSI(i);
+
+            network["encrypted"] =
+                _wifi->getScanEncrypted(i);
+        }
+
+        sendResult(
+            requestId,
+            command,
+            count >= 0,
+            count >= 0
+                ? "Wi-Fi scan complete"
+                : "Wi-Fi scan failed",
+            data
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // network.connect_wifi
+    // --------------------------------------------------------
+
+    if (strcmp(command, "network.connect_wifi") == 0) {
+        const char* ssid =
+            params["ssid"] | "";
+
+        const char* password =
+            params["password"] | "";
+
+        if (ssid[0] == '\0') {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "ssid is required"
+            );
+
+            return;
+        }
+
+        // Пароль не включается в ACK или логи.
+        if (!_wifi->saveCredentials(
+                String(ssid),
+                String(password))) {
+
+            sendAck(
+                requestId,
+                command,
+                false,
+                "Could not save Wi-Fi credentials"
+            );
+
+            return;
+        }
+
+        bool success = _wifi->connect(
+            String(ssid),
+            String(password)
+        );
+
+        sendAck(
+            requestId,
+            command,
+            success,
+            success
+                ? "Wi-Fi connection requested"
+                : "Could not start Wi-Fi connection"
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // network.disconnect_wifi
+    // --------------------------------------------------------
+
+    if (strcmp(command, "network.disconnect_wifi") == 0) {
+        _wifi->disconnect();
+
+        sendAck(
+            requestId,
+            command,
+            true,
+            "Wi-Fi disconnect requested"
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // network.mqtt_reconnect
+    // --------------------------------------------------------
+
+    if (strcmp(command, "network.mqtt_reconnect") == 0) {
+        if (_mqtt->isConnected()) {
+            sendAck(
+                requestId,
+                command,
+                true,
+                "MQTT is already connected"
+            );
+        }
+        else {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "MQTT client retries automatically; force reconnect API is unavailable"
+            );
+        }
+
+        return;
+    }
+
+    unknownCommand(requestId, command);
+}
+
+
+// ============================================================
+// DISPLAY AND LIGHTING COMMANDS
+// ============================================================
+
+void MqttCommandHandler::displayCommand(
+    const char* requestId,
+    const char* command,
+    JsonVariantConst params
+) {
+    // --------------------------------------------------------
+    // display.get_status
+    // --------------------------------------------------------
+
+    if (strcmp(command, "display.get_status") == 0) {
+        JsonDocument data;
+
+        data["brightness"] =
+            _settings->get(Param::BRIGHTNESS);
+
+        data["brightness_mode"] =
+            _settings->get(Param::BRIGHTNESS_MODE);
+
+        data["matrix_enabled"] =
+            _settings->get(Param::MATRIX_ENABLED) != 0;
+
+        data["matrix_brightness"] =
+            _settings->get(Param::MATRIX_BRIGHTNESS);
+
+        data["matrix_effect"] =
+            _settings->get(Param::MATRIX_EFFECT);
+
+        data["matrix_speed"] =
+            _settings->get(Param::MATRIX_SPEED);
+
+        data["cob_enabled"] =
+            _settings->get(Param::COB_ENABLED) != 0;
+
+        data["cob_brightness"] =
+            _settings->get(Param::COB_BRIGHTNESS);
+
+        data["cob_effect"] =
+            _settings->get(Param::COB_EFFECT);
+
+        data["cob_speed"] =
+            _settings->get(Param::COB_SPEED);
+
+        sendResult(
+            requestId,
+            command,
+            true,
+            "Display and lighting settings",
+            data
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // display.get_brightness
+    // --------------------------------------------------------
+
+    if (strcmp(command, "display.get_brightness") == 0) {
+        JsonDocument data;
+
+        data["value"] =
+            _settings->get(Param::BRIGHTNESS);
+
+        data["mode"] =
+            _settings->get(Param::BRIGHTNESS_MODE);
+
+        sendResult(
+            requestId,
+            command,
+            true,
+            "Brightness settings",
+            data
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // display.set_brightness
+    // --------------------------------------------------------
+
+    if (strcmp(command, "display.set_brightness") == 0) {
+        int value;
+
+        if (!readInt(params, "value", value) ||
+            value < 0 || value > 100) {
+
+            sendAck(
+                requestId,
+                command,
+                false,
+                "value must be an integer from 0 to 100"
+            );
+
+            return;
+        }
+
+        _settings->set(
+            Param::BRIGHTNESS,
+            value
+        );
+
+        _settings->set(
+            Param::BRIGHTNESS_MODE,
+            0
+        );
+
+        bool savedBrightness =
+            _settings->save(Param::BRIGHTNESS);
+
+        bool savedMode =
+            _settings->save(Param::BRIGHTNESS_MODE);
+
+        bool success = savedBrightness || savedMode ||
+                       (_settings->get(Param::BRIGHTNESS) == value &&
+                        _settings->get(Param::BRIGHTNESS_MODE) == 0);
+
+        sendAck(
+            requestId,
+            command,
+            success,
+            success
+                ? "Manual brightness updated"
+                : "Could not save brightness"
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // display.set_enabled
+    // --------------------------------------------------------
+
+    if (strcmp(command, "display.set_enabled") == 0) {
+        bool enabled;
+
+        if (!readBool(params, "enabled", enabled)) {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "enabled must be boolean"
+            );
+
+            return;
+        }
+
+        // В SettingsManager нет отдельного флага дисплеев.
+        // Поэтому выключение реализовано через нулевую яркость.
+        int value = enabled
+            ? _settings->getDesc(Param::BRIGHTNESS).defaultValue
+            : 0;
+
+        _settings->set(
+            Param::BRIGHTNESS,
+            value
+        );
+
+        _settings->set(
+            Param::BRIGHTNESS_MODE,
+            0
+        );
+
+        _settings->save(Param::BRIGHTNESS);
+        _settings->save(Param::BRIGHTNESS_MODE);
+
+        sendAck(
+            requestId,
+            command,
+            true,
+            enabled
+                ? "Brightness restored to default"
+                : "Brightness set to zero"
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // display.set_mode
+    // --------------------------------------------------------
+
+    if (strcmp(command, "display.set_mode") == 0) {
+        int value;
+
+        if (!readInt(params, "value", value) ||
+            value < 0 || value > 1) {
+
+            sendAck(
+                requestId,
+                command,
+                false,
+                "value must be 0 (manual) or 1 (automatic)"
+            );
+
+            return;
+        }
+
+        _settings->set(
+            Param::BRIGHTNESS_MODE,
+            value
+        );
+
+        _settings->save(
+            Param::BRIGHTNESS_MODE
+        );
+
+        sendAck(
+            requestId,
+            command,
+            true,
+            "Brightness mode updated"
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // display.set_matrix_enabled / display.set_cob_enabled
+    // --------------------------------------------------------
+
+    if (strcmp(command, "display.set_matrix_enabled") == 0 ||
+        strcmp(command, "display.set_cob_enabled") == 0) {
+
+        bool enabled;
+
+        if (!readBool(params, "enabled", enabled)) {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "enabled must be boolean"
+            );
+
+            return;
+        }
+
+        bool matrix =
+            strcmp(command, "display.set_matrix_enabled") == 0;
+
+        Param parameter = matrix
+            ? Param::MATRIX_ENABLED
+            : Param::COB_ENABLED;
+
+        _settings->set(
+            parameter,
+            enabled ? 1 : 0
+        );
+
+        _settings->save(parameter);
+
+        sendAck(
+            requestId,
+            command,
+            true,
+            matrix
+                ? "Matrix enabled state updated"
+                : "COB enabled state updated"
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // display.set_matrix_brightness / display.set_cob_brightness
+    // --------------------------------------------------------
+
+    if (strcmp(command, "display.set_matrix_brightness") == 0 ||
+        strcmp(command, "display.set_cob_brightness") == 0) {
+
+        int value;
+
+        if (!readInt(params, "value", value) ||
+            value < 0 || value > 100) {
+
+            sendAck(
+                requestId,
+                command,
+                false,
+                "value must be an integer from 0 to 100"
+            );
+
+            return;
+        }
+
+        bool matrix =
+            strcmp(command, "display.set_matrix_brightness") == 0;
+
+        Param parameter = matrix
+            ? Param::MATRIX_BRIGHTNESS
+            : Param::COB_BRIGHTNESS;
+
+        _settings->set(parameter, value);
+        _settings->save(parameter);
+
+        sendAck(
+            requestId,
+            command,
+            true,
+            matrix
+                ? "Matrix brightness updated"
+                : "COB brightness updated"
+        );
+
+        return;
+    }
+
+    unknownCommand(requestId, command);
+}
+
+
+// ============================================================
+// ACK / RESULT
 // ============================================================
 
 bool MqttCommandHandler::sendAck(
@@ -358,38 +1177,144 @@ bool MqttCommandHandler::sendAck(
     bool success,
     const char* message
 ) {
-    if (_mqttClient == nullptr) {
-
-        Serial0.printf(
-            "[COMMAND] [ERROR] Невозможно отправить ACK: MQTT-клиент отсутствует\n"
-        );
-
+    if (_mqtt == nullptr) {
         return false;
     }
 
-    if (requestId == nullptr ||
-        requestId[0] == '\0') {
-
-        Serial0.printf(
-            "[COMMAND] [WARNING] У команды отсутствует request_id\n"
-        );
-
-        return false;
-    }
-
-    Serial0.printf(
-        "[COMMAND] ACK: request_id=%s, command=%s, status=%s\n",
-        requestId,
-        command,
-        success ? "success" : "error"
-    );
-
-    return _mqttClient->publishAck(
-        requestId,
-        command,
+    return _mqtt->publishAck(
+        requestId != nullptr ? requestId : "",
+        command != nullptr ? command : "",
         success,
         message
     );
+}
+
+
+bool MqttCommandHandler::sendResult(
+    const char* requestId,
+    const char* command,
+    bool success,
+    const char* message,
+    JsonDocument& data
+) {
+    if (_mqtt == nullptr) {
+        return false;
+    }
+
+    JsonDocument response;
+
+    response["device_id"] =
+        _mqtt->getDeviceId();
+
+    response["request_id"] =
+        requestId != nullptr ? requestId : "";
+
+    response["command"] =
+        command != nullptr ? command : "";
+
+    response["status"] =
+        success ? "success" : "error";
+
+    response["uptime_ms"] = millis();
+
+    if (message != nullptr && message[0] != '\0') {
+        response["message"] = message;
+    }
+
+    response["result"].set(
+        data.as<JsonVariantConst>()
+    );
+
+    return _mqtt->publishAck(response);
+}
+
+
+// ============================================================
+// PUBLISH CURRENT STATE
+// ============================================================
+
+void MqttCommandHandler::publishCurrentState() {
+    if (_mqtt == nullptr ||
+        _settings == nullptr ||
+        _clock == nullptr ||
+        _wifi == nullptr) {
+        return;
+    }
+
+    JsonDocument state;
+
+    state["device_id"] =
+        _mqtt->getDeviceId();
+
+    state["wifi_connected"] =
+        _wifi->isConnected();
+
+    state["mqtt_connected"] =
+        _mqtt->isConnected();
+
+    state["ip"] = _wifi->getIP();
+    state["rssi"] = _wifi->getRSSI();
+
+    state["uptime_ms"] = millis();
+
+    state["time_valid"] =
+        _clock->isTimeValid();
+
+    char local[24] = {};
+    char utc[24] = {};
+
+    formatTime(
+        _clock->getLocalTime(),
+        local,
+        sizeof(local)
+    );
+
+    formatTime(
+        _clock->getUTCTime(),
+        utc,
+        sizeof(utc)
+    );
+
+    state["datetime"] = local;
+    state["utc_datetime"] = utc;
+
+    state["utc_offset"] =
+        _settings->get(Param::UTC_OFFSET);
+
+    JsonObject settings =
+        state["settings"].to<JsonObject>();
+
+    settings["brightness"] =
+        _settings->get(Param::BRIGHTNESS);
+
+    settings["brightness_mode"] =
+        _settings->get(Param::BRIGHTNESS_MODE);
+
+    settings["matrix_enabled"] =
+        _settings->get(Param::MATRIX_ENABLED) != 0;
+
+    settings["matrix_brightness"] =
+        _settings->get(Param::MATRIX_BRIGHTNESS);
+
+    settings["cob_enabled"] =
+        _settings->get(Param::COB_ENABLED) != 0;
+
+    settings["cob_brightness"] =
+        _settings->get(Param::COB_BRIGHTNESS);
+
+    settings["volume_media"] =
+        _settings->get(Param::VOLUME_MEDIA);
+
+    settings["volume_alarm"] =
+        _settings->get(Param::VOLUME_ALARM);
+
+    settings["volume_system"] =
+        _settings->get(Param::VOLUME_SYSTEM);
+
+    settings["microphone_enabled"] =
+        _settings->get(Param::MICROPHONE_ENABLED) != 0;
+
+    _mqtt->publishState(state, true);
 }
 
 
@@ -397,19 +1322,156 @@ bool MqttCommandHandler::sendAck(
 // UNKNOWN COMMAND
 // ============================================================
 
-void MqttCommandHandler::executeUnknownCommand(
+void MqttCommandHandler::unknownCommand(
     const char* requestId,
     const char* command
 ) {
-    Serial0.printf(
-        "[COMMAND] [WARNING] Неизвестная команда: %s\n",
-        command
-    );
-
     sendAck(
         requestId,
         command,
         false,
         "Unknown command"
+    );
+}
+
+
+// ============================================================
+// DATE/TIME PARSING
+// ============================================================
+
+bool MqttCommandHandler::parseDateTime(
+    const char* text,
+    uint16_t& year,
+    uint8_t& month,
+    uint8_t& day,
+    uint8_t& hour,
+    uint8_t& minute,
+    uint8_t& second
+) {
+    if (text == nullptr) {
+        return false;
+    }
+
+    int y, mo, d, h, mi, s;
+    char trailing;
+
+    int fields = sscanf(
+        text,
+        "%4d-%2d-%2dT%2d:%2d:%2d%c",
+        &y,
+        &mo,
+        &d,
+        &h,
+        &mi,
+        &s,
+        &trailing
+    );
+
+    if (fields != 6 ||
+        y < 2000 || y > 2099 ||
+        mo < 1 || mo > 12 ||
+        d < 1 || d > 31 ||
+        h < 0 || h > 23 ||
+        mi < 0 || mi > 59 ||
+        s < 0 || s > 59) {
+
+        return false;
+    }
+
+    year = static_cast<uint16_t>(y);
+    month = static_cast<uint8_t>(mo);
+    day = static_cast<uint8_t>(d);
+    hour = static_cast<uint8_t>(h);
+    minute = static_cast<uint8_t>(mi);
+    second = static_cast<uint8_t>(s);
+
+    return true;
+}
+
+
+// ============================================================
+// TIMEZONE PARSING
+// ============================================================
+
+bool MqttCommandHandler::parseTimezone(
+    const char* text,
+    int& offsetHours
+) {
+    if (text == nullptr) {
+        return false;
+    }
+
+    if (strcmp(text, "UTC") == 0 ||
+        strcmp(text, "UTC+00:00") == 0 ||
+        strcmp(text, "UTC-00:00") == 0) {
+
+        offsetHours = 0;
+        return true;
+    }
+
+    if (strlen(text) != 9 ||
+        strncmp(text, "UTC", 3) != 0 ||
+        (text[3] != '+' && text[3] != '-') ||
+        text[4] < '0' || text[4] > '9' ||
+        text[5] < '0' || text[5] > '9' ||
+        text[6] != ':' ||
+        text[7] != '0' ||
+        text[8] != '0') {
+
+        return false;
+    }
+
+    int hours =
+        (text[4] - '0') * 10 +
+        (text[5] - '0');
+
+    if (hours > 14) {
+        return false;
+    }
+
+    offsetHours =
+        text[3] == '-' ? -hours : hours;
+
+    return true;
+}
+
+
+// ============================================================
+// TIME FORMATTING
+// ============================================================
+
+void MqttCommandHandler::formatTime(
+    time_t timestamp,
+    char* output,
+    size_t outputSize
+) {
+    if (output == nullptr || outputSize == 0) {
+        return;
+    }
+
+    struct tm timeInfo {};
+
+    if (timestamp <= 0 ||
+        gmtime_r(&timestamp, &timeInfo) == nullptr) {
+
+        snprintf(
+            output,
+            outputSize,
+            "invalid"
+        );
+
+        return;
+    }
+
+    snprintf(
+        output,
+        outputSize,
+        "%04d-%02d-%02dT%02d:%02d:%02d",
+        timeInfo.tm_year + 1900,
+        timeInfo.tm_mon + 1,
+        timeInfo.tm_mday,
+        timeInfo.tm_hour,
+        timeInfo.tm_min,
+        timeInfo.tm_sec
     );
 }

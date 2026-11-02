@@ -4,82 +4,67 @@
 #include <ArduinoJson.h>
 
 #include "SmartClockMqttClient.h"
+#include "./managers/Setting/SettingsManager.h"
+#include "./core/ClockSystem.h"
+#include "./managers/WiFi/WiFiManager.h"
 
 class MqttCommandHandler {
 public:
-
-    // ========================================================
-    // CONSTRUCTOR
-    // ========================================================
-
     MqttCommandHandler();
 
+    MqttCommandHandler(const MqttCommandHandler&) = delete;
+    MqttCommandHandler& operator=(const MqttCommandHandler&) = delete;
 
-    // ========================================================
-    // INITIALIZATION
-    // ========================================================
-
+    // Подключение обработчика к MQTT-клиенту и менеджерам.
     bool begin(
-        SmartClockMqttClient& mqttClient
+        SmartClockMqttClient& mqtt,
+        SettingsManager& settings,
+        ClockSystem& clock,
+        WiFiManager& wifi
     );
 
-
-    // ========================================================
-    // COMMAND CALLBACK
-    // ========================================================
-
+    // Обработчик событий MQTT.
     static void onMqttEvent(
         SmartClockMqttClient::Event event,
         const char* topic,
         const char* payload
     );
 
-
 private:
-
-    // ========================================================
-    // INSTANCE
-    // ========================================================
-
     static MqttCommandHandler* _instance;
 
+    SmartClockMqttClient* _mqtt;
+    SettingsManager* _settings;
+    ClockSystem* _clock;
+    WiFiManager* _wifi;
 
-    // ========================================================
-    // MQTT CLIENT
-    // ========================================================
+    bool _initialized;
 
-    SmartClockMqttClient* _mqttClient;
+    void handleCommand(const char* payload);
 
-
-    // ========================================================
-    // COMMAND PROCESSING
-    // ========================================================
-
-    void handleCommand(
-        const char* payload
+    void systemCommand(
+        const char* requestId,
+        const char* command,
+        JsonVariantConst params
     );
 
-
-    // ========================================================
-    // COMMANDS
-    // ========================================================
-
-    void executePing(
-        const char* requestId
+    void clockCommand(
+        const char* requestId,
+        const char* command,
+        JsonVariantConst params
     );
 
-    void executeGetStatus(
-        const char* requestId
+    void networkCommand(
+        const char* requestId,
+        const char* command,
+        JsonVariantConst params
     );
 
-    void executeRestart(
-        const char* requestId
+    void displayCommand(
+        const char* requestId,
+        const char* command,
+        JsonVariantConst params
     );
-
-
-    // ========================================================
-    // ACK
-    // ========================================================
 
     bool sendAck(
         const char* requestId,
@@ -88,13 +73,39 @@ private:
         const char* message
     );
 
+    bool sendResult(
+        const char* requestId,
+        const char* command,
+        bool success,
+        const char* message,
+        JsonDocument& data
+    );
 
-    // ========================================================
-    // UNKNOWN COMMAND
-    // ========================================================
+    void publishCurrentState();
 
-    void executeUnknownCommand(
+    void unknownCommand(
         const char* requestId,
         const char* command
+    );
+
+    static bool parseDateTime(
+        const char* text,
+        uint16_t& year,
+        uint8_t& month,
+        uint8_t& day,
+        uint8_t& hour,
+        uint8_t& minute,
+        uint8_t& second
+    );
+
+    static bool parseTimezone(
+        const char* text,
+        int& offsetHours
+    );
+
+    static void formatTime(
+        time_t timestamp,
+        char* output,
+        size_t outputSize
     );
 };
