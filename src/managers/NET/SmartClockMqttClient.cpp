@@ -3,7 +3,6 @@
 #include <cstring>
 #include <cstdio>
 
-
 // ============================================================
 // STATIC INSTANCE
 // ============================================================
@@ -21,6 +20,8 @@ SmartClockMqttClient::SmartClockMqttClient()
       _mqttClient(_wifiClient),
 
       _broker{},
+      _port(0),
+
       _deviceId{},
       _username{},
       _password{},
@@ -34,19 +35,38 @@ SmartClockMqttClient::SmartClockMqttClient()
       _initialized(false),
       _wasConnected(false),
       _hasReconnectAttempted(false),
+      _wifiWasConnected(false),
+      _tcpProbePassed(false),
 
       _lastReconnectAttempt(0),
       _lastStatePublish(0),
+      _lastWifiReconnectAttempt(0),
 
       _eventCallback(nullptr) {
 
     _mqttClient.setKeepAlive(30);
 
-    _mqttClient.setSocketTimeout(3);
+    _mqttClient.setSocketTimeout(5);
 
-    Serial0.printf(
-        "[MQTT] [INFO] MQTT-клиент создан\n"
+    Serial0.println(
+        "[MQTT] Клиент создан"
     );
+}
+
+
+// ============================================================
+// DESTRUCTOR
+// ============================================================
+
+SmartClockMqttClient::~SmartClockMqttClient() {
+
+    if (_mqttClient.connected()) {
+        _mqttClient.disconnect();
+    }
+
+    if (_instance == this) {
+        _instance = nullptr;
+    }
 }
 
 
@@ -55,64 +75,68 @@ SmartClockMqttClient::SmartClockMqttClient()
 // ============================================================
 
 bool SmartClockMqttClient::begin() {
-    // Адрес MQTT-брокера и параметры устройства заданы в SmartClockMqttClient.h.
-    const char* broker = SmartClockMqttConfig::BROKER_HOST;
-    const uint16_t port = SmartClockMqttConfig::BROKER_PORT;
-    const char* deviceId = SmartClockMqttConfig::DEVICE_ID;
-    const char* username = SmartClockMqttConfig::USERNAME;
-    const char* password = SmartClockMqttConfig::PASSWORD;
-    Serial0.printf(
-        "[MQTT] [INFO] Инициализация MQTT-клиента\n"
+
+    Serial0.println();
+    Serial0.println(
+        "========================================"
     );
-
-    // --------------------------------------------------------
-    // VALIDATION
-    // --------------------------------------------------------
-
-    if (broker == nullptr ||
-        deviceId == nullptr ||
-        broker[0] == '\0' ||
-        deviceId[0] == '\0' ||
-        port == 0) {
-
-        Serial0.printf(
-            "[MQTT] [ERROR] Некорректная конфигурация\n"
-        );
-
-        return false;
-    }
+    Serial0.println(
+        "[MQTT] Инициализация SmartClockMqttClient"
+    );
+    Serial0.println(
+        "========================================"
+    );
 
     // --------------------------------------------------------
     // SINGLE INSTANCE
     // --------------------------------------------------------
 
-    if (_instance != nullptr &&
-        _instance != this) {
+    if (_instance != nullptr && _instance != this) {
 
-        Serial0.printf(
-            "[MQTT] [ERROR] Другой MQTT-клиент уже существует\n"
+        Serial0.println(
+            "[MQTT][ERROR] Другой экземпляр MQTT уже существует"
         );
 
         return false;
     }
 
     // --------------------------------------------------------
-    // VALIDATE LENGTH
+    // CONFIGURATION
     // --------------------------------------------------------
 
-    if (strlen(broker) >= sizeof(_broker)) {
+    const char* broker =
+        SmartClockMqttConfig::BROKER_HOST;
 
-        Serial0.printf(
-            "[MQTT] [ERROR] Адрес брокера слишком длинный\n"
+    const uint16_t port =
+        SmartClockMqttConfig::BROKER_PORT;
+
+    const char* deviceId =
+        SmartClockMqttConfig::DEVICE_ID;
+
+    const char* username =
+        SmartClockMqttConfig::USERNAME;
+
+    const char* password =
+        SmartClockMqttConfig::PASSWORD;
+
+    if (broker == nullptr ||
+        broker[0] == '\0' ||
+        deviceId == nullptr ||
+        deviceId[0] == '\0' ||
+        port == 0) {
+
+        Serial0.println(
+            "[MQTT][ERROR] Некорректная конфигурация"
         );
 
         return false;
     }
 
-    if (strlen(deviceId) >= sizeof(_deviceId)) {
+    if (strlen(broker) >= sizeof(_broker) ||
+        strlen(deviceId) >= sizeof(_deviceId)) {
 
-        Serial0.printf(
-            "[MQTT] [ERROR] Device ID слишком длинный\n"
+        Serial0.println(
+            "[MQTT][ERROR] Адрес брокера или Device ID слишком длинный"
         );
 
         return false;
@@ -121,8 +145,8 @@ bool SmartClockMqttClient::begin() {
     if (username != nullptr &&
         strlen(username) >= sizeof(_username)) {
 
-        Serial0.printf(
-            "[MQTT] [ERROR] Имя пользователя слишком длинное\n"
+        Serial0.println(
+            "[MQTT][ERROR] Username слишком длинный"
         );
 
         return false;
@@ -131,8 +155,8 @@ bool SmartClockMqttClient::begin() {
     if (password != nullptr &&
         strlen(password) >= sizeof(_password)) {
 
-        Serial0.printf(
-            "[MQTT] [ERROR] Пароль слишком длинный\n"
+        Serial0.println(
+            "[MQTT][ERROR] Password слишком длинный"
         );
 
         return false;
@@ -142,16 +166,12 @@ bool SmartClockMqttClient::begin() {
         password[0] != '\0' &&
         (username == nullptr || username[0] == '\0')) {
 
-        Serial0.printf(
-            "[MQTT] [ERROR] Пароль задан без имени пользователя\n"
+        Serial0.println(
+            "[MQTT][ERROR] Password задан без Username"
         );
 
         return false;
     }
-
-    // --------------------------------------------------------
-    // COPY CONFIGURATION
-    // --------------------------------------------------------
 
     snprintf(
         _broker,
@@ -160,6 +180,8 @@ bool SmartClockMqttClient::begin() {
         broker
     );
 
+    _port = port;
+
     snprintf(
         _deviceId,
         sizeof(_deviceId),
@@ -167,50 +189,22 @@ bool SmartClockMqttClient::begin() {
         deviceId
     );
 
-    if (username != nullptr) {
-
-        snprintf(
-            _username,
-            sizeof(_username),
-            "%s",
-            username
-        );
-    }
-
-    if (password != nullptr) {
-
-        snprintf(
-            _password,
-            sizeof(_password),
-            "%s",
-            password
-        );
-    }
-
-    // --------------------------------------------------------
-    // CONFIGURATION LOG
-    // --------------------------------------------------------
-
-    Serial0.printf(
-        "[MQTT] [INFO] Broker: %s:%u\n",
-        _broker,
-        port
+    snprintf(
+        _username,
+        sizeof(_username),
+        "%s",
+        username != nullptr ? username : ""
     );
 
-    Serial0.printf(
-        "[MQTT] [INFO] Device ID: %s\n",
-        _deviceId
-    );
-
-    Serial0.printf(
-        "[MQTT] [INFO] Авторизация: %s\n",
-        _username[0] != '\0'
-            ? "включена"
-            : "отключена"
+    snprintf(
+        _password,
+        sizeof(_password),
+        "%s",
+        password != nullptr ? password : ""
     );
 
     // --------------------------------------------------------
-    // CREATE TOPICS
+    // TOPICS
     // --------------------------------------------------------
 
     int result = snprintf(
@@ -223,8 +217,8 @@ bool SmartClockMqttClient::begin() {
     if (result < 0 ||
         static_cast<size_t>(result) >= sizeof(_commandTopic)) {
 
-        Serial0.printf(
-            "[MQTT] [ERROR] Ошибка создания command topic\n"
+        Serial0.println(
+            "[MQTT][ERROR] Ошибка создания command topic"
         );
 
         return false;
@@ -240,8 +234,8 @@ bool SmartClockMqttClient::begin() {
     if (result < 0 ||
         static_cast<size_t>(result) >= sizeof(_stateTopic)) {
 
-        Serial0.printf(
-            "[MQTT] [ERROR] Ошибка создания state topic\n"
+        Serial0.println(
+            "[MQTT][ERROR] Ошибка создания state topic"
         );
 
         return false;
@@ -257,8 +251,8 @@ bool SmartClockMqttClient::begin() {
     if (result < 0 ||
         static_cast<size_t>(result) >= sizeof(_telemetryTopic)) {
 
-        Serial0.printf(
-            "[MQTT] [ERROR] Ошибка создания telemetry topic\n"
+        Serial0.println(
+            "[MQTT][ERROR] Ошибка создания telemetry topic"
         );
 
         return false;
@@ -274,8 +268,8 @@ bool SmartClockMqttClient::begin() {
     if (result < 0 ||
         static_cast<size_t>(result) >= sizeof(_eventTopic)) {
 
-        Serial0.printf(
-            "[MQTT] [ERROR] Ошибка создания events topic\n"
+        Serial0.println(
+            "[MQTT][ERROR] Ошибка создания events topic"
         );
 
         return false;
@@ -291,39 +285,57 @@ bool SmartClockMqttClient::begin() {
     if (result < 0 ||
         static_cast<size_t>(result) >= sizeof(_ackTopic)) {
 
-        Serial0.printf(
-            "[MQTT] [ERROR] Ошибка создания ack topic\n"
+        Serial0.println(
+            "[MQTT][ERROR] Ошибка создания ack topic"
         );
 
         return false;
     }
 
     // --------------------------------------------------------
-    // TOPIC LOG
+    // LOG CONFIGURATION
     // --------------------------------------------------------
 
     Serial0.printf(
-        "[MQTT] [INFO] Command: %s\n",
+        "[MQTT] Broker: %s:%u\n",
+        _broker,
+        _port
+    );
+
+    Serial0.printf(
+        "[MQTT] Client ID: %s\n",
+        _deviceId
+    );
+
+    Serial0.printf(
+        "[MQTT] Authorization: %s\n",
+        _username[0] != '\0'
+            ? "enabled"
+            : "disabled"
+    );
+
+    Serial0.printf(
+        "[MQTT] Command topic: %s\n",
         _commandTopic
     );
 
     Serial0.printf(
-        "[MQTT] [INFO] State: %s\n",
+        "[MQTT] State topic: %s\n",
         _stateTopic
     );
 
     Serial0.printf(
-        "[MQTT] [INFO] Telemetry: %s\n",
+        "[MQTT] Telemetry topic: %s\n",
         _telemetryTopic
     );
 
     Serial0.printf(
-        "[MQTT] [INFO] Events: %s\n",
+        "[MQTT] Events topic: %s\n",
         _eventTopic
     );
 
     Serial0.printf(
-        "[MQTT] [INFO] ACK: %s\n",
+        "[MQTT] ACK topic: %s\n",
         _ackTopic
     );
 
@@ -331,10 +343,12 @@ bool SmartClockMqttClient::begin() {
     // MQTT BUFFER
     // --------------------------------------------------------
 
-    if (!_mqttClient.setBufferSize(MQTT_BUFFER_SIZE)) {
+    if (!_mqttClient.setBufferSize(
+            SmartClockMqttConstants::BUFFER_SIZE
+        )) {
 
-        Serial0.printf(
-            "[MQTT] [ERROR] Не удалось выделить MQTT-буфер\n"
+        Serial0.println(
+            "[MQTT][ERROR] Не удалось установить буфер 512 байт"
         );
 
         return false;
@@ -346,7 +360,7 @@ bool SmartClockMqttClient::begin() {
 
     _mqttClient.setServer(
         _broker,
-        port
+        _port
     );
 
     _mqttClient.setCallback(
@@ -354,7 +368,7 @@ bool SmartClockMqttClient::begin() {
     );
 
     // --------------------------------------------------------
-    // INITIALIZE
+    // INITIAL STATE
     // --------------------------------------------------------
 
     _instance = this;
@@ -365,32 +379,44 @@ bool SmartClockMqttClient::begin() {
 
     _hasReconnectAttempted = false;
 
+    _wifiWasConnected = false;
+
+    _tcpProbePassed = false;
+
     _lastReconnectAttempt = 0;
 
     _lastStatePublish = 0;
 
-    Serial0.printf(
-        "[MQTT] [INFO] Инициализация завершена\n"
+    _lastWifiReconnectAttempt = 0;
+
+    Serial0.println(
+        "[MQTT] Инициализация завершена"
     );
 
     // --------------------------------------------------------
-    // WIFI STATUS
+    // WIFI
     // --------------------------------------------------------
 
     if (WiFi.status() == WL_CONNECTED) {
 
         Serial0.printf(
-            "[MQTT] [INFO] Wi-Fi подключён: IP=%s, RSSI=%d dBm\n",
+            "[MQTT] Wi-Fi connected: IP=%s, RSSI=%d dBm\n",
             WiFi.localIP().toString().c_str(),
             WiFi.RSSI()
         );
 
+        _wifiWasConnected = true;
+
     } else {
 
-        Serial0.printf(
-            "[MQTT] [WARNING] Wi-Fi не подключён; ожидание подключения\n"
+        Serial0.println(
+            "[MQTT] Wi-Fi не подключён. Ожидание подключения."
         );
     }
+
+    Serial0.println(
+        "========================================"
+    );
 
     return true;
 }
@@ -401,20 +427,23 @@ bool SmartClockMqttClient::begin() {
 // ============================================================
 
 void SmartClockMqttClient::update() {
+
     if (!_initialized) {
         return;
     }
 
+    const uint32_t now = millis();
+
     // --------------------------------------------------------
-    // WIFI STATUS
+    // WIFI DISCONNECTED
     // --------------------------------------------------------
 
     if (WiFi.status() != WL_CONNECTED) {
 
         if (_mqttClient.connected()) {
 
-            Serial0.printf(
-                "[MQTT] [WARNING] Wi-Fi потерян\n"
+            Serial0.println(
+                "[MQTT] Wi-Fi потерян. Отключение MQTT."
             );
 
             _mqttClient.disconnect();
@@ -424,10 +453,6 @@ void SmartClockMqttClient::update() {
 
             _wasConnected = false;
 
-            Serial0.printf(
-                "[MQTT] [WARNING] MQTT отключён из-за потери Wi-Fi\n"
-            );
-
             notify(
                 Event::DISCONNECTED,
                 "mqtt",
@@ -435,11 +460,31 @@ void SmartClockMqttClient::update() {
             );
         }
 
+        _wifiWasConnected = false;
+
         return;
     }
 
     // --------------------------------------------------------
-    // PROCESS MQTT
+    // WIFI RECONNECTED
+    // --------------------------------------------------------
+
+    if (!_wifiWasConnected) {
+
+        _wifiWasConnected = true;
+
+        _hasReconnectAttempted = false;
+
+        _lastReconnectAttempt = 0;
+
+        Serial0.printf(
+            "[MQTT] Wi-Fi восстановлен: %s\n",
+            WiFi.localIP().toString().c_str()
+        );
+    }
+
+    // --------------------------------------------------------
+    // MQTT LOOP
     // --------------------------------------------------------
 
     if (_mqttClient.connected()) {
@@ -448,7 +493,7 @@ void SmartClockMqttClient::update() {
     }
 
     // --------------------------------------------------------
-    // RECONNECT
+    // MQTT DISCONNECTED
     // --------------------------------------------------------
 
     if (!_mqttClient.connected()) {
@@ -458,7 +503,8 @@ void SmartClockMqttClient::update() {
             _wasConnected = false;
 
             Serial0.printf(
-                "[MQTT] [WARNING] Соединение с брокером потеряно\n"
+                "[MQTT] Соединение потеряно, state=%d\n",
+                _mqttClient.state()
             );
 
             notify(
@@ -468,24 +514,22 @@ void SmartClockMqttClient::update() {
             );
         }
 
-        const uint32_t now = millis();
+        // ----------------------------------------------------
+        // RECONNECT TIMER
+        // ----------------------------------------------------
 
         const bool firstAttempt =
             !_hasReconnectAttempted;
 
         const bool intervalElapsed =
             now - _lastReconnectAttempt >=
-            RECONNECT_INTERVAL_MS;
+            SmartClockMqttConstants::RECONNECT_INTERVAL_MS;
 
         if (firstAttempt || intervalElapsed) {
 
             _lastReconnectAttempt = now;
 
             _hasReconnectAttempted = true;
-
-            Serial0.printf(
-                "[MQTT] [INFO] Попытка подключения к брокеру\n"
-            );
 
             connect();
         }
@@ -497,18 +541,71 @@ void SmartClockMqttClient::update() {
     // PERIODIC STATE
     // --------------------------------------------------------
 
-    const uint32_t now = millis();
-
-    if (now - _lastStatePublish >= STATE_INTERVAL_MS) {
+    if (now - _lastStatePublish >=
+        SmartClockMqttConstants::STATE_INTERVAL_MS) {
 
         _lastStatePublish = now;
 
-        Serial0.printf(
-            "[MQTT] [INFO] Публикация периодического состояния\n"
-        );
-
         publishConnectionState(true);
     }
+}
+
+
+// ============================================================
+// TCP PROBE
+// ============================================================
+
+bool SmartClockMqttClient::probeBrokerTcp() {
+
+    Serial0.println(
+        "[NET][PROBE] Проверка TCP-доступности брокера"
+    );
+
+    Serial0.printf(
+        "[NET][PROBE] Target: %s:%u\n",
+        _broker,
+        _port
+    );
+
+    WiFiClient probe;
+
+    probe.setTimeout(
+        SmartClockMqttConstants::TCP_TIMEOUT_MS
+    );
+
+    const uint32_t start = millis();
+
+    const bool success = probe.connect(
+        _broker,
+        _port
+    );
+
+    const uint32_t elapsed = millis() - start;
+
+    if (!success) {
+
+        Serial0.printf(
+            "[NET][PROBE][ERROR] TCP connect FAILED after %lu ms\n",
+            static_cast<unsigned long>(elapsed)
+        );
+
+        Serial0.println(
+            "[NET][PROBE] Проверь IP, порт, Mosquitto и firewall."
+        );
+
+        probe.stop();
+
+        return false;
+    }
+
+    Serial0.printf(
+        "[NET][PROBE] TCP connect OK (%lu ms)\n",
+        static_cast<unsigned long>(elapsed)
+    );
+
+    probe.stop();
+
+    return true;
 }
 
 
@@ -517,10 +614,11 @@ void SmartClockMqttClient::update() {
 // ============================================================
 
 bool SmartClockMqttClient::connect() {
+
     if (!_initialized) {
 
-        Serial0.printf(
-            "[MQTT] [ERROR] Клиент не инициализирован\n"
+        Serial0.println(
+            "[MQTT][ERROR] Клиент не инициализирован"
         );
 
         return false;
@@ -528,80 +626,185 @@ bool SmartClockMqttClient::connect() {
 
     if (WiFi.status() != WL_CONNECTED) {
 
-        Serial0.printf(
-            "[MQTT] [WARNING] Нет Wi-Fi; подключение отложено\n"
+        Serial0.println(
+            "[MQTT] Подключение пропущено: Wi-Fi недоступен"
         );
 
         return false;
     }
+
+    Serial0.println();
+    Serial0.println(
+        "[MQTT] ========== CONNECT ATTEMPT =========="
+    );
+
+    Serial0.printf(
+        "[MQTT] Broker: %s:%u\n",
+        _broker,
+        _port
+    );
+
+    // --------------------------------------------------------
+    // TCP CHECK
+    // --------------------------------------------------------
+
+    if (!probeBrokerTcp()) {
+
+        Serial0.println(
+            "[MQTT] Подключение отменено: TCP недоступен"
+        );
+
+        Serial0.println(
+            "[MQTT] ===================================="
+        );
+
+        notify(
+            Event::ERROR,
+            "mqtt",
+            "tcp_unreachable"
+        );
+
+        return false;
+    }
+
+    _tcpProbePassed = true;
 
     // --------------------------------------------------------
     // CLIENT ID
     // --------------------------------------------------------
 
-    char clientId[80];
+    // ВАЖНО:
+    // Не добавляем префикс "smartclock-".
+    // DEVICE_ID уже равен "smartclock-01".
 
-    const int result = snprintf(
-        clientId,
-        sizeof(clientId),
-        "smartclock-%s",
-        _deviceId
-    );
-
-    if (result < 0 ||
-        static_cast<size_t>(result) >= sizeof(clientId)) {
-
-        Serial0.printf(
-            "[MQTT] [ERROR] MQTT Client ID слишком длинный\n"
-        );
-
-        return false;
-    }
+    const char* clientId = _deviceId;
 
     Serial0.printf(
-        "[MQTT] [INFO] Подключение: client_id=%s\n",
+        "[MQTT] Client ID: %s\n",
         clientId
     );
 
     // --------------------------------------------------------
-    // CONNECT WITH LWT
+    // MQTT CONNECT
     // --------------------------------------------------------
+
+    Serial0.println(
+        "[MQTT] Calling mqttClient.connect()..."
+    );
+
+    const uint32_t start = millis();
 
     bool connected = false;
 
-    if (_username[0] != '\0') {
+    // --------------------------------------------------------
+    // NO AUTHENTICATION
+    // --------------------------------------------------------
+
+    if (_username[0] == '\0') {
 
         connected = _mqttClient.connect(
-            clientId,
-            _username,
-            _password,
-            _stateTopic,
-            1,
-            true,
-            "{\"connected\":false}"
-        );
-
-    } else {
-
-        connected = _mqttClient.connect(
-            clientId,
-            _stateTopic,
-            1,
-            true,
-            "{\"connected\":false}"
+            clientId
         );
     }
 
     // --------------------------------------------------------
-    // CONNECTION RESULT
+    // AUTHENTICATION
+    // --------------------------------------------------------
+
+    else {
+
+        connected = _mqttClient.connect(
+            clientId,
+            _username,
+            _password
+        );
+    }
+
+    const uint32_t elapsed = millis() - start;
+
+    Serial0.printf(
+        "[MQTT] connect() returned %s after %lu ms\n",
+        connected ? "true" : "false",
+        static_cast<unsigned long>(elapsed)
+    );
+
+    // --------------------------------------------------------
+    // CONNECTION FAILED
     // --------------------------------------------------------
 
     if (!connected) {
 
+        const int state = _mqttClient.state();
+
         Serial0.printf(
-            "[MQTT] [ERROR] Ошибка подключения, код PubSubClient=%d\n",
-            _mqttClient.state()
+            "[MQTT][ERROR] MQTT state: %d\n",
+            state
         );
+
+        switch (state) {
+
+            case -4:
+                Serial0.println(
+                    "[MQTT] MQTT_CONNECTION_TIMEOUT"
+                );
+                break;
+
+            case -3:
+                Serial0.println(
+                    "[MQTT] MQTT_CONNECTION_LOST"
+                );
+                break;
+
+            case -2:
+                Serial0.println(
+                    "[MQTT] MQTT_CONNECT_FAILED"
+                );
+                break;
+
+            case -1:
+                Serial0.println(
+                    "[MQTT] MQTT_DISCONNECTED"
+                );
+                break;
+
+            case 1:
+                Serial0.println(
+                    "[MQTT] MQTT_CONNECT_BAD_PROTOCOL"
+                );
+                break;
+
+            case 2:
+                Serial0.println(
+                    "[MQTT] MQTT_CONNECT_BAD_CLIENT_ID"
+                );
+                break;
+
+            case 3:
+                Serial0.println(
+                    "[MQTT] MQTT_CONNECT_UNAVAILABLE"
+                );
+                break;
+
+            case 4:
+                Serial0.println(
+                    "[MQTT] MQTT_CONNECT_BAD_CREDENTIALS"
+                );
+                break;
+
+            case 5:
+                Serial0.println(
+                    "[MQTT] MQTT_CONNECT_UNAUTHORIZED"
+                );
+                break;
+
+            default:
+                Serial0.println(
+                    "[MQTT] UNKNOWN MQTT ERROR"
+                );
+                break;
+        }
+
+        _wasConnected = false;
 
         notify(
             Event::ERROR,
@@ -609,33 +812,42 @@ bool SmartClockMqttClient::connect() {
             "connection_failed"
         );
 
+        Serial0.println(
+            "[MQTT] ===================================="
+        );
+
         return false;
     }
 
+    // --------------------------------------------------------
+    // CONNECTED
+    // --------------------------------------------------------
+
     _wasConnected = true;
 
-    Serial0.printf(
-        "[MQTT] [INFO] Подключение к MQTT успешно\n"
+    Serial0.println(
+        "[MQTT] Connected successfully"
     );
 
     // --------------------------------------------------------
     // SUBSCRIBE
     // --------------------------------------------------------
 
-    if (_mqttClient.subscribe(
-            _commandTopic,
-            1
-        )) {
+    const bool subscribed = _mqttClient.subscribe(
+        _commandTopic
+    );
+
+    if (subscribed) {
 
         Serial0.printf(
-            "[MQTT] [INFO] Подписка: %s\n",
+            "[MQTT] Subscribed: %s\n",
             _commandTopic
         );
 
     } else {
 
         Serial0.printf(
-            "[MQTT] [ERROR] Не удалось подписаться: %s\n",
+            "[MQTT][ERROR] Subscribe failed: %s\n",
             _commandTopic
         );
 
@@ -647,7 +859,7 @@ bool SmartClockMqttClient::connect() {
     }
 
     // --------------------------------------------------------
-    // PUBLISH STATE
+    // PUBLISH ONLINE STATE
     // --------------------------------------------------------
 
     publishConnectionState(true);
@@ -658,6 +870,10 @@ bool SmartClockMqttClient::connect() {
         Event::CONNECTED,
         "mqtt",
         "connected"
+    );
+
+    Serial0.println(
+        "[MQTT] ===================================="
     );
 
     return true;
@@ -673,6 +889,7 @@ void SmartClockMqttClient::mqttCallback(
     uint8_t* payload,
     unsigned int length
 ) {
+
     if (_instance == nullptr) {
         return;
     }
@@ -694,11 +911,12 @@ void SmartClockMqttClient::handleMessage(
     const uint8_t* payload,
     unsigned int length
 ) {
+
     if (topic == nullptr ||
         (payload == nullptr && length > 0)) {
 
-        Serial0.printf(
-            "[MQTT] [ERROR] Получено некорректное сообщение\n"
+        Serial0.println(
+            "[MQTT][ERROR] Некорректное входящее сообщение"
         );
 
         notify(
@@ -710,14 +928,11 @@ void SmartClockMqttClient::handleMessage(
         return;
     }
 
-    // --------------------------------------------------------
-    // VALIDATE PAYLOAD SIZE
-    // --------------------------------------------------------
-
-    if (length >= MAX_PAYLOAD_SIZE) {
+    if (length >=
+        SmartClockMqttConstants::MAX_PAYLOAD_SIZE) {
 
         Serial0.printf(
-            "[MQTT] [WARNING] Сообщение слишком большое: %u байт\n",
+            "[MQTT][ERROR] Payload слишком большой: %u байт\n",
             length
         );
 
@@ -730,11 +945,9 @@ void SmartClockMqttClient::handleMessage(
         return;
     }
 
-    // --------------------------------------------------------
-    // COPY PAYLOAD
-    // --------------------------------------------------------
-
-    char message[MAX_PAYLOAD_SIZE];
+    char message[
+        SmartClockMqttConstants::MAX_PAYLOAD_SIZE
+    ];
 
     if (length > 0) {
 
@@ -747,40 +960,41 @@ void SmartClockMqttClient::handleMessage(
 
     message[length] = '\0';
 
+    Serial0.println();
+    Serial0.println(
+        "========== MQTT MESSAGE =========="
+    );
+
     Serial0.printf(
-        "[MQTT] [INFO] Получено сообщение: topic=%s, size=%u\n",
-        topic,
-        length
+        "[MQTT] Topic: %s\n",
+        topic
+    );
+
+    Serial0.printf(
+        "[MQTT] Payload: %s\n",
+        message
+    );
+
+    Serial0.println(
+        "=================================="
     );
 
     // --------------------------------------------------------
-    // VALIDATE TOPIC
+    // TOPIC VALIDATION
     // --------------------------------------------------------
 
     if (strcmp(topic, _commandTopic) != 0) {
 
-        Serial0.printf(
-            "[MQTT] [WARNING] Неожиданный топик: %s\n",
-            topic
-        );
-
-        notify(
-            Event::ERROR,
-            topic,
-            "unexpected_topic"
+        Serial0.println(
+            "[MQTT][WARNING] Неожиданный топик"
         );
 
         return;
     }
 
     // --------------------------------------------------------
-    // COMMAND RECEIVED
+    // NOTIFY COMMAND HANDLER
     // --------------------------------------------------------
-
-    Serial0.printf(
-        "[MQTT] [INFO] Получена команда: %s\n",
-        message
-    );
 
     notify(
         Event::COMMAND_RECEIVED,
@@ -799,11 +1013,12 @@ bool SmartClockMqttClient::publish(
     const char* payload,
     bool retained
 ) {
+
     if (topic == nullptr ||
         payload == nullptr) {
 
-        Serial0.printf(
-            "[MQTT] [ERROR] Публикация отменена: пустой указатель\n"
+        Serial0.println(
+            "[MQTT][ERROR] Публикация: пустой указатель"
         );
 
         return false;
@@ -812,7 +1027,7 @@ bool SmartClockMqttClient::publish(
     if (!_mqttClient.connected()) {
 
         Serial0.printf(
-            "[MQTT] [WARNING] MQTT отключён; публикация отменена: %s\n",
+            "[MQTT][ERROR] MQTT отключён: %s\n",
             topic
         );
 
@@ -822,7 +1037,7 @@ bool SmartClockMqttClient::publish(
     const size_t length = strlen(payload);
 
     Serial0.printf(
-        "[MQTT] [INFO] Публикация: topic=%s, size=%u\n",
+        "[MQTT] Publish: topic=%s, size=%u\n",
         topic,
         static_cast<unsigned int>(length)
     );
@@ -833,20 +1048,10 @@ bool SmartClockMqttClient::publish(
         retained
     );
 
-    if (success) {
-
-        Serial0.printf(
-            "[MQTT] [INFO] Публикация успешна: %s\n",
-            topic
-        );
-
-    } else {
-
-        Serial0.printf(
-            "[MQTT] [ERROR] Ошибка публикации: %s\n",
-            topic
-        );
-    }
+    Serial0.printf(
+        "[MQTT] Publish result: %s\n",
+        success ? "OK" : "FAILED"
+    );
 
     return success;
 }
@@ -861,10 +1066,11 @@ bool SmartClockMqttClient::publishJson(
     JsonDocument& document,
     bool retained
 ) {
+
     if (topic == nullptr) {
 
-        Serial0.printf(
-            "[MQTT] [ERROR] Не задан topic для JSON\n"
+        Serial0.println(
+            "[MQTT][ERROR] JSON topic не задан"
         );
 
         return false;
@@ -872,34 +1078,31 @@ bool SmartClockMqttClient::publishJson(
 
     if (!_mqttClient.connected()) {
 
-        Serial0.printf(
-            "[MQTT] [WARNING] MQTT отключён; JSON не отправлен\n"
+        Serial0.println(
+            "[MQTT][ERROR] MQTT отключён; JSON не отправлен"
         );
 
         return false;
     }
 
-    // --------------------------------------------------------
-    // MEASURE JSON
-    // --------------------------------------------------------
+    const size_t requiredSize = measureJson(
+        document
+    );
 
-    const size_t requiredSize = measureJson(document);
-
-    char buffer[MAX_PAYLOAD_SIZE];
-
-    if (requiredSize >= sizeof(buffer)) {
+    if (requiredSize >=
+        SmartClockMqttConstants::MAX_PAYLOAD_SIZE) {
 
         Serial0.printf(
-            "[MQTT] [ERROR] JSON слишком большой: %u байт\n",
+            "[MQTT][ERROR] JSON слишком большой: %u байт\n",
             static_cast<unsigned int>(requiredSize)
         );
 
         return false;
     }
 
-    // --------------------------------------------------------
-    // SERIALIZE JSON
-    // --------------------------------------------------------
+    char buffer[
+        SmartClockMqttConstants::MAX_PAYLOAD_SIZE
+    ];
 
     const size_t written = serializeJson(
         document,
@@ -909,19 +1112,15 @@ bool SmartClockMqttClient::publishJson(
 
     if (written != requiredSize) {
 
-        Serial0.printf(
-            "[MQTT] [ERROR] Ошибка сериализации JSON\n"
+        Serial0.println(
+            "[MQTT][ERROR] Ошибка сериализации JSON"
         );
 
         return false;
     }
 
-    // --------------------------------------------------------
-    // PUBLISH JSON
-    // --------------------------------------------------------
-
     Serial0.printf(
-        "[MQTT] [INFO] Отправка JSON: topic=%s, size=%u\n",
+        "[MQTT] Publish JSON: topic=%s, size=%u\n",
         topic,
         static_cast<unsigned int>(written)
     );
@@ -933,20 +1132,10 @@ bool SmartClockMqttClient::publishJson(
         retained
     );
 
-    if (success) {
-
-        Serial0.printf(
-            "[MQTT] [INFO] JSON отправлен: %s\n",
-            topic
-        );
-
-    } else {
-
-        Serial0.printf(
-            "[MQTT] [ERROR] Не удалось отправить JSON: %s\n",
-            topic
-        );
-    }
+    Serial0.printf(
+        "[MQTT] JSON result: %s\n",
+        success ? "OK" : "FAILED"
+    );
 
     return success;
 }
@@ -959,9 +1148,6 @@ bool SmartClockMqttClient::publishJson(
 bool SmartClockMqttClient::publishTelemetry(
     JsonDocument& document
 ) {
-    Serial0.printf(
-        "[MQTT] [INFO] Отправка телеметрии\n"
-    );
 
     return publishJson(
         _telemetryTopic,
@@ -979,9 +1165,6 @@ bool SmartClockMqttClient::publishState(
     JsonDocument& document,
     bool retained
 ) {
-    Serial0.printf(
-        "[MQTT] [INFO] Отправка состояния устройства\n"
-    );
 
     return publishJson(
         _stateTopic,
@@ -998,11 +1181,12 @@ bool SmartClockMqttClient::publishState(
 bool SmartClockMqttClient::publishEvent(
     const char* eventName
 ) {
+
     if (eventName == nullptr ||
         eventName[0] == '\0') {
 
-        Serial0.printf(
-            "[MQTT] [ERROR] Не задано имя события\n"
+        Serial0.println(
+            "[MQTT][ERROR] Имя события не задано"
         );
 
         return false;
@@ -1015,11 +1199,6 @@ bool SmartClockMqttClient::publishEvent(
     document["event"] = eventName;
 
     document["uptime_ms"] = millis();
-
-    Serial0.printf(
-        "[MQTT] [INFO] Событие: %s\n",
-        eventName
-    );
 
     return publishJson(
         _eventTopic,
@@ -1036,10 +1215,11 @@ bool SmartClockMqttClient::publishEvent(
 bool SmartClockMqttClient::publishAck(
     JsonDocument& document
 ) {
+
     if (!_mqttClient.connected()) {
 
-        Serial0.printf(
-            "[MQTT] [WARNING] ACK не отправлен: MQTT отключён\n"
+        Serial0.println(
+            "[MQTT][ERROR] ACK не отправлен: MQTT отключён"
         );
 
         return false;
@@ -1048,6 +1228,11 @@ bool SmartClockMqttClient::publishAck(
     if (document["device_id"].isNull()) {
 
         document["device_id"] = _deviceId;
+    }
+
+    if (document["uptime_ms"].isNull()) {
+
+        document["uptime_ms"] = millis();
     }
 
     const char* requestId =
@@ -1060,34 +1245,17 @@ bool SmartClockMqttClient::publishAck(
         document["status"] | "";
 
     Serial0.printf(
-        "[MQTT] [INFO] ACK: request_id=%s, command=%s, status=%s\n",
+        "[MQTT] ACK: request_id=%s, command=%s, status=%s\n",
         requestId,
         command,
         status
     );
 
-    const bool success = publishJson(
+    return publishJson(
         _ackTopic,
         document,
         false
     );
-
-    if (success) {
-
-        Serial0.printf(
-            "[MQTT] [INFO] ACK отправлен: %s\n",
-            requestId
-        );
-
-    } else {
-
-        Serial0.printf(
-            "[MQTT] [ERROR] Ошибка отправки ACK: %s\n",
-            requestId
-        );
-    }
-
-    return success;
 }
 
 
@@ -1101,13 +1269,14 @@ bool SmartClockMqttClient::publishAck(
     bool success,
     const char* message
 ) {
+
     if (requestId == nullptr ||
         command == nullptr ||
         requestId[0] == '\0' ||
         command[0] == '\0') {
 
-        Serial0.printf(
-            "[MQTT] [ERROR] ACK: не задан request_id или command\n"
+        Serial0.println(
+            "[MQTT][ERROR] ACK: request_id или command не задан"
         );
 
         return false;
@@ -1143,6 +1312,7 @@ bool SmartClockMqttClient::publishAck(
 void SmartClockMqttClient::publishConnectionState(
     bool connected
 ) {
+
     JsonDocument document;
 
     document["device_id"] = _deviceId;
@@ -1152,25 +1322,21 @@ void SmartClockMqttClient::publishConnectionState(
     document["wifi_connected"] =
         WiFi.status() == WL_CONNECTED;
 
-    const String ipAddress =
-        WiFi.localIP().toString();
+    if (WiFi.status() == WL_CONNECTED) {
 
-    document["ip"] = ipAddress;
+        document["ip"] =
+            WiFi.localIP().toString();
 
-    document["rssi"] =
-        WiFi.status() == WL_CONNECTED
-            ? WiFi.RSSI()
-            : 0;
+        document["rssi"] = WiFi.RSSI();
+
+    } else {
+
+        document["ip"] = "";
+
+        document["rssi"] = 0;
+    }
 
     document["uptime_ms"] = millis();
-
-    Serial0.printf(
-        "[MQTT] [INFO] Состояние: MQTT=%s, Wi-Fi=%s\n",
-        connected ? "connected" : "disconnected",
-        WiFi.status() == WL_CONNECTED
-            ? "connected"
-            : "disconnected"
-    );
 
     publishState(
         document,
@@ -1180,19 +1346,18 @@ void SmartClockMqttClient::publishConnectionState(
 
 
 // ============================================================
-// EVENT CALLBACK
+// SET EVENT CALLBACK
 // ============================================================
 
 void SmartClockMqttClient::setEventCallback(
     EventCallback callback
 ) {
+
     _eventCallback = callback;
 
     Serial0.printf(
-        "[MQTT] [INFO] Callback событий %s\n",
-        callback != nullptr
-            ? "установлен"
-            : "отключён"
+        "[MQTT] Event callback: %s\n",
+        callback != nullptr ? "set" : "cleared"
     );
 }
 
@@ -1206,6 +1371,7 @@ void SmartClockMqttClient::notify(
     const char* topic,
     const char* payload
 ) {
+
     if (_eventCallback == nullptr) {
         return;
     }
@@ -1219,39 +1385,72 @@ void SmartClockMqttClient::notify(
 
 
 // ============================================================
+// DISCONNECT
+// ============================================================
+
+void SmartClockMqttClient::disconnect(
+    const char* reason
+) {
+
+    if (_mqttClient.connected()) {
+
+        _mqttClient.disconnect();
+    }
+
+    if (_wasConnected) {
+
+        _wasConnected = false;
+
+        notify(
+            Event::DISCONNECTED,
+            "mqtt",
+            reason != nullptr ? reason : "disconnected"
+        );
+    }
+}
+
+
+// ============================================================
 // GETTERS
 // ============================================================
 
 bool SmartClockMqttClient::isConnected() {
+
     return _mqttClient.connected();
 }
 
 
 const char* SmartClockMqttClient::getDeviceId() const {
+
     return _deviceId;
 }
 
 
 const char* SmartClockMqttClient::getCommandTopic() const {
+
     return _commandTopic;
 }
 
 
 const char* SmartClockMqttClient::getStateTopic() const {
+
     return _stateTopic;
 }
 
 
 const char* SmartClockMqttClient::getTelemetryTopic() const {
+
     return _telemetryTopic;
 }
 
 
 const char* SmartClockMqttClient::getEventTopic() const {
+
     return _eventTopic;
 }
 
 
 const char* SmartClockMqttClient::getAckTopic() const {
+
     return _ackTopic;
 }
