@@ -2,73 +2,34 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
-#include <WiFiClient.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 
 // ============================================================
 // MQTT CONFIGURATION
 // ============================================================
-
+// Укажи здесь IP компьютера, на котором запущен Mosquitto.
+// Это адрес MQTT-сервера, а не адрес ESP32.
 namespace SmartClockMqttConfig {
-
     constexpr char BROKER_HOST[] = "192.168.1.93";
     constexpr uint16_t BROKER_PORT = 1883;
-
     constexpr char DEVICE_ID[] = "smartclock-01";
 
-    // Оставь пустыми, если Mosquitto не требует авторизации.
+    // Оставь пустыми, если в Mosquitto разрешено подключение без авторизации.
     constexpr char USERNAME[] = "";
     constexpr char PASSWORD[] = "";
 }
 
-// ============================================================
-// MQTT CONSTANTS
-// ============================================================
-
-namespace SmartClockMqttConstants {
-
-    constexpr uint16_t BUFFER_SIZE = 512;
-
-    constexpr uint32_t RECONNECT_INTERVAL_MS = 5000;
-
-    constexpr uint32_t STATE_INTERVAL_MS = 30000;
-
-    constexpr uint32_t WIFI_RECONNECT_INTERVAL_MS = 10000;
-
-    constexpr uint32_t TCP_TIMEOUT_MS = 3000;
-
-    constexpr size_t MAX_PAYLOAD_SIZE = 512;
-
-    constexpr size_t MAX_TOPIC_SIZE = 96;
-
-    constexpr size_t MAX_DEVICE_ID_SIZE = 48;
-
-    constexpr size_t MAX_USERNAME_SIZE = 64;
-
-    constexpr size_t MAX_PASSWORD_SIZE = 96;
-}
-
-// ============================================================
-// MQTT CLIENT
-// ============================================================
-
 class SmartClockMqttClient {
-
 public:
-
-    // --------------------------------------------------------
+    // ========================================================
     // EVENTS
-    // --------------------------------------------------------
+    // ========================================================
 
-    enum class Event {
-
+    enum class Event : uint8_t {
         CONNECTED,
-
         DISCONNECTED,
-
         COMMAND_RECEIVED,
-
         ERROR
     };
 
@@ -78,35 +39,38 @@ public:
         const char* payload
     );
 
-    // --------------------------------------------------------
+    // ========================================================
     // CONSTRUCTOR
-    // --------------------------------------------------------
+    // ========================================================
 
     SmartClockMqttClient();
 
-    ~SmartClockMqttClient();
+    SmartClockMqttClient(const SmartClockMqttClient&) = delete;
+    SmartClockMqttClient& operator=(const SmartClockMqttClient&) = delete;
 
-    SmartClockMqttClient(
-        const SmartClockMqttClient&
-    ) = delete;
-
-    SmartClockMqttClient& operator=(
-        const SmartClockMqttClient&
-    ) = delete;
-
-    // --------------------------------------------------------
-    // LIFECYCLE
-    // --------------------------------------------------------
+    // ========================================================
+    // INITIALIZATION
+    // Использует настройки SmartClockMqttConfig выше.
+    // ========================================================
 
     bool begin();
 
+    // ========================================================
+    // UPDATE
+    // Вызывать регулярно из App::update() или loop().
+    // ========================================================
+
     void update();
+
+    // ========================================================
+    // CONNECTION
+    // ========================================================
 
     bool isConnected();
 
-    // --------------------------------------------------------
-    // PUBLISH
-    // --------------------------------------------------------
+    // ========================================================
+    // PUBLISH TEXT
+    // ========================================================
 
     bool publish(
         const char* topic,
@@ -114,32 +78,42 @@ public:
         bool retained = false
     );
 
+    // ========================================================
+    // PUBLISH JSON
+    // ========================================================
+
     bool publishJson(
         const char* topic,
         JsonDocument& document,
         bool retained = false
     );
 
-    bool publishTelemetry(
-        JsonDocument& document
-    );
+    // ========================================================
+    // TELEMETRY
+    // ========================================================
+
+    bool publishTelemetry(JsonDocument& document);
+
+    // ========================================================
+    // STATE
+    // ========================================================
 
     bool publishState(
         JsonDocument& document,
         bool retained = true
     );
 
-    bool publishEvent(
-        const char* eventName
-    );
+    // ========================================================
+    // EVENTS
+    // ========================================================
 
-    // --------------------------------------------------------
+    bool publishEvent(const char* eventName);
+
+    // ========================================================
     // ACK
-    // --------------------------------------------------------
+    // ========================================================
 
-    bool publishAck(
-        JsonDocument& document
-    );
+    bool publishAck(JsonDocument& document);
 
     bool publishAck(
         const char* requestId,
@@ -148,47 +122,87 @@ public:
         const char* message = nullptr
     );
 
-    // --------------------------------------------------------
+    // ========================================================
     // CALLBACK
-    // --------------------------------------------------------
+    // ========================================================
 
-    void setEventCallback(
-        EventCallback callback
-    );
+    void setEventCallback(EventCallback callback);
 
-    // --------------------------------------------------------
+    // ========================================================
     // GETTERS
-    // --------------------------------------------------------
+    // ========================================================
 
     const char* getDeviceId() const;
-
     const char* getCommandTopic() const;
-
     const char* getStateTopic() const;
-
     const char* getTelemetryTopic() const;
-
     const char* getEventTopic() const;
-
     const char* getAckTopic() const;
 
 private:
+    // ========================================================
+    // INSTANCE
+    // ========================================================
 
-    // --------------------------------------------------------
-    // CONNECTION
-    // --------------------------------------------------------
+    static SmartClockMqttClient* _instance;
 
-    bool connect();
+    // ========================================================
+    // MQTT
+    // ========================================================
 
-    bool probeBrokerTcp();
+    WiFiClient _wifiClient;
+    PubSubClient _mqttClient;
 
-    void disconnect(
-        const char* reason
-    );
+    // ========================================================
+    // CONFIGURATION
+    // ========================================================
 
-    // --------------------------------------------------------
-    // MQTT CALLBACK
-    // --------------------------------------------------------
+    char _broker[128];
+    char _deviceId[48];
+    char _username[64];
+    char _password[64];
+
+    // ========================================================
+    // TOPICS
+    // ========================================================
+
+    char _commandTopic[96];
+    char _stateTopic[96];
+    char _telemetryTopic[96];
+    char _eventTopic[96];
+    char _ackTopic[96];
+
+    // ========================================================
+    // FLAGS
+    // ========================================================
+
+    bool _initialized;
+    bool _wasConnected;
+    bool _hasReconnectAttempted;
+
+    // ========================================================
+    // TIMERS
+    // ========================================================
+
+    uint32_t _lastReconnectAttempt;
+
+    // ========================================================
+    // CONSTANTS
+    // ========================================================
+
+    static constexpr uint32_t RECONNECT_INTERVAL_MS = 5000;
+    static constexpr size_t MQTT_BUFFER_SIZE = 1024;
+    static constexpr size_t MAX_PAYLOAD_SIZE = 768;
+
+    // ========================================================
+    // CALLBACK
+    // ========================================================
+
+    EventCallback _eventCallback;
+
+    // ========================================================
+    // MQTT INTERNAL
+    // ========================================================
 
     static void mqttCallback(
         char* topic,
@@ -202,109 +216,16 @@ private:
         unsigned int length
     );
 
-    // --------------------------------------------------------
-    // STATE
-    // --------------------------------------------------------
+    bool connect();
+    void publishConnectionState(bool connected);
 
-    void publishConnectionState(
-        bool connected
-    );
-
-    // --------------------------------------------------------
-    // EVENTS
-    // --------------------------------------------------------
+    // ========================================================
+    // EVENT NOTIFICATION
+    // ========================================================
 
     void notify(
         Event event,
-        const char* topic,
-        const char* payload
+        const char* topic = "",
+        const char* payload = ""
     );
-
-    // --------------------------------------------------------
-    // CLIENTS
-    // --------------------------------------------------------
-
-    WiFiClient _wifiClient;
-
-    PubSubClient _mqttClient;
-
-    // --------------------------------------------------------
-    // CONFIGURATION
-    // --------------------------------------------------------
-
-    char _broker[64];
-
-    uint16_t _port;
-
-    char _deviceId[
-        SmartClockMqttConstants::MAX_DEVICE_ID_SIZE
-    ];
-
-    char _username[
-        SmartClockMqttConstants::MAX_USERNAME_SIZE
-    ];
-
-    char _password[
-        SmartClockMqttConstants::MAX_PASSWORD_SIZE
-    ];
-
-    // --------------------------------------------------------
-    // TOPICS
-    // --------------------------------------------------------
-
-    char _commandTopic[
-        SmartClockMqttConstants::MAX_TOPIC_SIZE
-    ];
-
-    char _stateTopic[
-        SmartClockMqttConstants::MAX_TOPIC_SIZE
-    ];
-
-    char _telemetryTopic[
-        SmartClockMqttConstants::MAX_TOPIC_SIZE
-    ];
-
-    char _eventTopic[
-        SmartClockMqttConstants::MAX_TOPIC_SIZE
-    ];
-
-    char _ackTopic[
-        SmartClockMqttConstants::MAX_TOPIC_SIZE
-    ];
-
-    // --------------------------------------------------------
-    // STATUS
-    // --------------------------------------------------------
-
-    bool _initialized;
-
-    bool _wasConnected;
-
-    bool _hasReconnectAttempted;
-
-    bool _wifiWasConnected;
-
-    bool _tcpProbePassed;
-
-    // --------------------------------------------------------
-    // TIMERS
-    // --------------------------------------------------------
-
-    uint32_t _lastReconnectAttempt;
-
-    uint32_t _lastStatePublish;
-
-    uint32_t _lastWifiReconnectAttempt;
-
-    // --------------------------------------------------------
-    // CALLBACK
-    // --------------------------------------------------------
-
-    EventCallback _eventCallback;
-
-    // --------------------------------------------------------
-    // INSTANCE
-    // --------------------------------------------------------
-
-    static SmartClockMqttClient* _instance;
 };
