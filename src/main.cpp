@@ -1,34 +1,80 @@
 
 #include <Arduino.h>
 
-#include "./managers/Setting/SettingsManager.h"
-#include "./managers/Led/LightingManager.h"
-
 // ============================================================
-// MANAGERS
+// COB GPIO
 // ============================================================
 
-SettingsManager settings;
-LightingManager lighting(settings);
+constexpr uint8_t COB_PINS[] = {
+    40, 41, 20, 21
+};
+
+constexpr uint8_t COB_COUNT = 4;
+
+// ============================================================
+// PWM CONFIGURATION - ESP32 CORE 2.x
+// ============================================================
+
+constexpr uint8_t PWM_CHANNELS[] = {
+    0, 1, 2, 3
+};
+
+constexpr uint32_t PWM_FREQUENCY = 5000;
+constexpr uint8_t PWM_RESOLUTION = 8;
+constexpr uint8_t PWM_MAX = 255;
 
 // ============================================================
 // TEST TIMING
 // ============================================================
 
 constexpr uint32_t START_DELAY_MS = 10000;
+constexpr uint32_t CHANNEL_TEST_MS = 3000;
 constexpr uint32_t FADE_DURATION_MS = 60000;
-constexpr uint32_t FADE_UPDATE_INTERVAL_MS = 50;
 
 // ============================================================
 // TEST STATE
 // ============================================================
 
-uint32_t testStartTime = 0;
-uint32_t fadeStartTime = 0;
+uint32_t fadeStart = 0;
 uint32_t lastFadeUpdate = 0;
 
-bool lightingEnabled = false;
+bool channelTestCompleted = false;
+bool fadeStarted = false;
 bool fadeCompleted = false;
+
+// ============================================================
+// COB CONTROL
+// ============================================================
+
+void cobOff() {
+
+    for (uint8_t i = 0; i < COB_COUNT; i++) {
+        ledcWrite(PWM_CHANNELS[i], 0);
+    }
+
+    Serial0.println("[COB] ALL OFF");
+}
+
+void cobSetChannel(uint8_t channel, uint8_t brightness) {
+
+    if (channel >= COB_COUNT) {
+        return;
+    }
+
+    ledcWrite(PWM_CHANNELS[channel], brightness);
+
+    Serial0.print("[COB] Channel ");
+    Serial0.print(channel + 1);
+    Serial0.print(" PWM = ");
+    Serial0.println(brightness);
+}
+
+void cobSetAll(uint8_t brightness) {
+
+    for (uint8_t i = 0; i < COB_COUNT; i++) {
+        ledcWrite(PWM_CHANNELS[i], brightness);
+    }
+}
 
 // ============================================================
 // SETUP
@@ -41,77 +87,46 @@ void setup() {
 
     Serial0.println();
     Serial0.println("================================");
-    Serial0.println("       LIGHTING TEST");
+    Serial0.println("       COB DIRECT TEST");
+    Serial0.println("       ESP32 CORE 2.x");
     Serial0.println("================================");
 
     // --------------------------------------------------------
-    // SETTINGS
+    // INITIALIZE PWM
     // --------------------------------------------------------
 
-    Serial0.println("[Main] Initializing settings...");
+    for (uint8_t i = 0; i < COB_COUNT; i++) {
 
-    if (!settings.begin()) {
-        Serial0.println("[Main] Settings initialization FAILED!");
+        bool configured = ledcSetup(
+            PWM_CHANNELS[i],
+            PWM_FREQUENCY,
+            PWM_RESOLUTION
+        );
 
-        while (true) {
-            delay(1000);
-        }
+        ledcAttachPin(
+            COB_PINS[i],
+            PWM_CHANNELS[i]
+        );
+
+        ledcWrite(PWM_CHANNELS[i], 0);
+
+        Serial0.print("[COB] GPIO ");
+        Serial0.print(COB_PINS[i]);
+        Serial0.print(" CHANNEL ");
+        Serial0.print(PWM_CHANNELS[i]);
+        Serial0.print(" CONFIG: ");
+        Serial0.println(configured > 0 ? "OK" : "FAILED");
     }
 
-    Serial0.println("[Main] Settings initialized");
-
     // --------------------------------------------------------
-    // FORCE LIGHTING OFF
+    // FORCE ALL CHANNELS OFF
     // --------------------------------------------------------
 
-    Serial0.println("[Main] Forcing lighting OFF");
+    cobOff();
 
-    settings.set(
-        SettingsManager::Param::MATRIX_ENABLED,
-        0
-    );
+    Serial0.println("[TEST] All COB channels OFF");
+    Serial0.println("[TEST] Waiting 10 seconds...");
 
-    settings.set(
-        SettingsManager::Param::COB_ENABLED,
-        0
-    );
-
-    settings.set(
-        SettingsManager::Param::MATRIX_BRIGHTNESS,
-        0
-    );
-
-    settings.set(
-        SettingsManager::Param::COB_BRIGHTNESS,
-        0
-    );
-
-    settings.flush();
-
-    // --------------------------------------------------------
-    // LIGHTING
-    // --------------------------------------------------------
-
-    Serial0.println("[Main] Initializing lighting...");
-
-    if (!lighting.begin()) {
-        Serial0.println("[Main] Lighting initialization FAILED!");
-
-        while (true) {
-            delay(1000);
-        }
-    }
-
-    Serial0.println("[Main] Lighting initialized");
-
-    // --------------------------------------------------------
-    // START TIMER
-    // --------------------------------------------------------
-
-    testStartTime = millis();
-
-    Serial0.println("[Main] Lighting test started");
-    Serial0.println("[Main] Waiting 10 seconds...");
 }
 
 // ============================================================
@@ -122,96 +137,107 @@ void loop() {
 
     const uint32_t now = millis();
 
-    settings.update();
-
     // --------------------------------------------------------
     // STEP 1: WAIT 10 SECONDS
     // --------------------------------------------------------
 
-    if (!lightingEnabled) {
-
-        if (now - testStartTime >= START_DELAY_MS) {
-
-            Serial0.println("[Main] Enabling matrix and COB");
-
-            settings.set(
-                SettingsManager::Param::MATRIX_ENABLED,
-                1
-            );
-
-            settings.set(
-                SettingsManager::Param::COB_ENABLED,
-                1
-            );
-
-            settings.set(
-                SettingsManager::Param::MATRIX_BRIGHTNESS,
-                0
-            );
-
-            settings.set(
-                SettingsManager::Param::COB_BRIGHTNESS,
-                0
-            );
-
-            lightingEnabled = true;
-
-            fadeStartTime = now;
-            lastFadeUpdate = now;
-        }
+    if (now < START_DELAY_MS) {
+        delay(10);
+        return;
     }
 
     // --------------------------------------------------------
-    // STEP 2: GRADUAL BRIGHTNESS INCREASE
+    // STEP 2: TEST EACH CHANNEL
     // --------------------------------------------------------
 
-    if (lightingEnabled && !fadeCompleted) {
+    if (!channelTestCompleted) {
 
-        if (now - lastFadeUpdate >= FADE_UPDATE_INTERVAL_MS) {
+        Serial0.println("[TEST] Individual channel test");
 
-            lastFadeUpdate = now;
+        for (uint8_t i = 0; i < COB_COUNT; i++) {
 
-            const uint32_t elapsed = now - fadeStartTime;
+            cobOff();
 
-            uint8_t brightness = 0;
+            Serial0.print("[TEST] CHANNEL ");
+            Serial0.println(i + 1);
 
-            if (elapsed >= FADE_DURATION_MS) {
+            cobSetChannel(i, PWM_MAX);
 
-                brightness = 100;
-                fadeCompleted = true;
+            delay(CHANNEL_TEST_MS);
 
-            } else {
+            cobOff();
 
-                brightness = static_cast<uint8_t>(
-                    (elapsed * 100UL) / FADE_DURATION_MS
-                );
-            }
+            delay(1000);
+        }
 
-            settings.set(
-                SettingsManager::Param::MATRIX_BRIGHTNESS,
-                brightness
+        channelTestCompleted = true;
+
+        Serial0.println("[TEST] Individual test completed");
+    }
+
+    // --------------------------------------------------------
+    // STEP 3: START FADE
+    // --------------------------------------------------------
+
+    if (!fadeStarted) {
+
+        cobOff();
+
+        cobSetAll(0);
+
+        fadeStart = millis();
+        lastFadeUpdate = fadeStart;
+
+        fadeStarted = true;
+
+        Serial0.println("[TEST] Starting fade 0-100%");
+    }
+
+    // --------------------------------------------------------
+    // STEP 4: GRADUAL BRIGHTNESS
+    // --------------------------------------------------------
+
+    if (!fadeCompleted &&
+        now - lastFadeUpdate >= 50) {
+
+        lastFadeUpdate = now;
+
+        const uint32_t elapsed = now - fadeStart;
+
+        uint8_t brightness;
+
+        if (elapsed >= FADE_DURATION_MS) {
+
+            brightness = PWM_MAX;
+            fadeCompleted = true;
+
+        } else {
+
+            brightness = static_cast<uint8_t>(
+                (elapsed * PWM_MAX) / FADE_DURATION_MS
             );
+        }
 
-            settings.set(
-                SettingsManager::Param::COB_BRIGHTNESS,
-                brightness
-            );
+        cobSetAll(brightness);
 
-            Serial0.print("[Main] Brightness: ");
-            Serial0.print(brightness);
+        static int previousPercent = -1;
+
+        const int percent =
+            (brightness * 100) / PWM_MAX;
+
+        if (percent != previousPercent) {
+
+            previousPercent = percent;
+
+            Serial0.print("[TEST] Brightness: ");
+            Serial0.print(percent);
             Serial0.println("%");
+        }
 
-            if (fadeCompleted) {
-                Serial0.println("[Main] Fade completed");
-            }
+        if (fadeCompleted) {
+            Serial0.println("[TEST] Fade completed");
         }
     }
-
-    // --------------------------------------------------------
-    // UPDATE LIGHTING
-    // --------------------------------------------------------
-
-    lighting.update();
 
     delay(1);
 }
