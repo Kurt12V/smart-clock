@@ -142,15 +142,15 @@ void LightingManager::apply()
         return;
     }
 
-    Serial0.println("[Lighting] Applying COB settings...");
+    // Serial0.println("[Lighting] Applying COB settings...");
     applyCobSettings(_firstApply);
 
-    Serial0.println("[Lighting] Applying matrix settings...");
+    // Serial0.println("[Lighting] Applying matrix settings...");
     applyMatrixSettings(_firstApply);
 
     _firstApply = false;
 
-    Serial0.println("[Lighting] Settings applied");
+    // Serial0.println("[Lighting] Settings applied");
 }
 
 // ============================================================
