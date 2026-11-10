@@ -56,10 +56,10 @@
 // PWM
 // ============================================================
 
-#define PIN_COB1 40
-#define PIN_COB2 41 
-#define PIN_COB3 20 
-#define PIN_COB4 21
+#define PIN_COB1 20
+#define PIN_COB2 21 
+#define PIN_COB3 40 
+#define PIN_COB4 41
 
 
 // ============================================================

@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include <Arduino.h>
@@ -24,6 +25,7 @@
 
 #include "./managers/WEB/WebWiFiManager.h"
 #include "./managers/NET/SmartClockMqttClient.h"
+#include "./managers/NET/MqttCommandHandler.h"
 
 // ============================================================
 // SYSTEMS
@@ -39,6 +41,7 @@
 class App
 {
 public:
+
     // ========================================================
     // CONSTRUCTOR
     // ========================================================
@@ -67,6 +70,7 @@ public:
     }
 
 private:
+
     // ========================================================
     // INITIALIZATION
     // ========================================================
@@ -82,8 +86,8 @@ private:
     bool initSound();
     bool initAlarm();
     bool initWiFi();
-    bool initWebWiFi();
     bool initMqtt();
+    bool initWebWiFi();
 
     // ========================================================
     // TELEMETRY
@@ -129,6 +133,11 @@ private:
     // ========================================================
 
     SmartClockMqttClient _mqttClient;
+    MqttCommandHandler _mqttCommandHandler;
+
+    // ========================================================
+    // TELEMETRY STATE
+    // ========================================================
 
     uint32_t _lastTelemetryPublish = 0;
     bool _mqttWasConnected = false;

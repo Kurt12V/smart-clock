@@ -726,13 +726,45 @@ bool App::initWiFi()
 
 bool App::initMqtt()
 {
-    Serial0.println(
-        "[APP] Initializing MQTT client..."
-    );
+    Serial0.println();
+    Serial0.println("[APP] Initializing MQTT...");
 
-    // MQTT broker, port, and device ID are configured in
-    // SmartClockMqttClient.h under SmartClockMqttConfig.
-    return _mqttClient.begin();
+    // --------------------------------------------------------
+    // 1. Инициализация MQTT-клиента
+    // --------------------------------------------------------
+
+    if (!_mqttClient.begin())
+    {
+        Serial0.println("[APP] ERROR: MQTT client initialization failed");
+        return false;
+    }
+
+    Serial0.println("[APP] MQTT client initialized");
+
+    // --------------------------------------------------------
+    // 2. Инициализация обработчика MQTT-команд
+    // --------------------------------------------------------
+
+    if (!_mqttCommandHandler.begin(
+            _mqttClient,
+            _settings,
+            _clockSystem,
+            _wifiManager
+        ))
+    {
+        Serial0.println("[APP] ERROR: MQTT command handler initialization failed");
+        return false;
+    }
+
+    Serial0.println("[APP] MQTT command handler initialized");
+
+    // --------------------------------------------------------
+    // 3. Результат
+    // --------------------------------------------------------
+
+    Serial0.println("[APP] MQTT initialization completed");
+
+    return true;
 }
 
 

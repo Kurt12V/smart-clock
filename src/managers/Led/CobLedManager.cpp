@@ -1,8 +1,7 @@
 #include "CobLedManager.h"
 
-
 // ============================================================
-// Constructor
+// CONSTRUCTOR
 // ============================================================
 
 CobLedManager::CobLedManager(
@@ -16,34 +15,37 @@ CobLedManager::CobLedManager(
       _cob3(cob3),
       _cob4(cob4),
       _effects(
-          _cob1,
-          _cob2,
-          _cob3,
-          _cob4
+          cob1,
+          cob2,
+          cob3,
+          cob4
       )
 {
 }
 
-
 // ============================================================
-// Begin
+// BEGIN
 // ============================================================
 
-void CobLedManager::begin()
+bool CobLedManager::begin()
 {
-    _cob1.begin();
-    _cob2.begin();
-    _cob3.begin();
-    _cob4.begin();
+    bool result = true;
+
+    result = _cob1.begin() && result;
+    result = _cob2.begin() && result;
+    result = _cob3.begin() && result;
+    result = _cob4.begin() && result;
 
     _effects.begin();
 
-    offAll();
+    // При запуске COB выключены.
+    _effects.setEnabled(false);
+
+    return result;
 }
 
-
 // ============================================================
-// Update
+// UPDATE
 // ============================================================
 
 void CobLedManager::update()
@@ -56,14 +58,20 @@ void CobLedManager::update()
     _cob4.update();
 }
 
+// ============================================================
+// VALIDATION
+// ============================================================
+
+bool CobLedManager::valid(uint8_t cob) const
+{
+    return cob >= 1 && cob <= 4;
+}
 
 // ============================================================
-// Get COB
+// GET COB
 // ============================================================
 
-CobLed& CobLedManager::getCob(
-    uint8_t cob
-)
+CobLed& CobLedManager::getCob(uint8_t cob)
 {
     switch (cob)
     {
@@ -77,10 +85,7 @@ CobLed& CobLedManager::getCob(
     }
 }
 
-
-const CobLed& CobLedManager::getCob(
-    uint8_t cob
-) const
+const CobLed& CobLedManager::getCob(uint8_t cob) const
 {
     switch (cob)
     {
@@ -94,9 +99,8 @@ const CobLed& CobLedManager::getCob(
     }
 }
 
-
 // ============================================================
-// Set
+// SET / GET BRIGHTNESS
 // ============================================================
 
 void CobLedManager::set(
@@ -104,26 +108,27 @@ void CobLedManager::set(
     uint8_t brightness
 )
 {
-    getCob(cob).setBrightness(
+    if (!valid(cob))
+        return;
+
+    _effects.setBrightness(
+        cob - 1,
         brightness
     );
 }
 
-
-// ============================================================
-// Get
-// ============================================================
-
-uint8_t CobLedManager::get(
-    uint8_t cob
-) const
+uint8_t CobLedManager::get(uint8_t cob) const
 {
-    return getCob(cob).getBrightness();
+    if (!valid(cob))
+        return 0;
+
+    return _effects.brightness(
+        cob - 1
+    );
 }
 
-
 // ============================================================
-// Increase
+// INCREASE / DECREASE
 // ============================================================
 
 void CobLedManager::increase(
@@ -131,25 +136,44 @@ void CobLedManager::increase(
     uint8_t value
 )
 {
-    getCob(cob).increase(value);
+    if (!valid(cob))
+        return;
+
+    uint16_t brightness =
+        static_cast<uint16_t>(get(cob)) + value;
+
+    if (brightness > 100)
+        brightness = 100;
+
+    set(
+        cob,
+        static_cast<uint8_t>(brightness)
+    );
 }
-
-
-// ============================================================
-// Decrease
-// ============================================================
 
 void CobLedManager::decrease(
     uint8_t cob,
     uint8_t value
 )
 {
-    getCob(cob).decrease(value);
+    if (!valid(cob))
+        return;
+
+    uint8_t brightness = get(cob);
+
+    if (value >= brightness)
+        brightness = 0;
+    else
+        brightness -= value;
+
+    set(
+        cob,
+        brightness
+    );
 }
 
-
 // ============================================================
-// Fade
+// FADE
 // ============================================================
 
 void CobLedManager::fade(
@@ -158,113 +182,147 @@ void CobLedManager::fade(
     uint32_t durationMs
 )
 {
-    getCob(cob).fadeTo(
+    if (!valid(cob))
+        return;
+
+    target = constrain(
         target,
-        durationMs
+        0,
+        100
+    );
+
+    // Плавное изменение используется в статическом режиме.
+    // При динамических эффектах яркостью управляет CobEffects.
+
+    if (
+        _effects.effect() == CobEffectType::Static &&
+        _effects.isEnabled() &&
+        _effects.isChannelEnabled(cob - 1)
+    )
+    {
+        // Сначала сохраняем целевую яркость,
+        // но не применяем её немедленно.
+        _effects.setBrightness(
+            cob - 1,
+            target,
+            false
+        );
+
+        // Затем запускаем плавное изменение PWM.
+        getCob(cob).fadeTo(
+            target,
+            durationMs
+        );
+    }
+    else
+    {
+        set(
+            cob,
+            target
+        );
+    }
+}
+
+// ============================================================
+// ON / OFF
+// ============================================================
+
+void CobLedManager::on(uint8_t cob)
+{
+    if (!valid(cob))
+        return;
+
+    uint8_t brightness = get(cob);
+
+    if (brightness == 0)
+        brightness = 100;
+
+    _effects.setBrightness(
+        cob - 1,
+        brightness
+    );
+
+    _effects.setChannelEnabled(
+        cob - 1,
+        true
     );
 }
 
-
-// ============================================================
-// ON
-// ============================================================
-
-void CobLedManager::on(
-    uint8_t cob
-)
+void CobLedManager::off(uint8_t cob)
 {
-    getCob(cob).on();
+    if (!valid(cob))
+        return;
+
+    _effects.setChannelEnabled(
+        cob - 1,
+        false
+    );
 }
 
-
-// ============================================================
-// OFF
-// ============================================================
-
-void CobLedManager::off(
-    uint8_t cob
-)
+void CobLedManager::toggle(uint8_t cob)
 {
-    getCob(cob).off();
+    if (!valid(cob))
+        return;
+
+    if (isOn(cob))
+        off(cob);
+    else
+        on(cob);
 }
 
-
-// ============================================================
-// Toggle
-// ============================================================
-
-void CobLedManager::toggle(
-    uint8_t cob
-)
+bool CobLedManager::isOn(uint8_t cob) const
 {
-    getCob(cob).toggle();
+    if (!valid(cob))
+        return false;
+
+    // Проверяем логическое состояние канала.
+    // Не проверяем физическую яркость PWM:
+    // например, в нижней точке Breath она может быть нулевой.
+
+    return
+        _effects.isEnabled() &&
+        _effects.isChannelEnabled(cob - 1);
 }
 
-
 // ============================================================
-// Is ON
-// ============================================================
-
-bool CobLedManager::isOn(
-    uint8_t cob
-) const
-{
-    return getCob(cob).isOn();
-}
-
-
-// ============================================================
-// Set all
+// ALL CHANNELS
 // ============================================================
 
-void CobLedManager::setAll(
-    uint8_t brightness
-)
+void CobLedManager::setAll(uint8_t brightness)
 {
     _effects.setAllBrightness(
         brightness
     );
 }
 
-
-// ============================================================
-// ON all
-// ============================================================
-
 void CobLedManager::onAll()
 {
     _effects.setEnabled(true);
 }
 
-
-// ============================================================
-// OFF all
-// ============================================================
-
 void CobLedManager::offAll()
 {
     _effects.setEnabled(false);
-
-    _cob1.off();
-    _cob2.off();
-    _cob3.off();
-    _cob4.off();
 }
 
-
 // ============================================================
-// Effect
+// EFFECT
 // ============================================================
 
-void CobLedManager::setEffect(
-    uint8_t effect
-)
+void CobLedManager::setEffect(uint8_t effect)
 {
+    if (
+        effect >=
+        static_cast<uint8_t>(CobEffectType::COUNT)
+    )
+    {
+        effect = 0;
+    }
+
     _effects.setEffect(
         static_cast<CobEffectType>(effect)
     );
 }
-
 
 uint8_t CobLedManager::effect() const
 {
@@ -273,44 +331,28 @@ uint8_t CobLedManager::effect() const
     );
 }
 
-
 // ============================================================
-// Speed
+// SPEED
 // ============================================================
 
-void CobLedManager::setSpeed(
-    uint8_t speed
-)
+void CobLedManager::setSpeed(uint8_t speed)
 {
     _effects.setSpeed(speed);
 }
-
 
 uint8_t CobLedManager::speed() const
 {
     return _effects.speed();
 }
 
-
 // ============================================================
-// Enabled
+// MASTER ENABLE
 // ============================================================
 
-void CobLedManager::setEnabled(
-    bool enabled
-)
+void CobLedManager::setEnabled(bool enabled)
 {
     _effects.setEnabled(enabled);
-
-    if (!enabled)
-    {
-        _cob1.off();
-        _cob2.off();
-        _cob3.off();
-        _cob4.off();
-    }
 }
-
 
 bool CobLedManager::isEnabled() const
 {

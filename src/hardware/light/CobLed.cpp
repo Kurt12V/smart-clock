@@ -1,7 +1,5 @@
 #include "CobLed.h"
 
-#include <math.h>
-
 // ============================================================
 // CONSTRUCTOR
 // ============================================================
@@ -14,8 +12,8 @@ CobLed::CobLed(
 )
     : _pin(pin),
       _channel(channel),
-      _frequency(frequency),
       _resolution(resolution),
+      _frequency(frequency),
       _brightness(0),
       _isOn(false),
       _initialized(false),
@@ -36,11 +34,20 @@ bool CobLed::begin()
     if (_initialized)
         return true;
 
-    ledcSetup(
-        _channel,
-        _frequency,
-        _resolution
-    );
+    if (_resolution == 0 || _resolution > 16)
+        return false;
+
+    if (_frequency == 0)
+        return false;
+
+    if (!ledcSetup(
+            _channel,
+            _frequency,
+            _resolution
+        ))
+    {
+        return false;
+    }
 
     ledcAttachPin(
         _pin,
@@ -64,14 +71,13 @@ bool CobLed::begin()
 
 void CobLed::setBrightness(uint8_t brightness)
 {
-    brightness = constrain(brightness, 0, 100);
+    _brightness = constrain(
+        brightness,
+        0,
+        100
+    );
 
-    _brightness = brightness;
-
-    if (brightness == 0)
-        _isOn = false;
-    else
-        _isOn = true;
+    _isOn = (_brightness > 0);
 
     _fading = false;
 
@@ -125,12 +131,15 @@ bool CobLed::isOn() const
 
 void CobLed::increase(uint8_t step)
 {
-    uint16_t value = _brightness + step;
+    uint16_t value =
+        static_cast<uint16_t>(_brightness) + step;
 
     if (value > 100)
         value = 100;
 
-    setBrightness(static_cast<uint8_t>(value));
+    setBrightness(
+        static_cast<uint8_t>(value)
+    );
 }
 
 void CobLed::decrease(uint8_t step)
@@ -141,18 +150,27 @@ void CobLed::decrease(uint8_t step)
         return;
     }
 
-    setBrightness(_brightness - step);
+    setBrightness(
+        _brightness - step
+    );
 }
 
 // ============================================================
 // FADE
 // ============================================================
 
-void CobLed::fadeTo(uint8_t target, uint32_t durationMs)
+void CobLed::fadeTo(
+    uint8_t target,
+    uint32_t durationMs
+)
 {
-    target = constrain(target, 0, 100);
+    target = constrain(
+        target,
+        0,
+        100
+    );
 
-    if (durationMs == 0)
+    if (!_initialized || durationMs == 0)
     {
         setBrightness(target);
         return;
@@ -164,10 +182,17 @@ void CobLed::fadeTo(uint8_t target, uint32_t durationMs)
     _fadeStartTime = millis();
     _fadeDuration = durationMs;
 
-    _fading = true;
+    _fading = (_fadeStart != _fadeTarget);
 
     if (target > 0)
         _isOn = true;
+
+    if (!_fading)
+    {
+        _brightness = target;
+        _isOn = (target > 0);
+        apply();
+    }
 }
 
 // ============================================================
@@ -176,47 +201,44 @@ void CobLed::fadeTo(uint8_t target, uint32_t durationMs)
 
 void CobLed::update()
 {
-    if (!_initialized)
+    if (!_initialized || !_fading)
         return;
 
-    if (!_fading)
-        return;
-
-    const uint32_t elapsed = millis() - _fadeStartTime;
+    uint32_t elapsed =
+        millis() - _fadeStartTime;
 
     if (elapsed >= _fadeDuration)
     {
         _brightness = _fadeTarget;
 
         _fading = false;
-
-        if (_brightness == 0)
-            _isOn = false;
+        _isOn = (_brightness > 0);
 
         apply();
 
         return;
     }
 
-    const float progress =
-        static_cast<float>(elapsed) /
-        static_cast<float>(_fadeDuration);
+    int32_t difference =
+        static_cast<int32_t>(_fadeTarget) -
+        static_cast<int32_t>(_fadeStart);
 
-    const float value =
-        static_cast<float>(_fadeStart) +
+    int32_t value =
+        static_cast<int32_t>(_fadeStart) +
         (
-            static_cast<float>(_fadeTarget - _fadeStart)
-            * progress
-        );
+            difference *
+            static_cast<int32_t>(elapsed)
+        ) /
+        static_cast<int32_t>(_fadeDuration);
 
-    _brightness = static_cast<uint8_t>(value + 0.5f);
+    _brightness = static_cast<uint8_t>(
+        constrain(value, 0, 100)
+    );
+
+    _isOn = (_brightness > 0);
 
     apply();
 }
-
-// ============================================================
-// FADE STATUS
-// ============================================================
 
 bool CobLed::isFading() const
 {
@@ -224,48 +246,37 @@ bool CobLed::isFading() const
 }
 
 // ============================================================
-// BRIGHTNESS -> PWM
-// ============================================================
-//
-// Input:
-//     0..100 %
-//
-// Output:
-//     0..255 PWM
-//
-// Quadratic curve:
-//
-//     PWM = brightness²
-//
-// This makes the lower brightness range much softer.
+// PWM CONVERSION
 // ============================================================
 
-uint8_t CobLed::brightnessToPwm(uint8_t brightness) const
+uint32_t CobLed::brightnessToPwm(
+    uint8_t brightness
+) const
 {
+    const uint32_t maxDuty =
+        (1UL << _resolution) - 1UL;
+
     if (brightness == 0)
         return 0;
 
     if (brightness >= 100)
-        return 255;
+        return maxDuty;
 
-    const float x =
-        static_cast<float>(brightness) / 100.0f;
+    // Gamma correction.
+    // Улучшает визуальную плавность регулировки яркости.
 
-    const float corrected =
-        x * x;
+    double value =
+        static_cast<double>(brightness) / 100.0;
 
-    const int pwm =
-        static_cast<int>(
-            corrected * 255.0f + 0.5f
-        );
+    value = value * value;
 
-    return static_cast<uint8_t>(
-        constrain(pwm, 0, 255)
+    return static_cast<uint32_t>(
+        value * maxDuty + 0.5
     );
 }
 
 // ============================================================
-// APPLY
+// APPLY PWM
 // ============================================================
 
 void CobLed::apply()
@@ -273,17 +284,17 @@ void CobLed::apply()
     if (!_initialized)
         return;
 
-    if (!_isOn || _brightness == 0)
-    {
-        ledcWrite(_channel, 0);
-        return;
-    }
+    uint32_t duty = 0;
 
-    const uint8_t pwm =
-        brightnessToPwm(_brightness);
+    if (_isOn && _brightness > 0)
+    {
+        duty = brightnessToPwm(
+            _brightness
+        );
+    }
 
     ledcWrite(
         _channel,
-        pwm
+        duty
     );
 }

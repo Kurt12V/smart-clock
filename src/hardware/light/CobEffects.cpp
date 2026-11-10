@@ -1,8 +1,7 @@
 #include "CobEffects.h"
 
-
 // ============================================================
-// Constructor
+// CONSTRUCTOR
 // ============================================================
 
 CobEffects::CobEffects(
@@ -17,17 +16,16 @@ CobEffects::CobEffects(
       _cob4(cob4),
       _effect(CobEffectType::Static),
       _speed(50),
-      _enabled(true),
+      _base{100, 100, 100, 100},
+      _channelEnabled{true, true, true, true},
+      _enabled(false),
       _lastUpdate(0),
       _phase(0)
 {
-    for (uint8_t i = 0; i < LED_COUNT; ++i)
-        _base[i] = 100;
 }
 
-
 // ============================================================
-// Begin
+// BEGIN
 // ============================================================
 
 void CobEffects::begin()
@@ -35,17 +33,14 @@ void CobEffects::begin()
     _phase = 0;
     _lastUpdate = millis();
 
-    applyStatic();
+    render();
 }
 
-
 // ============================================================
-// Get LED
+// GET LED
 // ============================================================
 
-CobLed& CobEffects::led(
-    uint8_t index
-)
+CobLed& CobEffects::led(uint8_t index)
 {
     switch (index)
     {
@@ -59,10 +54,7 @@ CobLed& CobEffects::led(
     }
 }
 
-
-const CobLed& CobEffects::led(
-    uint8_t index
-) const
+const CobLed& CobEffects::led(uint8_t index) const
 {
     switch (index)
     {
@@ -76,14 +68,11 @@ const CobLed& CobEffects::led(
     }
 }
 
-
 // ============================================================
-// Set effect
+// EFFECT
 // ============================================================
 
-void CobEffects::setEffect(
-    CobEffectType effect
-)
+void CobEffects::setEffect(CobEffectType effect)
 {
     if (
         static_cast<uint8_t>(effect) >=
@@ -101,66 +90,60 @@ void CobEffects::setEffect(
     _phase = 0;
     _lastUpdate = millis();
 
-    if (_enabled && _effect == CobEffectType::Static)
-        applyStatic();
+    render();
 }
 
-
-// ============================================================
-// Set speed
-// ============================================================
-
-void CobEffects::setSpeed(
-    uint8_t speed
-)
+CobEffectType CobEffects::effect() const
 {
-    _speed =
-        constrain(
-            speed,
-            0,
-            100
-        );
+    return _effect;
 }
 
+// ============================================================
+// SPEED
+// ============================================================
+
+void CobEffects::setSpeed(uint8_t speed)
+{
+    _speed = constrain(
+        speed,
+        0,
+        100
+    );
+}
+
+uint8_t CobEffects::speed() const
+{
+    return _speed;
+}
 
 // ============================================================
-// Set brightness
+// BRIGHTNESS
 // ============================================================
 
 void CobEffects::setBrightness(
     uint8_t index,
-    uint8_t value
+    uint8_t value,
+    bool applyNow
 )
 {
     if (index >= LED_COUNT)
         return;
 
-    _base[index] =
-        constrain(
-            value,
-            0,
-            100
-        );
+    value = constrain(
+        value,
+        0,
+        100
+    );
 
-    if (_effect == CobEffectType::Static)
-    {
-        apply(
-            index,
-            _enabled
-                ? _base[index]
-                : 0
-        );
-    }
+    _base[index] = value;
+
+    _channelEnabled[index] = (value > 0);
+
+    if (applyNow)
+        render();
 }
 
-
-// ============================================================
-// Get brightness
-// ============================================================
-
-uint8_t CobEffects::brightness(
-    uint8_t index
-) const
+uint8_t CobEffects::brightness(uint8_t index) const
 {
     if (index >= LED_COUNT)
         return 0;
@@ -168,63 +151,69 @@ uint8_t CobEffects::brightness(
     return _base[index];
 }
 
-
-// ============================================================
-// Set all brightness
-// ============================================================
-
-void CobEffects::setAllBrightness(
-    uint8_t value
-)
+void CobEffects::setAllBrightness(uint8_t value)
 {
-    value =
-        constrain(
-            value,
-            0,
-            100
-        );
+    value = constrain(
+        value,
+        0,
+        100
+    );
 
-    for (uint8_t i = 0; i < LED_COUNT; ++i)
+    for (uint8_t i = 0; i < LED_COUNT; i++)
+    {
         _base[i] = value;
+        _channelEnabled[i] = (value > 0);
+    }
 
-    if (_effect == CobEffectType::Static)
-        applyStatic();
+    render();
 }
 
-
 // ============================================================
-// Enable
+// CHANNEL ENABLE
 // ============================================================
 
-void CobEffects::setEnabled(
+void CobEffects::setChannelEnabled(
+    uint8_t index,
     bool enabled
 )
 {
-    if (_enabled == enabled)
+    if (index >= LED_COUNT)
         return;
 
+    _channelEnabled[index] = enabled;
+
+    render();
+}
+
+bool CobEffects::isChannelEnabled(uint8_t index) const
+{
+    if (index >= LED_COUNT)
+        return false;
+
+    return _channelEnabled[index];
+}
+
+// ============================================================
+// MASTER ENABLE
+// ============================================================
+
+void CobEffects::setEnabled(bool enabled)
+{
     _enabled = enabled;
-
-    if (!_enabled)
-    {
-        _cob1.off();
-        _cob2.off();
-        _cob3.off();
-        _cob4.off();
-
-        return;
-    }
 
     _phase = 0;
     _lastUpdate = millis();
 
-    if (_effect == CobEffectType::Static)
-        applyStatic();
+    render();
 }
 
+bool CobEffects::isEnabled() const
+{
+    return _enabled;
+}
 
 // ============================================================
-// Update
+// UPDATE
 // ============================================================
 
 void CobEffects::update()
@@ -232,25 +221,58 @@ void CobEffects::update()
     if (!_enabled)
         return;
 
-    const uint32_t now = millis();
+    uint32_t now = millis();
 
-    if (now - _lastUpdate < 20)
+    uint32_t elapsed =
+        now - _lastUpdate;
+
+    if (elapsed < 20)
         return;
 
     _lastUpdate = now;
 
-    const uint32_t period =
-        3000UL -
-        static_cast<uint32_t>(_speed) * 25UL;
+    // Скорость эффекта:
+    // 0   = медленно
+    // 100 = быстро
 
-    _phase =
-        (now % period) *
-        1000UL /
-        period;
+    uint32_t period =
+        5000UL -
+        (
+            static_cast<uint32_t>(_speed) *
+            4500UL /
+            100UL
+        );
+
+    if (_effect != CobEffectType::Static)
+    {
+        _phase =
+            (
+                _phase +
+                (elapsed * 1000UL / period)
+            ) % 1000UL;
+
+        render();
+    }
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+
+void CobEffects::render()
+{
+    if (!_enabled)
+    {
+        for (uint8_t i = 0; i < LED_COUNT; i++)
+            led(i).off();
+
+        return;
+    }
 
     switch (_effect)
     {
         case CobEffectType::Static:
+            applyStatic();
             break;
 
         case CobEffectType::Breath:
@@ -266,13 +288,13 @@ void CobEffects::update()
             break;
 
         default:
+            applyStatic();
             break;
     }
 }
 
-
 // ============================================================
-// Apply
+// APPLY CHANNEL
 // ============================================================
 
 void CobEffects::apply(
@@ -283,7 +305,11 @@ void CobEffects::apply(
     if (index >= LED_COUNT)
         return;
 
-    if (!_enabled)
+    if (
+        !_enabled ||
+        !_channelEnabled[index] ||
+        value == 0
+    )
     {
         led(index).off();
         return;
@@ -292,18 +318,15 @@ void CobEffects::apply(
     led(index).setBrightness(value);
 }
 
-
 // ============================================================
-// Triangle
+// TRIANGLE WAVE
 // ============================================================
 
-uint8_t CobEffects::triangle(
-    uint32_t phase
-) const
+uint8_t CobEffects::triangle(uint32_t phase) const
 {
-    phase %= 1000;
+    phase %= 1000UL;
 
-    if (phase < 500)
+    if (phase < 500UL)
     {
         return static_cast<uint8_t>(
             phase * 100UL / 500UL
@@ -311,97 +334,86 @@ uint8_t CobEffects::triangle(
     }
 
     return static_cast<uint8_t>(
-        (1000UL - phase) *
-        100UL /
-        500UL
+        (1000UL - phase) * 100UL / 500UL
     );
 }
 
-
 // ============================================================
-// Static
+// STATIC
 // ============================================================
 
 void CobEffects::applyStatic()
 {
-    if (!_enabled)
-        return;
-
-    for (uint8_t i = 0; i < LED_COUNT; ++i)
-        apply(i, _base[i]);
+    for (uint8_t i = 0; i < LED_COUNT; i++)
+    {
+        apply(
+            i,
+            _base[i]
+        );
+    }
 }
 
-
 // ============================================================
-// Breath
+// BREATH
 // ============================================================
 
 void CobEffects::applyBreath()
 {
-    const uint8_t factor =
-        triangle(_phase);
+    uint8_t factor = triangle(_phase);
 
-    for (uint8_t i = 0; i < LED_COUNT; ++i)
+    for (uint8_t i = 0; i < LED_COUNT; i++)
     {
-        const uint8_t value =
+        uint8_t value =
             static_cast<uint8_t>(
                 static_cast<uint16_t>(_base[i]) *
-                factor /
-                100
+                factor / 100U
             );
 
         apply(i, value);
     }
 }
 
-
 // ============================================================
-// Strobe
+// STROBE
 // ============================================================
 
 void CobEffects::applyStrobe()
 {
-    const uint8_t factor =
-        (_phase < 500)
-            ? 100
-            : 0;
+    uint8_t factor =
+        (_phase < 500UL) ? 100 : 0;
 
-    for (uint8_t i = 0; i < LED_COUNT; ++i)
+    for (uint8_t i = 0; i < LED_COUNT; i++)
     {
-        const uint8_t value =
+        uint8_t value =
             static_cast<uint8_t>(
                 static_cast<uint16_t>(_base[i]) *
-                factor /
-                100
+                factor / 100U
             );
 
         apply(i, value);
     }
 }
 
-
 // ============================================================
-// Wave
+// WAVE
 // ============================================================
 
 void CobEffects::applyWave()
 {
-    for (uint8_t i = 0; i < LED_COUNT; ++i)
+    for (uint8_t i = 0; i < LED_COUNT; i++)
     {
-        const uint32_t phase =
+        uint32_t phase =
             (
                 _phase +
                 static_cast<uint32_t>(i) * 250UL
             ) % 1000UL;
 
-        const uint8_t factor =
-            triangle(phase);
+        uint8_t factor = triangle(phase);
 
-        const uint8_t value =
+        uint8_t value =
             static_cast<uint8_t>(
                 static_cast<uint16_t>(_base[i]) *
-                factor /
-                100
+                factor / 100U
             );
 
         apply(i, value);

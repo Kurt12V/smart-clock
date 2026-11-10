@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include <Arduino.h>
@@ -11,12 +10,14 @@
 class LightingManager
 {
 public:
-    explicit LightingManager(SettingsManager& settings);
+    explicit LightingManager(
+        SettingsManager& settings
+    );
 
     bool begin();
     void update();
 
-    // Временное управление светом для рассвета и будильника.
+    // Временное управление освещением будильника.
     void beginAlarmOverride();
 
     void setAlarmMatrix(
@@ -26,7 +27,9 @@ public:
         uint8_t blue
     );
 
-    void setAlarmCob(uint8_t brightness);
+    void setAlarmCob(
+        uint8_t brightness
+    );
 
     void endAlarmOverride();
 
@@ -35,11 +38,13 @@ public:
 private:
     void apply();
 
-private:
+    void applyCobSettings(bool force);
+    void applyMatrixSettings(bool force);
+
     SettingsManager& _settings;
 
     // ========================================================
-    // COB HARDWARE
+    // COB
     // ========================================================
 
     CobLed _cob1;
@@ -52,10 +57,11 @@ private:
     uint8_t _cobBrightness;
     uint8_t _cobEffect;
     uint8_t _cobSpeed;
+
     bool _cobEnabled;
 
     // ========================================================
-    // MATRIX HARDWARE
+    // MATRIX
     // ========================================================
 
     LedMatrixManager _matrix;
@@ -63,6 +69,7 @@ private:
     uint8_t _matrixBrightness;
     uint8_t _matrixEffect;
     uint8_t _matrixSpeed;
+
     bool _matrixEnabled;
 
     // ========================================================
@@ -71,8 +78,5 @@ private:
 
     bool _initialized;
     bool _firstApply;
-
-    // Когда true, обычные настройки и эффекты
-    // не должны перезаписывать освещение будильника.
     bool _alarmOverride;
 };
