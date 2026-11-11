@@ -3,6 +3,7 @@
 #include "Config.h"
 
 #include <cstring>
+#include <Arduino.h>
 
 // ============================================================
 // SAVE DELAY
@@ -225,6 +226,8 @@ bool SettingsManager::begin()
             "smartclock",
             false))
     {
+        Serial.println(
+            "[Settings] ERROR: preferences.begin() failed");
         return false;
     }
 
@@ -312,11 +315,23 @@ bool SettingsManager::set(
     if (_values[index] == value)
         return false;
 
+    const int oldValue = _values[index];
+
     _values[index] = value;
 
     _dirty[index] = true;
 
     _lastChangeTime = millis();
+
+    Serial.printf(
+        "[Settings] %s: %d -> %d (min=%d, max=%d, def=%d)\n",
+        desc.name,
+        oldValue,
+        value,
+        desc.minValue,
+        desc.maxValue,
+        desc.defaultValue
+    );
 
     return true;
 }
@@ -388,6 +403,12 @@ bool SettingsManager::save(
 
     _dirty[index] = false;
 
+    Serial.printf(
+        "[Settings] saved %s = %d\n",
+        PARAMS[index].name,
+        _values[index]
+    );
+
     return true;
 }
 
@@ -410,10 +431,21 @@ bool SettingsManager::saveDirty()
         if (saveValue(PARAMS[i]))
         {
             _dirty[i] = false;
+
+            Serial.printf(
+                "[Settings] saved %s = %d\n",
+                PARAMS[i].name,
+                _values[i]
+            );
         }
         else
         {
             result = false;
+
+            Serial.printf(
+                "[Settings] ERROR: failed to save %s\n",
+                PARAMS[i].name
+            );
         }
     }
 
@@ -436,10 +468,21 @@ bool SettingsManager::saveAll()
         if (!saveValue(PARAMS[i]))
         {
             result = false;
+
+            Serial.printf(
+                "[Settings] ERROR: failed to save %s\n",
+                PARAMS[i].name
+            );
             continue;
         }
 
         _dirty[i] = false;
+
+        Serial.printf(
+            "[Settings] saved %s = %d\n",
+            PARAMS[i].name,
+            _values[i]
+        );
     }
 
     return result;
@@ -467,6 +510,9 @@ void SettingsManager::flush()
 
 void SettingsManager::resetAll()
 {
+    Serial.println(
+        "[Settings] resetAll -> defaults");
+
     for (size_t i = 0;
          i < PARAM_COUNT;
          ++i)
@@ -475,6 +521,12 @@ void SettingsManager::resetAll()
             PARAMS[i].defaultValue;
 
         _dirty[i] = true;
+
+        Serial.printf(
+            "[Settings]   %s = %d\n",
+            PARAMS[i].name,
+            _values[i]
+        );
     }
 
     _lastChangeTime = millis();
@@ -568,6 +620,13 @@ bool SettingsManager::loadValue(
         );
 
     _dirty[index] = false;
+
+    Serial.printf(
+        "[Settings] load %s = %d (raw=%d)\n",
+        desc.name,
+        _values[index],
+        value
+    );
 
     return true;
 }
