@@ -935,11 +935,31 @@ bool SmartClockMqttClient::publishJson(
 // PUBLISH TELEMETRY
 // ============================================================
 
+// ============================================================
+// PUBLISH TELEMETRY
+// ============================================================
+
 bool SmartClockMqttClient::publishTelemetry(
-    JsonDocument& document
+    JsonDocument& document,
+    const char* localDateTime
 ) {
+    if (localDateTime == nullptr ||
+        localDateTime[0] == '\0') {
+
+        Serial0.printf(
+            "[MQTT] [ERROR] Не задано локальное время телеметрии\n"
+        );
+
+        return false;
+    }
+
+    document["datetime"] = localDateTime;
+
+    document["uptime_ms"] = millis();
+
     Serial0.printf(
-        "[MQTT] [INFO] Отправка телеметрии\n"
+        "[MQTT] [INFO] Отправка телеметрии: datetime=%s\n",
+        localDateTime
     );
 
     return publishJson(

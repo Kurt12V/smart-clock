@@ -1124,13 +1124,28 @@ void App::updateTelemetry()
 // ============================================================
 // PUBLISH SENSOR TELEMETRY
 // ============================================================
+// ============================================================
+// PUBLISH SENSOR TELEMETRY
+// ============================================================
 
 bool App::publishSensorTelemetry()
 {
+    // --------------------------------------------------------
+    // CHECK MQTT CONNECTION
+    // --------------------------------------------------------
+
     if (!_mqttClient.isConnected())
     {
+        Serial0.println(
+            "[APP][MQTT] Нет подключения к MQTT"
+        );
+
         return false;
     }
+
+    // --------------------------------------------------------
+    // GET SENSOR DATA
+    // --------------------------------------------------------
 
     const SensorData& data = _sensorManager.getData();
 
@@ -1138,50 +1153,122 @@ bool App::publishSensorTelemetry()
     const bool hasHumidity = data.humidityValid;
     const bool hasIlluminance = data.lightValid;
 
-    if (!hasTemperature && !hasHumidity && !hasIlluminance)
+    if (!hasTemperature &&
+        !hasHumidity &&
+        !hasIlluminance)
     {
         Serial0.println(
             "[APP][MQTT] Нет валидных показаний датчиков"
         );
+
         return false;
     }
+
+    // --------------------------------------------------------
+    // GET LOCAL DATETIME
+    // --------------------------------------------------------
+
+    const time_t localTime = _clockSystem.getLocalTime();
+
+    struct tm timeInfo {};
+
+    if (gmtime_r(&localTime, &timeInfo) == nullptr)
+    {
+        Serial0.println(
+            "[APP][MQTT] Ошибка получения локального времени"
+        );
+
+        return false;
+    }
+
+    char datetime[24] = {};
+
+    const int datetimeLength = snprintf(
+        datetime,
+        sizeof(datetime),
+        "%04d-%02d-%02dT%02d:%02d:%02d",
+        timeInfo.tm_year + 1900,
+        timeInfo.tm_mon + 1,
+        timeInfo.tm_mday,
+        timeInfo.tm_hour,
+        timeInfo.tm_min,
+        timeInfo.tm_sec
+    );
+
+    if (datetimeLength < 0 ||
+        static_cast<size_t>(datetimeLength) >= sizeof(datetime))
+    {
+        Serial0.println(
+            "[APP][MQTT] Ошибка форматирования даты и времени"
+        );
+
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // CREATE JSON DOCUMENT
+    // --------------------------------------------------------
 
     JsonDocument document;
 
     document["device_id"] = _mqttClient.getDeviceId();
-    document["uptime_ms"] = millis();
 
-    JsonObject sensors = document.createNestedObject("sensors");
+    JsonObject sensors =
+        document["sensors"].to<JsonObject>();
+
+    // --------------------------------------------------------
+    // TEMPERATURE
+    // --------------------------------------------------------
 
     if (hasTemperature)
     {
         sensors["temperature"] = data.temperature;
     }
 
+    // --------------------------------------------------------
+    // HUMIDITY
+    // --------------------------------------------------------
+
     if (hasHumidity)
     {
         sensors["humidity"] = data.humidity;
     }
+
+    // --------------------------------------------------------
+    // ILLUMINANCE
+    // --------------------------------------------------------
 
     if (hasIlluminance)
     {
         sensors["illuminance"] = data.lightLux;
     }
 
-    const bool published = _mqttClient.publishTelemetry(document);
+    // --------------------------------------------------------
+    // PUBLISH TELEMETRY
+    // --------------------------------------------------------
 
-    if (published)
+    const bool published = _mqttClient.publishTelemetry(
+        document,
+        datetime
+    );
+
+    if (!published)
     {
         Serial0.println(
-            "[APP][MQTT] Телеметрия успешно отправлена"
+            "[APP][MQTT] Ошибка публикации телеметрии"
         );
-    }
-    else
-    {
-        Serial0.println(
-            "[APP][MQTT][ERROR] Не удалось отправить телеметрию"
-        );
+
+        return false;
     }
 
-    return published;
+    // --------------------------------------------------------
+    // SUCCESS
+    // --------------------------------------------------------
+
+    Serial0.printf(
+        "[APP][MQTT] Телеметрия опубликована: %s\n",
+        datetime
+    );
+
+    return true;
 }

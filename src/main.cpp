@@ -26,7 +26,7 @@
 // CONFIGURATION
 // ============================================================
 
-static constexpr char AUDIO_SERVER_HOST[] = "192.168.1.100";
+static constexpr char AUDIO_SERVER_HOST[] = "192.168.1.93";
 static constexpr uint16_t AUDIO_SERVER_PORT = 8765;
 static constexpr char AUDIO_SERVER_PATH[] = "/audio";
 

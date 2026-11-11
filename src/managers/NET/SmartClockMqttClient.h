@@ -92,7 +92,10 @@ public:
     // TELEMETRY
     // ========================================================
 
-    bool publishTelemetry(JsonDocument& document);
+bool publishTelemetry(
+    JsonDocument& document,
+    const char* localDateTime
+);
 
     // ========================================================
     // STATE
