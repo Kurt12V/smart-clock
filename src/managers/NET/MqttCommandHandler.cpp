@@ -856,6 +856,7 @@ void MqttCommandHandler::networkCommand(
 // DISPLAY AND LIGHTING COMMANDS
 // ============================================================
 
+
 void MqttCommandHandler::displayCommand(
     const char* requestId,
     const char* command,
@@ -910,6 +911,66 @@ void MqttCommandHandler::displayCommand(
     }
 
     // --------------------------------------------------------
+    // display.get_matrix_status
+    // --------------------------------------------------------
+
+    if (strcmp(command, "display.get_matrix_status") == 0) {
+        JsonDocument data;
+
+        data["enabled"] =
+            _settings->get(Param::MATRIX_ENABLED) != 0;
+
+        data["brightness"] =
+            _settings->get(Param::MATRIX_BRIGHTNESS);
+
+        data["effect"] =
+            _settings->get(Param::MATRIX_EFFECT);
+
+        data["speed"] =
+            _settings->get(Param::MATRIX_SPEED);
+
+        sendResult(
+            requestId,
+            command,
+            true,
+            "Matrix settings",
+            data
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // display.get_cob_status
+    // --------------------------------------------------------
+
+    if (strcmp(command, "display.get_cob_status") == 0) {
+        JsonDocument data;
+
+        data["enabled"] =
+            _settings->get(Param::COB_ENABLED) != 0;
+
+        data["brightness"] =
+            _settings->get(Param::COB_BRIGHTNESS);
+
+        data["effect"] =
+            _settings->get(Param::COB_EFFECT);
+
+        data["speed"] =
+            _settings->get(Param::COB_SPEED);
+
+        sendResult(
+            requestId,
+            command,
+            true,
+            "COB settings",
+            data
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
     // display.get_brightness
     // --------------------------------------------------------
 
@@ -940,38 +1001,31 @@ void MqttCommandHandler::displayCommand(
     if (strcmp(command, "display.set_brightness") == 0) {
         int value;
 
+        const Param parameter = Param::BRIGHTNESS;
+        const Param modeParameter = Param::BRIGHTNESS_MODE;
+
+        const auto& desc = _settings->getDesc(parameter);
+
         if (!readInt(params, "value", value) ||
-            value < 0 || value > 100) {
+            value < desc.minValue ||
+            value > desc.maxValue) {
 
             sendAck(
                 requestId,
                 command,
                 false,
-                "value must be an integer from 0 to 100"
+                "Brightness value is outside allowed range"
             );
 
             return;
         }
 
-        _settings->set(
-            Param::BRIGHTNESS,
-            value
-        );
+        _settings->set(parameter, value);
+        _settings->set(modeParameter, 0);
 
-        _settings->set(
-            Param::BRIGHTNESS_MODE,
-            0
-        );
-
-        bool savedBrightness =
-            _settings->save(Param::BRIGHTNESS);
-
-        bool savedMode =
-            _settings->save(Param::BRIGHTNESS_MODE);
-
-        bool success = savedBrightness || savedMode ||
-                       (_settings->get(Param::BRIGHTNESS) == value &&
-                        _settings->get(Param::BRIGHTNESS_MODE) == 0);
+        bool success =
+            _settings->save(parameter) &&
+            _settings->save(modeParameter);
 
         sendAck(
             requestId,
@@ -1003,32 +1057,26 @@ void MqttCommandHandler::displayCommand(
             return;
         }
 
-        // В SettingsManager нет отдельного флага дисплеев.
-        // Поэтому выключение реализовано через нулевую яркость.
         int value = enabled
             ? _settings->getDesc(Param::BRIGHTNESS).defaultValue
             : 0;
 
-        _settings->set(
-            Param::BRIGHTNESS,
-            value
-        );
+        _settings->set(Param::BRIGHTNESS, value);
+        _settings->set(Param::BRIGHTNESS_MODE, 0);
 
-        _settings->set(
-            Param::BRIGHTNESS_MODE,
-            0
-        );
-
-        _settings->save(Param::BRIGHTNESS);
-        _settings->save(Param::BRIGHTNESS_MODE);
+        bool success =
+            _settings->save(Param::BRIGHTNESS) &&
+            _settings->save(Param::BRIGHTNESS_MODE);
 
         sendAck(
             requestId,
             command,
-            true,
-            enabled
-                ? "Brightness restored to default"
-                : "Brightness set to zero"
+            success,
+            success
+                ? (enabled
+                    ? "Brightness restored to default"
+                    : "Brightness set to zero")
+                : "Could not save display settings"
         );
 
         return;
@@ -1059,22 +1107,23 @@ void MqttCommandHandler::displayCommand(
             value
         );
 
-        _settings->save(
-            Param::BRIGHTNESS_MODE
-        );
+        bool success =
+            _settings->save(Param::BRIGHTNESS_MODE);
 
         sendAck(
             requestId,
             command,
-            true,
-            "Brightness mode updated"
+            success,
+            success
+                ? "Brightness mode updated"
+                : "Could not save brightness mode"
         );
 
         return;
     }
 
     // --------------------------------------------------------
-    // display.set_matrix_enabled / display.set_cob_enabled
+    // MATRIX / COB ENABLED
     // --------------------------------------------------------
 
     if (strcmp(command, "display.set_matrix_enabled") == 0 ||
@@ -1105,22 +1154,24 @@ void MqttCommandHandler::displayCommand(
             enabled ? 1 : 0
         );
 
-        _settings->save(parameter);
+        bool success = _settings->save(parameter);
 
         sendAck(
             requestId,
             command,
-            true,
-            matrix
-                ? "Matrix enabled state updated"
-                : "COB enabled state updated"
+            success,
+            success
+                ? (matrix
+                    ? "Matrix enabled state updated"
+                    : "COB enabled state updated")
+                : "Could not save enabled state"
         );
 
         return;
     }
 
     // --------------------------------------------------------
-    // display.set_matrix_brightness / display.set_cob_brightness
+    // MATRIX / COB BRIGHTNESS
     // --------------------------------------------------------
 
     if (strcmp(command, "display.set_matrix_brightness") == 0 ||
@@ -1128,14 +1179,12 @@ void MqttCommandHandler::displayCommand(
 
         int value;
 
-        if (!readInt(params, "value", value) ||
-            value < 0 || value > 100) {
-
+        if (!readInt(params, "value", value)) {
             sendAck(
                 requestId,
                 command,
                 false,
-                "value must be an integer from 0 to 100"
+                "value must be an integer"
             );
 
             return;
@@ -1148,23 +1197,166 @@ void MqttCommandHandler::displayCommand(
             ? Param::MATRIX_BRIGHTNESS
             : Param::COB_BRIGHTNESS;
 
+        const auto& desc = _settings->getDesc(parameter);
+
+        if (value < desc.minValue ||
+            value > desc.maxValue) {
+
+            sendAck(
+                requestId,
+                command,
+                false,
+                "Brightness value is outside allowed range"
+            );
+
+            return;
+        }
+
         _settings->set(parameter, value);
-        _settings->save(parameter);
+
+        bool success = _settings->save(parameter);
 
         sendAck(
             requestId,
             command,
-            true,
-            matrix
-                ? "Matrix brightness updated"
-                : "COB brightness updated"
+            success,
+            success
+                ? (matrix
+                    ? "Matrix brightness updated"
+                    : "COB brightness updated")
+                : "Could not save brightness"
         );
 
         return;
     }
 
+    // --------------------------------------------------------
+    // MATRIX / COB EFFECT
+    // --------------------------------------------------------
+
+    if (strcmp(command, "display.set_matrix_effect") == 0 ||
+        strcmp(command, "display.set_cob_effect") == 0) {
+
+        int value;
+
+        if (!readInt(params, "value", value)) {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "value must be an integer"
+            );
+
+            return;
+        }
+
+        bool matrix =
+            strcmp(command, "display.set_matrix_effect") == 0;
+
+        Param parameter = matrix
+            ? Param::MATRIX_EFFECT
+            : Param::COB_EFFECT;
+
+        const auto& desc = _settings->getDesc(parameter);
+
+        if (value < desc.minValue ||
+            value > desc.maxValue) {
+
+            sendAck(
+                requestId,
+                command,
+                false,
+                "Effect value is outside allowed range"
+            );
+
+            return;
+        }
+
+        _settings->set(parameter, value);
+
+        bool success = _settings->save(parameter);
+
+        sendAck(
+            requestId,
+            command,
+            success,
+            success
+                ? (matrix
+                    ? "Matrix effect updated"
+                    : "COB effect updated")
+                : "Could not save effect"
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // MATRIX / COB SPEED
+    // --------------------------------------------------------
+
+    if (strcmp(command, "display.set_matrix_speed") == 0 ||
+        strcmp(command, "display.set_cob_speed") == 0) {
+
+        int value;
+
+        if (!readInt(params, "value", value)) {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "value must be an integer"
+            );
+
+            return;
+        }
+
+        bool matrix =
+            strcmp(command, "display.set_matrix_speed") == 0;
+
+        Param parameter = matrix
+            ? Param::MATRIX_SPEED
+            : Param::COB_SPEED;
+
+        const auto& desc = _settings->getDesc(parameter);
+
+        if (value < desc.minValue ||
+            value > desc.maxValue) {
+
+            sendAck(
+                requestId,
+                command,
+                false,
+                "Speed value is outside allowed range"
+            );
+
+            return;
+        }
+
+        _settings->set(parameter, value);
+
+        bool success = _settings->save(parameter);
+
+        sendAck(
+            requestId,
+            command,
+            success,
+            success
+                ? (matrix
+                    ? "Matrix speed updated"
+                    : "COB speed updated")
+                : "Could not save speed"
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // UNKNOWN COMMAND
+    // --------------------------------------------------------
+
     unknownCommand(requestId, command);
 }
+
 
 
 // ============================================================

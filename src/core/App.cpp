@@ -551,13 +551,98 @@ void App::update()
 // SETTINGS
 // ============================================================
 
+// ============================================================
+// SETTINGS
+// ============================================================
+
 bool App::initSettings()
 {
     Serial0.println(
         "[APP] Initializing settings..."
     );
 
-    return _settings.begin();
+    if (!_settings.begin())
+    {
+        Serial0.println(
+            "[APP][ERROR] Settings initialization failed"
+        );
+
+        return false;
+    }
+
+    Serial0.println(
+        "[APP] Resetting startup lighting settings..."
+    );
+
+    // --------------------------------------------------------
+    // LED MATRIX
+    // --------------------------------------------------------
+
+    _settings.set(
+        SettingsManager::Param::MATRIX_ENABLED,
+        0
+    );
+
+    _settings.set(
+        SettingsManager::Param::MATRIX_EFFECT,
+        0
+    );
+
+    // --------------------------------------------------------
+    // COB LIGHTING
+    // --------------------------------------------------------
+
+    _settings.set(
+        SettingsManager::Param::COB_ENABLED,
+        0
+    );
+
+    _settings.set(
+        SettingsManager::Param::COB_EFFECT,
+        0
+    );
+
+    // --------------------------------------------------------
+    // SAVE SETTINGS TO NVS
+    // --------------------------------------------------------
+
+    _settings.save(
+        SettingsManager::Param::MATRIX_ENABLED
+    );
+
+    _settings.save(
+        SettingsManager::Param::MATRIX_EFFECT
+    );
+
+    _settings.save(
+        SettingsManager::Param::COB_ENABLED
+    );
+
+    _settings.save(
+        SettingsManager::Param::COB_EFFECT
+    );
+
+    Serial0.println(
+        "[APP] Matrix disabled"
+    );
+
+    Serial0.println(
+        "[APP] Matrix effect reset"
+    );
+
+    Serial0.println(
+        "[APP] COB disabled"
+    );
+
+    Serial0.println(
+        "[APP] COB effect reset"
+    );
+
+    Serial0.println(
+        "[APP] Startup lighting settings saved"
+    );
+
+    return true;
 }
 
 
