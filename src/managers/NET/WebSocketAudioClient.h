@@ -1,86 +1,222 @@
-// #pragma once
 
-// #include <Arduino.h>
-// #include <WebSocketsClient.h>
+#pragma once
 
-// class WebSocketAudioClient {
-// public:
-//     static constexpr uint32_t SAMPLE_RATE = 16000;
-//     static constexpr uint8_t CHANNELS = 1;
-//     static constexpr uint8_t BITS_PER_SAMPLE = 16;
+#include <Arduino.h>
+#include <WebSocketsClient.h>
+#include <stdint.h>
+#include <stddef.h>
 
-//     // 20 мс аудио: 16000 * 0.020 = 320 отсчётов.
-//     static constexpr size_t SAMPLES_PER_CHUNK = 320;
-//     static constexpr size_t PCM_CHUNK_SIZE =
-//         SAMPLES_PER_CHUNK * sizeof(int16_t);
+// ============================================================
+// AUDIO CONFIGURATION
+// ============================================================
 
-//     enum class Event : uint8_t {
-//         CONNECTED,
-//         DISCONNECTED,
-//         TEXT_RECEIVED,
-//         PCM_RECEIVED,
-//         ERROR
-//     };
+#ifndef SAMPLE_RATE
+#define SAMPLE_RATE 16000
+#endif
 
-//     using EventCallback = void (*)(
-//         Event event,
-//         const uint8_t* payload,
-//         size_t length
-//     );
+#ifndef BITS_PER_SAMPLE
+#define BITS_PER_SAMPLE 16
+#endif
 
-//     WebSocketAudioClient();
 
-//     bool begin(
-//         const char* host,
-//         uint16_t port,
-//         const char* path = "/audio",
-//         const char* deviceId = "smartclock-01"
-//     );
+// ============================================================
+// WEBSOCKET AUDIO CLIENT
+// ============================================================
 
-//     void update();
-//     void stop();
+class WebSocketAudioClient {
 
-//     bool isConnected() const;
+public:
 
-//     // Отправка PCM S16LE на сервер.
-//     bool sendPcm(const int16_t* samples, size_t sampleCount);
+    // --------------------------------------------------------
+    // EVENTS
+    // --------------------------------------------------------
 
-//     // Отправка произвольного блока PCM-байтов.
-//     bool sendPcmBytes(const uint8_t* data, size_t length);
+    enum class Event : uint8_t {
 
-//     // Управляющие сообщения в JSON.
-//     bool sendText(const char* text);
+        CONNECTED,
+        DISCONNECTED,
 
-//     // Регистрация обработчика событий.
-//     void setEventCallback(EventCallback callback);
+        TEXT_RECEIVED,
+        PCM_RECEIVED,
 
-// private:
-//     WebSocketsClient _webSocket;
+        ERROR
 
-//     EventCallback _callback;
+    };
 
-//     bool _connected;
-//     bool _started;
 
-//     char _deviceId[48];
+    // --------------------------------------------------------
+    // CALLBACK
+    // --------------------------------------------------------
 
-//     static WebSocketAudioClient* _instance;
+    using EventCallback = void (*)(
+        Event event,
+        const uint8_t* payload,
+        size_t length
+    );
 
-//     static void onWebSocketEvent(
-//         WStype_t type,
-//         uint8_t* payload,
-//         size_t length
-//     );
 
-//     void handleWebSocketEvent(
-//         WStype_t type,
-//         uint8_t* payload,
-//         size_t length
-//     );
+    // --------------------------------------------------------
+    // CONSTRUCTOR
+    // --------------------------------------------------------
 
-//     void emitEvent(
-//         Event event,
-//         const uint8_t* payload = nullptr,
-//         size_t length = 0
-//     );
-// };
+    WebSocketAudioClient();
+
+
+    // --------------------------------------------------------
+    // INITIALIZATION
+    // --------------------------------------------------------
+
+    bool begin(
+        const char* host,
+        uint16_t port,
+        const char* path,
+        const char* deviceId
+    );
+
+
+    // --------------------------------------------------------
+    // UPDATE
+    // --------------------------------------------------------
+
+    void update();
+
+
+    // --------------------------------------------------------
+    // STOP
+    // --------------------------------------------------------
+
+    void stop();
+
+
+    // --------------------------------------------------------
+    // CONNECTION STATE
+    // --------------------------------------------------------
+
+    bool isConnected() const;
+
+    bool isStarted() const;
+
+
+    // --------------------------------------------------------
+    // SEND PCM SAMPLES
+    //
+    // samples     - массив int16_t
+    // sampleCount - количество отсчётов
+    // --------------------------------------------------------
+
+    bool sendPcm(
+        const int16_t* samples,
+        size_t sampleCount
+    );
+
+
+    // --------------------------------------------------------
+    // SEND PCM BYTES
+    //
+    // Автоматическое разбиение на WebSocket BIN.
+    // --------------------------------------------------------
+
+    bool sendPcmBytes(
+        const uint8_t* data,
+        size_t length
+    );
+
+
+    // --------------------------------------------------------
+    // SEND TEXT
+    // --------------------------------------------------------
+
+    bool sendText(
+        const char* text
+    );
+
+
+    // --------------------------------------------------------
+    // EVENT CALLBACK
+    // --------------------------------------------------------
+
+    void setEventCallback(
+        EventCallback callback
+    );
+
+
+private:
+
+    // --------------------------------------------------------
+    // STATIC INSTANCE
+    // --------------------------------------------------------
+
+    static WebSocketAudioClient* _instance;
+
+
+    // --------------------------------------------------------
+    // WEBSOCKET
+    // --------------------------------------------------------
+
+    WebSocketsClient _webSocket;
+
+
+    // --------------------------------------------------------
+    // STATE
+    // --------------------------------------------------------
+
+    bool _connected;
+    bool _started;
+
+
+    // --------------------------------------------------------
+    // DEVICE ID
+    // --------------------------------------------------------
+
+    static constexpr size_t DEVICE_ID_SIZE = 48;
+
+    char _deviceId[DEVICE_ID_SIZE];
+
+
+    // --------------------------------------------------------
+    // CALLBACK
+    // --------------------------------------------------------
+
+    EventCallback _callback;
+
+
+    // --------------------------------------------------------
+    // STATIC WEBSOCKET CALLBACK
+    // --------------------------------------------------------
+
+    static void onWebSocketEvent(
+        WStype_t type,
+        uint8_t* payload,
+        size_t length
+    );
+
+
+    // --------------------------------------------------------
+    // HANDLE EVENTS
+    // --------------------------------------------------------
+
+    void handleWebSocketEvent(
+        WStype_t type,
+        uint8_t* payload,
+        size_t length
+    );
+
+
+    // --------------------------------------------------------
+    // EMIT EVENT
+    // --------------------------------------------------------
+
+    void emitEvent(
+        Event event,
+        const uint8_t* payload = nullptr,
+        size_t length = 0
+    );
+
+
+    // --------------------------------------------------------
+    // SEND HELLO
+    // --------------------------------------------------------
+
+    bool sendHello();
+
+};
