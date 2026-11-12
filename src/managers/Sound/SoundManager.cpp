@@ -434,10 +434,23 @@ bool SoundManager::beginPCM(
 
     _pcmInputFinished = false;
     _pcmPlaybackFinished = false;
+    _pcmOutputStarted = false;
+    _pcmUnderrunActive = false;
+    _pcmReceivedSamples = 0;
+    _pcmPlayedSamples = 0;
+    _pcmUnderrunCount = 0;
+    _pcmMaxQueued = 0;
+    _pcmLastDiagnosticMs = millis();
 
     _drainPending = false;
 
     _state = State::PLAYING;
+
+    // startPcmOutput configures the I2S driver.  Stop it until the network
+    // FIFO has reached the prebuffer threshold; otherwise the DMA begins
+    // consuming silence before the first WebSocket blocks arrive.
+    _i2sManager.stopSpeaker();
+    _i2sManager.clearSpeaker();
 
     _lastStatusMs = millis();
     _audioBlocksWritten = 0;
@@ -476,6 +489,11 @@ bool SoundManager::submitPCM(
 
     _pcmCount += sampleCount;
 
+    _pcmReceivedSamples += static_cast<uint32_t>(sampleCount);
+
+    if (_pcmCount > _pcmMaxQueued)
+        _pcmMaxQueued = _pcmCount;
+
     return true;
 }
 
@@ -507,7 +525,7 @@ bool SoundManager::isPCMPrebufferReady() const
     if (_sourceMode != SourceMode::BufferedPCM)
         return false;
 
-    if (_pcmInputFinished)
+    if (_pcmOutputStarted || _pcmInputFinished)
         return true;
 
     return _pcmCount >= PCM_PREBUFFER_SAMPLES;
@@ -698,19 +716,58 @@ bool SoundManager::readPcmChunk()
 
     if (_sourceMode == SourceMode::BufferedPCM)
     {
+        // Do not start I2S on the first packet. A real prebuffer absorbs
+        // normal Wi-Fi/WebSocket packet jitter before audible playback.
+        if (!_pcmOutputStarted)
+        {
+            if (!_pcmInputFinished &&
+                _pcmCount < PCM_PREBUFFER_SAMPLES)
+            {
+                return false;
+            }
+
+            if (_pcmCount == 0)
+            {
+                requestDrain();
+                return false;
+            }
+
+            if (!_i2sManager.startSpeaker())
+            {
+                Serial0.println("[SoundManager][ERROR] Cannot start I2S PCM output");
+                return false;
+            }
+
+            _pcmOutputStarted = true;
+
+            Serial0.printf(
+                "[SoundManager] PCM playback started: prebuffer=%u samples (%lu ms)\n",
+                static_cast<unsigned>(_pcmCount),
+                static_cast<unsigned long>(
+                    (static_cast<uint64_t>(_pcmCount) * 1000ULL) /
+                    _pcmSampleRate
+                )
+            );
+        }
+
         if (_pcmCount == 0)
         {
             if (_pcmInputFinished)
+            {
                 requestDrain();
+            }
+            else if (!_pcmUnderrunActive)
+            {
+                _pcmUnderrunActive = true;
+                ++_pcmUnderrunCount;
+                Serial0.printf(
+                    "[SoundManager][WARN] PCM underrun #%lu\n",
+                    static_cast<unsigned long>(_pcmUnderrunCount)
+                );
+            }
 
-            // Важно: не отправляем тишину при сетевом underrun.
             return false;
         }
-
-        // Пока поток активен, ждём полный блок.
-        // Последний неполный блок отправляется после finishPCM().
-        if (!_pcmInputFinished && _pcmCount < BUFFER_SAMPLES)
-            return false;
 
         const size_t count =
             std::min(_pcmCount, BUFFER_SAMPLES);
@@ -724,6 +781,10 @@ bool SoundManager::readPcmChunk()
 
         _pcmCount -= count;
 
+        _pcmUnderrunActive = false;
+
+        _pcmPlayedSamples += static_cast<uint32_t>(count);
+
         _positionBytes +=
             static_cast<uint32_t>(count * sizeof(int16_t));
 
@@ -732,6 +793,27 @@ bool SoundManager::readPcmChunk()
 
         if (_pcmInputFinished && _pcmCount == 0)
             requestDrain();
+
+        const uint32_t now = millis();
+
+        if (now - _pcmLastDiagnosticMs >= AUDIO_DEBUG_INTERVAL_MS)
+        {
+            _pcmLastDiagnosticMs = now;
+
+            Serial0.printf(
+                "[SoundManager][PCM] queued=%u/%u samples (%lu ms) max=%u rx=%lu played=%lu underruns=%lu\n",
+                static_cast<unsigned>(_pcmCount),
+                static_cast<unsigned>(PCM_QUEUE_CAPACITY),
+                static_cast<unsigned long>(
+                    (static_cast<uint64_t>(_pcmCount) * 1000ULL) /
+                    _pcmSampleRate
+                ),
+                static_cast<unsigned>(_pcmMaxQueued),
+                static_cast<unsigned long>(_pcmReceivedSamples),
+                static_cast<unsigned long>(_pcmPlayedSamples),
+                static_cast<unsigned long>(_pcmUnderrunCount)
+            );
+        }
 
         return true;
     }

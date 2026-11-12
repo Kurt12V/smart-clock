@@ -41,7 +41,10 @@ WebSocketAudioClient::WebSocketAudioClient()
       _callback(nullptr),
       _droppedPackets(0),
       _sentPackets(0),
-      _sendErrors(0)
+      _sendErrors(0),
+      _receivedPackets(0),
+      _receivedBytes(0),
+      _lastReceiveDiagnosticMs(0)
 {
     memset(_deviceId, 0, sizeof(_deviceId));
 }
@@ -151,6 +154,9 @@ bool WebSocketAudioClient::begin(
     _droppedPackets = 0;
     _sentPackets = 0;
     _sendErrors = 0;
+    _receivedPackets = 0;
+    _receivedBytes = 0;
+    _lastReceiveDiagnosticMs = millis();
 
     _instance = this;
 
@@ -732,6 +738,26 @@ void WebSocketAudioClient::handleWebSocketEvent(
             if (payload == nullptr || length == 0)
             {
                 break;
+            }
+
+            ++_receivedPackets;
+            _receivedBytes += static_cast<uint32_t>(length);
+
+            const uint32_t now = millis();
+
+            if (now - _lastReceiveDiagnosticMs >= 1000)
+            {
+                _lastReceiveDiagnosticMs = now;
+
+                Serial0.printf(
+                    "[WS-AUDIO][RX] packets=%lu bytes=%lu txQueue=%lu sent=%lu dropped=%lu errors=%lu\n",
+                    static_cast<unsigned long>(_receivedPackets),
+                    static_cast<unsigned long>(_receivedBytes),
+                    static_cast<unsigned long>(getQueuedPackets()),
+                    static_cast<unsigned long>(_sentPackets),
+                    static_cast<unsigned long>(_droppedPackets),
+                    static_cast<unsigned long>(_sendErrors)
+                );
             }
 
             emitEvent(

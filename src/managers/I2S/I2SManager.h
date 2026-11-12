@@ -77,6 +77,10 @@ private:
     uint64_t _txPendingUs;
     uint32_t _txLastUpdateUs;
 
+    uint32_t _speakerWrites;
+    uint64_t _speakerBytes;
+    uint32_t _lastSpeakerDiagnosticMs;
+
     bool installMicrophoneDriver(uint32_t sampleRate);
     bool installSpeakerDriver(uint32_t sampleRate);
 

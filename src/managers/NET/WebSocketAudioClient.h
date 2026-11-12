@@ -178,6 +178,9 @@ private:
     volatile uint32_t _droppedPackets;
     volatile uint32_t _sentPackets;
     volatile uint32_t _sendErrors;
+    volatile uint32_t _receivedPackets;
+    volatile uint32_t _receivedBytes;
+    uint32_t _lastReceiveDiagnosticMs;
 
     // ========================================================
     // WEBSOCKET EVENTS

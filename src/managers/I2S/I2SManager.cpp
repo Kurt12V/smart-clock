@@ -17,7 +17,10 @@ I2SManager::I2SManager()
       _microphoneSampleRate(16000),
       _speakerSampleRate(44100),
       _txPendingUs(0),
-      _txLastUpdateUs(0)
+      _txLastUpdateUs(0),
+      _speakerWrites(0),
+      _speakerBytes(0),
+      _lastSpeakerDiagnosticMs(0)
 {
 }
 
@@ -268,6 +271,9 @@ bool I2SManager::beginSpeaker(uint32_t sampleRate)
     _speakerInitialized = true;
 
     resetTxPending();
+    _speakerWrites = 0;
+    _speakerBytes = 0;
+    _lastSpeakerDiagnosticMs = millis();
 
     Serial0.printf(
         "[I2S] Speaker initialized: %lu Hz\n",
@@ -292,7 +298,9 @@ bool I2SManager::installSpeakerDriver(uint32_t sampleRate)
         .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
         .communication_format = I2S_COMM_FORMAT_STAND_I2S,
         .intr_alloc_flags = 0,
-        .dma_buf_count = 8,
+        // 12 x 256 mono S16 frames give the writer extra time to receive
+        // the next network block without the DAC reaching an empty DMA ring.
+        .dma_buf_count = 12,
         .dma_buf_len = 256,
         .use_apll = false,
         .tx_desc_auto_clear = true,
@@ -477,6 +485,24 @@ bool I2SManager::writeSpeaker(
         (static_cast<uint64_t>(_speakerSampleRate) * 2ULL);
 
     _txPendingUs += durationUs;
+
+    ++_speakerWrites;
+    _speakerBytes += bytesWritten;
+
+    const uint32_t now = millis();
+
+    if (now - _lastSpeakerDiagnosticMs >= 1000)
+    {
+        _lastSpeakerDiagnosticMs = now;
+
+        Serial0.printf(
+            "[I2S][TX] rate=%lu writes=%lu bytes=%llu pending=%lluus\n",
+            static_cast<unsigned long>(_speakerSampleRate),
+            static_cast<unsigned long>(_speakerWrites),
+            static_cast<unsigned long long>(_speakerBytes),
+            static_cast<unsigned long long>(_txPendingUs)
+        );
+    }
 
     return true;
 }

@@ -256,8 +256,10 @@ private:
     uint32_t _pcmSampleRate = 0;
 
     // Buffered PCM.
-    static constexpr size_t PCM_QUEUE_CAPACITY = 4096;
-    static constexpr size_t PCM_PREBUFFER_SAMPLES = 2048;
+    // 16 kHz S16 mono: 16 384 samples = one second of jitter buffer.
+    // Playback starts only after 4 096 samples (250 ms) are accumulated.
+    static constexpr size_t PCM_QUEUE_CAPACITY = 16384;
+    static constexpr size_t PCM_PREBUFFER_SAMPLES = 4096;
 
     int16_t _pcmQueue[PCM_QUEUE_CAPACITY] = {};
 
@@ -267,6 +269,14 @@ private:
 
     bool _pcmInputFinished = false;
     bool _pcmPlaybackFinished = false;
+    bool _pcmOutputStarted = false;
+    bool _pcmUnderrunActive = false;
+
+    uint32_t _pcmReceivedSamples = 0;
+    uint32_t _pcmPlayedSamples = 0;
+    uint32_t _pcmUnderrunCount = 0;
+    size_t _pcmMaxQueued = 0;
+    uint32_t _pcmLastDiagnosticMs = 0;
 
     // Audio buffers.
     static constexpr size_t BUFFER_BYTES = 1024;
