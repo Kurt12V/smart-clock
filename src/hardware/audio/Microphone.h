@@ -22,7 +22,7 @@ public:
 
     bool updateAudio();
 
-    // Получение текущего блока
+    // Получение последнего доступного блока
     bool hasNewAudio() const;
 
     uint32_t getAudioChunkId() const;

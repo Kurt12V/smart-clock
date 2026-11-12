@@ -7,6 +7,10 @@
 
 #include "./managers/I2S/I2SManager.h"
 
+// ============================================================
+// CONSTRUCTOR
+// ============================================================
+
 Microphone::Microphone(I2SManager& i2sManager)
     : i2sManager(i2sManager),
       initialized(false),
@@ -21,6 +25,10 @@ Microphone::Microphone(I2SManager& i2sManager)
     memset(audioBuffer, 0, sizeof(audioBuffer));
 }
 
+// ============================================================
+// BEGIN
+// ============================================================
+
 bool Microphone::begin()
 {
     if (initialized)
@@ -32,6 +40,7 @@ bool Microphone::begin()
     initialized = true;
 
     Serial0.println("[MIC] Initialized");
+
     Serial0.printf(
         "[MIC] Sample rate: %lu Hz\n",
         static_cast<unsigned long>(DEFAULT_SAMPLE_RATE)
@@ -39,6 +48,10 @@ bool Microphone::begin()
 
     return true;
 }
+
+// ============================================================
+// END
+// ============================================================
 
 void Microphone::end()
 {
@@ -54,6 +67,10 @@ void Microphone::end()
     Serial0.println("[MIC] Stopped");
 }
 
+// ============================================================
+// START LISTENING
+// ============================================================
+
 bool Microphone::startListening()
 {
     if (!initialized || !enabled)
@@ -67,7 +84,10 @@ bool Microphone::startListening()
 
     portENTER_CRITICAL(&bufferMux);
 
+    // Начинается новая сессия захвата.
+    // Предыдущий блок больше не нужен.
     audioChunkSize = 0;
+
     rms = 0.0f;
     level = 0.0f;
     peak = 0;
@@ -81,16 +101,34 @@ bool Microphone::startListening()
     return true;
 }
 
+// ============================================================
+// STOP LISTENING
+// ============================================================
+
 void Microphone::stopListening()
 {
+    if (!listening)
+        return;
+
+    // Останавливаем получение новых данных из I2S.
     listening = false;
 
-    portENTER_CRITICAL(&bufferMux);
+    // ВАЖНО:
+    // Не обнуляем audioChunkSize.
+    //
+    // Последний полученный PCM-блок должен оставаться
+    // доступным для:
+    // 1. Отправки через WebSocket.
+    // 2. Записи в AudioRecorder.
+    //
+    // Буфер будет очищен при следующем startListening().
 
-    audioChunkSize = 0;
-
-    portEXIT_CRITICAL(&bufferMux);
+    Serial0.println("[MIC] Listening stopped");
 }
+
+// ============================================================
+// UPDATE AUDIO
+// ============================================================
 
 bool Microphone::updateAudio()
 {
@@ -111,8 +149,10 @@ bool Microphone::updateAudio()
         return false;
     }
 
-    const size_t samplesRead =
-        min(bytesRead / sizeof(int32_t), AUDIO_SAMPLES);
+    const size_t samplesRead = min(
+        bytesRead / sizeof(int32_t),
+        AUDIO_SAMPLES
+    );
 
     if (samplesRead == 0)
         return false;
@@ -180,6 +220,10 @@ bool Microphone::updateAudio()
     return true;
 }
 
+// ============================================================
+// HAS NEW AUDIO
+// ============================================================
+
 bool Microphone::hasNewAudio() const
 {
     portENTER_CRITICAL(&bufferMux);
@@ -190,6 +234,10 @@ bool Microphone::hasNewAudio() const
 
     return result;
 }
+
+// ============================================================
+// GET CHUNK ID
+// ============================================================
 
 uint32_t Microphone::getAudioChunkId() const
 {
@@ -202,12 +250,31 @@ uint32_t Microphone::getAudioChunkId() const
     return result;
 }
 
+// ============================================================
+// GET AUDIO CHUNK
+// ============================================================
+
 size_t Microphone::getAudioChunk(
     const int16_t*& samples
 ) const
 {
+    portENTER_CRITICAL(&bufferMux);
+
     samples = audioBuffer;
 
+    const size_t result = audioChunkSize;
+
+    portEXIT_CRITICAL(&bufferMux);
+
+    return result;
+}
+
+// ============================================================
+// GET AUDIO CHUNK SIZE
+// ============================================================
+
+size_t Microphone::getAudioChunkSize() const
+{
     portENTER_CRITICAL(&bufferMux);
 
     const size_t result = audioChunkSize;
@@ -216,6 +283,10 @@ size_t Microphone::getAudioChunk(
 
     return result;
 }
+
+// ============================================================
+// COPY AUDIO CHUNK
+// ============================================================
 
 size_t Microphone::copyAudioChunk(
     int16_t* destination,
@@ -235,11 +306,14 @@ size_t Microphone::copyAudioChunk(
         capacity
     );
 
-    memcpy(
-        destination,
-        audioBuffer,
-        count * sizeof(int16_t)
-    );
+    if (count > 0)
+    {
+        memcpy(
+            destination,
+            audioBuffer,
+            count * sizeof(int16_t)
+        );
+    }
 
     chunkId = audioChunkId;
 
@@ -247,6 +321,10 @@ size_t Microphone::copyAudioChunk(
 
     return count;
 }
+
+// ============================================================
+// RMS
+// ============================================================
 
 float Microphone::getRMS() const
 {
@@ -259,6 +337,10 @@ float Microphone::getRMS() const
     return result;
 }
 
+// ============================================================
+// LEVEL
+// ============================================================
+
 float Microphone::getLevel() const
 {
     portENTER_CRITICAL(&bufferMux);
@@ -270,6 +352,10 @@ float Microphone::getLevel() const
     return result;
 }
 
+// ============================================================
+// PEAK
+// ============================================================
+
 int16_t Microphone::getPeak() const
 {
     portENTER_CRITICAL(&bufferMux);
@@ -280,6 +366,10 @@ int16_t Microphone::getPeak() const
 
     return result;
 }
+
+// ============================================================
+// STATE
+// ============================================================
 
 bool Microphone::isInitialized() const
 {
@@ -296,6 +386,10 @@ bool Microphone::isEnabled() const
     return enabled;
 }
 
+// ============================================================
+// ENABLE
+// ============================================================
+
 void Microphone::setEnabled(bool enabled)
 {
     this->enabled = enabled;
@@ -303,6 +397,10 @@ void Microphone::setEnabled(bool enabled)
     if (!enabled)
         stopListening();
 }
+
+// ============================================================
+// NAME
+// ============================================================
 
 const char* Microphone::getName() const
 {
