@@ -518,49 +518,112 @@ void finishRecordingAfterDrain()
 
     if (!audioClient.isConnected())
     {
+        Serial0.println(
+            "[Audio][ERROR] WebSocket disconnected during drain"
+        );
+
         resetAudioSession();
         return;
     }
 
-    // Проверяем, что последний захваченный блок
-    // действительно был поставлен в очередь.
+    static uint32_t lastDiagnosticTime = 0;
+
+    const uint32_t now = millis();
+
     const uint32_t currentChunkId =
         microphoneManager.getAudioChunkId();
 
-    if (currentChunkId != lastSentChunkId)
+    const uint32_t queuedPackets =
+        audioClient.getQueuedPackets();
+
+    const bool chunksMatch =
+        currentChunkId == lastSentChunkId;
+
+    const bool queueEmpty =
+        queuedPackets == 0;
+
+    // Диагностика раз в секунду.
+    if (now - lastDiagnosticTime >= 1000)
+    {
+        lastDiagnosticTime = now;
+
+        Serial0.println(
+            "[Audio][DRAIN] ------------------------"
+        );
+
+        Serial0.printf(
+            "[Audio][DRAIN] Current chunk ID: %lu\n",
+            static_cast<unsigned long>(currentChunkId)
+        );
+
+        Serial0.printf(
+            "[Audio][DRAIN] Last sent chunk ID: %lu\n",
+            static_cast<unsigned long>(lastSentChunkId)
+        );
+
+        Serial0.printf(
+            "[Audio][DRAIN] Chunk IDs match: %s\n",
+            chunksMatch ? "YES" : "NO"
+        );
+
+        Serial0.printf(
+            "[Audio][DRAIN] Queued packets: %lu\n",
+            static_cast<unsigned long>(queuedPackets)
+        );
+
+        Serial0.printf(
+            "[Audio][DRAIN] Sent packets: %lu\n",
+            static_cast<unsigned long>(
+                audioClient.getSentPackets()
+            )
+        );
+
+        Serial0.printf(
+            "[Audio][DRAIN] Dropped packets: %lu\n",
+            static_cast<unsigned long>(
+                audioClient.getDroppedPackets()
+            )
+        );
+
+        Serial0.printf(
+            "[Audio][DRAIN] Send errors: %lu\n",
+            static_cast<unsigned long>(
+                audioClient.getSendErrors()
+            )
+        );
+    }
+
+    // Последний блок ещё не поставлен в очередь.
+    if (!chunksMatch)
     {
         return;
     }
 
-    // Очередь ещё содержит PCM-пакеты.
-    if (audioClient.getQueuedPackets() > 0)
+    // WebSocket ещё отправляет накопленные пакеты.
+    if (!queueEmpty)
     {
         return;
     }
 
-    // Все пакеты отправлены.
+    // Все данные отправлены.
+    Serial0.println(
+        "[Audio][DRAIN] Queue successfully drained"
+    );
+
     if (!audioClient.sendText(
         "{\"type\":\"audio_end\"}"
     ))
     {
         Serial0.println(
-            "[Audio] audio_end transmission failed"
+            "[Audio][ERROR] Failed to send audio_end"
         );
 
         return;
     }
 
     Serial0.println(
-        "[Audio] Outgoing PCM queue drained"
-    );
-
-    Serial0.println(
         "[Audio] audio_end sent"
     );
-
-    // --------------------------------------------------------
-    // INITIALIZE SPEAKER PCM
-    // --------------------------------------------------------
 
     if (!soundManager.beginPCM(
         AUDIO_SAMPLE_RATE,
@@ -568,27 +631,21 @@ void finishRecordingAfterDrain()
     ))
     {
         Serial0.println(
-            "[Audio] PCM initialization failed"
+            "[Audio][ERROR] PCM initialization failed"
         );
 
         audioMode = AudioMode::WAITING;
-
         audioInitialized = false;
 
         return;
     }
 
     audioInitialized = true;
-
     serverPlaybackEnded = false;
 
     audioMode = AudioMode::PROCESSING;
 
     modeStartTime = millis();
-
-    Serial0.println(
-        "[Audio] Recording finished"
-    );
 
     Serial0.println(
         "[Audio] Waiting for server response..."
