@@ -256,10 +256,11 @@ private:
     uint32_t _pcmSampleRate = 0;
 
     // Buffered PCM.
-    // 16 kHz S16 mono: 16 384 samples = one second of jitter buffer.
-    // Playback starts only after 4 096 samples (250 ms) are accumulated.
-    static constexpr size_t PCM_QUEUE_CAPACITY = 16384;
-    static constexpr size_t PCM_PREBUFFER_SAMPLES = 4096;
+    // 16 kHz S16 mono: 48 000 samples = three seconds of jitter buffer.
+    // Playback starts after one full second, absorbing long Wi-Fi/WebSocket
+    // delivery gaps before the I2S DMA can run dry.
+    static constexpr size_t PCM_QUEUE_CAPACITY = 48000;
+    static constexpr size_t PCM_PREBUFFER_SAMPLES = 16000;
 
     int16_t _pcmQueue[PCM_QUEUE_CAPACITY] = {};
 
