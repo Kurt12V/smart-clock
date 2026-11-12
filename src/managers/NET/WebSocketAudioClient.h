@@ -13,9 +13,6 @@
 // AUDIO CONFIGURATION
 // ============================================================
 
-#ifndef SAMPLE_RATE
-#define SAMPLE_RATE 16000
-#endif
 
 #ifndef BITS_PER_SAMPLE
 #define BITS_PER_SAMPLE 16

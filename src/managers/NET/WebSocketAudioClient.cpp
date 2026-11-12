@@ -8,7 +8,10 @@
 // ============================================================
 // CONFIGURATION
 // ============================================================
-
+namespace AudioConfig
+{
+    constexpr uint32_t SAMPLE_RATE_HZ = 16000;
+}
 namespace WebSocketAudioConfig
 {
     constexpr uint32_t RECONNECT_INTERVAL = 5000;
@@ -174,7 +177,7 @@ bool WebSocketAudioClient::begin(
 
     Serial0.printf(
         "[WS-AUDIO] Audio: %u Hz, %u-bit, mono PCM\n",
-        static_cast<unsigned int>(SAMPLE_RATE),
+        static_cast<unsigned int>(AudioConfig::SAMPLE_RATE_HZ),
         static_cast<unsigned int>(BITS_PER_SAMPLE)
     );
 
@@ -600,7 +603,7 @@ bool WebSocketAudioClient::sendHello()
             "\"format\":\"pcm_s16le\""
         "}",
         _deviceId,
-        static_cast<unsigned int>(SAMPLE_RATE),
+        static_cast<unsigned int>(AudioConfig::SAMPLE_RATE_HZ),
         static_cast<unsigned int>(BITS_PER_SAMPLE)
     );
 

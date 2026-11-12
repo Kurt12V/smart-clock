@@ -1,38 +1,18 @@
+
 #pragma once
 
 #include <Arduino.h>
-
-// ============================================================
-// I2SManager
-//
-// Центральное управление I2S.
-//
-// Port 0 -> INMP441 microphone
-// Port 1 -> MAX98357A speaker
-//
-// driver/i2s.h здесь НЕ подключаем.
-// ============================================================
+#include <cstddef>
+#include <cstdint>
 
 class I2SManager
 {
 public:
 
-    // ========================================================
-    // PORTS
-    // ========================================================
-
     static constexpr int MICROPHONE_PORT = 0;
     static constexpr int SPEAKER_PORT = 1;
 
-    // ========================================================
-    // CONSTRUCTOR
-    // ========================================================
-
     I2SManager();
-
-    // ========================================================
-    // GLOBAL
-    // ========================================================
 
     bool begin();
     void end();
@@ -43,20 +23,14 @@ public:
     // MICROPHONE
     // ========================================================
 
-    bool beginMicrophone(
-        uint32_t sampleRate = 16000
-    );
-
+    bool beginMicrophone(uint32_t sampleRate = 16000);
     void endMicrophone();
 
     bool isMicrophoneInitialized() const;
-
     int microphonePort() const;
 
-    // Очистить DMA буфер микрофона.
     bool clearMicrophone();
 
-    // Прочитать данные с микрофона.
     bool readMicrophone(
         void* buffer,
         size_t size,
@@ -68,20 +42,14 @@ public:
     // SPEAKER
     // ========================================================
 
-    bool beginSpeaker(
-        uint32_t sampleRate = 44100
-    );
-
+    bool beginSpeaker(uint32_t sampleRate = 44100);
     void endSpeaker();
 
     bool isSpeakerInitialized() const;
-
     int speakerPort() const;
 
     bool startSpeaker();
-
     bool stopSpeaker();
-
     bool clearSpeaker();
 
     bool writeSpeaker(
@@ -91,43 +59,27 @@ public:
         uint32_t timeoutMs = 100
     );
 
-    // ========================================================
-    // DEBUG
-    // ========================================================
+    // Ожидание расчётного завершения передачи данных.
+    bool waitSpeakerTxDone(uint32_t timeoutMs = 1000);
 
-    bool isPortInstalled(
-        int port
-    ) const;
+    bool isPortInstalled(int port) const;
 
 private:
 
-    // ========================================================
-    // STATE
-    // ========================================================
-
     bool _initialized;
-
     bool _microphoneInitialized;
-
     bool _speakerInitialized;
 
-    // ========================================================
-    // SAMPLE RATES
-    // ========================================================
-
     uint32_t _microphoneSampleRate;
-
     uint32_t _speakerSampleRate;
 
-    // ========================================================
-    // INTERNAL
-    // ========================================================
+    // Оценка объёма данных, ещё ожидающих воспроизведения.
+    uint64_t _txPendingUs;
+    uint32_t _txLastUpdateUs;
 
-    bool installMicrophoneDriver(
-        uint32_t sampleRate
-    );
+    bool installMicrophoneDriver(uint32_t sampleRate);
+    bool installSpeakerDriver(uint32_t sampleRate);
 
-    bool installSpeakerDriver(
-        uint32_t sampleRate
-    );
+    void updateTxPending();
+    void resetTxPending();
 };

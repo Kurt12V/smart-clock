@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include <Arduino.h>
@@ -54,7 +55,6 @@ public:
     using FinishedCallback =
         void (*)(void* context);
 
-    // SDManager больше не требуется.
     SoundManager(
         SettingsManager& settings,
         I2SManager& i2sManager
@@ -68,7 +68,7 @@ public:
     bool play(const char* path);
     bool play(const char* path, const PlayOptions& options);
 
-    // PCM из внешнего источника: например, генератора речи.
+    // PCM из callback-источника.
     bool playSource(
         PcmSourceCallback source,
         void* context,
@@ -77,7 +77,7 @@ public:
         FinishedCallback finished = nullptr
     );
 
-    // PCM, передаваемый частями.
+    // Буферизованный PCM-поток.
     bool beginPCM(
         uint32_t sampleRate,
         AudioStream stream = AudioStream::Alarm
@@ -89,6 +89,14 @@ public:
     );
 
     size_t availablePCM() const;
+    size_t queuedPCM() const;
+
+    // Закрывает приём новых PCM-данных.
+    // Уже принятые данные продолжают воспроизводиться.
+    void finishPCM();
+
+    bool isPCMPrebufferReady() const;
+    bool isPCMPlaybackFinished() const;
 
     bool pause();
     bool resume();
@@ -129,7 +137,6 @@ public:
 
     void printStatus();
 
-    // Можно проверить доступность файловой системы.
     bool isLittleFSReady() const;
 
 private:
@@ -154,7 +161,7 @@ private:
         uint32_t dataSize = 0;
     };
 
-    // LittleFS / WAV
+    // LittleFS / WAV.
     bool openWav(const char* path);
     bool parseWav(File& file);
     bool validateWav() const;
@@ -162,7 +169,7 @@ private:
     static uint16_t readLE16(const uint8_t* data);
     static uint32_t readLE32(const uint8_t* data);
 
-    // PCM processing
+    // PCM processing.
     bool startPcmOutput(uint32_t sampleRate);
 
     bool readAndPlayChunk();
@@ -182,27 +189,30 @@ private:
 
     void resetPcmQueue();
 
-    // Playback state
+    // Playback lifecycle.
+    void requestDrain();
+    void processDrain();
     void finishPlayback(bool notify = true);
     void resetPlaybackState();
 
     bool isFadeOutComplete() const;
+
     float calculateFadeMultiplier() const;
     float applyFadeCurve(float value) const;
 
     uint8_t calculateBaseVolume() const;
     uint32_t getWavPositionMs() const;
 
-    // Dependencies
+    // Dependencies.
     SettingsManager& _settings;
     I2SManager& _i2sManager;
 
-    // Filesystem
+    // Filesystem.
     bool _littleFSReady = false;
     File _file;
     WavInfo _wav;
 
-    // State
+    // General state.
     bool _initialized = false;
 
     State _state = State::STOPPED;
@@ -211,13 +221,13 @@ private:
     String _currentPath;
     AudioStream _currentStream = AudioStream::Alarm;
 
-    // Playback position
+    // Playback position.
     uint32_t _positionBytes = 0;
     uint32_t _durationMs = 0;
 
     uint8_t _localPercent = 100;
 
-    // Fade in / fade out
+    // Fade.
     bool _fadeInEnabled = false;
     bool _fadeOutEnabled = false;
 
@@ -227,24 +237,27 @@ private:
 
     FadeCurve _fadeCurve = FadeCurve::Linear;
 
-    // Manual stop fade
     bool _stopFadeActive = false;
     uint32_t _stopFadeStartMs = 0;
     uint32_t _stopFadeDurationMs = 0;
 
-    // Diagnostics
+    // Drain state.
+    bool _drainPending = false;
+
+    // Diagnostics.
     uint32_t _lastStatusMs = 0;
     uint32_t _audioBlocksWritten = 0;
 
-    // Callback PCM
+    // Callback PCM.
     PcmSourceCallback _pcmSource = nullptr;
     void* _pcmContext = nullptr;
     FinishedCallback _finishedCallback = nullptr;
 
     uint32_t _pcmSampleRate = 0;
 
-    // Buffered PCM
+    // Buffered PCM.
     static constexpr size_t PCM_QUEUE_CAPACITY = 4096;
+    static constexpr size_t PCM_PREBUFFER_SAMPLES = 2048;
 
     int16_t _pcmQueue[PCM_QUEUE_CAPACITY] = {};
 
@@ -252,7 +265,10 @@ private:
     size_t _pcmTail = 0;
     size_t _pcmCount = 0;
 
-    // Audio buffers
+    bool _pcmInputFinished = false;
+    bool _pcmPlaybackFinished = false;
+
+    // Audio buffers.
     static constexpr size_t BUFFER_BYTES = 1024;
 
     static constexpr size_t BUFFER_SAMPLES =

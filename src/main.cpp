@@ -22,23 +22,26 @@
 // CONFIGURATION
 // ============================================================
 
-static constexpr char AUDIO_SERVER_HOST[] = "192.168.1.93";
-static constexpr uint16_t AUDIO_SERVER_PORT = 8765;
-static constexpr char AUDIO_SERVER_PATH[] = "/audio";
+namespace AudioConfig
+{
+    constexpr char SERVER_HOST[] = "192.168.1.93";
+    constexpr uint16_t SERVER_PORT = 8765;
+    constexpr char SERVER_PATH[] = "/audio";
 
-static constexpr char DEVICE_ID[] = "smartclock-01";
+    constexpr char DEVICE_ID[] = "smartclock-01";
 
-static constexpr uint32_t AUDIO_SAMPLE_RATE = 16000;
+    constexpr uint32_t SAMPLE_RATE = 16000;
 
-static constexpr uint32_t RECORDING_DURATION_MS = 5000;
+    constexpr uint32_t RECORDING_DURATION_MS = 5000;
 
-// Задержка после playback_end.
-// Пока SoundManager не предоставляет публичный метод
-// проверки опустошения очереди, используется временной интервал.
-static constexpr uint32_t PLAYBACK_DRAIN_MS = 500;
+    // Максимальный размер одного входящего WebSocket PCM-пакета.
+    // 1024 байта = 512 samples при PCM S16LE.
+    constexpr size_t PCM_BUFFER_BYTES = 1024;
+    constexpr size_t PCM_BUFFER_SAMPLES =
+        PCM_BUFFER_BYTES / sizeof(int16_t);
 
-// Максимальный размер входящего PCM-пакета.
-static constexpr size_t PCM_BUFFER_SAMPLES = 1024;
+    constexpr uint32_t DIAGNOSTIC_INTERVAL_MS = 1000;
+}
 
 // ============================================================
 // OBJECTS
@@ -79,9 +82,6 @@ enum class AudioMode : uint8_t
 
     RECORDING,
 
-    // Микрофон уже остановлен.
-    // Ожидаем отправки последнего PCM-пакета
-    // и опустошения очереди WebSocket.
     RECORDING_DRAINING,
 
     PROCESSING,
@@ -94,62 +94,59 @@ enum class AudioMode : uint8_t
 static AudioMode audioMode = AudioMode::WAITING;
 
 // ============================================================
-// STATE VARIABLES
+// STATE
 // ============================================================
+
+static bool wifiWasConnected = false;
+static bool audioInitialized = false;
 
 static uint32_t modeStartTime = 0;
 
 static uint32_t lastSentChunkId = 0;
+static uint32_t lastDiagnosticTime = 0;
 
-static uint32_t lastPcmReceivedTime = 0;
-
-static bool audioInitialized = false;
-
-static bool wifiWasConnected = false;
-
-static bool serverPlaybackEnded = false;
-
-// Incoming PCM buffer.
-static int16_t pcmBuffer[PCM_BUFFER_SAMPLES];
+static int16_t pcmBuffer[
+    AudioConfig::PCM_BUFFER_SAMPLES
+];
 
 // ============================================================
 // FORWARD DECLARATIONS
 // ============================================================
 
-void startAudioClient();
+static void startAudioClient();
 
-void startRecording();
+static void startRecording();
 
-void stopRecordingCapture();
+static void stopRecordingCapture();
 
-void finishRecordingAfterDrain();
+static void finishRecordingAfterDrain();
 
-void startPlayback();
+static void startPlayback();
 
-void finishPlayback();
+static void finishPlayback();
 
-void updateAudioSession();
+static void updateAudioSession();
 
-void transmitMicrophoneAudio();
+static void transmitMicrophoneAudio();
 
-void handleIncomingPCM(
+static void handleIncomingPCM(
     const uint8_t* payload,
     size_t length
 );
 
-void resetAudioSession();
+static void resetAudioSession();
 
-void onAudioEvent(
+static void onAudioEvent(
     WebSocketAudioClient::Event event,
     const uint8_t* payload,
     size_t length
 );
 
 // ============================================================
-// AUDIO SESSION RESET
+// RESET AUDIO SESSION
 // ============================================================
 
-void resetAudioSession()
+static void resetAudioSession()
 {
     microphoneManager.stopListening();
 
@@ -157,20 +154,104 @@ void resetAudioSession()
 
     audioInitialized = false;
 
-    serverPlaybackEnded = false;
-
     audioMode = AudioMode::WAITING;
 
     modeStartTime = millis();
 
-    lastPcmReceivedTime = 0;
+    lastSentChunkId =
+        microphoneManager.getAudioChunkId();
+
+    lastDiagnosticTime = 0;
+
+    Serial0.println(
+        "[Audio] Session reset"
+    );
 }
 
 // ============================================================
-// WEBSOCKET EVENTS
+// HANDLE INCOMING PCM
 // ============================================================
 
-void onAudioEvent(
+static void handleIncomingPCM(
+    const uint8_t* payload,
+    size_t length
+)
+{
+    if (!audioInitialized)
+    {
+        return;
+    }
+
+    if (
+        audioMode != AudioMode::PROCESSING &&
+        audioMode != AudioMode::PLAYING
+    )
+    {
+        return;
+    }
+
+    if (
+        payload == nullptr ||
+        length == 0 ||
+        (length % sizeof(int16_t)) != 0
+    )
+    {
+        Serial0.println(
+            "[Audio][WARN] Invalid PCM packet"
+        );
+
+        return;
+    }
+
+    const size_t sampleCount =
+        length / sizeof(int16_t);
+
+    if (
+        sampleCount >
+        AudioConfig::PCM_BUFFER_SAMPLES
+    )
+    {
+        Serial0.printf(
+            "[Audio][ERROR] PCM packet too large: %u bytes\n",
+            static_cast<unsigned int>(length)
+        );
+
+        return;
+    }
+
+    // WebSocket payload не гарантирует выравнивание
+    // по границе int16_t. Поэтому копируем его.
+    memcpy(
+        pcmBuffer,
+        payload,
+        length
+    );
+
+    // Только добавляем PCM в FIFO.
+    // Воспроизведение запускает SoundManager после prebuffer.
+    if (!soundManager.submitPCM(
+        pcmBuffer,
+        sampleCount
+    ))
+    {
+        Serial0.printf(
+            "[Audio][ERROR] PCM FIFO overflow. "
+            "Queued: %u samples, incoming: %u samples\n",
+            static_cast<unsigned int>(
+                soundManager.queuedPCM()
+            ),
+            static_cast<unsigned int>(sampleCount)
+        );
+
+        return;
+    }
+}
+
+// ============================================================
+// WEBSOCKET EVENT CALLBACK
+// ============================================================
+
+static void onAudioEvent(
     WebSocketAudioClient::Event event,
     const uint8_t* payload,
     size_t length
@@ -189,9 +270,6 @@ void onAudioEvent(
             );
 
             resetAudioSession();
-
-            lastSentChunkId =
-                microphoneManager.getAudioChunkId();
 
             break;
         }
@@ -231,7 +309,10 @@ void onAudioEvent(
 
         case WebSocketAudioClient::Event::TEXT_RECEIVED:
         {
-            if (payload == nullptr || length == 0)
+            if (
+                payload == nullptr ||
+                length == 0
+            )
             {
                 break;
             }
@@ -268,25 +349,24 @@ void onAudioEvent(
             )
             {
                 if (
-                    audioMode == AudioMode::PLAYING ||
-                    audioMode == AudioMode::PROCESSING
+                    audioInitialized &&
+                    (
+                        audioMode == AudioMode::PROCESSING ||
+                        audioMode == AudioMode::PLAYING
+                    )
                 )
                 {
-                    serverPlaybackEnded = true;
-
                     Serial0.println(
                         "[Audio] Server playback ended"
                     );
 
-                    if (audioMode == AudioMode::PROCESSING)
-                    {
-                        // Сервер не прислал ни одного PCM-пакета.
-                        finishPlayback();
-                    }
-                    else
-                    {
-                        audioMode = AudioMode::DRAINING;
-                    }
+                    // Запрещаем поступление новых PCM-данных.
+                    // SoundManager должен воспроизвести остаток FIFO.
+                    soundManager.finishPCM();
+
+                    // Не останавливаем динамик здесь.
+                    // Ждём фактического завершения FIFO и I2S DMA.
+                    audioMode = AudioMode::DRAINING;
                 }
             }
 
@@ -300,7 +380,7 @@ void onAudioEvent(
         case WebSocketAudioClient::Event::ERROR:
         {
             Serial0.println(
-                "[Audio] WebSocket error"
+                "[Audio][ERROR] WebSocket error"
             );
 
             break;
@@ -309,81 +389,10 @@ void onAudioEvent(
 }
 
 // ============================================================
-// HANDLE INCOMING PCM
+// START WEBSOCKET CLIENT
 // ============================================================
 
-void handleIncomingPCM(
-    const uint8_t* payload,
-    size_t length
-)
-{
-    if (!audioInitialized)
-    {
-        return;
-    }
-
-    if (
-        audioMode != AudioMode::PROCESSING &&
-        audioMode != AudioMode::PLAYING
-    )
-    {
-        return;
-    }
-
-    if (
-        payload == nullptr ||
-        length == 0 ||
-        length % sizeof(int16_t) != 0
-    )
-    {
-        return;
-    }
-
-    const size_t sampleCount =
-        length / sizeof(int16_t);
-
-    if (sampleCount > PCM_BUFFER_SAMPLES)
-    {
-        Serial0.println(
-            "[Audio] PCM packet too large"
-        );
-
-        return;
-    }
-
-    // WebSocket payload не гарантированно выровнен
-    // по границе int16_t, поэтому сначала копируем.
-    memcpy(
-        pcmBuffer,
-        payload,
-        length
-    );
-
-    if (!soundManager.submitPCM(
-        pcmBuffer,
-        sampleCount
-    ))
-    {
-        Serial0.println(
-            "[Audio] SoundManager PCM queue overflow"
-        );
-
-        return;
-    }
-
-    lastPcmReceivedTime = millis();
-
-    if (audioMode == AudioMode::PROCESSING)
-    {
-        startPlayback();
-    }
-}
-
-// ============================================================
-// START WEBSOCKET
-// ============================================================
-
-void startAudioClient()
+static void startAudioClient()
 {
     if (audioClient.isStarted())
     {
@@ -399,14 +408,14 @@ void startAudioClient()
     );
 
     if (!audioClient.begin(
-        AUDIO_SERVER_HOST,
-        AUDIO_SERVER_PORT,
-        AUDIO_SERVER_PATH,
-        DEVICE_ID
+        AudioConfig::SERVER_HOST,
+        AudioConfig::SERVER_PORT,
+        AudioConfig::SERVER_PATH,
+        AudioConfig::DEVICE_ID
     ))
     {
         Serial0.println(
-            "[Audio] WebSocket start failed"
+            "[Audio][ERROR] WebSocket start failed"
         );
 
         return;
@@ -421,35 +430,29 @@ void startAudioClient()
 // START RECORDING
 // ============================================================
 
-void startRecording()
+static void startRecording()
 {
     if (!audioClient.isConnected())
     {
         return;
     }
 
+    // Предыдущая сессия должна быть завершена.
     soundManager.stop();
 
     audioInitialized = false;
 
-    serverPlaybackEnded = false;
-
-    // Запоминаем последний обработанный блок.
     lastSentChunkId =
         microphoneManager.getAudioChunkId();
 
     if (!microphoneManager.startListening())
     {
         Serial0.println(
-            "[Audio] Microphone start failed"
+            "[Audio][ERROR] Microphone start failed"
         );
 
         return;
     }
-
-    audioMode = AudioMode::RECORDING;
-
-    modeStartTime = millis();
 
     if (!audioClient.sendText(
         "{\"type\":\"audio_start\","
@@ -459,18 +462,20 @@ void startRecording()
     ))
     {
         Serial0.println(
-            "[Audio] audio_start transmission failed"
+            "[Audio][ERROR] audio_start transmission failed"
         );
 
         microphoneManager.stopListening();
 
-        audioMode = AudioMode::WAITING;
-
         return;
     }
 
+    audioMode = AudioMode::RECORDING;
+
+    modeStartTime = millis();
+
     Serial0.println(
-        "[Audio] RECORDING started (5 seconds)"
+        "[Audio] RECORDING started"
     );
 }
 
@@ -478,20 +483,18 @@ void startRecording()
 // STOP RECORDING CAPTURE
 // ============================================================
 
-void stopRecordingCapture()
+static void stopRecordingCapture()
 {
     if (audioMode != AudioMode::RECORDING)
     {
         return;
     }
 
-    // Останавливаем получение новых блоков микрофона.
     microphoneManager.stopListening();
 
-    // Не отправляем audio_end здесь.
-    // Сначала необходимо отправить последний блок
-    // и дождаться опустошения WebSocket-очереди.
-
+    // Сначала отправляем все оставшиеся блоки микрофона.
+    // audio_end будет отправлен только после опустошения
+    // исходящей очереди WebSocket.
     audioMode = AudioMode::RECORDING_DRAINING;
 
     modeStartTime = millis();
@@ -501,17 +504,19 @@ void stopRecordingCapture()
     );
 
     Serial0.println(
-        "[Audio] Waiting for outgoing PCM queue..."
+        "[Audio] Waiting for outgoing queue..."
     );
 }
 
 // ============================================================
-// FINISH RECORDING AFTER QUEUE DRAIN
+// FINISH RECORDING AFTER WEBSOCKET QUEUE DRAIN
 // ============================================================
 
-void finishRecordingAfterDrain()
+static void finishRecordingAfterDrain()
 {
-    if (audioMode != AudioMode::RECORDING_DRAINING)
+    if (
+        audioMode != AudioMode::RECORDING_DRAINING
+    )
     {
         return;
     }
@@ -519,14 +524,13 @@ void finishRecordingAfterDrain()
     if (!audioClient.isConnected())
     {
         Serial0.println(
-            "[Audio][ERROR] WebSocket disconnected during drain"
+            "[Audio][ERROR] WebSocket disconnected during recording drain"
         );
 
         resetAudioSession();
+
         return;
     }
-
-    static uint32_t lastDiagnosticTime = 0;
 
     const uint32_t now = millis();
 
@@ -542,8 +546,10 @@ void finishRecordingAfterDrain()
     const bool queueEmpty =
         queuedPackets == 0;
 
-    // Диагностика раз в секунду.
-    if (now - lastDiagnosticTime >= 1000)
+    if (
+        now - lastDiagnosticTime >=
+        AudioConfig::DIAGNOSTIC_INTERVAL_MS
+    )
     {
         lastDiagnosticTime = now;
 
@@ -552,12 +558,12 @@ void finishRecordingAfterDrain()
         );
 
         Serial0.printf(
-            "[Audio][DRAIN] Current chunk ID: %lu\n",
+            "[Audio][DRAIN] Current chunk: %lu\n",
             static_cast<unsigned long>(currentChunkId)
         );
 
         Serial0.printf(
-            "[Audio][DRAIN] Last sent chunk ID: %lu\n",
+            "[Audio][DRAIN] Last sent chunk: %lu\n",
             static_cast<unsigned long>(lastSentChunkId)
         );
 
@@ -593,23 +599,23 @@ void finishRecordingAfterDrain()
         );
     }
 
-    // Последний блок ещё не поставлен в очередь.
+    // Последний блок микрофона ещё не добавлен в очередь.
     if (!chunksMatch)
     {
         return;
     }
 
-    // WebSocket ещё отправляет накопленные пакеты.
+    // В очереди ещё есть данные.
     if (!queueEmpty)
     {
         return;
     }
 
-    // Все данные отправлены.
     Serial0.println(
-        "[Audio][DRAIN] Queue successfully drained"
+        "[Audio][DRAIN] Outgoing queue drained"
     );
 
+    // Сервер может начинать обработку только после audio_end.
     if (!audioClient.sendText(
         "{\"type\":\"audio_end\"}"
     ))
@@ -625,8 +631,9 @@ void finishRecordingAfterDrain()
         "[Audio] audio_end sent"
     );
 
+    // Подготавливаем входящий PCM-поток.
     if (!soundManager.beginPCM(
-        AUDIO_SAMPLE_RATE,
+        AudioConfig::SAMPLE_RATE,
         SoundManager::AudioStream::System
     ))
     {
@@ -634,29 +641,30 @@ void finishRecordingAfterDrain()
             "[Audio][ERROR] PCM initialization failed"
         );
 
-        audioMode = AudioMode::WAITING;
+        soundManager.stop();
+
         audioInitialized = false;
+        audioMode = AudioMode::WAITING;
 
         return;
     }
 
     audioInitialized = true;
-    serverPlaybackEnded = false;
 
     audioMode = AudioMode::PROCESSING;
 
     modeStartTime = millis();
 
     Serial0.println(
-        "[Audio] Waiting for server response..."
+        "[Audio] Waiting for server PCM..."
     );
 }
 
 // ============================================================
-// START PLAYBACK
+// START PLAYBACK STATE
 // ============================================================
 
-void startPlayback()
+static void startPlayback()
 {
     if (audioMode != AudioMode::PROCESSING)
     {
@@ -665,10 +673,8 @@ void startPlayback()
 
     audioMode = AudioMode::PLAYING;
 
-    lastPcmReceivedTime = millis();
-
     Serial0.println(
-        "[Audio] PLAYING started"
+        "[Audio] Prebuffer ready. PLAYING."
     );
 }
 
@@ -676,28 +682,37 @@ void startPlayback()
 // FINISH PLAYBACK
 // ============================================================
 
-void finishPlayback()
+static void finishPlayback()
 {
+    if (!audioInitialized)
+    {
+        return;
+    }
+
+    Serial0.println(
+        "[Audio] Playback completed"
+    );
+
+    // SoundManager уже подтвердил завершение FIFO и DMA.
     soundManager.stop();
 
     audioInitialized = false;
 
-    serverPlaybackEnded = false;
-
-    audioClient.sendText(
+    if (!audioClient.sendText(
         "{\"type\":\"playback_finished\"}"
-    );
+    ))
+    {
+        Serial0.println(
+            "[Audio][WARN] playback_finished transmission failed"
+        );
+    }
 
     audioMode = AudioMode::WAITING;
 
     modeStartTime = millis();
 
     Serial0.println(
-        "[Audio] PLAYBACK finished"
-    );
-
-    Serial0.println(
-        "[Audio] Starting next cycle..."
+        "[Audio] Ready for next recording"
     );
 }
 
@@ -705,7 +720,7 @@ void finishPlayback()
 // MICROPHONE TRANSMISSION
 // ============================================================
 
-void transmitMicrophoneAudio()
+static void transmitMicrophoneAudio()
 {
     if (
         audioMode != AudioMode::RECORDING &&
@@ -746,11 +761,9 @@ void transmitMicrophoneAudio()
         return;
     }
 
-    // Важно:
-    // sendPcm копирует данные в очередь.
-    // Поэтому после успешного вызова буфер микрофона
-    // можно использовать для следующего блока.
-
+    // sendPcm копирует блок в собственную очередь.
+    // При неудаче lastSentChunkId не обновляем:
+    // следующий проход loop() повторит попытку.
     if (audioClient.sendPcm(
         samples,
         sampleCount
@@ -761,17 +774,15 @@ void transmitMicrophoneAudio()
 }
 
 // ============================================================
-// AUDIO SESSION UPDATE
+// UPDATE AUDIO SESSION
 // ============================================================
 
-void updateAudioSession()
+static void updateAudioSession()
 {
     if (!audioClient.isConnected())
     {
         return;
     }
-
-    const uint32_t now = millis();
 
     switch (audioMode)
     {
@@ -793,8 +804,8 @@ void updateAudioSession()
         case AudioMode::RECORDING:
         {
             if (
-                now - modeStartTime >=
-                RECORDING_DURATION_MS
+                millis() - modeStartTime >=
+                AudioConfig::RECORDING_DURATION_MS
             )
             {
                 stopRecordingCapture();
@@ -820,7 +831,13 @@ void updateAudioSession()
 
         case AudioMode::PROCESSING:
         {
-            // Ожидаем первый PCM-пакет или playback_end.
+            // SoundManager сам запускает I2S после prebuffer.
+            // Здесь меняем только состояние аудиосессии.
+            if (soundManager.isPCMPrebufferReady())
+            {
+                startPlayback();
+            }
+
             break;
         }
 
@@ -830,7 +847,8 @@ void updateAudioSession()
 
         case AudioMode::PLAYING:
         {
-            // Ожидаем playback_end от Python.
+            // Новые данные принимает WebSocket callback.
+            // Воспроизведение обслуживается soundManager.update().
             break;
         }
 
@@ -840,10 +858,9 @@ void updateAudioSession()
 
         case AudioMode::DRAINING:
         {
-            if (
-                now - lastPcmReceivedTime >=
-                PLAYBACK_DRAIN_MS
-            )
+            // Никаких таймеров.
+            // Ждём фактического завершения FIFO и I2S DMA.
+            if (soundManager.isPCMPlaybackFinished())
             {
                 finishPlayback();
             }
@@ -870,7 +887,7 @@ void setup()
     );
 
     Serial0.println(
-        "       SMARTCLOCK AUDIO TEST"
+        "         SMARTCLOCK AUDIO"
     );
 
     Serial0.println(
@@ -888,7 +905,7 @@ void setup()
     if (!settingsManager.begin())
     {
         Serial0.println(
-            "[Setup] Settings initialization failed"
+            "[Setup][ERROR] Settings initialization failed"
         );
 
         return;
@@ -905,7 +922,7 @@ void setup()
     if (!i2sManager.begin())
     {
         Serial0.println(
-            "[Setup] I2S initialization failed"
+            "[Setup][ERROR] I2S initialization failed"
         );
 
         return;
@@ -922,24 +939,7 @@ void setup()
     if (!soundManager.begin())
     {
         Serial0.println(
-            "[Setup] SoundManager initialization failed"
-        );
-
-        return;
-    }
-
-    // --------------------------------------------------------
-    // MICROPHONE
-    // --------------------------------------------------------
-
-    Serial0.println(
-        "[Setup] MicrophoneManager..."
-    );
-
-    if (!microphoneManager.begin())
-    {
-        Serial0.println(
-            "[Setup] Microphone initialization failed"
+            "[Setup][ERROR] SoundManager initialization failed"
         );
 
         return;
@@ -958,9 +958,23 @@ void setup()
         Serial0.println(
             "[Setup][WARN] LittleFS mount failed"
         );
+    }
 
-        // Для WebSocket-теста запись WAV не обязательна.
-        // Продолжаем работу без файловой системы.
+    // --------------------------------------------------------
+    // MICROPHONE
+    // --------------------------------------------------------
+
+    Serial0.println(
+        "[Setup] MicrophoneManager..."
+    );
+
+    if (!microphoneManager.begin())
+    {
+        Serial0.println(
+            "[Setup][ERROR] Microphone initialization failed"
+        );
+
+        return;
     }
 
     // --------------------------------------------------------
@@ -974,7 +988,7 @@ void setup()
     if (!wifiManager.begin())
     {
         Serial0.println(
-            "[Setup] WiFi initialization failed"
+            "[Setup][ERROR] WiFi initialization failed"
         );
 
         return;
@@ -998,7 +1012,7 @@ void setup()
 void loop()
 {
     // --------------------------------------------------------
-    // WIFI
+    // WIFI UPDATE
     // --------------------------------------------------------
 
     wifiManager.update();
@@ -1060,22 +1074,19 @@ void loop()
     }
 
     // --------------------------------------------------------
-    // WEBSOCKET UPDATE
+    // WEBSOCKET
     // --------------------------------------------------------
 
-    // Сначала обслуживаем WebSocket:
-    // принимаем события и отправляем следующий пакет очереди.
-
+    // Принимаем входящие сообщения и отправляем
+    // не более одного исходящего PCM-пакета за update().
     audioClient.update();
 
     // --------------------------------------------------------
-    // TRANSMIT PREVIOUS MICROPHONE BLOCK
+    // MICROPHONE TRANSMISSION
     // --------------------------------------------------------
 
-    // Перед обновлением микрофона отправляем предыдущий блок.
-    // Это даёт возможность повторить попытку, если очередь
-    // WebSocket временно была заполнена.
-
+    // Повторяем попытку отправки последнего блока,
+    // если очередь WebSocket была заполнена.
     transmitMicrophoneAudio();
 
     // --------------------------------------------------------
@@ -1091,9 +1102,11 @@ void loop()
     updateAudioSession();
 
     // --------------------------------------------------------
-    // SOUND OUTPUT
+    // SOUND UPDATE
     // --------------------------------------------------------
 
+    // FIFO и I2S обслуживаются постоянно, независимо
+    // от того, поступают ли сейчас новые WebSocket-пакеты.
     soundManager.update();
 
     // --------------------------------------------------------
