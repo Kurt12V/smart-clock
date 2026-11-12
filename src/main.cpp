@@ -1,6 +1,7 @@
 
 #include <Arduino.h>
 #include <LittleFS.h>
+#include <algorithm>
 #include <cstring>
 
 // ============================================================
@@ -34,8 +35,9 @@ namespace AudioConfig
 
     constexpr uint32_t RECORDING_DURATION_MS = 5000;
 
-    // Максимальный размер одного входящего WebSocket PCM-пакета.
-    // 1024 байта = 512 samples при PCM S16LE.
+    // Размер безопасного выровненного блока копирования. Сервер может
+    // присылать WebSocket PCM-пакеты большего размера (например 4096 B).
+    // Они разбиваются на такие блоки перед добавлением в FIFO.
     constexpr size_t PCM_BUFFER_BYTES = 1024;
     constexpr size_t PCM_BUFFER_SAMPLES =
         PCM_BUFFER_BYTES / sizeof(int16_t);
@@ -206,44 +208,46 @@ static void handleIncomingPCM(
     const size_t sampleCount =
         length / sizeof(int16_t);
 
-    if (
-        sampleCount >
-        AudioConfig::PCM_BUFFER_SAMPLES
-    )
+    // Проверяем вместимость заранее, чтобы не принять только часть одного
+    // WebSocket-пакета. submitPCM() копирует данные в собственную FIFO.
+    if (sampleCount > soundManager.availablePCM())
     {
         Serial0.printf(
-            "[Audio][ERROR] PCM packet too large: %u bytes\n",
-            static_cast<unsigned int>(length)
+            "[Audio][WARN] PCM FIFO full: queued=%u available=%u incoming=%u samples\n",
+            static_cast<unsigned int>(soundManager.queuedPCM()),
+            static_cast<unsigned int>(soundManager.availablePCM()),
+            static_cast<unsigned int>(sampleCount)
         );
 
         return;
     }
 
-    // WebSocket payload не гарантирует выравнивание
-    // по границе int16_t. Поэтому копируем его.
-    memcpy(
-        pcmBuffer,
-        payload,
-        length
-    );
+    size_t offset = 0;
 
-    // Только добавляем PCM в FIFO.
-    // Воспроизведение запускает SoundManager после prebuffer.
-    if (!soundManager.submitPCM(
-        pcmBuffer,
-        sampleCount
-    ))
+    while (offset < length)
     {
-        Serial0.printf(
-            "[Audio][ERROR] PCM FIFO overflow. "
-            "Queued: %u samples, incoming: %u samples\n",
-            static_cast<unsigned int>(
-                soundManager.queuedPCM()
-            ),
-            static_cast<unsigned int>(sampleCount)
-        );
+        const size_t chunkBytes =
+            std::min(
+                AudioConfig::PCM_BUFFER_BYTES,
+                length - offset
+            );
 
-        return;
+        // WebSocket payload is not guaranteed to be int16_t-aligned.
+        memcpy(pcmBuffer, payload + offset, chunkBytes);
+
+        if (!soundManager.submitPCM(
+            pcmBuffer,
+            chunkBytes / sizeof(int16_t)
+        ))
+        {
+            Serial0.println(
+                "[Audio][ERROR] PCM FIFO rejected a verified chunk"
+            );
+
+            return;
+        }
+
+        offset += chunkBytes;
     }
 }
 
