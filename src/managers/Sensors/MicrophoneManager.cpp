@@ -1,14 +1,10 @@
+
 #include "MicrophoneManager.h"
 
 #include <Arduino.h>
 
 #include "./hardware/audio/Microphone.h"
 #include "./hardware/audio/AudioRecorder.h"
-
-
-// ============================================================
-// CONSTRUCTOR
-// ============================================================
 
 MicrophoneManager::MicrophoneManager(
     Microphone& microphone,
@@ -17,240 +13,133 @@ MicrophoneManager::MicrophoneManager(
     : microphone(microphone),
       recorder(recorder),
       initialized(false),
-      enabled(true)
+      enabled(true),
+      recorderChunkId(0)
 {
 }
-
-
-// ============================================================
-// BEGIN
-// ============================================================
 
 bool MicrophoneManager::begin()
 {
-    Serial0.println(
-        "[MicrophoneManager] BEGIN"
-    );
-
+    if (initialized)
+        return true;
 
     if (!microphone.begin())
-    {
-        Serial0.println(
-            "[MicrophoneManager] ERROR: "
-            "microphone.begin() failed"
-        );
-
         return false;
-    }
-
 
     if (!recorder.begin())
     {
-        Serial0.println(
-            "[MicrophoneManager] ERROR: "
-            "recorder.begin() failed"
-        );
-
+        microphone.end();
         return false;
     }
 
+    microphone.setEnabled(enabled);
 
     initialized = true;
 
-
-    microphone.setEnabled(
-        enabled
-    );
-
-
-    Serial0.println(
-        "[MicrophoneManager] READY"
-    );
-
+    Serial0.println("[MicrophoneManager] Ready");
 
     return true;
 }
-
-
-// ============================================================
-// END
-// ============================================================
 
 void MicrophoneManager::end()
 {
     if (!initialized)
         return;
 
-
-    if (recorder.isRecording())
-    {
-        recorder.stopRecording();
-    }
-
-
+    stopRecording();
     microphone.stopListening();
-
     microphone.end();
-
 
     initialized = false;
 
-
-    Serial0.println(
-        "[MicrophoneManager] STOPPED"
-    );
+    Serial0.println("[MicrophoneManager] Stopped");
 }
-
-
-// ============================================================
-// UPDATE
-// ============================================================
 
 void MicrophoneManager::update()
 {
-    if (!initialized)
+    if (!initialized || !enabled)
         return;
-
-
-    if (!enabled)
-        return;
-
 
     updateMicrophone();
-
     updateRecorder();
 }
-
-
-// ============================================================
-// MICROPHONE
-// ============================================================
 
 void MicrophoneManager::updateMicrophone()
 {
     if (!microphone.isListening())
         return;
 
-
     microphone.updateAudio();
 }
-
-
-// ============================================================
-// RECORDER
-// ============================================================
 
 void MicrophoneManager::updateRecorder()
 {
     if (!recorder.isRecording())
         return;
 
-
     recorder.update();
 }
 
-
-// ============================================================
-// LISTENING
-// ============================================================
-
 bool MicrophoneManager::startListening()
 {
-    if (!initialized)
+    if (!initialized || !enabled)
         return false;
-
-
-    if (!enabled)
-        return false;
-
 
     return microphone.startListening();
 }
-
 
 void MicrophoneManager::stopListening()
 {
     microphone.stopListening();
 }
 
-
 bool MicrophoneManager::isListening() const
 {
     return microphone.isListening();
 }
 
-
-// ============================================================
-// ENABLE
-// ============================================================
-
-void MicrophoneManager::setEnabled(
-    bool enabled
-)
+void MicrophoneManager::setEnabled(bool enabled)
 {
     this->enabled = enabled;
 
-
-    microphone.setEnabled(
-        enabled
-    );
-
+    microphone.setEnabled(enabled);
 
     if (!enabled)
     {
-        if (recorder.isRecording())
-        {
-            recorder.stopRecording();
-        }
-
-        microphone.stopListening();
+        stopRecording();
+        stopListening();
     }
 }
-
 
 bool MicrophoneManager::isEnabled() const
 {
     return enabled;
 }
 
-
 bool MicrophoneManager::isInitialized() const
 {
     return initialized;
 }
-
-
-// ============================================================
-// ANALYSIS
-// ============================================================
 
 float MicrophoneManager::getRMS() const
 {
     return microphone.getRMS();
 }
 
-
 float MicrophoneManager::getLevel() const
 {
     return microphone.getLevel();
 }
-
 
 int16_t MicrophoneManager::getPeak() const
 {
     return microphone.getPeak();
 }
 
-
-// ============================================================
-// AUDIO CHUNK
-// ============================================================
-
 bool MicrophoneManager::hasNewAudio() const
 {
     return microphone.hasNewAudio();
 }
-
 
 size_t MicrophoneManager::getAudioChunk(
     const int16_t*& data
@@ -259,103 +148,80 @@ size_t MicrophoneManager::getAudioChunk(
     return microphone.getAudioChunk(data);
 }
 
+size_t MicrophoneManager::copyAudioChunk(
+    int16_t* destination,
+    size_t capacity,
+    uint32_t& chunkId
+) const
+{
+    return microphone.copyAudioChunk(
+        destination,
+        capacity,
+        chunkId
+    );
+}
 
 size_t MicrophoneManager::getAudioChunkSize() const
 {
     return microphone.getAudioChunkSize();
 }
 
-
 uint32_t MicrophoneManager::getAudioChunkId() const
 {
     return microphone.getAudioChunkId();
 }
 
-
-// ============================================================
-// RECORDING
-// ============================================================
-
 bool MicrophoneManager::startRecording(
     const char* path
 )
 {
-    if (!initialized)
+    if (!initialized || !enabled || path == nullptr)
         return false;
-
-
-    if (!enabled)
-        return false;
-
 
     if (!microphone.isListening())
     {
         if (!microphone.startListening())
-        {
             return false;
-        }
     }
-
 
     if (!recorder.startRecording(path))
-    {
         return false;
-    }
 
+    recorderChunkId = microphone.getAudioChunkId();
 
-    Serial0.print(
-        "[MicrophoneManager] "
-        "RECORDING: "
+    Serial0.printf(
+        "[MicrophoneManager] Recording: %s\n",
+        path
     );
-
-    Serial0.println(path);
-
 
     return true;
 }
 
-
 void MicrophoneManager::stopRecording()
 {
-    if (!recorder.isRecording())
-        return;
-
-
-    recorder.stopRecording();
+    if (recorder.isRecording())
+        recorder.stopRecording();
 }
-
 
 bool MicrophoneManager::isRecording() const
 {
     return recorder.isRecording();
 }
 
-
-// ============================================================
-// RECORDING INFO
-// ============================================================
-
 uint32_t MicrophoneManager::getRecordedBytes() const
 {
     return recorder.getRecordedBytes();
 }
-
 
 uint32_t MicrophoneManager::getRecordedSamples() const
 {
     return recorder.getRecordedSamples();
 }
 
-
 uint32_t MicrophoneManager::getRecordingDurationMs() const
 {
     return recorder.getRecordingDurationMs();
 }
-
-
-// ============================================================
-// NAME
-// ============================================================
 
 const char* MicrophoneManager::getName() const
 {

@@ -1,7 +1,7 @@
-
 #include "WebSocketAudioClient.h"
 
 #include <Arduino.h>
+
 #include <cstring>
 #include <cstdio>
 
@@ -11,12 +11,10 @@
 
 namespace WebSocketAudioConfig
 {
-    constexpr size_t PCM_CHUNK_SIZE = 1280;
-
     constexpr uint32_t RECONNECT_INTERVAL = 5000;
 
     constexpr uint32_t HEARTBEAT_INTERVAL = 15000;
-    constexpr uint32_t HEARTBEAT_TIMEOUT = 3000;
+    constexpr uint32_t HEARTBEAT_TIMEOUT = 5000;
 
     constexpr uint8_t HEARTBEAT_FAIL_LIMIT = 2;
 }
@@ -33,11 +31,31 @@ WebSocketAudioClient::_instance = nullptr;
 // ============================================================
 
 WebSocketAudioClient::WebSocketAudioClient()
-    : _connected(false),
+    : _pcmQueue(nullptr),
       _started(false),
-      _callback(nullptr)
+      _connected(false),
+      _helloPending(false),
+      _callback(nullptr),
+      _droppedPackets(0),
+      _sentPackets(0),
+      _sendErrors(0)
 {
     memset(_deviceId, 0, sizeof(_deviceId));
+}
+
+// ============================================================
+// DESTRUCTOR
+// ============================================================
+
+WebSocketAudioClient::~WebSocketAudioClient()
+{
+    stop();
+
+    if (_pcmQueue != nullptr)
+    {
+        vQueueDelete(_pcmQueue);
+        _pcmQueue = nullptr;
+    }
 }
 
 // ============================================================
@@ -51,67 +69,130 @@ bool WebSocketAudioClient::begin(
     const char* deviceId
 )
 {
-    Serial0.println();
-    Serial0.println("[WS-AUDIO] ========================================");
-    Serial0.println("[WS-AUDIO] INITIALIZATION");
-    Serial0.println("[WS-AUDIO] ========================================");
-
-    if (host == nullptr || path == nullptr || deviceId == nullptr)
+    if (host == nullptr ||
+        path == nullptr ||
+        deviceId == nullptr ||
+        host[0] == '\0' ||
+        path[0] == '\0' ||
+        deviceId[0] == '\0' ||
+        port == 0)
     {
-        Serial0.println("[WS-AUDIO][ERROR] Invalid configuration");
-        return false;
-    }
+        Serial0.println(
+            "[WS-AUDIO][ERROR] Invalid configuration"
+        );
 
-    if (host[0] == '\0' || path[0] == '\0' || deviceId[0] == '\0')
-    {
-        Serial0.println("[WS-AUDIO][ERROR] Empty configuration");
         return false;
     }
 
     if (strlen(deviceId) >= sizeof(_deviceId))
     {
-        Serial0.println("[WS-AUDIO][ERROR] Device ID too long");
+        Serial0.println(
+            "[WS-AUDIO][ERROR] Device ID is too long"
+        );
+
+        return false;
+    }
+
+    if (_instance != nullptr && _instance != this)
+    {
+        Serial0.println(
+            "[WS-AUDIO][ERROR] Another client is active"
+        );
+
         return false;
     }
 
     if (_started)
     {
-        Serial0.println("[WS-AUDIO] Previous client instance detected");
         stop();
     }
 
-    if (_instance != nullptr && _instance != this)
+    // --------------------------------------------------------
+    // CREATE PCM QUEUE
+    // --------------------------------------------------------
+
+    if (_pcmQueue == nullptr)
     {
-        Serial0.println("[WS-AUDIO][ERROR] Another client instance is active");
+        _pcmQueue = xQueueCreate(
+            PCM_QUEUE_LENGTH,
+            sizeof(PcmPacket)
+        );
+    }
+
+    if (_pcmQueue == nullptr)
+    {
+        Serial0.println(
+            "[WS-AUDIO][ERROR] Cannot create PCM queue"
+        );
+
         return false;
     }
 
+    clearPcmQueue();
+
+    // --------------------------------------------------------
+    // RESET STATE
+    // --------------------------------------------------------
+
     memset(_deviceId, 0, sizeof(_deviceId));
-    memcpy(_deviceId, deviceId, strlen(deviceId));
+
+    strncpy(
+        _deviceId,
+        deviceId,
+        sizeof(_deviceId) - 1
+    );
+
+    _connected = false;
+    _helloPending = false;
+
+    _droppedPackets = 0;
+    _sentPackets = 0;
+    _sendErrors = 0;
 
     _instance = this;
 
-    Serial0.printf("[WS-AUDIO] Host: %s\n", host);
-    Serial0.printf("[WS-AUDIO] Port: %u\n", port);
-    Serial0.printf("[WS-AUDIO] Path: %s\n", path);
-    Serial0.printf("[WS-AUDIO] Device: %s\n", _deviceId);
+    // --------------------------------------------------------
+    // START WEBSOCKET
+    // --------------------------------------------------------
+
+    Serial0.println();
+    Serial0.println(
+        "[WS-AUDIO] Initializing WebSocket"
+    );
 
     Serial0.printf(
-        "[WS-AUDIO] PCM format: %u Hz, %u-bit, mono\n",
+        "[WS-AUDIO] Server: %s:%u%s\n",
+        host,
+        static_cast<unsigned int>(port),
+        path
+    );
+
+    Serial0.printf(
+        "[WS-AUDIO] Device: %s\n",
+        _deviceId
+    );
+
+    Serial0.printf(
+        "[WS-AUDIO] Audio: %u Hz, %u-bit, mono PCM\n",
         static_cast<unsigned int>(SAMPLE_RATE),
         static_cast<unsigned int>(BITS_PER_SAMPLE)
     );
 
     Serial0.printf(
-        "[WS-AUDIO] PCM chunk size: %u bytes\n",
-        static_cast<unsigned int>(WebSocketAudioConfig::PCM_CHUNK_SIZE)
+        "[WS-AUDIO] Queue: %u packets, %u bytes each\n",
+        static_cast<unsigned int>(PCM_QUEUE_LENGTH),
+        static_cast<unsigned int>(PCM_PACKET_SIZE)
     );
 
-    Serial0.println("[WS-AUDIO] Creating WebSocket connection...");
+    _webSocket.begin(
+        host,
+        port,
+        path
+    );
 
-    _webSocket.begin(host, port, path);
-
-    _webSocket.onEvent(WebSocketAudioClient::onWebSocketEvent);
+    _webSocket.onEvent(
+        WebSocketAudioClient::onWebSocketEvent
+    );
 
     _webSocket.setReconnectInterval(
         WebSocketAudioConfig::RECONNECT_INTERVAL
@@ -123,13 +204,11 @@ bool WebSocketAudioClient::begin(
         WebSocketAudioConfig::HEARTBEAT_FAIL_LIMIT
     );
 
-    _connected = false;
     _started = true;
 
-    Serial0.println("[WS-AUDIO] Reconnect enabled");
-    Serial0.println("[WS-AUDIO] Heartbeat enabled");
-    Serial0.println("[WS-AUDIO] Client initialized");
-    Serial0.println("[WS-AUDIO] Waiting for connection...");
+    Serial0.println(
+        "[WS-AUDIO] Client started"
+    );
 
     return true;
 }
@@ -145,7 +224,36 @@ void WebSocketAudioClient::update()
         return;
     }
 
+    // Важно:
+    // loop() и все операции отправки выполняются
+    // из одного контекста.
+
     _webSocket.loop();
+
+    if (!_started || !_connected)
+    {
+        return;
+    }
+
+    // --------------------------------------------------------
+    // SEND HANDSHAKE
+    // --------------------------------------------------------
+
+    if (_helloPending)
+    {
+        if (sendHello())
+        {
+            _helloPending = false;
+        }
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // SEND ONE PCM PACKET
+    // --------------------------------------------------------
+
+    sendNextPcmPacket();
 }
 
 // ============================================================
@@ -156,27 +264,33 @@ void WebSocketAudioClient::stop()
 {
     if (!_started)
     {
-        Serial0.println("[WS-AUDIO] Stop ignored: client not started");
         return;
     }
 
-    Serial0.println("[WS-AUDIO] Stopping WebSocket client...");
+    Serial0.println(
+        "[WS-AUDIO] Stopping client"
+    );
 
-    _connected = false;
     _started = false;
+    _connected = false;
+    _helloPending = false;
 
     _webSocket.disconnect();
+
+    clearPcmQueue();
 
     if (_instance == this)
     {
         _instance = nullptr;
     }
 
-    Serial0.println("[WS-AUDIO] Client stopped");
+    Serial0.println(
+        "[WS-AUDIO] Client stopped"
+    );
 }
 
 // ============================================================
-// CONNECTION STATE
+// STATE
 // ============================================================
 
 bool WebSocketAudioClient::isConnected() const
@@ -198,40 +312,18 @@ bool WebSocketAudioClient::sendPcm(
     size_t sampleCount
 )
 {
-    Serial0.println("[WS-AUDIO] ----------------------------------------");
-    Serial0.println("[WS-AUDIO] PCM SEND REQUEST");
-
-    if (samples == nullptr)
+    if (samples == nullptr || sampleCount == 0)
     {
-        Serial0.println("[WS-AUDIO][ERROR] PCM samples pointer is null");
-        return false;
-    }
-
-    if (sampleCount == 0)
-    {
-        Serial0.println("[WS-AUDIO][ERROR] PCM sample count is zero");
         return false;
     }
 
     if (sampleCount > SIZE_MAX / sizeof(int16_t))
     {
-        Serial0.println("[WS-AUDIO][ERROR] PCM sample count overflow");
         return false;
     }
 
-    const size_t byteLength = sampleCount * sizeof(int16_t);
-
-    Serial0.printf("[WS-AUDIO] Samples: %u\n",
-        static_cast<unsigned int>(sampleCount));
-
-    Serial0.printf("[WS-AUDIO] Bytes: %u\n",
-        static_cast<unsigned int>(byteLength));
-
-    Serial0.printf("[WS-AUDIO] Connected: %s\n",
-        _connected ? "YES" : "NO");
-
-    Serial0.printf("[WS-AUDIO] Started: %s\n",
-        _started ? "YES" : "NO");
+    const size_t byteLength =
+        sampleCount * sizeof(int16_t);
 
     return sendPcmBytes(
         reinterpret_cast<const uint8_t*>(samples),
@@ -248,153 +340,167 @@ bool WebSocketAudioClient::sendPcmBytes(
     size_t length
 )
 {
-    if (!_started)
+    if (!_started || !_connected)
     {
-        Serial0.println("[WS-AUDIO][ERROR] PCM send rejected: client not started");
         return false;
     }
 
-    if (!_connected)
+    if (data == nullptr || length == 0)
     {
-        Serial0.println("[WS-AUDIO][ERROR] PCM send rejected: WebSocket disconnected");
         return false;
     }
 
-    if (data == nullptr)
+    if ((length % sizeof(int16_t)) != 0)
     {
-        Serial0.println("[WS-AUDIO][ERROR] PCM data pointer is null");
-        return false;
-    }
-
-    if (length == 0)
-    {
-        Serial0.println("[WS-AUDIO][ERROR] PCM length is zero");
-        return false;
-    }
-
-    if (length % sizeof(int16_t) != 0)
-    {
-        Serial0.printf(
-            "[WS-AUDIO][ERROR] Invalid PCM length: %u bytes\n",
-            static_cast<unsigned int>(length)
+        Serial0.println(
+            "[WS-AUDIO][ERROR] PCM length must be even"
         );
 
         return false;
     }
 
-    constexpr size_t CHUNK_SIZE =
-        WebSocketAudioConfig::PCM_CHUNK_SIZE;
+    return enqueuePcm(data, length);
+}
 
-    const size_t totalChunks =
-        (length + CHUNK_SIZE - 1) / CHUNK_SIZE;
+// ============================================================
+// ENQUEUE PCM
+// ============================================================
 
-    Serial0.printf(
-        "[WS-AUDIO] Starting binary transmission: %u bytes, %u chunks\n",
-        static_cast<unsigned int>(length),
-        static_cast<unsigned int>(totalChunks)
-    );
+bool WebSocketAudioClient::enqueuePcm(
+    const uint8_t* data,
+    size_t length
+)
+{
+    if (_pcmQueue == nullptr ||
+        data == nullptr ||
+        length == 0)
+    {
+        return false;
+    }
 
     size_t offset = 0;
-    size_t chunkIndex = 0;
 
     while (offset < length)
     {
-        if (!_started || !_connected)
-        {
-            Serial0.println("[WS-AUDIO][ERROR] Connection lost during PCM transmission");
-
-            Serial0.printf(
-                "[WS-AUDIO] Sent before failure: %u/%u bytes\n",
-                static_cast<unsigned int>(offset),
-                static_cast<unsigned int>(length)
-            );
-
-            return false;
-        }
-
         const size_t remaining = length - offset;
 
-        size_t chunkLength =
-            remaining > CHUNK_SIZE ? CHUNK_SIZE : remaining;
+        size_t packetLength =
+            remaining > PCM_PACKET_SIZE
+                ? PCM_PACKET_SIZE
+                : remaining;
 
-        chunkLength -= chunkLength % 2;
+        // PCM S16LE: длина должна быть кратна двум.
+        packetLength -= packetLength % 2;
 
-        if (chunkLength == 0)
+        if (packetLength == 0)
         {
-            Serial0.println("[WS-AUDIO][ERROR] Invalid chunk length");
             return false;
         }
 
-        Serial0.printf(
-            "[WS-AUDIO] Sending chunk %u/%u | offset=%u | size=%u\n",
-            static_cast<unsigned int>(chunkIndex + 1),
-            static_cast<unsigned int>(totalChunks),
-            static_cast<unsigned int>(offset),
-            static_cast<unsigned int>(chunkLength)
+        PcmPacket packet{};
+
+        packet.length =
+            static_cast<uint16_t>(packetLength);
+
+        memcpy(
+            packet.data,
+            data + offset,
+            packetLength
         );
 
-        const uint32_t sendStart = millis();
-
-        const bool result = _webSocket.sendBIN(
-            const_cast<uint8_t*>(data + offset),
-            chunkLength
-        );
-
-        const uint32_t sendDuration = millis() - sendStart;
-
-        if (!result)
+        // Не ждём освобождения очереди.
+        // Если очередь заполнена, отбрасываем пакет.
+        if (xQueueSend(
+                _pcmQueue,
+                &packet,
+                0
+            ) != pdTRUE)
         {
-            Serial0.println("[WS-AUDIO][ERROR] sendBIN() returned FALSE");
-
-            Serial0.printf(
-                "[WS-AUDIO] Failed chunk: %u/%u\n",
-                static_cast<unsigned int>(chunkIndex + 1),
-                static_cast<unsigned int>(totalChunks)
-            );
-
-            Serial0.printf(
-                "[WS-AUDIO] Offset: %u\n",
-                static_cast<unsigned int>(offset)
-            );
-
-            Serial0.printf(
-                "[WS-AUDIO] Chunk length: %u\n",
-                static_cast<unsigned int>(chunkLength)
-            );
-
-            Serial0.printf(
-                "[WS-AUDIO] sendBIN duration: %lu ms\n",
-                static_cast<unsigned long>(sendDuration)
-            );
-
-            Serial0.printf(
-                "[WS-AUDIO] Started: %s\n",
-                _started ? "YES" : "NO"
-            );
-
-            Serial0.printf(
-                "[WS-AUDIO] Connected: %s\n",
-                _connected ? "YES" : "NO"
-            );
+            ++_droppedPackets;
 
             return false;
         }
 
-        Serial0.printf(
-            "[WS-AUDIO] Chunk sent successfully in %lu ms\n",
-            static_cast<unsigned long>(sendDuration)
-        );
-
-        offset += chunkLength;
-        chunkIndex++;
+        offset += packetLength;
     }
 
-    Serial0.printf(
-        "[WS-AUDIO] PCM transmission completed: %u bytes\n",
-        static_cast<unsigned int>(offset)
+    return true;
+}
+
+// ============================================================
+// SEND NEXT PCM PACKET
+// ============================================================
+
+bool WebSocketAudioClient::sendNextPcmPacket()
+{
+    if (!_started ||
+        !_connected ||
+        _pcmQueue == nullptr)
+    {
+        return false;
+    }
+
+    PcmPacket packet{};
+
+    if (xQueueReceive(
+            _pcmQueue,
+            &packet,
+            0
+        ) != pdTRUE)
+    {
+        return false;
+    }
+
+    if (packet.length == 0 ||
+        packet.length > PCM_PACKET_SIZE)
+    {
+        ++_sendErrors;
+        return false;
+    }
+
+    const bool result = _webSocket.sendBIN(
+        packet.data,
+        packet.length
     );
 
+    if (!result)
+    {
+        ++_sendErrors;
+
+        Serial0.printf(
+            "[WS-AUDIO][ERROR] PCM send failed. Errors: %lu\n",
+            static_cast<unsigned long>(_sendErrors)
+        );
+
+        return false;
+    }
+
+    ++_sentPackets;
+
     return true;
+}
+
+// ============================================================
+// CLEAR PCM QUEUE
+// ============================================================
+
+void WebSocketAudioClient::clearPcmQueue()
+{
+    if (_pcmQueue == nullptr)
+    {
+        return;
+    }
+
+    PcmPacket packet{};
+
+    while (xQueueReceive(
+        _pcmQueue,
+        &packet,
+        0
+    ) == pdTRUE)
+    {
+        // Удаляем устаревшие пакеты.
+    }
 }
 
 // ============================================================
@@ -405,55 +511,30 @@ bool WebSocketAudioClient::sendText(
     const char* text
 )
 {
-    Serial0.println("[WS-AUDIO] ----------------------------------------");
-    Serial0.println("[WS-AUDIO] TEXT SEND REQUEST");
-
-    if (!_started)
+    if (!_started ||
+        !_connected ||
+        text == nullptr ||
+        text[0] == '\0')
     {
-        Serial0.println("[WS-AUDIO][ERROR] Text send rejected: client not started");
         return false;
     }
-
-    if (!_connected)
-    {
-        Serial0.println("[WS-AUDIO][ERROR] Text send rejected: disconnected");
-        return false;
-    }
-
-    if (text == nullptr || text[0] == '\0')
-    {
-        Serial0.println("[WS-AUDIO][ERROR] Invalid text message");
-        return false;
-    }
-
-    Serial0.printf("[WS-AUDIO] Message: %s\n", text);
-
-    const uint32_t sendStart = millis();
 
     const bool result = _webSocket.sendTXT(
         const_cast<char*>(text)
     );
 
-    const uint32_t sendDuration = millis() - sendStart;
-
-    Serial0.printf(
-        "[WS-AUDIO] sendTXT duration: %lu ms\n",
-        static_cast<unsigned long>(sendDuration)
-    );
-
     if (!result)
     {
-        Serial0.println("[WS-AUDIO][ERROR] sendTXT() returned FALSE");
-        return false;
+        Serial0.println(
+            "[WS-AUDIO][ERROR] Text transmission failed"
+        );
     }
 
-    Serial0.println("[WS-AUDIO] Text sent successfully");
-
-    return true;
+    return result;
 }
 
 // ============================================================
-// EVENT CALLBACK REGISTRATION
+// CALLBACK REGISTRATION
 // ============================================================
 
 void WebSocketAudioClient::setEventCallback(
@@ -461,11 +542,37 @@ void WebSocketAudioClient::setEventCallback(
 )
 {
     _callback = callback;
+}
 
-    Serial0.printf(
-        "[WS-AUDIO] Event callback: %s\n",
-        _callback != nullptr ? "REGISTERED" : "NULL"
+// ============================================================
+// STATISTICS
+// ============================================================
+
+uint32_t WebSocketAudioClient::getQueuedPackets() const
+{
+    if (_pcmQueue == nullptr)
+    {
+        return 0;
+    }
+
+    return static_cast<uint32_t>(
+        uxQueueMessagesWaiting(_pcmQueue)
     );
+}
+
+uint32_t WebSocketAudioClient::getDroppedPackets() const
+{
+    return _droppedPackets;
+}
+
+uint32_t WebSocketAudioClient::getSentPackets() const
+{
+    return _sentPackets;
+}
+
+uint32_t WebSocketAudioClient::getSendErrors() const
+{
+    return _sendErrors;
 }
 
 // ============================================================
@@ -476,13 +583,12 @@ bool WebSocketAudioClient::sendHello()
 {
     if (!_started || !_connected)
     {
-        Serial0.println("[WS-AUDIO][ERROR] Cannot send hello: disconnected");
         return false;
     }
 
-    char message[256];
+    char message[256]{};
 
-    const int messageLength = snprintf(
+    const int length = snprintf(
         message,
         sizeof(message),
         "{"
@@ -498,33 +604,30 @@ bool WebSocketAudioClient::sendHello()
         static_cast<unsigned int>(BITS_PER_SAMPLE)
     );
 
-    if (messageLength <= 0 ||
-        static_cast<size_t>(messageLength) >= sizeof(message))
+    if (length <= 0 ||
+        static_cast<size_t>(length) >= sizeof(message))
     {
-        Serial0.println("[WS-AUDIO][ERROR] Failed to build audio_hello");
         return false;
     }
 
-    Serial0.printf(
-        "[WS-AUDIO] Sending handshake: %s\n",
-        message
+    if (!_webSocket.sendTXT(message))
+    {
+        Serial0.println(
+            "[WS-AUDIO][ERROR] Handshake transmission failed"
+        );
+
+        return false;
+    }
+
+    Serial0.println(
+        "[WS-AUDIO] Handshake sent"
     );
-
-    const bool result = _webSocket.sendTXT(message);
-
-    if (!result)
-    {
-        Serial0.println("[WS-AUDIO][ERROR] audio_hello send failed");
-        return false;
-    }
-
-    Serial0.println("[WS-AUDIO] Audio handshake sent successfully");
 
     return true;
 }
 
 // ============================================================
-// STATIC WEBSOCKET CALLBACK
+// STATIC WEBSOCKET EVENT
 // ============================================================
 
 void WebSocketAudioClient::onWebSocketEvent(
@@ -535,7 +638,6 @@ void WebSocketAudioClient::onWebSocketEvent(
 {
     if (_instance == nullptr)
     {
-        Serial0.println("[WS-AUDIO][ERROR] Event received without active instance");
         return;
     }
 
@@ -547,7 +649,7 @@ void WebSocketAudioClient::onWebSocketEvent(
 }
 
 // ============================================================
-// HANDLE WEBSOCKET EVENTS
+// HANDLE WEBSOCKET EVENT
 // ============================================================
 
 void WebSocketAudioClient::handleWebSocketEvent(
@@ -558,50 +660,56 @@ void WebSocketAudioClient::handleWebSocketEvent(
 {
     switch (type)
     {
+        // ----------------------------------------------------
+        // CONNECTED
+        // ----------------------------------------------------
+
         case WStype_CONNECTED:
         {
             _connected = true;
+            _helloPending = true;
 
-            Serial0.println();
-            Serial0.println("[WS-AUDIO] ========================================");
-            Serial0.println("[WS-AUDIO] CONNECTED");
-            Serial0.println("[WS-AUDIO] ========================================");
+            clearPcmQueue();
 
-            sendHello();
+            Serial0.println(
+                "[WS-AUDIO] Connected"
+            );
 
             emitEvent(Event::CONNECTED);
 
             break;
         }
 
+        // ----------------------------------------------------
+        // DISCONNECTED
+        // ----------------------------------------------------
+
         case WStype_DISCONNECTED:
         {
             _connected = false;
+            _helloPending = false;
 
-            Serial0.println();
-            Serial0.println("[WS-AUDIO] ========================================");
-            Serial0.println("[WS-AUDIO] DISCONNECTED");
-            Serial0.println("[WS-AUDIO] ========================================");
+            clearPcmQueue();
+
+            Serial0.println(
+                "[WS-AUDIO] Disconnected"
+            );
 
             emitEvent(Event::DISCONNECTED);
 
             break;
         }
 
+        // ----------------------------------------------------
+        // TEXT
+        // ----------------------------------------------------
+
         case WStype_TEXT:
         {
             if (payload == nullptr || length == 0)
             {
-                Serial0.println("[WS-AUDIO][WARN] Empty text frame received");
                 break;
             }
-
-            Serial0.printf(
-                "[WS-AUDIO] TEXT RECEIVED (%u bytes): %.*s\n",
-                static_cast<unsigned int>(length),
-                static_cast<int>(length),
-                reinterpret_cast<const char*>(payload)
-            );
 
             emitEvent(
                 Event::TEXT_RECEIVED,
@@ -612,18 +720,16 @@ void WebSocketAudioClient::handleWebSocketEvent(
             break;
         }
 
+        // ----------------------------------------------------
+        // BINARY
+        // ----------------------------------------------------
+
         case WStype_BIN:
         {
             if (payload == nullptr || length == 0)
             {
-                Serial0.println("[WS-AUDIO][WARN] Empty binary frame received");
                 break;
             }
-
-            Serial0.printf(
-                "[WS-AUDIO] BINARY RECEIVED: %u bytes\n",
-                static_cast<unsigned int>(length)
-            );
 
             emitEvent(
                 Event::PCM_RECEIVED,
@@ -634,19 +740,15 @@ void WebSocketAudioClient::handleWebSocketEvent(
             break;
         }
 
+        // ----------------------------------------------------
+        // ERROR
+        // ----------------------------------------------------
+
         case WStype_ERROR:
         {
-            Serial0.println("[WS-AUDIO][ERROR] WebSocket transport error");
-
-            if (payload != nullptr && length > 0)
-            {
-                Serial0.printf(
-                    "[WS-AUDIO][ERROR] Payload (%u bytes): %.*s\n",
-                    static_cast<unsigned int>(length),
-                    static_cast<int>(length),
-                    reinterpret_cast<const char*>(payload)
-                );
-            }
+            Serial0.println(
+                "[WS-AUDIO][ERROR] WebSocket transport error"
+            );
 
             emitEvent(
                 Event::ERROR,
@@ -657,25 +759,19 @@ void WebSocketAudioClient::handleWebSocketEvent(
             break;
         }
 
-        case WStype_PING:
-        {
-            Serial0.println("[WS-AUDIO] PING received");
-            break;
-        }
+        // ----------------------------------------------------
+        // PING / PONG
+        // ----------------------------------------------------
 
+        case WStype_PING:
         case WStype_PONG:
         {
-            Serial0.println("[WS-AUDIO] PONG received");
+            // Не выводим сообщение на каждый heartbeat.
             break;
         }
 
         default:
         {
-            Serial0.printf(
-                "[WS-AUDIO] Unknown WebSocket event: %d\n",
-                static_cast<int>(type)
-            );
-
             break;
         }
     }
@@ -693,9 +789,13 @@ void WebSocketAudioClient::emitEvent(
 {
     if (_callback == nullptr)
     {
-        Serial0.println("[WS-AUDIO][WARN] Event callback is not registered");
         return;
     }
+
+    // ВАЖНО:
+    // payload принадлежит WebSocket-библиотеке.
+    // Использовать его после выхода из callback нельзя.
+    // Если данные нужны позже, callback должен скопировать их.
 
     _callback(
         event,
