@@ -9,7 +9,7 @@
 
 namespace AlarmConfig
 {
-    static constexpr uint8_t MAX_ALARMS = 8;
+    static constexpr uint8_t MAX_ALARMS = 3;
 }
 
 // ============================================================

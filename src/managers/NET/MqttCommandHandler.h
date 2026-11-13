@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include <Arduino.h>
@@ -6,25 +7,26 @@
 #include "SmartClockMqttClient.h"
 #include "./managers/Setting/SettingsManager.h"
 #include "./core/ClockSystem.h"
-
 #include "./managers/WiFi/WiFiManager.h"
+#include "./managers/Alarm/AlarmManager.h"
 
-class MqttCommandHandler {
+
+class MqttCommandHandler
+{
 public:
     MqttCommandHandler();
 
     MqttCommandHandler(const MqttCommandHandler&) = delete;
     MqttCommandHandler& operator=(const MqttCommandHandler&) = delete;
 
-    // Подключение обработчика к MQTT-клиенту и менеджерам.
     bool begin(
         SmartClockMqttClient& mqtt,
         SettingsManager& settings,
         ClockSystem& clock,
-        WiFiManager& wifi
+        WiFiManager& wifi,
+        AlarmManager& alarms
     );
 
-    // Обработчик событий MQTT.
     static void onMqttEvent(
         SmartClockMqttClient::Event event,
         const char* topic,
@@ -38,6 +40,7 @@ private:
     SettingsManager* _settings;
     ClockSystem* _clock;
     WiFiManager* _wifi;
+    AlarmManager* _alarms;
 
     bool _initialized;
 
@@ -62,6 +65,12 @@ private:
     );
 
     void displayCommand(
+        const char* requestId,
+        const char* command,
+        JsonVariantConst params
+    );
+
+    void alarmCommand(
         const char* requestId,
         const char* command,
         JsonVariantConst params

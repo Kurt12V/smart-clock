@@ -163,88 +163,30 @@ bool AlarmManager::begin()
 
 void AlarmManager::update()
 {
-    if (!_initialized)
-        return;
-
-    if (_runtime.active)
-    {
-        updateRuntime();
-        return;
-    }
+    if (!_initialized) return;
+    if (_runtime.active) { updateRuntime(); return; }
 
     if (_snooze.active)
     {
-        const uint32_t nowMs = millis();
-
-        if (static_cast<int32_t>(nowMs - _snooze.untilMs) < 0)
-            return;
-
+        if (static_cast<int32_t>(millis() - _snooze.untilMs) < 0) return;
         const String id = _snooze.alarmId;
-
-        Serial0.printf(
-            "[ALARM] SNOOZE EXPIRED id=%s\n",
-            id.c_str()
-        );
-
         _snooze = SnoozeState{};
-
-        Alarm alarm;
-
-        if (!loadFromStorage(id, alarm))
-        {
-            Serial0.printf(
-                "[ALARM] SNOOZE ERROR id=%s reason=load-failed\n",
-                id.c_str()
-            );
-            return;
-        }
-
-        if (!alarm.enabled)
-            return;
-
         const int8_t index = findActive(id);
-
-        if (index < 0)
-            return;
-
-        start(
-            static_cast<uint8_t>(index),
-            alarm,
-            currentLocalTimestamp()
-        );
-
+        if (index < 0) return;
+        const Alarm alarm = _activeAlarms[index].alarm;
+        if (alarm.enabled)
+            start(static_cast<uint8_t>(index), alarm, currentLocalTimestamp());
         return;
     }
 
     const time_t now = currentLocalTimestamp();
-
     for (uint8_t i = 0; i < _activeCount; ++i)
     {
-        ActiveAlarm& active = _activeAlarms[i];
-
-        if (!active.enabled || active.id.isEmpty())
-            continue;
-
+        const ActiveAlarm& active = _activeAlarms[i];
+        if (!active.enabled || active.id.isEmpty()) continue;
         time_t triggerT0 = 0;
-
-        if (!shouldStart(i, active, now, triggerT0))
-            continue;
-
-        Alarm alarm;
-
-        if (!loadFromStorage(active.id, alarm))
-        {
-            Serial0.printf(
-                "[ALARM] WARNING: cannot load id=%s\n",
-                active.id.c_str()
-            );
-            continue;
-        }
-
-        if (!alarm.enabled)
-            continue;
-
-        if (start(i, alarm, triggerT0))
+        if (shouldStart(i, active, now, triggerT0) &&
+            start(i, active.alarm, triggerT0))
             break;
     }
 }
@@ -329,42 +271,23 @@ String AlarmManager::pathFor(const String& id) const
 
 uint8_t AlarmManager::countStoredAlarms() const
 {
-    if (!_filesystemReady)
-        return 0;
-
+    if (!_filesystemReady) return 0;
     File directory = LittleFS.open(ALARM_DIRECTORY, FILE_READ);
-
     if (!directory || !directory.isDirectory())
     {
-        if (directory)
-            directory.close();
-
+        if (directory) directory.close();
         return 0;
     }
-
     uint8_t count = 0;
-
     File file = directory.openNextFile();
-
     while (file)
     {
-        if (!file.isDirectory())
-        {
-            const String id = alarmIdFromPath(file.name());
-
-            if (isUuidV4(id))
-            {
-                if (count < UINT8_MAX)
-                    ++count;
-            }
-        }
-
+        if (!file.isDirectory() && isUuidV4(alarmIdFromPath(file.name())) && count < UINT8_MAX)
+            ++count;
         file.close();
         file = directory.openNextFile();
     }
-
     directory.close();
-
     return count;
 }
 
@@ -374,9 +297,10 @@ uint8_t AlarmManager::countStoredAlarms() const
 
 bool AlarmManager::exists(const String& id)
 {
-    if (!_filesystemReady || !isUuidV4(id))
+    if (!isUuidV4(id) || !_filesystemReady)
         return false;
 
+    // LittleFS is the source of truth. RAM contains only cached enabled alarms.
     return LittleFS.exists(pathFor(id));
 }
 
@@ -398,42 +322,19 @@ bool AlarmManager::create(Alarm& alarm)
         while (exists(alarm.id));
     }
 
-    if (!validate(alarm))
+    if (!validate(alarm) || exists(alarm.id))
+        return false;
+
+    // Every alarm, enabled or disabled, occupies one persistent slot.
+    if (countStoredAlarms() >= MAX_ALARMS)
     {
-        Serial0.println("[ALARM] CREATE rejected: validation failed");
+        Serial0.println("[ALARM] CREATE rejected: total LittleFS limit reached");
         return false;
     }
 
-    if (exists(alarm.id))
-    {
-        Serial0.println("[ALARM] CREATE rejected: ID already exists");
-        return false;
-    }
-
-    // Enforce the total limit, not just the enabled limit.
-    const uint8_t stored = countStoredAlarms();
-
-    if (stored >= MAX_ALARMS)
-    {
-        Serial0.printf(
-            "[ALARM] CREATE rejected: total limit reached (%u/%u)\n",
-            static_cast<unsigned>(stored),
-            static_cast<unsigned>(MAX_ALARMS)
-        );
-        return false;
-    }
-
-    if (alarm.enabled && _activeCount >= MAX_ALARMS)
-    {
-        Serial0.println("[ALARM] CREATE rejected: active limit reached");
-        return false;
-    }
-
+    // Persist first. Only after a successful write do we update the RAM cache.
     if (!saveToStorage(alarm))
-    {
-        Serial0.println("[ALARM] CREATE failed: save");
         return false;
-    }
 
     if (alarm.enabled && !addActive(alarm))
     {
@@ -442,7 +343,6 @@ bool AlarmManager::create(Alarm& alarm)
     }
 
     logAlarm("CREATE", alarm);
-
     return true;
 }
 
@@ -456,26 +356,55 @@ bool AlarmManager::update(const Alarm& alarm)
         return false;
 
     Alarm oldAlarm;
-
-    if (!get(alarm.id, oldAlarm))
+    if (!loadFromStorage(alarm.id, oldAlarm))
         return false;
 
-    if (!oldAlarm.enabled && alarm.enabled && _activeCount >= MAX_ALARMS)
-        return false;
+    const int8_t oldIndex = findActive(alarm.id);
+    const bool wasActive = oldIndex >= 0;
 
-    if (_runtime.active && _runtime.alarmId == alarm.id)
-        finish();
-
+    // The persistent record is updated before the in-memory cache.
     if (!saveToStorage(alarm))
         return false;
 
-    removeActive(alarm.id);
+    if (alarm.enabled)
+    {
+        if (wasActive)
+        {
+            ActiveAlarm& active = _activeAlarms[oldIndex];
+            active.alarm = alarm;
+            active.time = alarm.time;
+            active.repeatMask = alarm.repeatMask;
+            active.enabled = true;
+        }
+        else if (!addActive(alarm))
+        {
+            // Restore the previous persistent record if RAM cannot accept it.
+            saveToStorage(oldAlarm);
+            return false;
+        }
+    }
+    else if (wasActive)
+    {
+        if (_runtime.active && _runtime.alarmId == alarm.id)
+        {
+            notifyFinish();
+            _runtime = Runtime{};
+        }
+        if (_snooze.active && _snooze.alarmId == alarm.id)
+            _snooze = SnoozeState{};
+        removeActive(alarm.id);
+    }
 
-    if (alarm.enabled && !addActive(alarm))
-        return false;
+    // Editing a currently ringing alarm stops the old runtime instance.
+    if (_runtime.active && _runtime.alarmId == alarm.id)
+    {
+        notifyFinish();
+        _runtime = Runtime{};
+    }
+    if (_snooze.active && _snooze.alarmId == alarm.id)
+        _snooze = SnoozeState{};
 
     logAlarm("UPDATE", alarm);
-
     return true;
 }
 
@@ -485,22 +414,25 @@ bool AlarmManager::update(const Alarm& alarm)
 
 bool AlarmManager::remove(const String& id)
 {
-    if (!_initialized || id.isEmpty() || !exists(id))
+    if (!_initialized || !isUuidV4(id))
+        return false;
+
+    // Do not remove the RAM copy unless persistent deletion succeeded.
+    if (!deleteFromStorage(id))
         return false;
 
     if (_runtime.active && _runtime.alarmId == id)
-        finish();
+    {
+        notifyFinish();
+        _runtime = Runtime{};
+    }
 
     if (_snooze.active && _snooze.alarmId == id)
         _snooze = SnoozeState{};
 
-    if (!deleteFromStorage(id))
-        return false;
-
     removeActive(id);
 
-    Serial0.printf("[ALARM] REMOVE OK id=%s\n", id.c_str());
-
+    Serial0.printf("[ALARM] REMOVE id=%s\n", id.c_str());
     return true;
 }
 
@@ -513,6 +445,7 @@ bool AlarmManager::get(const String& id, Alarm& alarm)
     if (!_initialized || id.isEmpty())
         return false;
 
+    // Always read the canonical, persistent copy.
     return loadFromStorage(id, alarm);
 }
 
@@ -520,58 +453,40 @@ bool AlarmManager::get(const String& id, Alarm& alarm)
 // LOAD ALL
 // ============================================================
 
-bool AlarmManager::loadAll(
-    Alarm* alarms,
-    uint8_t maxCount,
-    uint8_t& count
-)
+bool AlarmManager::loadAll(Alarm* alarms, uint8_t maxCount, uint8_t& count)
 {
     count = 0;
 
-    if (!_initialized || !alarms)
+    if (!_initialized || (!alarms && maxCount > 0))
         return false;
 
     File directory = LittleFS.open(ALARM_DIRECTORY, FILE_READ);
-
     if (!directory || !directory.isDirectory())
     {
         if (directory)
             directory.close();
-
         return false;
     }
 
     File file = directory.openNextFile();
-
-    while (file && count < maxCount)
+    while (file)
     {
+        String id;
         if (!file.isDirectory())
+            id = alarmIdFromPath(file.name());
+        file.close();
+
+        if (isUuidV4(id) && count < maxCount)
         {
-            const String id = alarmIdFromPath(file.name());
-
-            file.close();
-
-            if (isUuidV4(id))
-            {
-                Alarm alarm;
-
-                if (loadFromStorage(id, alarm))
-                    alarms[count++] = alarm;
-            }
-        }
-        else
-        {
-            file.close();
+            Alarm alarm;
+            if (loadFromStorage(id, alarm))
+                alarms[count++] = alarm;
         }
 
         file = directory.openNextFile();
     }
 
-    if (file)
-        file.close();
-
     directory.close();
-
     return true;
 }
 
@@ -591,39 +506,70 @@ bool AlarmManager::disable(const String& id)
 
 bool AlarmManager::setEnabled(const String& id, bool enabled)
 {
-    if (!_initialized || id.isEmpty())
+    if (!_initialized || !isUuidV4(id))
         return false;
 
     Alarm alarm;
-
     if (!loadFromStorage(id, alarm))
         return false;
 
+    const int8_t index = findActive(id);
+
     if (alarm.enabled == enabled)
+    {
+        // Repair RAM cache if it is out of sync with the persistent record.
+        if (enabled && index < 0)
+            return addActive(alarm);
+        if (!enabled && index >= 0)
+        {
+            if (_runtime.active && _runtime.alarmId == id)
+            {
+                notifyFinish();
+                _runtime = Runtime{};
+            }
+            if (_snooze.active && _snooze.alarmId == id)
+                _snooze = SnoozeState{};
+            removeActive(id);
+        }
         return true;
-
-    if (enabled && _activeCount >= MAX_ALARMS)
-        return false;
-
-    if (_runtime.active && _runtime.alarmId == id)
-        finish();
+    }
 
     alarm.enabled = enabled;
 
+    if (enabled)
+    {
+        if (_activeCount >= MAX_ALARMS)
+            return false;
+
+        if (!saveToStorage(alarm))
+            return false;
+
+        if (!addActive(alarm))
+        {
+            alarm.enabled = false;
+            saveToStorage(alarm);
+            return false;
+        }
+
+        Serial0.printf("[ALARM] ENABLE id=%s\n", id.c_str());
+        return true;
+    }
+
+    // Persist disabled state first, then stop runtime and remove RAM cache.
     if (!saveToStorage(alarm))
         return false;
 
+    if (_runtime.active && _runtime.alarmId == id)
+    {
+        notifyFinish();
+        _runtime = Runtime{};
+    }
+
+    if (_snooze.active && _snooze.alarmId == id)
+        _snooze = SnoozeState{};
+
     removeActive(id);
-
-    if (enabled && !addActive(alarm))
-        return false;
-
-    Serial0.printf(
-        "[ALARM] %s id=%s\n",
-        enabled ? "ENABLED" : "DISABLED",
-        id.c_str()
-    );
-
+    Serial0.printf("[ALARM] DISABLE id=%s\n", id.c_str());
     return true;
 }
 
@@ -668,35 +614,29 @@ int8_t AlarmManager::findActive(const String& id)
 
 bool AlarmManager::addActive(const Alarm& alarm)
 {
-    if (!alarm.enabled || !isUuidV4(alarm.id))
-        return false;
-
-    if (findActive(alarm.id) >= 0)
+    if (!alarm.enabled || !isUuidV4(alarm.id)) return false;
+    const int8_t existing = findActive(alarm.id);
+    if (existing >= 0)
+    {
+        ActiveAlarm& active = _activeAlarms[existing];
+        active.alarm = alarm;
+        active.time = alarm.time;
+        active.repeatMask = alarm.repeatMask;
+        active.enabled = true;
         return true;
-
-    if (_activeCount >= MAX_ALARMS)
-        return false;
-
+    }
+    if (_activeCount >= MAX_ALARMS) return false;
     ActiveAlarm& active = _activeAlarms[_activeCount];
-
     active.id = alarm.id;
+    active.alarm = alarm;
     active.time = alarm.time;
     active.repeatMask = alarm.repeatMask;
-    active.enabled = alarm.enabled;
-
+    active.enabled = true;
     _lastTriggerT0[_activeCount] = 0;
-
     ++_activeCount;
-
-    Serial0.printf(
-        "[ALARM] ACTIVE ADD id=%s time=%02u:%02u:%02u repeat=0x%02X\n",
-        active.id.c_str(),
-        active.time.hour,
-        active.time.minute,
-        active.time.second,
-        active.repeatMask
-    );
-
+    Serial0.printf("[ALARM] ACTIVE RAM ADD id=%s time=%02u:%02u:%02u\n",
+        active.id.c_str(), active.time.hour, active.time.minute,
+        active.time.second);
     return true;
 }
 
@@ -740,47 +680,86 @@ void AlarmManager::clearActive()
 
 bool AlarmManager::saveToStorage(const Alarm& alarm)
 {
-    if (!_filesystemReady || !isUuidV4(alarm.id))
+    if (!_filesystemReady || !validate(alarm))
+        return false;
+
+    if (!createDirectory())
         return false;
 
     JsonDocument document;
-
     if (!serialize(alarm, document))
         return false;
 
     String content;
-
     if (serializeJson(document, content) == 0)
         return false;
 
     const String path = pathFor(alarm.id);
+    const String tempPath = path + ".tmp";
+    const String backupPath = path + ".bak";
 
-    File file = LittleFS.open(path, FILE_WRITE);
-
-    if (!file)
-    {
-        Serial0.printf(
-            "[ALARM] ERROR: cannot write %s\n",
-            path.c_str()
-        );
+    if (LittleFS.exists(tempPath) && !LittleFS.remove(tempPath))
         return false;
-    }
+
+    File file = LittleFS.open(tempPath, FILE_WRITE);
+    if (!file)
+        return false;
 
     const size_t expected = content.length();
     const size_t written = file.print(content);
-
     file.flush();
     file.close();
 
     if (written != expected)
     {
-        Serial0.printf(
-            "[ALARM] ERROR: incomplete write expected=%u written=%u\n",
-            static_cast<unsigned>(expected),
-            static_cast<unsigned>(written)
-        );
+        LittleFS.remove(tempPath);
         return false;
     }
+
+    File check = LittleFS.open(tempPath, FILE_READ);
+    if (!check || check.isDirectory())
+    {
+        if (check)
+            check.close();
+        LittleFS.remove(tempPath);
+        return false;
+    }
+
+    JsonDocument verify;
+    const DeserializationError error = deserializeJson(verify, check);
+    check.close();
+
+    if (error)
+    {
+        LittleFS.remove(tempPath);
+        return false;
+    }
+
+    if (LittleFS.exists(backupPath) && !LittleFS.remove(backupPath))
+    {
+        LittleFS.remove(tempPath);
+        return false;
+    }
+
+    const bool hadOriginal = LittleFS.exists(path);
+
+    if (hadOriginal && !LittleFS.rename(path, backupPath))
+    {
+        LittleFS.remove(tempPath);
+        return false;
+    }
+
+    if (!LittleFS.rename(tempPath, path))
+    {
+        if (hadOriginal && LittleFS.exists(backupPath))
+            LittleFS.rename(backupPath, path);
+
+        LittleFS.remove(tempPath);
+        return false;
+    }
+
+    if (hadOriginal)
+        LittleFS.remove(backupPath);
 
     return true;
 }
@@ -833,6 +812,13 @@ bool AlarmManager::loadFromStorage(const String& id, Alarm& alarm)
     if (!deserialize(document, alarm))
         return false;
 
+    if (!validate(alarm))
+    {
+        resetAlarm(alarm);
+        Serial0.printf("[ALARM] INVALID DATA id=%s\n", id.c_str());
+        return false;
+    }
+
     if (alarm.id != id)
     {
         resetAlarm(alarm);
@@ -870,63 +856,63 @@ bool AlarmManager::reload()
     if (!_filesystemReady)
         return false;
 
-    File directory = LittleFS.open(ALARM_DIRECTORY, FILE_READ);
+    if (countStoredAlarms() > MAX_ALARMS)
+    {
+        Serial0.printf(
+            "[ALARM] ERROR: LittleFS contains %u alarms; maximum is %u\n",
+            static_cast<unsigned>(countStoredAlarms()),
+            static_cast<unsigned>(MAX_ALARMS)
+        );
+        return false;
+    }
 
+    File directory = LittleFS.open(ALARM_DIRECTORY, FILE_READ);
     if (!directory || !directory.isDirectory())
     {
         if (directory)
             directory.close();
-
         return false;
     }
 
+    bool result = true;
     File file = directory.openNextFile();
 
     while (file)
     {
+        String id;
         if (!file.isDirectory())
+            id = alarmIdFromPath(file.name());
+        file.close();
+
+        if (isUuidV4(id))
         {
-            const String id = alarmIdFromPath(file.name());
-
-            file.close();
-
-            if (isUuidV4(id))
+            Alarm alarm;
+            if (!loadFromStorage(id, alarm))
             {
-                Alarm alarm;
-
-                if (loadFromStorage(id, alarm) && alarm.enabled)
-                {
-                    if (!addActive(alarm))
-                    {
-                        Serial0.println(
-                            "[ALARM] reload: active limit reached"
-                        );
-                        break;
-                    }
-                }
+                Serial0.printf("[ALARM] WARNING: skipped invalid record id=%s\n", id.c_str());
             }
-        }
-        else
-        {
-            file.close();
+            else if (alarm.enabled && !addActive(alarm))
+            {
+                result = false;
+                Serial0.printf("[ALARM] ERROR: cannot load active alarm id=%s\n", id.c_str());
+            }
         }
 
         file = directory.openNextFile();
     }
 
-    if (file)
-        file.close();
-
     directory.close();
 
+    if (!result)
+        clearActive();
+
     Serial0.printf(
-        "[ALARM] reload complete active=%u stored=%u limit=%u\n",
+        "[ALARM] reload activeRAM=%u stored=%u\n",
         static_cast<unsigned>(_activeCount),
-        static_cast<unsigned>(countStoredAlarms()),
-        static_cast<unsigned>(MAX_ALARMS)
+        static_cast<unsigned>(countStoredAlarms())
     );
 
-    return true;
+    return result;
 }
 
 // ============================================================
@@ -1111,31 +1097,36 @@ void AlarmManager::finish()
         return;
 
     const String id = _runtime.alarmId;
-    const bool oneShot = _runtime.alarm.repeatMask == 0;
+    const bool oneShot = (_runtime.alarm.repeatMask == 0);
     const bool snoozed = _runtime.snoozed;
 
+    // Repeating alarms remain enabled in LittleFS and in the RAM scheduler.
+    // A one-shot alarm is disabled only after a normal finish, not on snooze.
     if (oneShot && !snoozed)
     {
-        Alarm alarm;
+        Alarm disabled = _runtime.alarm;
+        disabled.enabled = false;
 
-        if (loadFromStorage(id, alarm))
+        if (saveToStorage(disabled))
         {
-            alarm.enabled = false;
-
-            if (saveToStorage(alarm))
-            {
-                Serial0.printf(
-                    "[ALARM] one-shot disabled id=%s\n",
-                    id.c_str()
-                );
-            }
+            removeActive(id);
+            Serial0.printf(
+                "[ALARM] one-shot disabled and persisted id=%s\n",
+                id.c_str()
+            );
         }
-
-        removeActive(id);
+        else
+        {
+            // Keep it active in RAM if persistence fails, avoiding data loss
+            // and avoiding a mismatch between RAM and LittleFS.
+            Serial0.printf(
+                "[ALARM] ERROR: cannot persist one-shot disable; remains active id=%s\n",
+                id.c_str()
+            );
+        }
     }
 
     notifyFinish();
-
     _runtime = Runtime{};
 }
 

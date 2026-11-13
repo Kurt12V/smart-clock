@@ -1,3 +1,4 @@
+
 #include "MqttCommandHandler.h"
 
 #include <Arduino.h>
@@ -7,39 +8,289 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <cstdlib>
+
+// ============================================================
+// STATIC INSTANCE
+// ============================================================
 
 MqttCommandHandler* MqttCommandHandler::_instance = nullptr;
 
-namespace {
+namespace
+{
+    constexpr uint32_t DEFAULT_RESTART_DELAY_MS = 500;
+    constexpr uint32_t MAX_RESTART_DELAY_MS = 10000;
 
-constexpr uint32_t DEFAULT_RESTART_DELAY_MS = 500;
-constexpr uint32_t MAX_RESTART_DELAY_MS = 10000;
+    // ========================================================
+    // JSON READ HELPERS
+    // ========================================================
 
-bool readInt(
-    JsonVariantConst params,
-    const char* key,
-    int& value
-) {
-    if (params.isNull() || !params[key].is<int>()) {
-        return false;
+    bool readInt(
+        JsonVariantConst params,
+        const char* key,
+        int& value
+    )
+    {
+        if (params.isNull() || !params[key].is<int>())
+            return false;
+
+        value = params[key].as<int>();
+        return true;
     }
 
-    value = params[key].as<int>();
-    return true;
-}
+    bool readBool(
+        JsonVariantConst params,
+        const char* key,
+        bool& value
+    )
+    {
+        if (params.isNull() || !params[key].is<bool>())
+            return false;
 
-bool readBool(
-    JsonVariantConst params,
-    const char* key,
-    bool& value
-) {
-    if (params.isNull() || !params[key].is<bool>()) {
-        return false;
+        value = params[key].as<bool>();
+        return true;
     }
 
-    value = params[key].as<bool>();
-    return true;
-}
+    bool readStringField(
+        JsonVariantConst params,
+        const char* key,
+        String& value
+    )
+    {
+        if (params.isNull() ||
+            params[key].isNull() ||
+            !params[key].is<const char*>())
+        {
+            return false;
+        }
+
+        value = params[key].as<const char*>();
+        return true;
+    }
+
+    bool hasField(
+        JsonVariantConst object,
+        const char* key
+    )
+    {
+        return !object.isNull() && !object[key].isNull();
+    }
+
+    bool readOptionalString(
+        JsonVariantConst params,
+        const char* key,
+        String& destination
+    )
+    {
+        if (!hasField(params, key))
+            return true;
+
+        return readStringField(params, key, destination);
+    }
+
+    bool readOptionalBool(
+        JsonVariantConst params,
+        const char* key,
+        bool& destination
+    )
+    {
+        if (!hasField(params, key))
+            return true;
+
+        return readBool(params, key, destination);
+    }
+
+    bool readOptionalInt(
+        JsonVariantConst params,
+        const char* key,
+        int& destination
+    )
+    {
+        if (!hasField(params, key))
+            return true;
+
+        return readInt(params, key, destination);
+    }
+
+    // ========================================================
+    // ALARM HELPERS
+    // ========================================================
+
+    bool validAlarmTime(
+        int hour,
+        int minute,
+        int second
+    )
+    {
+        return
+            hour >= 0 && hour <= 23 &&
+            minute >= 0 && minute <= 59 &&
+            second >= 0 && second <= 59;
+    }
+
+    bool readAlarmTime(
+        JsonVariantConst params,
+        AlarmTime& time,
+        bool requireHourAndMinute
+    )
+    {
+        if (params.isNull())
+            return !requireHourAndMinute;
+
+        if (!params.is<JsonObjectConst>())
+            return false;
+
+        int hour = time.hour;
+        int minute = time.minute;
+        int second = time.second;
+
+        if (requireHourAndMinute &&
+            (!hasField(params, "hour") ||
+             !hasField(params, "minute")))
+        {
+            return false;
+        }
+
+        if (!readOptionalInt(params, "hour", hour))
+            return false;
+
+        if (!readOptionalInt(params, "minute", minute))
+            return false;
+
+        if (!readOptionalInt(params, "second", second))
+            return false;
+
+        if (!validAlarmTime(hour, minute, second))
+            return false;
+
+        time.hour = static_cast<uint8_t>(hour);
+        time.minute = static_cast<uint8_t>(minute);
+        time.second = static_cast<uint8_t>(second);
+
+        return true;
+    }
+
+    bool readAlarmFields(
+        JsonVariantConst params,
+        Alarm& alarm,
+        bool creating
+    )
+    {
+        if (!readOptionalString(params, "name", alarm.name))
+            return false;
+
+        if (creating && alarm.name.isEmpty())
+            return false;
+
+        if (!readAlarmTime(
+                params["time"],
+                alarm.time,
+                creating))
+        {
+            return false;
+        }
+
+        if (!readOptionalBool(
+                params,
+                "enabled",
+                alarm.enabled))
+        {
+            return false;
+        }
+
+        int repeatMask = alarm.repeatMask;
+
+        if (!readOptionalInt(
+                params,
+                "repeatMask",
+                repeatMask))
+        {
+            return false;
+        }
+
+        if (repeatMask < 0 || repeatMask > 127)
+            return false;
+
+        alarm.repeatMask =
+            static_cast<uint8_t>(repeatMask);
+
+        if (!readOptionalString(
+                params,
+                "matrixEffect",
+                alarm.matrixEffect))
+        {
+            return false;
+        }
+
+        if (!readOptionalString(
+                params,
+                "cobEffect",
+                alarm.cobEffect))
+        {
+            return false;
+        }
+
+        if (!readOptionalString(
+                params,
+                "audioEffect",
+                alarm.audioEffect))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    // --------------------------------------------------------
+    // Convert alarm to JSON object.
+    // --------------------------------------------------------
+
+    void writeAlarmJson(
+        JsonObject target,
+        const Alarm& alarm
+    )
+    {
+        target["schemaVersion"] = alarm.schemaVersion;
+        target["id"] = alarm.id;
+        target["name"] = alarm.name;
+        target["enabled"] = alarm.enabled;
+
+        JsonObject time =
+            target["time"].to<JsonObject>();
+
+        time["hour"] = alarm.time.hour;
+        time["minute"] = alarm.time.minute;
+        time["second"] = alarm.time.second;
+
+        target["repeatMask"] = alarm.repeatMask;
+
+        target["matrixEffect"] = alarm.matrixEffect;
+        target["cobEffect"] = alarm.cobEffect;
+        target["audioEffect"] = alarm.audioEffect;
+    }
+
+    // --------------------------------------------------------
+    // Convert alarm to short status JSON object.
+    // --------------------------------------------------------
+
+    void writeAlarmStatusJson(
+        JsonObject target,
+        const Alarm& alarm
+    )
+    {
+        target["id"] = alarm.id;
+        target["name"] = alarm.name;
+        target["enabled"] = alarm.enabled;
+
+        JsonObject time =
+            target["time"].to<JsonObject>();
+
+        time["hour"] = alarm.time.hour;
+        time["minute"] = alarm.time.minute;
+        time["second"] = alarm.time.second;
+
+        target["repeatMask"] = alarm.repeatMask;
+    }
 
 } // namespace
 
@@ -53,7 +304,9 @@ MqttCommandHandler::MqttCommandHandler()
       _settings(nullptr),
       _clock(nullptr),
       _wifi(nullptr),
-      _initialized(false) {
+      _alarms(nullptr),
+      _initialized(false)
+{
 }
 
 
@@ -65,20 +318,21 @@ bool MqttCommandHandler::begin(
     SmartClockMqttClient& mqtt,
     SettingsManager& settings,
     ClockSystem& clock,
-    WiFiManager& wifi
-) {
-    if (_initialized) {
+    WiFiManager& wifi,
+    AlarmManager& alarms
+)
+{
+    if (_initialized)
         return true;
-    }
 
-    if (_instance != nullptr && _instance != this) {
+    if (_instance != nullptr && _instance != this)
         return false;
-    }
 
     _mqtt = &mqtt;
     _settings = &settings;
     _clock = &clock;
     _wifi = &wifi;
+    _alarms = &alarms;
 
     _instance = this;
 
@@ -100,17 +354,19 @@ void MqttCommandHandler::onMqttEvent(
     SmartClockMqttClient::Event event,
     const char* topic,
     const char* payload
-) {
+)
+{
     (void)topic;
 
     if (_instance == nullptr ||
-        !_instance->_initialized) {
+        !_instance->_initialized)
+    {
         return;
     }
 
     if (event ==
-        SmartClockMqttClient::Event::COMMAND_RECEIVED) {
-
+        SmartClockMqttClient::Event::COMMAND_RECEIVED)
+    {
         _instance->handleCommand(payload);
     }
 }
@@ -122,17 +378,18 @@ void MqttCommandHandler::onMqttEvent(
 
 void MqttCommandHandler::handleCommand(
     const char* payload
-) {
-    if (payload == nullptr || _mqtt == nullptr) {
+)
+{
+    if (payload == nullptr || _mqtt == nullptr)
         return;
-    }
 
     JsonDocument document;
 
     DeserializationError error =
         deserializeJson(document, payload);
 
-    if (error) {
+    if (error)
+    {
         sendAck(
             "",
             "",
@@ -153,8 +410,8 @@ void MqttCommandHandler::handleCommand(
         document["params"];
 
     if (requestId[0] == '\0' ||
-        command[0] == '\0') {
-
+        command[0] == '\0')
+    {
         sendAck(
             requestId,
             command,
@@ -165,39 +422,29 @@ void MqttCommandHandler::handleCommand(
         return;
     }
 
-    if (strncmp(command, "system.", 7) == 0) {
-        systemCommand(
-            requestId,
-            command,
-            params
-        );
+    if (strncmp(command, "system.", 7) == 0)
+    {
+        systemCommand(requestId, command, params);
     }
-    else if (strncmp(command, "clock.", 6) == 0) {
-        clockCommand(
-            requestId,
-            command,
-            params
-        );
+    else if (strncmp(command, "clock.", 6) == 0)
+    {
+        clockCommand(requestId, command, params);
     }
-    else if (strncmp(command, "network.", 8) == 0) {
-        networkCommand(
-            requestId,
-            command,
-            params
-        );
+    else if (strncmp(command, "network.", 8) == 0)
+    {
+        networkCommand(requestId, command, params);
     }
-    else if (strncmp(command, "display.", 8) == 0) {
-        displayCommand(
-            requestId,
-            command,
-            params
-        );
+    else if (strncmp(command, "display.", 8) == 0)
+    {
+        displayCommand(requestId, command, params);
     }
-    else {
-        unknownCommand(
-            requestId,
-            command
-        );
+    else if (strncmp(command, "alarm.", 6) == 0)
+    {
+        alarmCommand(requestId, command, params);
+    }
+    else
+    {
+        unknownCommand(requestId, command);
     }
 }
 
@@ -210,12 +457,10 @@ void MqttCommandHandler::systemCommand(
     const char* requestId,
     const char* command,
     JsonVariantConst params
-) {
-    // --------------------------------------------------------
-    // system.ping
-    // --------------------------------------------------------
-
-    if (strcmp(command, "system.ping") == 0) {
+)
+{
+    if (strcmp(command, "system.ping") == 0)
+    {
         JsonDocument data;
 
         data["pong"] = true;
@@ -233,11 +478,8 @@ void MqttCommandHandler::systemCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // system.get_info
-    // --------------------------------------------------------
-
-    if (strcmp(command, "system.get_info") == 0) {
+    if (strcmp(command, "system.get_info") == 0)
+    {
         JsonDocument data;
 
         data["device_id"] = _mqtt->getDeviceId();
@@ -261,26 +503,16 @@ void MqttCommandHandler::systemCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // system.get_status
-    // --------------------------------------------------------
-
-    if (strcmp(command, "system.get_status") == 0) {
+    if (strcmp(command, "system.get_status") == 0)
+    {
         JsonDocument data;
 
-        data["wifi_connected"] =
-            _wifi->isConnected();
-
-        data["mqtt_connected"] =
-            _mqtt->isConnected();
-
+        data["wifi_connected"] = _wifi->isConnected();
+        data["mqtt_connected"] = _mqtt->isConnected();
         data["ip"] = _wifi->getIP();
         data["rssi"] = _wifi->getRSSI();
-
         data["uptime_ms"] = millis();
-
-        data["time_valid"] =
-            _clock->isTimeValid();
+        data["time_valid"] = _clock->isTimeValid();
 
         JsonObject settings =
             data["settings"].to<JsonObject>();
@@ -329,11 +561,8 @@ void MqttCommandHandler::systemCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // system.sync
-    // --------------------------------------------------------
-
-    if (strcmp(command, "system.sync") == 0) {
+    if (strcmp(command, "system.sync") == 0)
+    {
         publishCurrentState();
 
         sendAck(
@@ -346,22 +575,18 @@ void MqttCommandHandler::systemCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // system.restart
-    // --------------------------------------------------------
-
-    if (strcmp(command, "system.restart") == 0) {
-        uint32_t delayMs =
-            DEFAULT_RESTART_DELAY_MS;
+    if (strcmp(command, "system.restart") == 0)
+    {
+        uint32_t delayMs = DEFAULT_RESTART_DELAY_MS;
 
         if (!params.isNull() &&
-            params["delay_ms"].is<uint32_t>()) {
-
-            delayMs =
-                params["delay_ms"].as<uint32_t>();
+            params["delay_ms"].is<uint32_t>())
+        {
+            delayMs = params["delay_ms"].as<uint32_t>();
         }
 
-        if (delayMs > MAX_RESTART_DELAY_MS) {
+        if (delayMs > MAX_RESTART_DELAY_MS)
+        {
             sendAck(
                 requestId,
                 command,
@@ -376,8 +601,8 @@ void MqttCommandHandler::systemCommand(
                 requestId,
                 command,
                 true,
-                "Restart scheduled")) {
-
+                "Restart scheduled"))
+        {
             delay(delayMs);
             ESP.restart();
         }
@@ -397,12 +622,10 @@ void MqttCommandHandler::clockCommand(
     const char* requestId,
     const char* command,
     JsonVariantConst params
-) {
-    // --------------------------------------------------------
-    // clock.get_time
-    // --------------------------------------------------------
-
-    if (strcmp(command, "clock.get_time") == 0) {
+)
+{
+    if (strcmp(command, "clock.get_time") == 0)
+    {
         JsonDocument data;
 
         char local[24] = {};
@@ -446,11 +669,8 @@ void MqttCommandHandler::clockCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // clock.sync_ntp
-    // --------------------------------------------------------
-
-    if (strcmp(command, "clock.sync_ntp") == 0) {
+    if (strcmp(command, "clock.sync_ntp") == 0)
+    {
         const char* server =
             params["server"] | "pool.ntp.org";
 
@@ -469,22 +689,14 @@ void MqttCommandHandler::clockCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // clock.set_utc / clock.set_datetime
-    // --------------------------------------------------------
-
     if (strcmp(command, "clock.set_utc") == 0 ||
-        strcmp(command, "clock.set_datetime") == 0) {
-
+        strcmp(command, "clock.set_datetime") == 0)
+    {
         const char* text =
             params["datetime"] | "";
 
         uint16_t year;
-        uint8_t month;
-        uint8_t day;
-        uint8_t hour;
-        uint8_t minute;
-        uint8_t second;
+        uint8_t month, day, hour, minute, second;
 
         if (!parseDateTime(
                 text,
@@ -493,8 +705,8 @@ void MqttCommandHandler::clockCommand(
                 day,
                 hour,
                 minute,
-                second)) {
-
+                second))
+        {
             sendAck(
                 requestId,
                 command,
@@ -507,7 +719,8 @@ void MqttCommandHandler::clockCommand(
 
         bool success = false;
 
-        if (strcmp(command, "clock.set_utc") == 0) {
+        if (strcmp(command, "clock.set_utc") == 0)
+        {
             success = _clock->setUTCDateTime(
                 year,
                 month,
@@ -517,14 +730,16 @@ void MqttCommandHandler::clockCommand(
                 second
             );
         }
-        else {
-            if (params["timezone"].is<const char*>()) {
+        else
+        {
+            if (params["timezone"].is<const char*>())
+            {
                 int offsetHours = 0;
 
                 if (!parseTimezone(
                         params["timezone"].as<const char*>(),
-                        offsetHours)) {
-
+                        offsetHours))
+                {
                     sendAck(
                         requestId,
                         command,
@@ -540,9 +755,7 @@ void MqttCommandHandler::clockCommand(
                     offsetHours
                 );
 
-                _settings->save(
-                    Param::UTC_OFFSET
-                );
+                _settings->save(Param::UTC_OFFSET);
             }
 
             success = _clock->setLocalDateTime(
@@ -567,17 +780,15 @@ void MqttCommandHandler::clockCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // clock.set_timezone
-    // --------------------------------------------------------
-
-    if (strcmp(command, "clock.set_timezone") == 0) {
+    if (strcmp(command, "clock.set_timezone") == 0)
+    {
         const char* timezone =
             params["timezone"] | "";
 
         int offsetHours = 0;
 
-        if (!parseTimezone(timezone, offsetHours)) {
+        if (!parseTimezone(timezone, offsetHours))
+        {
             sendAck(
                 requestId,
                 command,
@@ -605,18 +816,17 @@ void MqttCommandHandler::clockCommand(
             requestId,
             command,
             success,
-            success ? "Timezone saved" : "Could not save timezone",
+            success
+                ? "Timezone saved"
+                : "Could not save timezone",
             data
         );
 
         return;
     }
 
-    // --------------------------------------------------------
-    // clock.get_timezone
-    // --------------------------------------------------------
-
-    if (strcmp(command, "clock.get_timezone") == 0) {
+    if (strcmp(command, "clock.get_timezone") == 0)
+    {
         int offset =
             _settings->get(Param::UTC_OFFSET);
 
@@ -658,26 +868,18 @@ void MqttCommandHandler::networkCommand(
     const char* requestId,
     const char* command,
     JsonVariantConst params
-) {
-    // --------------------------------------------------------
-    // network.get_status
-    // --------------------------------------------------------
-
-    if (strcmp(command, "network.get_status") == 0) {
+)
+{
+    if (strcmp(command, "network.get_status") == 0)
+    {
         JsonDocument data;
 
-        data["wifi_connected"] =
-            _wifi->isConnected();
-
-        data["wifi_mode"] =
-            static_cast<int>(_wifi->getMode());
-
+        data["wifi_connected"] = _wifi->isConnected();
+        data["wifi_mode"] = static_cast<int>(_wifi->getMode());
         data["ssid"] = _wifi->getSSID();
         data["ip"] = _wifi->getIP();
         data["rssi"] = _wifi->getRSSI();
-
-        data["mqtt_connected"] =
-            _mqtt->isConnected();
+        data["mqtt_connected"] = _mqtt->isConnected();
 
         sendResult(
             requestId,
@@ -690,11 +892,8 @@ void MqttCommandHandler::networkCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // network.get_ip
-    // --------------------------------------------------------
-
-    if (strcmp(command, "network.get_ip") == 0) {
+    if (strcmp(command, "network.get_ip") == 0)
+    {
         JsonDocument data;
 
         data["ip"] = _wifi->getIP();
@@ -711,11 +910,8 @@ void MqttCommandHandler::networkCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // network.scan_wifi
-    // --------------------------------------------------------
-
-    if (strcmp(command, "network.scan_wifi") == 0) {
+    if (strcmp(command, "network.scan_wifi") == 0)
+    {
         int count = _wifi->scanNetworks();
 
         JsonDocument data;
@@ -725,18 +921,14 @@ void MqttCommandHandler::networkCommand(
         JsonArray networks =
             data["networks"].to<JsonArray>();
 
-        for (int i = 0; i < count; ++i) {
+        for (int i = 0; i < count; ++i)
+        {
             JsonObject network =
                 networks.add<JsonObject>();
 
-            network["ssid"] =
-                _wifi->getScanSSID(i);
-
-            network["rssi"] =
-                _wifi->getScanRSSI(i);
-
-            network["encrypted"] =
-                _wifi->getScanEncrypted(i);
+            network["ssid"] = _wifi->getScanSSID(i);
+            network["rssi"] = _wifi->getScanRSSI(i);
+            network["encrypted"] = _wifi->getScanEncrypted(i);
         }
 
         sendResult(
@@ -752,18 +944,13 @@ void MqttCommandHandler::networkCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // network.connect_wifi
-    // --------------------------------------------------------
+    if (strcmp(command, "network.connect_wifi") == 0)
+    {
+        const char* ssid = params["ssid"] | "";
+        const char* password = params["password"] | "";
 
-    if (strcmp(command, "network.connect_wifi") == 0) {
-        const char* ssid =
-            params["ssid"] | "";
-
-        const char* password =
-            params["password"] | "";
-
-        if (ssid[0] == '\0') {
+        if (ssid[0] == '\0')
+        {
             sendAck(
                 requestId,
                 command,
@@ -774,11 +961,10 @@ void MqttCommandHandler::networkCommand(
             return;
         }
 
-        // Пароль не включается в ACK или логи.
         if (!_wifi->saveCredentials(
                 String(ssid),
-                String(password))) {
-
+                String(password)))
+        {
             sendAck(
                 requestId,
                 command,
@@ -806,11 +992,8 @@ void MqttCommandHandler::networkCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // network.disconnect_wifi
-    // --------------------------------------------------------
-
-    if (strcmp(command, "network.disconnect_wifi") == 0) {
+    if (strcmp(command, "network.disconnect_wifi") == 0)
+    {
         _wifi->disconnect();
 
         sendAck(
@@ -823,27 +1006,16 @@ void MqttCommandHandler::networkCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // network.mqtt_reconnect
-    // --------------------------------------------------------
-
-    if (strcmp(command, "network.mqtt_reconnect") == 0) {
-        if (_mqtt->isConnected()) {
-            sendAck(
-                requestId,
-                command,
-                true,
-                "MQTT is already connected"
-            );
-        }
-        else {
-            sendAck(
-                requestId,
-                command,
-                false,
-                "MQTT client retries automatically; force reconnect API is unavailable"
-            );
-        }
+    if (strcmp(command, "network.mqtt_reconnect") == 0)
+    {
+        sendAck(
+            requestId,
+            command,
+            _mqtt->isConnected(),
+            _mqtt->isConnected()
+                ? "MQTT is already connected"
+                : "MQTT client retries automatically; force reconnect API is unavailable"
+        );
 
         return;
     }
@@ -856,17 +1028,14 @@ void MqttCommandHandler::networkCommand(
 // DISPLAY AND LIGHTING COMMANDS
 // ============================================================
 
-
 void MqttCommandHandler::displayCommand(
     const char* requestId,
     const char* command,
     JsonVariantConst params
-) {
-    // --------------------------------------------------------
-    // display.get_status
-    // --------------------------------------------------------
-
-    if (strcmp(command, "display.get_status") == 0) {
+)
+{
+    if (strcmp(command, "display.get_status") == 0)
+    {
         JsonDocument data;
 
         data["brightness"] =
@@ -910,11 +1079,8 @@ void MqttCommandHandler::displayCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // display.get_matrix_status
-    // --------------------------------------------------------
-
-    if (strcmp(command, "display.get_matrix_status") == 0) {
+    if (strcmp(command, "display.get_matrix_status") == 0)
+    {
         JsonDocument data;
 
         data["enabled"] =
@@ -940,11 +1106,8 @@ void MqttCommandHandler::displayCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // display.get_cob_status
-    // --------------------------------------------------------
-
-    if (strcmp(command, "display.get_cob_status") == 0) {
+    if (strcmp(command, "display.get_cob_status") == 0)
+    {
         JsonDocument data;
 
         data["enabled"] =
@@ -970,11 +1133,8 @@ void MqttCommandHandler::displayCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // display.get_brightness
-    // --------------------------------------------------------
-
-    if (strcmp(command, "display.get_brightness") == 0) {
+    if (strcmp(command, "display.get_brightness") == 0)
+    {
         JsonDocument data;
 
         data["value"] =
@@ -994,11 +1154,8 @@ void MqttCommandHandler::displayCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // display.set_brightness
-    // --------------------------------------------------------
-
-    if (strcmp(command, "display.set_brightness") == 0) {
+    if (strcmp(command, "display.set_brightness") == 0)
+    {
         int value;
 
         const Param parameter = Param::BRIGHTNESS;
@@ -1008,8 +1165,8 @@ void MqttCommandHandler::displayCommand(
 
         if (!readInt(params, "value", value) ||
             value < desc.minValue ||
-            value > desc.maxValue) {
-
+            value > desc.maxValue)
+        {
             sendAck(
                 requestId,
                 command,
@@ -1039,14 +1196,12 @@ void MqttCommandHandler::displayCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // display.set_enabled
-    // --------------------------------------------------------
-
-    if (strcmp(command, "display.set_enabled") == 0) {
+    if (strcmp(command, "display.set_enabled") == 0)
+    {
         bool enabled;
 
-        if (!readBool(params, "enabled", enabled)) {
+        if (!readBool(params, "enabled", enabled))
+        {
             sendAck(
                 requestId,
                 command,
@@ -1082,16 +1237,13 @@ void MqttCommandHandler::displayCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // display.set_mode
-    // --------------------------------------------------------
-
-    if (strcmp(command, "display.set_mode") == 0) {
+    if (strcmp(command, "display.set_mode") == 0)
+    {
         int value;
 
         if (!readInt(params, "value", value) ||
-            value < 0 || value > 1) {
-
+            value < 0 || value > 1)
+        {
             sendAck(
                 requestId,
                 command,
@@ -1122,16 +1274,13 @@ void MqttCommandHandler::displayCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // MATRIX / COB ENABLED
-    // --------------------------------------------------------
-
     if (strcmp(command, "display.set_matrix_enabled") == 0 ||
-        strcmp(command, "display.set_cob_enabled") == 0) {
-
+        strcmp(command, "display.set_cob_enabled") == 0)
+    {
         bool enabled;
 
-        if (!readBool(params, "enabled", enabled)) {
+        if (!readBool(params, "enabled", enabled))
+        {
             sendAck(
                 requestId,
                 command,
@@ -1149,10 +1298,7 @@ void MqttCommandHandler::displayCommand(
             ? Param::MATRIX_ENABLED
             : Param::COB_ENABLED;
 
-        _settings->set(
-            parameter,
-            enabled ? 1 : 0
-        );
+        _settings->set(parameter, enabled ? 1 : 0);
 
         bool success = _settings->save(parameter);
 
@@ -1170,16 +1316,13 @@ void MqttCommandHandler::displayCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // MATRIX / COB BRIGHTNESS
-    // --------------------------------------------------------
-
     if (strcmp(command, "display.set_matrix_brightness") == 0 ||
-        strcmp(command, "display.set_cob_brightness") == 0) {
-
+        strcmp(command, "display.set_cob_brightness") == 0)
+    {
         int value;
 
-        if (!readInt(params, "value", value)) {
+        if (!readInt(params, "value", value))
+        {
             sendAck(
                 requestId,
                 command,
@@ -1200,8 +1343,8 @@ void MqttCommandHandler::displayCommand(
         const auto& desc = _settings->getDesc(parameter);
 
         if (value < desc.minValue ||
-            value > desc.maxValue) {
-
+            value > desc.maxValue)
+        {
             sendAck(
                 requestId,
                 command,
@@ -1230,16 +1373,13 @@ void MqttCommandHandler::displayCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // MATRIX / COB EFFECT
-    // --------------------------------------------------------
-
     if (strcmp(command, "display.set_matrix_effect") == 0 ||
-        strcmp(command, "display.set_cob_effect") == 0) {
-
+        strcmp(command, "display.set_cob_effect") == 0)
+    {
         int value;
 
-        if (!readInt(params, "value", value)) {
+        if (!readInt(params, "value", value))
+        {
             sendAck(
                 requestId,
                 command,
@@ -1260,8 +1400,8 @@ void MqttCommandHandler::displayCommand(
         const auto& desc = _settings->getDesc(parameter);
 
         if (value < desc.minValue ||
-            value > desc.maxValue) {
-
+            value > desc.maxValue)
+        {
             sendAck(
                 requestId,
                 command,
@@ -1290,16 +1430,13 @@ void MqttCommandHandler::displayCommand(
         return;
     }
 
-    // --------------------------------------------------------
-    // MATRIX / COB SPEED
-    // --------------------------------------------------------
-
     if (strcmp(command, "display.set_matrix_speed") == 0 ||
-        strcmp(command, "display.set_cob_speed") == 0) {
-
+        strcmp(command, "display.set_cob_speed") == 0)
+    {
         int value;
 
-        if (!readInt(params, "value", value)) {
+        if (!readInt(params, "value", value))
+        {
             sendAck(
                 requestId,
                 command,
@@ -1320,8 +1457,8 @@ void MqttCommandHandler::displayCommand(
         const auto& desc = _settings->getDesc(parameter);
 
         if (value < desc.minValue ||
-            value > desc.maxValue) {
-
+            value > desc.maxValue)
+        {
             sendAck(
                 requestId,
                 command,
@@ -1350,17 +1487,376 @@ void MqttCommandHandler::displayCommand(
         return;
     }
 
+    unknownCommand(requestId, command);
+}
+
+
+// ============================================================
+// ALARM COMMANDS
+// ============================================================
+
+void MqttCommandHandler::alarmCommand(
+    const char* requestId,
+    const char* command,
+    JsonVariantConst params
+)
+{
+    if (_alarms == nullptr)
+    {
+        sendAck(
+            requestId,
+            command,
+            false,
+            "AlarmManager is not available"
+        );
+
+        return;
+    }
+
     // --------------------------------------------------------
-    // UNKNOWN COMMAND
+    // alarm.list
+    // Full list of all saved alarms, including disabled.
     // --------------------------------------------------------
+
+    if (strcmp(command, "alarm.list") == 0)
+    {
+        Alarm savedAlarms[AlarmConfig::MAX_ALARMS];
+
+        uint8_t count = 0;
+
+        if (!_alarms->loadAll(
+                savedAlarms,
+                AlarmConfig::MAX_ALARMS,
+                count))
+        {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "Could not load alarms"
+            );
+
+            return;
+        }
+
+        JsonDocument data;
+
+        uint8_t enabledCount = 0;
+        uint8_t disabledCount = 0;
+
+        JsonArray alarms =
+            data["alarms"].to<JsonArray>();
+
+        for (uint8_t i = 0; i < count; ++i)
+        {
+            const Alarm& alarm = savedAlarms[i];
+
+            JsonObject item =
+                alarms.add<JsonObject>();
+
+            writeAlarmJson(item, alarm);
+
+            if (alarm.enabled)
+                ++enabledCount;
+            else
+                ++disabledCount;
+        }
+
+        data["total"] = count;
+        data["enabled"] = enabledCount;
+        data["disabled"] = disabledCount;
+
+        sendResult(
+            requestId,
+            command,
+            true,
+            "Alarm list",
+            data
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // alarm.get_status
+    // Summary and state of all saved alarms.
+    // --------------------------------------------------------
+
+    if (strcmp(command, "alarm.get_status") == 0)
+    {
+        Alarm savedAlarms[AlarmConfig::MAX_ALARMS];
+
+        uint8_t count = 0;
+
+        if (!_alarms->loadAll(
+                savedAlarms,
+                AlarmConfig::MAX_ALARMS,
+                count))
+        {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "Could not load alarm status"
+            );
+
+            return;
+        }
+
+        JsonDocument data;
+
+        uint8_t enabledCount = 0;
+        uint8_t disabledCount = 0;
+
+        JsonArray alarms =
+            data["alarms"].to<JsonArray>();
+
+        for (uint8_t i = 0; i < count; ++i)
+        {
+            const Alarm& alarm = savedAlarms[i];
+
+            JsonObject item =
+                alarms.add<JsonObject>();
+
+            writeAlarmStatusJson(item, alarm);
+
+            if (alarm.enabled)
+                ++enabledCount;
+            else
+                ++disabledCount;
+        }
+
+        data["total"] = count;
+        data["enabled"] = enabledCount;
+        data["disabled"] = disabledCount;
+        data["has_alarms"] = count > 0;
+
+        sendResult(
+            requestId,
+            command,
+            true,
+            "Alarm status",
+            data
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // alarm.create
+    // --------------------------------------------------------
+
+    if (strcmp(command, "alarm.create") == 0)
+    {
+        Alarm alarm;
+
+        alarm.schemaVersion = 1;
+        alarm.enabled = false;
+
+        if (hasField(params, "id"))
+        {
+            if (!readStringField(params, "id", alarm.id) ||
+                alarm.id.isEmpty())
+            {
+                sendAck(
+                    requestId,
+                    command,
+                    false,
+                    "Invalid alarm id"
+                );
+
+                return;
+            }
+        }
+
+        if (!readAlarmFields(params, alarm, true))
+        {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "Invalid alarm parameters"
+            );
+
+            return;
+        }
+
+        if (!_alarms->create(alarm))
+        {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "Could not create alarm. Check the 3-alarm limit and parameters"
+            );
+
+            return;
+        }
+
+        JsonDocument data;
+
+        if (!_alarms->serialize(alarm, data))
+        {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "Alarm created, but serialization failed"
+            );
+
+            return;
+        }
+
+        sendResult(
+            requestId,
+            command,
+            true,
+            "Alarm created",
+            data
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // alarm.update
+    // --------------------------------------------------------
+
+    if (strcmp(command, "alarm.update") == 0)
+    {
+        String id;
+
+        if (!readStringField(params, "id", id) ||
+            id.isEmpty())
+        {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "id is required"
+            );
+
+            return;
+        }
+
+        Alarm alarm;
+
+        if (!_alarms->get(id, alarm))
+        {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "Alarm not found"
+            );
+
+            return;
+        }
+
+        if (!readAlarmFields(params, alarm, false))
+        {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "Invalid alarm parameters"
+            );
+
+            return;
+        }
+
+        if (!_alarms->update(alarm))
+        {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "Could not update alarm"
+            );
+
+            return;
+        }
+
+        JsonDocument data;
+
+        if (!_alarms->serialize(alarm, data))
+        {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "Alarm updated, but serialization failed"
+            );
+
+            return;
+        }
+
+        sendResult(
+            requestId,
+            command,
+            true,
+            "Alarm updated",
+            data
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // alarm.delete
+    // --------------------------------------------------------
+
+    if (strcmp(command, "alarm.delete") == 0)
+    {
+        String id;
+
+        if (!readStringField(params, "id", id) ||
+            id.isEmpty())
+        {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "id is required"
+            );
+
+            return;
+        }
+
+        if (!_alarms->remove(id))
+        {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "Could not delete alarm"
+            );
+
+            return;
+        }
+
+        JsonDocument data;
+
+        data["id"] = id;
+        data["deleted"] = true;
+
+        sendResult(
+            requestId,
+            command,
+            true,
+            "Alarm deleted",
+            data
+        );
+
+        return;
+    }
 
     unknownCommand(requestId, command);
 }
 
 
-
 // ============================================================
-// ACK / RESULT
+// ACK
 // ============================================================
 
 bool MqttCommandHandler::sendAck(
@@ -1368,10 +1864,10 @@ bool MqttCommandHandler::sendAck(
     const char* command,
     bool success,
     const char* message
-) {
-    if (_mqtt == nullptr) {
+)
+{
+    if (_mqtt == nullptr)
         return false;
-    }
 
     return _mqtt->publishAck(
         requestId != nullptr ? requestId : "",
@@ -1382,16 +1878,20 @@ bool MqttCommandHandler::sendAck(
 }
 
 
+// ============================================================
+// RESULT
+// ============================================================
+
 bool MqttCommandHandler::sendResult(
     const char* requestId,
     const char* command,
     bool success,
     const char* message,
     JsonDocument& data
-) {
-    if (_mqtt == nullptr) {
+)
+{
+    if (_mqtt == nullptr)
         return false;
-    }
 
     JsonDocument response;
 
@@ -1409,9 +1909,8 @@ bool MqttCommandHandler::sendResult(
 
     response["uptime_ms"] = millis();
 
-    if (message != nullptr && message[0] != '\0') {
+    if (message != nullptr && message[0] != '\0')
         response["message"] = message;
-    }
 
     response["result"].set(
         data.as<JsonVariantConst>()
@@ -1425,32 +1924,29 @@ bool MqttCommandHandler::sendResult(
 // PUBLISH CURRENT STATE
 // ============================================================
 
-void MqttCommandHandler::publishCurrentState() {
+void MqttCommandHandler::publishCurrentState()
+{
     if (_mqtt == nullptr ||
         _settings == nullptr ||
         _clock == nullptr ||
-        _wifi == nullptr) {
+        _wifi == nullptr)
+    {
         return;
     }
 
     JsonDocument state;
 
-    state["device_id"] =
-        _mqtt->getDeviceId();
+    state["device_id"] = _mqtt->getDeviceId();
 
-    state["wifi_connected"] =
-        _wifi->isConnected();
-
-    state["mqtt_connected"] =
-        _mqtt->isConnected();
+    state["wifi_connected"] = _wifi->isConnected();
+    state["mqtt_connected"] = _mqtt->isConnected();
 
     state["ip"] = _wifi->getIP();
     state["rssi"] = _wifi->getRSSI();
 
     state["uptime_ms"] = millis();
 
-    state["time_valid"] =
-        _clock->isTimeValid();
+    state["time_valid"] = _clock->isTimeValid();
 
     char local[24] = {};
     char utc[24] = {};
@@ -1517,7 +2013,8 @@ void MqttCommandHandler::publishCurrentState() {
 void MqttCommandHandler::unknownCommand(
     const char* requestId,
     const char* command
-) {
+)
+{
     sendAck(
         requestId,
         command,
@@ -1539,10 +2036,10 @@ bool MqttCommandHandler::parseDateTime(
     uint8_t& hour,
     uint8_t& minute,
     uint8_t& second
-) {
-    if (text == nullptr) {
+)
+{
+    if (text == nullptr)
         return false;
-    }
 
     int y, mo, d, h, mi, s;
     char trailing;
@@ -1565,10 +2062,28 @@ bool MqttCommandHandler::parseDateTime(
         d < 1 || d > 31 ||
         h < 0 || h > 23 ||
         mi < 0 || mi > 59 ||
-        s < 0 || s > 59) {
-
+        s < 0 || s > 59)
+    {
         return false;
     }
+
+    static const uint8_t daysInMonth[] =
+    {
+        31, 28, 31, 30, 31, 30,
+        31, 31, 30, 31, 30, 31
+    };
+
+    uint8_t maxDay = daysInMonth[mo - 1];
+
+    bool leapYear =
+        (y % 4 == 0 && y % 100 != 0) ||
+        (y % 400 == 0);
+
+    if (mo == 2 && leapYear)
+        maxDay = 29;
+
+    if (d > maxDay)
+        return false;
 
     year = static_cast<uint16_t>(y);
     month = static_cast<uint8_t>(mo);
@@ -1588,15 +2103,15 @@ bool MqttCommandHandler::parseDateTime(
 bool MqttCommandHandler::parseTimezone(
     const char* text,
     int& offsetHours
-) {
-    if (text == nullptr) {
+)
+{
+    if (text == nullptr)
         return false;
-    }
 
     if (strcmp(text, "UTC") == 0 ||
         strcmp(text, "UTC+00:00") == 0 ||
-        strcmp(text, "UTC-00:00") == 0) {
-
+        strcmp(text, "UTC-00:00") == 0)
+    {
         offsetHours = 0;
         return true;
     }
@@ -1608,8 +2123,8 @@ bool MqttCommandHandler::parseTimezone(
         text[5] < '0' || text[5] > '9' ||
         text[6] != ':' ||
         text[7] != '0' ||
-        text[8] != '0') {
-
+        text[8] != '0')
+    {
         return false;
     }
 
@@ -1617,9 +2132,8 @@ bool MqttCommandHandler::parseTimezone(
         (text[4] - '0') * 10 +
         (text[5] - '0');
 
-    if (hours > 14) {
+    if (hours > 14)
         return false;
-    }
 
     offsetHours =
         text[3] == '-' ? -hours : hours;
@@ -1636,16 +2150,16 @@ void MqttCommandHandler::formatTime(
     time_t timestamp,
     char* output,
     size_t outputSize
-) {
-    if (output == nullptr || outputSize == 0) {
+)
+{
+    if (output == nullptr || outputSize == 0)
         return;
-    }
 
     struct tm timeInfo {};
 
     if (timestamp <= 0 ||
-        gmtime_r(&timestamp, &timeInfo) == nullptr) {
-
+        gmtime_r(&timestamp, &timeInfo) == nullptr)
+    {
         snprintf(
             output,
             outputSize,
