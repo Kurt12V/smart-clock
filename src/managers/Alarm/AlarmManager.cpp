@@ -310,39 +310,95 @@ bool AlarmManager::exists(const String& id)
 
 bool AlarmManager::create(Alarm& alarm)
 {
+    Serial0.println("[ALARM] CREATE: begin");
+
     if (!_initialized)
+    {
+        Serial0.println("[ALARM] CREATE FAILED: manager not initialized");
         return false;
+    }
 
     if (alarm.id.isEmpty())
     {
-        do
-        {
-            alarm.id = generateId();
-        }
-        while (exists(alarm.id));
+        alarm.id = generateId();
+
+        Serial0.printf(
+            "[ALARM] CREATE: generated id=%s\n",
+            alarm.id.c_str()
+        );
     }
 
-    if (!validate(alarm) || exists(alarm.id))
-        return false;
-
-    // Every alarm, enabled or disabled, occupies one persistent slot.
-    if (countStoredAlarms() >= MAX_ALARMS)
+    if (!isUuidV4(alarm.id))
     {
-        Serial0.println("[ALARM] CREATE rejected: total LittleFS limit reached");
+        Serial0.printf(
+            "[ALARM] CREATE FAILED: invalid UUID: %s\n",
+            alarm.id.c_str()
+        );
         return false;
     }
 
-    // Persist first. Only after a successful write do we update the RAM cache.
-    if (!saveToStorage(alarm))
+    if (!validate(alarm))
+    {
+        Serial0.println("[ALARM] CREATE FAILED: validation");
+
+        Serial0.printf(
+            "[ALARM] name='%s' length=%u time=%02u:%02u:%02u "
+            "repeat=0x%02X matrix='%s' cob='%s' audio='%s'\n",
+            alarm.name.c_str(),
+            static_cast<unsigned>(alarm.name.length()),
+            alarm.time.hour,
+            alarm.time.minute,
+            alarm.time.second,
+            alarm.repeatMask,
+            alarm.matrixEffect.c_str(),
+            alarm.cobEffect.c_str(),
+            alarm.audioEffect.c_str()
+        );
+
         return false;
+    }
+
+    if (exists(alarm.id))
+    {
+        Serial0.println("[ALARM] CREATE FAILED: UUID already exists");
+        return false;
+    }
+
+    const uint8_t stored = countStoredAlarms();
+
+    Serial0.printf(
+        "[ALARM] CREATE: stored=%u active=%u limit=%u\n",
+        stored,
+        _activeCount,
+        MAX_ALARMS
+    );
+
+    if (stored >= MAX_ALARMS)
+    {
+        Serial0.println("[ALARM] CREATE FAILED: storage limit");
+        return false;
+    }
+
+    if (!saveToStorage(alarm))
+    {
+        Serial0.println("[ALARM] CREATE FAILED: saveToStorage");
+        return false;
+    }
+
+    Serial0.println("[ALARM] CREATE: storage saved");
 
     if (alarm.enabled && !addActive(alarm))
     {
+        Serial0.println("[ALARM] CREATE FAILED: addActive");
+
         deleteFromStorage(alarm.id);
         return false;
     }
 
     logAlarm("CREATE", alarm);
+
+    Serial0.println("[ALARM] CREATE SUCCESS");
+
     return true;
 }
 
