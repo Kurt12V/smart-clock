@@ -24,7 +24,7 @@ namespace
     constexpr int64_t MS_PER_SECOND = 1000LL;
     constexpr int64_t SECONDS_PER_MINUTE = 60LL;
     constexpr int64_t SECONDS_PER_HOUR = 3600LL;
-    constexpr int64_t SECONDS_PER_DAY_ = 86400LL;
+    constexpr int64_t ALARM_SECONDS_PER_DAY = 86400LL;
 
     void resetAlarm(Alarm& alarm)
     {
@@ -122,7 +122,8 @@ bool AlarmManager::begin()
 
     Serial0.println("[ALARM] Mounting LittleFS...");
 
-    // Do not format the filesystem automatically.
+    // Монтируем файловую систему только здесь.
+    // false запрещает автоматическое форматирование.
     if (!LittleFS.begin(false))
     {
         Serial0.println("[ALARM] ERROR: LittleFS mount failed");
@@ -131,15 +132,20 @@ bool AlarmManager::begin()
 
     _filesystemReady = true;
 
+    Serial0.println("[ALARM] LittleFS mount OK");
+
     Serial0.printf(
-        "[ALARM] LittleFS mounted: total=%u used=%u\n",
+        "[ALARM] FS total=%u used=%u free=%u\n",
         static_cast<unsigned>(LittleFS.totalBytes()),
-        static_cast<unsigned>(LittleFS.usedBytes())
+        static_cast<unsigned>(LittleFS.usedBytes()),
+        static_cast<unsigned>(
+            LittleFS.totalBytes() - LittleFS.usedBytes()
+        )
     );
 
     if (!createDirectory())
     {
-        Serial0.println("[ALARM] ERROR: cannot prepare alarm directory");
+        Serial0.println("[ALARM] ERROR: cannot prepare /alarms");
         _filesystemReady = false;
         return false;
     }
@@ -281,60 +287,72 @@ void AlarmManager::notifyFinish()
 // ============================================================
 // DIRECTORY
 // ============================================================
+
 bool AlarmManager::createDirectory()
 {
-    static constexpr char DIRECTORY[] = "/alarms";
+    Serial0.println("[ALARM] DIRECTORY: checking /alarms");
 
-    Serial.println("[ALARM] STORAGE DIR: checking /alarms");
-
-    // Проверяем, существует ли путь и является ли он каталогом.
-    File directory = LittleFS.open(DIRECTORY, FILE_READ);
-
-    if (directory)
+    if (!_filesystemReady)
     {
-        const bool isDir = directory.isDirectory();
-        directory.close();
+        Serial0.println("[ALARM] DIRECTORY ERROR: filesystem not ready");
+        return false;
+    }
 
-        if (isDir)
+    // Проверяем существование пути.
+    if (LittleFS.exists(ALARM_DIRECTORY))
+    {
+        File directory = LittleFS.open(ALARM_DIRECTORY);
+
+        if (!directory)
         {
-            Serial.println("[ALARM] STORAGE DIR: valid directory");
-            return true;
+            Serial0.println("[ALARM] DIRECTORY ERROR: cannot open /alarms");
+            return false;
         }
 
-        Serial.println(
-            "[ALARM] STORAGE DIR ERROR: /alarms exists but is not a directory"
-        );
+        const bool isDirectory = directory.isDirectory();
 
-        return false;
+        directory.close();
+
+        if (!isDirectory)
+        {
+            Serial0.println("[ALARM] DIRECTORY ERROR: /alarms is not a directory");
+            return false;
+        }
+
+        Serial0.println("[ALARM] DIRECTORY: already exists");
+
+        return true;
     }
 
-    Serial.println("[ALARM] STORAGE DIR: directory not found, creating");
+    // Создаём каталог так же, как в успешном тесте LittleFS.
+    Serial0.println("[ALARM] DIRECTORY: creating /alarms");
 
-    if (!LittleFS.mkdir(DIRECTORY))
+    if (!LittleFS.mkdir(ALARM_DIRECTORY))
     {
-        Serial.println("[ALARM] STORAGE DIR ERROR: mkdir failed");
+        Serial0.println("[ALARM] DIRECTORY ERROR: mkdir failed");
         return false;
     }
 
-    // Обязательно проверяем результат создания.
-    directory = LittleFS.open(DIRECTORY, FILE_READ);
+    // Проверяем результат создания.
+    File directory = LittleFS.open(ALARM_DIRECTORY);
 
     if (!directory)
     {
-        Serial.println("[ALARM] STORAGE DIR ERROR: cannot reopen directory");
+        Serial0.println("[ALARM] DIRECTORY ERROR: cannot reopen /alarms");
         return false;
     }
 
-    const bool isDir = directory.isDirectory();
+    const bool isDirectory = directory.isDirectory();
+
     directory.close();
 
-    if (!isDir)
+    if (!isDirectory)
     {
-        Serial.println("[ALARM] STORAGE DIR ERROR: created path is not directory");
+        Serial0.println("[ALARM] DIRECTORY ERROR: created path is not directory");
         return false;
     }
 
-    Serial.println("[ALARM] STORAGE DIR: created and verified");
+    Serial0.println("[ALARM] DIRECTORY: created successfully");
 
     return true;
 }
@@ -356,13 +374,19 @@ uint8_t AlarmManager::countStoredAlarms() const
     if (!_filesystemReady)
         return 0;
 
-    File directory = LittleFS.open(ALARM_DIRECTORY, "r");
+    File directory = LittleFS.open(ALARM_DIRECTORY);
 
-    if (!directory || !directory.isDirectory())
+    if (!directory)
     {
-        if (directory)
-            directory.close();
+        Serial0.println("[ALARM] COUNT ERROR: cannot open /alarms");
+        return 0;
+    }
 
+    if (!directory.isDirectory())
+    {
+        directory.close();
+
+        Serial0.println("[ALARM] COUNT ERROR: /alarms is not directory");
         return 0;
     }
 
@@ -381,6 +405,7 @@ uint8_t AlarmManager::countStoredAlarms() const
         }
 
         file.close();
+
         file = directory.openNextFile();
     }
 
@@ -398,7 +423,9 @@ bool AlarmManager::exists(const String& id)
     if (!_filesystemReady || !isUuidV4(id))
         return false;
 
-    return LittleFS.exists(pathFor(id));
+    const String path = pathFor(id);
+
+    return LittleFS.exists(path.c_str());
 }
 
 // ============================================================
@@ -479,6 +506,7 @@ bool AlarmManager::create(Alarm& alarm)
         Serial0.println("[ALARM] CREATE FAILED: RAM cache");
 
         deleteFromStorage(alarm.id);
+
         return false;
     }
 
@@ -612,13 +640,19 @@ bool AlarmManager::loadAll(
     if (!_initialized || (!alarms && maxCount > 0))
         return false;
 
-    File directory = LittleFS.open(ALARM_DIRECTORY, "r");
+    File directory = LittleFS.open(ALARM_DIRECTORY);
 
-    if (!directory || !directory.isDirectory())
+    if (!directory)
     {
-        if (directory)
-            directory.close();
+        Serial0.println("[ALARM] LOAD ALL ERROR: cannot open directory");
+        return false;
+    }
 
+    if (!directory.isDirectory())
+    {
+        directory.close();
+
+        Serial0.println("[ALARM] LOAD ALL ERROR: invalid directory");
         return false;
     }
 
@@ -864,36 +898,20 @@ void AlarmManager::clearActive()
 bool AlarmManager::saveToStorage(const Alarm& alarm)
 {
     Serial0.println();
-    Serial0.println("[ALARM] ========================================");
     Serial0.println("[ALARM] STORAGE SAVE: begin");
-    Serial0.println("[ALARM] ========================================");
 
     // --------------------------------------------------------
     // 1. FILESYSTEM
     // --------------------------------------------------------
 
+    // Не монтируем LittleFS повторно.
+    // Она уже смонтирована в begin().
+
     if (!_filesystemReady)
     {
-        Serial0.println("[ALARM] ERROR: filesystem not ready");
+        Serial0.println("[ALARM] SAVE ERROR: filesystem not ready");
         return false;
     }
-
-    if (!LittleFS.begin(false))
-    {
-        Serial0.println("[ALARM] ERROR: LittleFS mount failed");
-        return false;
-    }
-
-    Serial0.println("[ALARM] FILESYSTEM: mounted");
-
-    Serial0.printf(
-        "[ALARM] FS total=%u used=%u free=%u\n",
-        static_cast<unsigned>(LittleFS.totalBytes()),
-        static_cast<unsigned>(LittleFS.usedBytes()),
-        static_cast<unsigned>(
-            LittleFS.totalBytes() - LittleFS.usedBytes()
-        )
-    );
 
     // --------------------------------------------------------
     // 2. VALIDATION
@@ -901,13 +919,7 @@ bool AlarmManager::saveToStorage(const Alarm& alarm)
 
     if (!validate(alarm))
     {
-        Serial0.println("[ALARM] ERROR: invalid alarm");
-        return false;
-    }
-
-    if (alarm.id.isEmpty())
-    {
-        Serial0.println("[ALARM] ERROR: empty alarm ID");
+        Serial0.println("[ALARM] SAVE ERROR: invalid alarm");
         return false;
     }
 
@@ -915,33 +927,11 @@ bool AlarmManager::saveToStorage(const Alarm& alarm)
     // 3. DIRECTORY
     // --------------------------------------------------------
 
-    Serial0.println("[ALARM] DIRECTORY: checking /alarms");
-
     if (!createDirectory())
     {
-        Serial0.println("[ALARM] ERROR: cannot create /alarms");
+        Serial0.println("[ALARM] SAVE ERROR: directory unavailable");
         return false;
     }
-
-    File directory = LittleFS.open("/alarms", FILE_READ);
-
-    if (!directory)
-    {
-        Serial0.println("[ALARM] ERROR: cannot open /alarms");
-        return false;
-    }
-
-    if (!directory.isDirectory())
-    {
-        directory.close();
-
-        Serial0.println("[ALARM] ERROR: /alarms is not a directory");
-        return false;
-    }
-
-    Serial0.println("[ALARM] DIRECTORY: verified");
-
-    directory.close();
 
     // --------------------------------------------------------
     // 4. FILE PATH
@@ -951,12 +941,12 @@ bool AlarmManager::saveToStorage(const Alarm& alarm)
 
     if (path.isEmpty())
     {
-        Serial0.println("[ALARM] ERROR: invalid file path");
+        Serial0.println("[ALARM] SAVE ERROR: invalid path");
         return false;
     }
 
     Serial0.printf(
-        "[ALARM] FILE PATH: %s\n",
+        "[ALARM] SAVE PATH: %s\n",
         path.c_str()
     );
 
@@ -968,7 +958,7 @@ bool AlarmManager::saveToStorage(const Alarm& alarm)
 
     if (!serialize(alarm, document))
     {
-        Serial0.println("[ALARM] ERROR: serialization failed");
+        Serial0.println("[ALARM] SAVE ERROR: serialization failed");
         return false;
     }
 
@@ -978,48 +968,30 @@ bool AlarmManager::saveToStorage(const Alarm& alarm)
 
     if (expected == 0 || content.isEmpty())
     {
-        Serial0.println("[ALARM] ERROR: empty JSON");
+        Serial0.println("[ALARM] SAVE ERROR: empty JSON");
         return false;
     }
 
     Serial0.printf(
-        "[ALARM] JSON: %u bytes\n",
+        "[ALARM] SAVE JSON: %u bytes\n",
         static_cast<unsigned>(expected)
     );
 
     // --------------------------------------------------------
-    // 6. CHECK ROOT DIRECTORY
+    // 6. OPEN FILE
     // --------------------------------------------------------
 
-    File root = LittleFS.open("/");
+    Serial0.printf(
+        "[ALARM] SAVE: opening %s\n",
+        path.c_str()
+    );
 
-    if (!root)
-    {
-        Serial0.println("[ALARM] ERROR: cannot open filesystem root");
-        return false;
-    }
-
-    if (!root.isDirectory())
-    {
-        root.close();
-
-        Serial0.println("[ALARM] ERROR: filesystem root is invalid");
-        return false;
-    }
-
-    Serial0.println("[ALARM] ROOT DIRECTORY: OK");
-
-    // --------------------------------------------------------
-    // 7. CREATE FILE
-    // --------------------------------------------------------
-
-    Serial0.println("[ALARM] FILE: opening for writing");
-
+    // Точно такой же способ открытия, как в успешном тесте.
     File file = LittleFS.open(path.c_str(), "w");
 
     if (!file)
     {
-        Serial0.println("[ALARM] ERROR: file creation failed");
+        Serial0.println("[ALARM] SAVE ERROR: cannot open file");
 
         Serial0.printf(
             "[ALARM] FAILED PATH: %s\n",
@@ -1027,83 +999,58 @@ bool AlarmManager::saveToStorage(const Alarm& alarm)
         );
 
         Serial0.printf(
-            "[ALARM] FS total=%u used=%u\n",
+            "[ALARM] FS total=%u used=%u free=%u\n",
             static_cast<unsigned>(LittleFS.totalBytes()),
-            static_cast<unsigned>(LittleFS.usedBytes())
+            static_cast<unsigned>(LittleFS.usedBytes()),
+            static_cast<unsigned>(
+                LittleFS.totalBytes() - LittleFS.usedBytes()
+            )
         );
-
-        // Дополнительная диагностика содержимого корня.
-        Serial0.println("[ALARM] ROOT CONTENTS:");
-
-        File entry = root.openNextFile();
-
-        while (entry)
-        {
-            Serial0.printf(
-                "[ALARM] ROOT ENTRY: %s size=%u directory=%d\n",
-                entry.name(),
-                static_cast<unsigned>(entry.size()),
-                entry.isDirectory() ? 1 : 0
-            );
-
-            entry.close();
-            entry = root.openNextFile();
-        }
-
-        root.close();
 
         return false;
     }
-
-    root.close();
 
     if (file.isDirectory())
     {
         file.close();
 
-        Serial0.println("[ALARM] ERROR: target path is a directory");
+        Serial0.println("[ALARM] SAVE ERROR: target is a directory");
         return false;
     }
 
-    Serial0.println("[ALARM] FILE: opened successfully");
+    Serial0.println("[ALARM] SAVE: file opened");
 
     // --------------------------------------------------------
-    // 8. WRITE
+    // 7. WRITE FILE
     // --------------------------------------------------------
 
-    const size_t written = file.write(
-        reinterpret_cast<const uint8_t*>(content.c_str()),
-        content.length()
-    );
+    // Используем print(), как в тестовой программе.
+    const size_t written = file.print(content);
 
     file.flush();
-
-    const size_t fileSize = file.size();
-
     file.close();
 
     Serial0.printf(
-        "[ALARM] WRITE: written=%u expected=%u size=%u\n",
+        "[ALARM] SAVE WRITE: %u/%u bytes\n",
         static_cast<unsigned>(written),
-        static_cast<unsigned>(expected),
-        static_cast<unsigned>(fileSize)
+        static_cast<unsigned>(expected)
     );
 
     if (written != expected)
     {
-        Serial0.println("[ALARM] ERROR: incomplete write");
+        Serial0.println("[ALARM] SAVE ERROR: incomplete write");
         return false;
     }
 
     // --------------------------------------------------------
-    // 9. REOPEN FILE
+    // 8. REOPEN FILE
     // --------------------------------------------------------
 
     File check = LittleFS.open(path.c_str(), "r");
 
     if (!check)
     {
-        Serial0.println("[ALARM] ERROR: cannot reopen saved file");
+        Serial0.println("[ALARM] SAVE ERROR: cannot reopen file");
         return false;
     }
 
@@ -1111,27 +1058,28 @@ bool AlarmManager::saveToStorage(const Alarm& alarm)
     {
         check.close();
 
-        Serial0.println("[ALARM] ERROR: saved path is a directory");
+        Serial0.println("[ALARM] SAVE ERROR: saved path is directory");
         return false;
     }
 
     const size_t actualSize = check.size();
 
+    Serial0.printf(
+        "[ALARM] SAVE VERIFY SIZE: %u/%u\n",
+        static_cast<unsigned>(actualSize),
+        static_cast<unsigned>(expected)
+    );
+
     if (actualSize != expected)
     {
         check.close();
 
-        Serial0.printf(
-            "[ALARM] ERROR: size mismatch actual=%u expected=%u\n",
-            static_cast<unsigned>(actualSize),
-            static_cast<unsigned>(expected)
-        );
-
+        Serial0.println("[ALARM] SAVE ERROR: size mismatch");
         return false;
     }
 
     // --------------------------------------------------------
-    // 10. JSON VERIFICATION
+    // 9. JSON VERIFICATION
     // --------------------------------------------------------
 
     JsonDocument verification;
@@ -1146,7 +1094,7 @@ bool AlarmManager::saveToStorage(const Alarm& alarm)
     if (error)
     {
         Serial0.printf(
-            "[ALARM] ERROR: JSON verification failed: %s\n",
+            "[ALARM] SAVE ERROR: JSON verification: %s\n",
             error.c_str()
         );
 
@@ -1157,15 +1105,14 @@ bool AlarmManager::saveToStorage(const Alarm& alarm)
 
     if (alarm.id != String(savedId))
     {
-        Serial0.println("[ALARM] ERROR: UUID verification failed");
+        Serial0.println("[ALARM] SAVE ERROR: UUID mismatch");
         return false;
     }
 
     // --------------------------------------------------------
-    // 11. SUCCESS
+    // 10. SUCCESS
     // --------------------------------------------------------
 
-    Serial0.println("[ALARM] ========================================");
     Serial0.println("[ALARM] STORAGE SAVE SUCCESS");
 
     Serial0.printf(
@@ -1183,10 +1130,14 @@ bool AlarmManager::saveToStorage(const Alarm& alarm)
         static_cast<unsigned>(actualSize)
     );
 
-    Serial0.println("[ALARM] ========================================");
+    Serial0.printf(
+        "[ALARM] FS used=%u\n",
+        static_cast<unsigned>(LittleFS.usedBytes())
+    );
 
     return true;
 }
+
 // ============================================================
 // LOAD FROM STORAGE
 // ============================================================
@@ -1203,19 +1154,33 @@ bool AlarmManager::loadFromStorage(
 
     const String path = pathFor(id);
 
-    File file = LittleFS.open(path, "r");
+    File file = LittleFS.open(path.c_str(), "r");
 
-    if (!file || file.isDirectory())
+    if (!file)
     {
-        if (file)
-            file.close();
+        Serial0.printf(
+            "[ALARM] LOAD ERROR: cannot open %s\n",
+            path.c_str()
+        );
 
+        return false;
+    }
+
+    if (file.isDirectory())
+    {
+        file.close();
         return false;
     }
 
     if (file.size() == 0)
     {
         file.close();
+
+        Serial0.printf(
+            "[ALARM] LOAD ERROR: empty file %s\n",
+            path.c_str()
+        );
+
         return false;
     }
 
@@ -1287,7 +1252,7 @@ bool AlarmManager::deleteFromStorage(const String& id)
 
     const String path = pathFor(id);
 
-    if (!LittleFS.exists(path))
+    if (!LittleFS.exists(path.c_str()))
     {
         Serial0.printf(
             "[ALARM] DELETE ERROR: file does not exist: %s\n",
@@ -1297,7 +1262,7 @@ bool AlarmManager::deleteFromStorage(const String& id)
         return false;
     }
 
-    if (!LittleFS.remove(path))
+    if (!LittleFS.remove(path.c_str()))
     {
         Serial0.printf(
             "[ALARM] DELETE ERROR: cannot remove %s\n",
@@ -1307,7 +1272,10 @@ bool AlarmManager::deleteFromStorage(const String& id)
         return false;
     }
 
-    Serial0.printf("[ALARM] STORAGE DELETE SUCCESS: %s\n", path.c_str());
+    Serial0.printf(
+        "[ALARM] STORAGE DELETE SUCCESS: %s\n",
+        path.c_str()
+    );
 
     return true;
 }
@@ -1323,6 +1291,9 @@ bool AlarmManager::reload()
     if (!_filesystemReady)
         return false;
 
+    if (!createDirectory())
+        return false;
+
     const uint8_t stored = countStoredAlarms();
 
     if (stored > MAX_ALARMS)
@@ -1336,14 +1307,19 @@ bool AlarmManager::reload()
         return false;
     }
 
-    File directory = LittleFS.open(ALARM_DIRECTORY, "r");
+    File directory = LittleFS.open(ALARM_DIRECTORY);
 
-    if (!directory || !directory.isDirectory())
+    if (!directory)
     {
-        if (directory)
-            directory.close();
-
         Serial0.println("[ALARM] RELOAD ERROR: cannot open directory");
+        return false;
+    }
+
+    if (!directory.isDirectory())
+    {
+        directory.close();
+
+        Serial0.println("[ALARM] RELOAD ERROR: invalid directory");
         return false;
     }
 
@@ -1392,8 +1368,8 @@ bool AlarmManager::reload()
 
     Serial0.printf(
         "[ALARM] RELOAD active=%u stored=%u\n",
-        _activeCount,
-        countStoredAlarms()
+        static_cast<unsigned>(_activeCount),
+        static_cast<unsigned>(countStoredAlarms())
     );
 
     return result;
@@ -1613,13 +1589,19 @@ time_t AlarmManager::localMidnight(time_t timestamp) const
 {
     const int64_t seconds = static_cast<int64_t>(timestamp);
 
-    int64_t days = seconds / SECONDS_PER_DAY_;
+    int64_t days = seconds / ALARM_SECONDS_PER_DAY;
 
-    if (seconds < 0 && seconds % SECONDS_PER_DAY_
- != 0)
+    if (
+        seconds < 0 &&
+        seconds % ALARM_SECONDS_PER_DAY != 0
+    )
+    {
         --days;
+    }
 
-    return static_cast<time_t>(days * SECONDS_PER_DAY_);
+    return static_cast<time_t>(
+        days * ALARM_SECONDS_PER_DAY
+    );
 }
 
 time_t AlarmManager::shiftLocalDays(
@@ -1629,8 +1611,7 @@ time_t AlarmManager::shiftLocalDays(
 {
     return static_cast<time_t>(
         static_cast<int64_t>(timestamp) +
-        static_cast<int64_t>(days) * SECONDS_PER_DAY_
-
+        static_cast<int64_t>(days) * ALARM_SECONDS_PER_DAY
     );
 }
 
@@ -1653,7 +1634,7 @@ uint8_t AlarmManager::dayBit(time_t timestamp) const
 
     localTm(timestamp, value);
 
-    // Monday=bit 0, Sunday=bit 6.
+    // Monday = bit 0, Sunday = bit 6.
     if (value.tm_wday == 0)
         return 6;
 
@@ -1802,7 +1783,7 @@ bool AlarmManager::start(
 
 void AlarmManager::updateRuntime()
 {
-    // Alarm remains active until dismiss(), snooze(), or finish().
+    // Будильник остаётся активным до dismiss(), snooze() или finish().
 }
 
 // ============================================================
@@ -1894,8 +1875,8 @@ String AlarmManager::generateId() const
         bytes[4], bytes[5],
         bytes[6], bytes[7],
         bytes[8], bytes[9],
-        bytes[10], bytes[11], bytes[12],
-        bytes[13], bytes[14], bytes[15]
+        bytes[10], bytes[11],
+        bytes[12], bytes[13], bytes[14], bytes[15]
     );
 
     return String(buffer);
