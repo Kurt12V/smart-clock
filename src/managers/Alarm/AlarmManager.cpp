@@ -281,58 +281,60 @@ void AlarmManager::notifyFinish()
 // ============================================================
 // DIRECTORY
 // ============================================================
-
 bool AlarmManager::createDirectory()
 {
-    if (!_filesystemReady)
-    {
-        Serial0.println("[ALARM] DIRECTORY ERROR: filesystem not ready");
-        return false;
-    }
+    static constexpr char DIRECTORY[] = "/alarms";
 
-    File directory = LittleFS.open(ALARM_DIRECTORY, "r");
+    Serial.println("[ALARM] STORAGE DIR: checking /alarms");
+
+    // Проверяем, существует ли путь и является ли он каталогом.
+    File directory = LittleFS.open(DIRECTORY, FILE_READ);
 
     if (directory)
     {
-        const bool isDirectory = directory.isDirectory();
+        const bool isDir = directory.isDirectory();
         directory.close();
 
-        if (isDirectory)
+        if (isDir)
         {
-            Serial0.println("[ALARM] Directory /alarms exists");
+            Serial.println("[ALARM] STORAGE DIR: valid directory");
             return true;
         }
 
-        Serial0.println("[ALARM] ERROR: /alarms exists but is not a directory");
+        Serial.println(
+            "[ALARM] STORAGE DIR ERROR: /alarms exists but is not a directory"
+        );
+
         return false;
     }
 
-    Serial0.println("[ALARM] Directory does not exist, creating...");
+    Serial.println("[ALARM] STORAGE DIR: directory not found, creating");
 
-    if (!LittleFS.mkdir(ALARM_DIRECTORY))
+    if (!LittleFS.mkdir(DIRECTORY))
     {
-        Serial0.println("[ALARM] ERROR: mkdir /alarms failed");
+        Serial.println("[ALARM] STORAGE DIR ERROR: mkdir failed");
         return false;
     }
 
-    File verification = LittleFS.open(ALARM_DIRECTORY, "r");
+    // Обязательно проверяем результат создания.
+    directory = LittleFS.open(DIRECTORY, FILE_READ);
 
-    if (!verification)
+    if (!directory)
     {
-        Serial0.println("[ALARM] ERROR: directory verification failed");
+        Serial.println("[ALARM] STORAGE DIR ERROR: cannot reopen directory");
         return false;
     }
 
-    const bool valid = verification.isDirectory();
-    verification.close();
+    const bool isDir = directory.isDirectory();
+    directory.close();
 
-    if (!valid)
+    if (!isDir)
     {
-        Serial0.println("[ALARM] ERROR: created path is not a directory");
+        Serial.println("[ALARM] STORAGE DIR ERROR: created path is not directory");
         return false;
     }
 
-    Serial0.println("[ALARM] Directory created successfully");
+    Serial.println("[ALARM] STORAGE DIR: created and verified");
 
     return true;
 }
@@ -861,39 +863,112 @@ void AlarmManager::clearActive()
 
 bool AlarmManager::saveToStorage(const Alarm& alarm)
 {
+    Serial0.println();
+    Serial0.println("[ALARM] ========================================");
     Serial0.println("[ALARM] STORAGE SAVE: begin");
+    Serial0.println("[ALARM] ========================================");
+
+    // --------------------------------------------------------
+    // 1. FILESYSTEM
+    // --------------------------------------------------------
 
     if (!_filesystemReady)
     {
-        Serial0.println("[ALARM] STORAGE SAVE ERROR: filesystem not ready");
+        Serial0.println("[ALARM] ERROR: filesystem not ready");
         return false;
     }
+
+    if (!LittleFS.begin(false))
+    {
+        Serial0.println("[ALARM] ERROR: LittleFS mount failed");
+        return false;
+    }
+
+    Serial0.println("[ALARM] FILESYSTEM: mounted");
+
+    Serial0.printf(
+        "[ALARM] FS total=%u used=%u free=%u\n",
+        static_cast<unsigned>(LittleFS.totalBytes()),
+        static_cast<unsigned>(LittleFS.usedBytes()),
+        static_cast<unsigned>(
+            LittleFS.totalBytes() - LittleFS.usedBytes()
+        )
+    );
+
+    // --------------------------------------------------------
+    // 2. VALIDATION
+    // --------------------------------------------------------
 
     if (!validate(alarm))
     {
-        Serial0.println("[ALARM] STORAGE SAVE ERROR: invalid alarm");
+        Serial0.println("[ALARM] ERROR: invalid alarm");
         return false;
     }
 
-    if (!createDirectory())
+    if (alarm.id.isEmpty())
     {
-        Serial0.println("[ALARM] STORAGE SAVE ERROR: directory unavailable");
+        Serial0.println("[ALARM] ERROR: empty alarm ID");
         return false;
     }
+
+    // --------------------------------------------------------
+    // 3. DIRECTORY
+    // --------------------------------------------------------
+
+    Serial0.println("[ALARM] DIRECTORY: checking /alarms");
+
+    if (!createDirectory())
+    {
+        Serial0.println("[ALARM] ERROR: cannot create /alarms");
+        return false;
+    }
+
+    File directory = LittleFS.open("/alarms", FILE_READ);
+
+    if (!directory)
+    {
+        Serial0.println("[ALARM] ERROR: cannot open /alarms");
+        return false;
+    }
+
+    if (!directory.isDirectory())
+    {
+        directory.close();
+
+        Serial0.println("[ALARM] ERROR: /alarms is not a directory");
+        return false;
+    }
+
+    Serial0.println("[ALARM] DIRECTORY: verified");
+
+    directory.close();
+
+    // --------------------------------------------------------
+    // 4. FILE PATH
+    // --------------------------------------------------------
 
     const String path = pathFor(alarm.id);
 
     if (path.isEmpty())
     {
-        Serial0.println("[ALARM] STORAGE SAVE ERROR: invalid path");
+        Serial0.println("[ALARM] ERROR: invalid file path");
         return false;
     }
+
+    Serial0.printf(
+        "[ALARM] FILE PATH: %s\n",
+        path.c_str()
+    );
+
+    // --------------------------------------------------------
+    // 5. JSON SERIALIZATION
+    // --------------------------------------------------------
 
     JsonDocument document;
 
     if (!serialize(alarm, document))
     {
-        Serial0.println("[ALARM] STORAGE SAVE ERROR: serialization failed");
+        Serial0.println("[ALARM] ERROR: serialization failed");
         return false;
     }
 
@@ -903,24 +978,51 @@ bool AlarmManager::saveToStorage(const Alarm& alarm)
 
     if (expected == 0 || content.isEmpty())
     {
-        Serial0.println("[ALARM] STORAGE SAVE ERROR: empty JSON");
+        Serial0.println("[ALARM] ERROR: empty JSON");
         return false;
     }
 
     Serial0.printf(
-        "[ALARM] STORAGE SAVE: path=%s bytes=%u\n",
-        path.c_str(),
+        "[ALARM] JSON: %u bytes\n",
         static_cast<unsigned>(expected)
     );
 
-    // Write directly to the final file.
-    // This avoids the failed temporary-file creation path.
-    File file = LittleFS.open(path, "w");
+    // --------------------------------------------------------
+    // 6. CHECK ROOT DIRECTORY
+    // --------------------------------------------------------
+
+    File root = LittleFS.open("/");
+
+    if (!root)
+    {
+        Serial0.println("[ALARM] ERROR: cannot open filesystem root");
+        return false;
+    }
+
+    if (!root.isDirectory())
+    {
+        root.close();
+
+        Serial0.println("[ALARM] ERROR: filesystem root is invalid");
+        return false;
+    }
+
+    Serial0.println("[ALARM] ROOT DIRECTORY: OK");
+
+    // --------------------------------------------------------
+    // 7. CREATE FILE
+    // --------------------------------------------------------
+
+    Serial0.println("[ALARM] FILE: opening for writing");
+
+    File file = LittleFS.open(path.c_str(), "w");
 
     if (!file)
     {
+        Serial0.println("[ALARM] ERROR: file creation failed");
+
         Serial0.printf(
-            "[ALARM] STORAGE SAVE ERROR: cannot open %s\n",
+            "[ALARM] FAILED PATH: %s\n",
             path.c_str()
         );
 
@@ -930,16 +1032,44 @@ bool AlarmManager::saveToStorage(const Alarm& alarm)
             static_cast<unsigned>(LittleFS.usedBytes())
         );
 
+        // Дополнительная диагностика содержимого корня.
+        Serial0.println("[ALARM] ROOT CONTENTS:");
+
+        File entry = root.openNextFile();
+
+        while (entry)
+        {
+            Serial0.printf(
+                "[ALARM] ROOT ENTRY: %s size=%u directory=%d\n",
+                entry.name(),
+                static_cast<unsigned>(entry.size()),
+                entry.isDirectory() ? 1 : 0
+            );
+
+            entry.close();
+            entry = root.openNextFile();
+        }
+
+        root.close();
+
         return false;
     }
+
+    root.close();
 
     if (file.isDirectory())
     {
         file.close();
 
-        Serial0.println("[ALARM] STORAGE SAVE ERROR: path is a directory");
+        Serial0.println("[ALARM] ERROR: target path is a directory");
         return false;
     }
+
+    Serial0.println("[ALARM] FILE: opened successfully");
+
+    // --------------------------------------------------------
+    // 8. WRITE
+    // --------------------------------------------------------
 
     const size_t written = file.write(
         reinterpret_cast<const uint8_t*>(content.c_str()),
@@ -947,28 +1077,41 @@ bool AlarmManager::saveToStorage(const Alarm& alarm)
     );
 
     file.flush();
+
+    const size_t fileSize = file.size();
+
     file.close();
+
+    Serial0.printf(
+        "[ALARM] WRITE: written=%u expected=%u size=%u\n",
+        static_cast<unsigned>(written),
+        static_cast<unsigned>(expected),
+        static_cast<unsigned>(fileSize)
+    );
 
     if (written != expected)
     {
-        Serial0.printf(
-            "[ALARM] STORAGE SAVE ERROR: incomplete write %u/%u\n",
-            static_cast<unsigned>(written),
-            static_cast<unsigned>(expected)
-        );
-
+        Serial0.println("[ALARM] ERROR: incomplete write");
         return false;
     }
 
-    // Verify the file after writing.
-    File check = LittleFS.open(path, "r");
+    // --------------------------------------------------------
+    // 9. REOPEN FILE
+    // --------------------------------------------------------
 
-    if (!check || check.isDirectory())
+    File check = LittleFS.open(path.c_str(), "r");
+
+    if (!check)
     {
-        if (check)
-            check.close();
+        Serial0.println("[ALARM] ERROR: cannot reopen saved file");
+        return false;
+    }
 
-        Serial0.println("[ALARM] STORAGE SAVE ERROR: cannot reopen saved file");
+    if (check.isDirectory())
+    {
+        check.close();
+
+        Serial0.println("[ALARM] ERROR: saved path is a directory");
         return false;
     }
 
@@ -979,13 +1122,17 @@ bool AlarmManager::saveToStorage(const Alarm& alarm)
         check.close();
 
         Serial0.printf(
-            "[ALARM] STORAGE SAVE ERROR: size mismatch %u/%u\n",
+            "[ALARM] ERROR: size mismatch actual=%u expected=%u\n",
             static_cast<unsigned>(actualSize),
             static_cast<unsigned>(expected)
         );
 
         return false;
     }
+
+    // --------------------------------------------------------
+    // 10. JSON VERIFICATION
+    // --------------------------------------------------------
 
     JsonDocument verification;
 
@@ -999,7 +1146,7 @@ bool AlarmManager::saveToStorage(const Alarm& alarm)
     if (error)
     {
         Serial0.printf(
-            "[ALARM] STORAGE SAVE ERROR: JSON verification: %s\n",
+            "[ALARM] ERROR: JSON verification failed: %s\n",
             error.c_str()
         );
 
@@ -1010,19 +1157,36 @@ bool AlarmManager::saveToStorage(const Alarm& alarm)
 
     if (alarm.id != String(savedId))
     {
-        Serial0.println("[ALARM] STORAGE SAVE ERROR: saved UUID mismatch");
+        Serial0.println("[ALARM] ERROR: UUID verification failed");
         return false;
     }
 
+    // --------------------------------------------------------
+    // 11. SUCCESS
+    // --------------------------------------------------------
+
+    Serial0.println("[ALARM] ========================================");
+    Serial0.println("[ALARM] STORAGE SAVE SUCCESS");
+
     Serial0.printf(
-        "[ALARM] STORAGE SAVE SUCCESS: %s (%u bytes)\n",
-        path.c_str(),
+        "[ALARM] ID: %s\n",
+        alarm.id.c_str()
+    );
+
+    Serial0.printf(
+        "[ALARM] PATH: %s\n",
+        path.c_str()
+    );
+
+    Serial0.printf(
+        "[ALARM] SIZE: %u bytes\n",
         static_cast<unsigned>(actualSize)
     );
 
+    Serial0.println("[ALARM] ========================================");
+
     return true;
 }
-
 // ============================================================
 // LOAD FROM STORAGE
 // ============================================================
