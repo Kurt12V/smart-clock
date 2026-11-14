@@ -58,20 +58,26 @@ namespace SunriseConfig
     // MATRIX BRIGHTNESS
     // --------------------------------------------------------
 
-    static constexpr uint8_t PHASE_1_START_BRIGHTNESS = 0;
+    static constexpr uint8_t PHASE_1_START_BRIGHTNESS = 5;
     static constexpr uint8_t PHASE_1_END_BRIGHTNESS = 15;
     static constexpr uint8_t PHASE_2_END_BRIGHTNESS = 30;
     static constexpr uint8_t PHASE_3_END_BRIGHTNESS = 50;
     static constexpr uint8_t PEAK_BRIGHTNESS = 100;
 
     // --------------------------------------------------------
-    // COB
+    // COB (плавное "дыхание" вместо стробоскопа)
     // --------------------------------------------------------
 
-    static constexpr uint8_t PEAK_COB_BRIGHTNESS = 15;
+    // Частота дыхания COB. Было 40 Гц (стробоскоп), стало 8 Гц (мягко).
+    static constexpr uint32_t COB_FLASH_FREQUENCY_HZ = 8;
 
-    static constexpr uint32_t COB_FLASH_FREQUENCY_HZ = 40;
-    static constexpr uint8_t COB_DUTY_PERCENT = 50;
+    // Нижняя и верхняя границы яркости COB во время дыхания.
+    static constexpr uint8_t COB_MIN_BRIGHTNESS = 0;
+    static constexpr uint8_t COB_MAX_BRIGHTNESS = 55;
+
+    // Сколько миллисекунд COB плавно разгорается/гаснет.
+    // 0 — использовать синусоидальную форму внутри периода.
+    static constexpr uint32_t COB_FADE_MS = 0;
 
     // --------------------------------------------------------
     // MUSIC
@@ -85,6 +91,9 @@ namespace SunriseConfig
 
     static constexpr uint32_t MUSIC_RETRY_INTERVAL_MS =
         1000UL;
+
+    // Плавный вход при перезапуске трека после окончания.
+    static constexpr uint32_t MUSIC_RESTART_FADE_MS = 500UL;
 
     static constexpr char MUSIC_PATH[] = "/alarm.wav";
 }
@@ -158,7 +167,7 @@ private:
 
     void startMusic(
         bool fadeIn,
-        uint32_t elapsedMs
+        uint32_t fadeInMs
     );
 
     // --------------------------------------------------------
@@ -212,16 +221,18 @@ private:
 
     int16_t _lastCobBrightness = -1;
 
-    uint32_t _lastAuxiliaryToggleUs = 0;
-
-    bool _auxiliaryOn = false;
-
     // --------------------------------------------------------
     // MUSIC
     // --------------------------------------------------------
 
+    // Хотя бы один раз музыка успешно запускалась.
     bool _musicEverStarted = false;
+
+    // Ожидается повторная попытка запуска (трек не стартовал).
     bool _musicRetryPending = false;
 
     uint32_t _lastMusicAttemptMs = 0;
+
+    // Музыка сейчас реально играет (по данным SoundManager).
+    bool _musicPlaying = false;
 };

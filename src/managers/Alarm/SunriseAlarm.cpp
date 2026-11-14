@@ -31,10 +31,7 @@ void SunriseAlarm::start()
 
     if (!_lighting.isAlarmOverrideActive())
     {
-        if (!_lighting.isAlarmOverrideActive())
-        {
-            _lighting.beginAlarmOverride();
-        }
+        _lighting.beginAlarmOverride();
     }
 
     if (!_lighting.isAlarmOverrideActive())
@@ -66,12 +63,10 @@ void SunriseAlarm::start()
     // Сбрасываем COB.
     _lastCobBrightness = -1;
 
-    _lastAuxiliaryToggleUs = micros();
-    _auxiliaryOn = false;
-
     // Сбрасываем музыку.
     _musicEverStarted = false;
     _musicRetryPending = false;
+    _musicPlaying = false;
     _lastMusicAttemptMs = 0;
 
     Serial0.println("[SunriseAlarm] Started");
@@ -114,10 +109,9 @@ void SunriseAlarm::stop()
 
     _lastCobBrightness = -1;
 
-    _auxiliaryOn = false;
-
     _musicEverStarted = false;
     _musicRetryPending = false;
+    _musicPlaying = false;
 
     Serial0.println("[SunriseAlarm] Stopped");
 }
@@ -129,12 +123,9 @@ void SunriseAlarm::stop()
 void SunriseAlarm::update()
 {
     // Обслуживаем звук постоянно.
-    // Это необходимо для чтения WAV и передачи данных в I2S.
     _sound.update();
 
     // Обслуживаем обычную систему освещения.
-    // Во время alarm override LightingManager::update()
-    // самостоятельно пропускает обычные настройки.
     _lighting.update();
 
     if (!_active)
@@ -404,12 +395,12 @@ void SunriseAlarm::applyMatrix(
 }
 
 // ============================================================
-// AUXILIARY COB FLASH
+// AUXILIARY COB — ПЛАВНОЕ ДЫХАНИЕ
 // ============================================================
 
 void SunriseAlarm::updateAuxiliary()
 {
-    // Вспышки COB начинаются в третьей фазе.
+    // COB начинает дышать только с третьей фазы.
     if (_elapsedMs < SunriseConfig::PHASE_2_END_MS)
     {
         if (_lastCobBrightness != 0)
@@ -418,39 +409,45 @@ void SunriseAlarm::updateAuxiliary()
             _lastCobBrightness = 0;
         }
 
-        _auxiliaryOn = false;
         return;
     }
 
+    // Период дыхания.
     constexpr uint32_t PERIOD_US =
         1000000UL / SunriseConfig::COB_FLASH_FREQUENCY_HZ;
 
-    constexpr uint32_t ON_TIME_US =
-        PERIOD_US * SunriseConfig::COB_DUTY_PERCENT / 100UL;
-
+    // Фаза внутри периода: 0..PERIOD_US.
     const uint32_t nowUs = micros();
+    const uint32_t phaseUs = nowUs % PERIOD_US;
 
-    const uint32_t phaseUs =
-        (nowUs - _lastAuxiliaryToggleUs) % PERIOD_US;
+    // progress 0..1 внутри периода.
+    const float progress =
+        static_cast<float>(phaseUs) /
+        static_cast<float>(PERIOD_US);
 
-    const bool shouldBeOn = phaseUs < ON_TIME_US;
+    // Синусоидальное дыхание: 0 -> 1 -> 0 за один период.
+    // sin(progress * PI) даёт плавный "горб" без резких фронтов.
+    const float wave = sinf(progress * 3.1415926f); // 0..1..0
 
-    if (shouldBeOn == _auxiliaryOn)
+    const uint8_t brightness = static_cast<uint8_t>(
+        SunriseConfig::COB_MIN_BRIGHTNESS +
+        wave * (
+            SunriseConfig::COB_MAX_BRIGHTNESS -
+            SunriseConfig::COB_MIN_BRIGHTNESS
+        )
+    );
+
+    // Не дёргаем LightingManager без изменения.
+    if (_lastCobBrightness == brightness)
         return;
 
-    _auxiliaryOn = shouldBeOn;
-
-    const uint8_t brightness = shouldBeOn
-        ? SunriseConfig::PEAK_COB_BRIGHTNESS
-        : 0;
+    _lastCobBrightness = brightness;
 
     _lighting.setAlarmCob(brightness);
-
-    _lastCobBrightness = brightness;
 }
 
 // ============================================================
-// MUSIC UPDATE
+// MUSIC UPDATE (С ЦИКЛИЧЕСКИМ ПЕРЕЗАПУСКОМ)
 // ============================================================
 
 void SunriseAlarm::updateMusic(uint32_t elapsedMs)
@@ -458,23 +455,49 @@ void SunriseAlarm::updateMusic(uint32_t elapsedMs)
     if (elapsedMs < SunriseConfig::MUSIC_START_MS)
         return;
 
-    // Музыка уже успешно запущена.
-    if (_musicEverStarted)
-        return;
+    const bool playing = _sound.isPlaying();
 
-    const uint32_t now = millis();
-
-    if (_musicRetryPending &&
-        now - _lastMusicAttemptMs <
-            SunriseConfig::MUSIC_RETRY_INTERVAL_MS)
+    // Музыка играет — ничего не делаем.
+    if (playing)
     {
+        _musicPlaying = true;
         return;
     }
 
-    startMusic(
-        true,
-        elapsedMs
-    );
+    // Музыка только что закончилась — перезапускаем с плавным входом.
+    if (_musicPlaying)
+    {
+        _musicPlaying = false;
+
+        Serial0.println(
+            "[SunriseAlarm] Music ended, restarting"
+        );
+
+        startMusic(
+            true,
+            SunriseConfig::MUSIC_RESTART_FADE_MS
+        );
+
+        return;
+    }
+
+    // Музыка ещё ни разу не запускалась или предыдущая попытка не удалась.
+    if (_musicRetryPending)
+    {
+        const uint32_t now = millis();
+
+        if (now - _lastMusicAttemptMs <
+            SunriseConfig::MUSIC_RETRY_INTERVAL_MS)
+        {
+            return;
+        }
+    }
+
+    const uint32_t fadeInMs = _musicEverStarted
+        ? SunriseConfig::MUSIC_RESTART_FADE_MS
+        : SunriseConfig::MUSIC_FADE_IN_MS;
+
+    startMusic(true, fadeInMs);
 }
 
 // ============================================================
@@ -483,11 +506,9 @@ void SunriseAlarm::updateMusic(uint32_t elapsedMs)
 
 void SunriseAlarm::startMusic(
     bool fadeIn,
-    uint32_t elapsedMs
+    uint32_t fadeInMs
 )
 {
-    (void)elapsedMs;
-
     _lastMusicAttemptMs = millis();
     _musicRetryPending = true;
 
@@ -495,12 +516,9 @@ void SunriseAlarm::startMusic(
 
     options.stream = SoundManager::AudioStream::Alarm;
 
-    // Не ослабляем громкость дополнительным коэффициентом.
     options.localPercent = 100;
 
-    options.fadeInMs = fadeIn
-        ? SunriseConfig::MUSIC_FADE_IN_MS
-        : 0;
+    options.fadeInMs = fadeIn ? fadeInMs : 0;
 
     options.fadeOutMs = 0;
 
@@ -517,11 +535,14 @@ void SunriseAlarm::startMusic(
     {
         _musicEverStarted = true;
         _musicRetryPending = false;
+        _musicPlaying = true;
 
         Serial0.println("[SunriseAlarm] Music started");
     }
     else
     {
+        _musicPlaying = false;
+
         Serial0.println(
             "[SunriseAlarm][WARN] Music start failed; retry pending"
         );
