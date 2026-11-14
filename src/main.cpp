@@ -1,88 +1,28 @@
 #include <Arduino.h>
+#include "managers/Led/LedMatrixManager.h"
 
-#include "managers/Setting/SettingsManager.h"
-#include "managers/I2S/I2SManager.h"
-#include "managers/Led/LightingManager.h"
-#include "managers/Sound/SoundManager.h"
+// Укажи тот же GPIO, который передаёшь в LightingManager.
+constexpr uint8_t MATRIX_PIN = 14;
 
-#include "managers/Alarm/SunriseAlarm.h"
-
-// ============================================================
-// MANAGERS
-// ============================================================
-
-SettingsManager settingsManager;
-
-I2SManager i2sManager;
-
-LightingManager lightingManager(
-    settingsManager
-);
-
-SoundManager soundManager(
-    settingsManager,
-    i2sManager
-);
-
-// ============================================================
-// SUNRISE ALARM
-// ============================================================
-
-SunriseAlarm sunriseAlarm(
-    lightingManager,
-    soundManager
-);
-
-// ============================================================
-// SETUP
-// ============================================================
+LedMatrixManager matrix(MATRIX_PIN);
 
 void setup()
 {
     Serial0.begin(115200);
-
     delay(500);
 
-    Serial0.println();
-    Serial0.println("================================");
-    Serial0.println("       SUNRISE ALARM TEST       ");
-    Serial0.println("================================");
+    matrix.begin();
+    matrix.on();
+    matrix.setBrightness(20);
 
-    // Settings.
-    Serial0.println("[MAIN] Initializing settings");
+    matrix.fill(255, 0, 0);
+    matrix.show();
 
-    settingsManager.begin();
-
-    // I2S.
-    Serial0.println("[MAIN] Initializing I2S");
-
-    i2sManager.begin();
-
-    // Lighting.
-    Serial0.println("[MAIN] Initializing lighting");
-
-    lightingManager.begin();
-
-    // Sound.
-    Serial0.println("[MAIN] Initializing sound");
-
-    soundManager.begin();
-
-    // Sunrise.
-    Serial0.println("[MAIN] Starting sunrise alarm");
-
-    sunriseAlarm.start();
-
-    Serial0.println("[MAIN] Setup completed");
+    Serial0.println("[TEST] Matrix red");
 }
-
-// ============================================================
-// LOOP
-// ============================================================
 
 void loop()
 {
-    sunriseAlarm.update();
-
+    matrix.update();
     delay(1);
 }
