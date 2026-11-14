@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include <Arduino.h>
@@ -8,136 +7,56 @@
 #include "./managers/Sound/SoundManager.h"
 
 // ============================================================
-// SUNRISE ALARM CONFIGURATION
+// SUNRISE CONFIGURATION
 // ============================================================
 
-// namespace SunriseConfig
-// {
-//     // Общая продолжительность рассвета
-//     static constexpr uint32_t DURATION_MS = 25UL * 60UL * 1000UL;
-
-//     // Фазы освещения
-//     static constexpr uint32_t PHASE_1_END_MS = 20UL * 60UL * 1000UL;
-//     static constexpr uint32_t PHASE_2_END_MS = 22UL * 60UL * 1000UL;
-
-//     // Скорость изменения цветов
-//     static constexpr float COLOR_SPEED = 1.5f;
-
-//     // Начальный красный цвет
-//     static constexpr uint8_t PHASE_1_START_R = 255;
-//     static constexpr uint8_t PHASE_1_START_G = 0;
-//     static constexpr uint8_t PHASE_1_START_B = 0;
-
-//     // Оранжевый цвет
-//     static constexpr uint8_t PHASE_1_END_R = 255;
-//     static constexpr uint8_t PHASE_1_END_G = 140;
-//     static constexpr uint8_t PHASE_1_END_B = 0;
-
-//     // Тёплый цвет
-//     static constexpr uint8_t PHASE_2_END_R = 255;
-//     static constexpr uint8_t PHASE_2_END_G = 60;
-//     static constexpr uint8_t PHASE_2_END_B = 40;
-
-//     // Цвет максимальной яркости
-//     static constexpr uint8_t PEAK_R = 60;
-//     static constexpr uint8_t PEAK_G = 90;
-//     static constexpr uint8_t PEAK_B = 255;
-
-//     // Яркость матрицы, проценты
-//     static constexpr uint8_t PHASE_1_START_BRIGHTNESS = 0;
-//     static constexpr uint8_t PHASE_1_END_BRIGHTNESS = 15;
-//     static constexpr uint8_t PHASE_2_END_BRIGHTNESS = 30;
-//     static constexpr uint8_t PHASE_3_END_BRIGHTNESS = 50;
-//     static constexpr uint8_t PEAK_BRIGHTNESS = 100;
-
-//     // COB
-//     static constexpr uint8_t PEAK_COB_BRIGHTNESS = 15;
-
-//     // Частота мигания COB
-//     static constexpr uint32_t COB_FLASH_FREQUENCY_HZ = 40;
-//     static constexpr uint8_t COB_DUTY_PERCENT = 50;
-
-//     // Музыка
-//     static constexpr uint32_t MUSIC_START_MS =
-//         21UL * 60UL * 1000UL;
-
-//     static constexpr uint32_t MUSIC_FADE_IN_MS =
-//         2UL * 60UL * 1000UL;
-
-//     static constexpr uint32_t MUSIC_RETRY_INTERVAL_MS = 1000UL;
-
-//     static constexpr char MUSIC_PATH[] =
-//         "/alarm.wav";
-// }
 namespace SunriseConfig
 {
-    // ========================================================
-    // ОБЩАЯ ПРОДОЛЖИТЕЛЬНОСТЬ РАССВЕТА
-    // ========================================================
-
+    // Общая длительность рассвета: 5 минут.
     static constexpr uint32_t DURATION_MS =
         5UL * 60UL * 1000UL;
 
-
-    // ========================================================
-    // ФАЗЫ ОСВЕЩЕНИЯ
-    // ========================================================
-
-    // Первая фаза — 4 минуты
+    // Границы фаз.
     static constexpr uint32_t PHASE_1_END_MS =
         4UL * 60UL * 1000UL;
 
-    // Вторая фаза — 4 минуты 30 секунд
     static constexpr uint32_t PHASE_2_END_MS =
         4UL * 60UL * 1000UL + 30UL * 1000UL;
 
-
-    // ========================================================
-    // СКОРОСТЬ ИЗМЕНЕНИЯ ЦВЕТОВ
-    // ========================================================
-
+    // Скорость изменения цвета.
     static constexpr float COLOR_SPEED = 1.5f;
 
-
-    // ========================================================
-    // НАЧАЛЬНЫЙ КРАСНЫЙ ЦВЕТ
-    // ========================================================
+    // --------------------------------------------------------
+    // PHASE 1: RED -> ORANGE
+    // --------------------------------------------------------
 
     static constexpr uint8_t PHASE_1_START_R = 255;
     static constexpr uint8_t PHASE_1_START_G = 0;
     static constexpr uint8_t PHASE_1_START_B = 0;
 
-
-    // ========================================================
-    // ОРАНЖЕВЫЙ ЦВЕТ
-    // ========================================================
-
     static constexpr uint8_t PHASE_1_END_R = 255;
     static constexpr uint8_t PHASE_1_END_G = 140;
     static constexpr uint8_t PHASE_1_END_B = 0;
 
-
-    // ========================================================
-    // ТЁПЛЫЙ ЦВЕТ
-    // ========================================================
+    // --------------------------------------------------------
+    // PHASE 2: ORANGE -> WARM WHITE
+    // --------------------------------------------------------
 
     static constexpr uint8_t PHASE_2_END_R = 255;
     static constexpr uint8_t PHASE_2_END_G = 60;
     static constexpr uint8_t PHASE_2_END_B = 40;
 
-
-    // ========================================================
-    // ЦВЕТ МАКСИМАЛЬНОЙ ЯРКОСТИ
-    // ========================================================
+    // --------------------------------------------------------
+    // PHASE 3 / PEAK
+    // --------------------------------------------------------
 
     static constexpr uint8_t PEAK_R = 60;
     static constexpr uint8_t PEAK_G = 90;
     static constexpr uint8_t PEAK_B = 255;
 
-
-    // ========================================================
-    // ЯРКОСТЬ МАТРИЦЫ
-    // ========================================================
+    // --------------------------------------------------------
+    // MATRIX BRIGHTNESS
+    // --------------------------------------------------------
 
     static constexpr uint8_t PHASE_1_START_BRIGHTNESS = 0;
     static constexpr uint8_t PHASE_1_END_BRIGHTNESS = 15;
@@ -145,35 +64,31 @@ namespace SunriseConfig
     static constexpr uint8_t PHASE_3_END_BRIGHTNESS = 50;
     static constexpr uint8_t PEAK_BRIGHTNESS = 100;
 
-
-    // ========================================================
+    // --------------------------------------------------------
     // COB
-    // ========================================================
+    // --------------------------------------------------------
 
     static constexpr uint8_t PEAK_COB_BRIGHTNESS = 15;
 
     static constexpr uint32_t COB_FLASH_FREQUENCY_HZ = 40;
     static constexpr uint8_t COB_DUTY_PERCENT = 50;
 
+    // --------------------------------------------------------
+    // MUSIC
+    // --------------------------------------------------------
 
-    // ========================================================
-    // МУЗЫКА
-    // ========================================================
-
-    // Музыка начинается через 3 минуты
     static constexpr uint32_t MUSIC_START_MS =
         3UL * 60UL * 1000UL;
 
-    // Плавное нарастание громкости — 30 секунд
     static constexpr uint32_t MUSIC_FADE_IN_MS =
         30UL * 1000UL;
 
     static constexpr uint32_t MUSIC_RETRY_INTERVAL_MS =
         1000UL;
 
-    static constexpr char MUSIC_PATH[] =
-        "/alarm.wav";
+    static constexpr char MUSIC_PATH[] = "/alarm.wav";
 }
+
 // ============================================================
 // SUNRISE ALARM
 // ============================================================
@@ -194,21 +109,25 @@ public:
         SoundManager& sound
     );
 
+    // Управление.
     void start();
     void stop();
 
-    void update(uint32_t elapsedMs);
+    // Единственный метод, который нужно вызывать в loop().
+    void update();
 
+    // Состояние.
     bool isActive() const;
     bool isPeak() const;
 
     State state() const;
+
     uint32_t elapsed() const;
 
 private:
 
     // --------------------------------------------------------
-    // Lighting
+    // UPDATE
     // --------------------------------------------------------
 
     void updateLighting(uint32_t elapsedMs);
@@ -216,7 +135,15 @@ private:
     void updatePhase1(uint32_t elapsedMs);
     void updatePhase2(uint32_t elapsedMs);
     void updatePhase3(uint32_t elapsedMs);
+
     void updatePeak();
+
+    void updateAuxiliary();
+    void updateMusic(uint32_t elapsedMs);
+
+    // --------------------------------------------------------
+    // MATRIX / COB
+    // --------------------------------------------------------
 
     void applyMatrix(
         uint8_t brightness,
@@ -225,13 +152,9 @@ private:
         uint8_t blue
     );
 
-    void updateAuxiliary();
-
     // --------------------------------------------------------
-    // Audio
+    // MUSIC
     // --------------------------------------------------------
-
-    void updateMusic(uint32_t elapsedMs);
 
     void startMusic(
         bool fadeIn,
@@ -239,7 +162,7 @@ private:
     );
 
     // --------------------------------------------------------
-    // Helpers
+    // HELPERS
     // --------------------------------------------------------
 
     static uint8_t interpolate(
@@ -253,30 +176,38 @@ private:
         uint32_t duration
     );
 
-private:
+    // --------------------------------------------------------
+    // DEPENDENCIES
+    // --------------------------------------------------------
 
     LightingManager& _lighting;
     SoundManager& _sound;
+
+    // --------------------------------------------------------
+    // STATE
+    // --------------------------------------------------------
 
     State _state = State::Idle;
 
     bool _active = false;
 
+    uint32_t _startTimeMs = 0;
     uint32_t _elapsedMs = 0;
 
     // --------------------------------------------------------
-    // Matrix cache
+    // MATRIX CACHE
     // --------------------------------------------------------
 
     bool _matrixApplied = false;
 
     uint8_t _lastMatrixBrightness = 0;
+
     uint8_t _lastRed = 0;
     uint8_t _lastGreen = 0;
     uint8_t _lastBlue = 0;
 
     // --------------------------------------------------------
-    // COB cache
+    // COB
     // --------------------------------------------------------
 
     int16_t _lastCobBrightness = -1;
@@ -286,7 +217,7 @@ private:
     bool _auxiliaryOn = false;
 
     // --------------------------------------------------------
-    // Audio state
+    // MUSIC
     // --------------------------------------------------------
 
     bool _musicEverStarted = false;

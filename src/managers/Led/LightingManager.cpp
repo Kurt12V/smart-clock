@@ -109,14 +109,19 @@ bool LightingManager::begin()
 // ============================================================
 // UPDATE
 // ============================================================
-
 void LightingManager::update()
 {
     if (!_initialized)
         return;
 
     if (_alarmOverride)
+    {
+        // Во время будильника обновляем только COB.
+        // Обычные настройки освещения не применяем.
+        _cob.update();
+
         return;
+    }
 
     apply();
 

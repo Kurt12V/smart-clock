@@ -1,38 +1,37 @@
 #include <Arduino.h>
 
-#include "./managers/Setting/SettingsManager.h"
-#include "./managers/I2S/I2SManager.h"
-#include "./managers/Sound/SoundManager.h"
-#include "./managers/Led/LightingManager.h"
-#include "./managers/Alarm/SunriseAlarm.h"
+#include "managers/Setting/SettingsManager.h"
+#include "managers/I2S/I2SManager.h"
+#include "managers/Led/LightingManager.h"
+#include "managers/Sound/SoundManager.h"
+
+#include "managers/Alarm/SunriseAlarm.h"
 
 // ============================================================
 // MANAGERS
 // ============================================================
 
-SettingsManager settings;
+SettingsManager settingsManager;
+
 I2SManager i2sManager;
 
+LightingManager lightingManager(
+    settingsManager
+);
+
 SoundManager soundManager(
-    settings,
+    settingsManager,
     i2sManager
 );
 
-LightingManager lightingManager(
-    settings
-);
+// ============================================================
+// SUNRISE ALARM
+// ============================================================
 
 SunriseAlarm sunriseAlarm(
     lightingManager,
     soundManager
 );
-
-// ============================================================
-// TEST STATE
-// ============================================================
-
-uint32_t sunriseStartTime = 0;
-
 
 // ============================================================
 // SETUP
@@ -41,74 +40,41 @@ uint32_t sunriseStartTime = 0;
 void setup()
 {
     Serial0.begin(115200);
+
     delay(500);
 
     Serial0.println();
     Serial0.println("================================");
-    Serial0.println("       SUNRISE ALARM TEST");
+    Serial0.println("       SUNRISE ALARM TEST       ");
     Serial0.println("================================");
 
-    // --------------------------------------------------------
-    // 1. SETTINGS
-    // --------------------------------------------------------
+    // Settings.
+    Serial0.println("[MAIN] Initializing settings");
 
-    Serial0.println("[TEST] Initializing settings...");
+    settingsManager.begin();
 
-    if (!settings.begin())
-    {
-        Serial0.println("[TEST][ERROR] Settings failed");
-        return;
-    }
+    // I2S.
+    Serial0.println("[MAIN] Initializing I2S");
 
-    // --------------------------------------------------------
-    // 2. I2S
-    // --------------------------------------------------------
+    i2sManager.begin();
 
-    Serial0.println("[TEST] Initializing I2S...");
+    // Lighting.
+    Serial0.println("[MAIN] Initializing lighting");
 
-    if (!i2sManager.begin())
-    {
-        Serial0.println("[TEST][ERROR] I2S failed");
-        return;
-    }
+    lightingManager.begin();
 
-    // --------------------------------------------------------
-    // 3. LIGHTING
-    // --------------------------------------------------------
+    // Sound.
+    Serial0.println("[MAIN] Initializing sound");
 
-    Serial0.println("[TEST] Initializing lighting...");
+    soundManager.begin();
 
-    if (!lightingManager.begin())
-    {
-        Serial0.println("[TEST][ERROR] Lighting failed");
-        return;
-    }
-
-    // --------------------------------------------------------
-    // 4. SOUND
-    // --------------------------------------------------------
-
-    Serial0.println("[TEST] Initializing sound...");
-
-    if (!soundManager.begin())
-    {
-        Serial0.println("[TEST][ERROR] Sound failed");
-        return;
-    }
-
-    // --------------------------------------------------------
-    // 5. START SUNRISE ALARM
-    // --------------------------------------------------------
-
-    Serial0.println("[TEST] Starting sunrise alarm...");
+    // Sunrise.
+    Serial0.println("[MAIN] Starting sunrise alarm");
 
     sunriseAlarm.start();
 
-    sunriseStartTime = millis();
-
-    Serial0.println("[TEST] Sunrise alarm started");
+    Serial0.println("[MAIN] Setup completed");
 }
-
 
 // ============================================================
 // LOOP
@@ -116,17 +82,7 @@ void setup()
 
 void loop()
 {
-    // Обслуживание аудиопотока обязательно
-    soundManager.update();
-
-    // Обновление освещения
-    lightingManager.update();
-
-    // Обновление сценария рассвета
-    const uint32_t elapsedTime =
-        millis() - sunriseStartTime;
-
-    sunriseAlarm.update(elapsedTime);
+    sunriseAlarm.update();
 
     delay(1);
 }
