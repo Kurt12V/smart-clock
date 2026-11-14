@@ -1,3 +1,4 @@
+
 #include "AlarmController.h"
 
 #include <utility>
@@ -22,10 +23,6 @@ void AlarmController::begin()
     if (_begun)
         return;
 
-    // --------------------------------------------------------
-    // AlarmManager -> Controller
-    // --------------------------------------------------------
-
     _alarmManager.setTriggerCallback(
         [this](const Alarm& alarm)
         {
@@ -41,14 +38,11 @@ void AlarmController::begin()
     );
 
     _active = false;
-
     _alarmId = String();
 
     _begun = true;
 
-    Serial0.println(
-        "[ALARM][CONTROLLER] READY"
-    );
+    Serial0.println("[ALARM][CONTROLLER] READY");
 }
 
 // ============================================================
@@ -60,86 +54,62 @@ void AlarmController::update()
     if (!_begun)
         return;
 
-    // --------------------------------------------------------
-    // AlarmManager является владельцем scheduler/runtime.
-    //
-    // Controller здесь ничего самостоятельно
-    // не планирует и не отслеживает.
-    //
-    // Оставляем метод для единого lifecycle API.
-    // --------------------------------------------------------
+    // AlarmManager owns the alarm runtime.
+    // Controller only checks for state desynchronization.
 
-    if (!_alarmManager.isRunning() &&
-        _active)
+    if (_active && !_alarmManager.isRunning())
     {
+        Serial0.println(
+            "[ALARM][CONTROLLER] Runtime stopped unexpectedly"
+        );
+
         stopOutputs();
 
         _active = false;
-
         _alarmId = String();
     }
 }
 
 // ============================================================
-// SET MATRIX CALLBACK
+// CALLBACK REGISTRATION
 // ============================================================
 
 void AlarmController::setMatrixCallback(
     MatrixCallback callback
 )
 {
-    _matrixCallback =
-        std::move(callback);
+    _matrixCallback = std::move(callback);
 }
-
-// ============================================================
-// SET AUDIO CALLBACK
-// ============================================================
 
 void AlarmController::setAudioCallback(
     AudioCallback callback
 )
 {
-    _audioCallback =
-        std::move(callback);
+    _audioCallback = std::move(callback);
 }
-
-// ============================================================
-// SET COB CALLBACK
-// ============================================================
 
 void AlarmController::setCobCallback(
     CobCallback callback
 )
 {
-    _cobCallback =
-        std::move(callback);
+    _cobCallback = std::move(callback);
 }
-
-// ============================================================
-// SET STOP CALLBACK
-// ============================================================
 
 void AlarmController::setStopCallback(
     StopCallback callback
 )
 {
-    _stopCallback =
-        std::move(callback);
+    _stopCallback = std::move(callback);
 }
 
 // ============================================================
-// IS ACTIVE
+// STATE
 // ============================================================
 
 bool AlarmController::isActive() const
 {
     return _active;
 }
-
-// ============================================================
-// ALARM ID
-// ============================================================
 
 const String& AlarmController::alarmId() const
 {
@@ -152,11 +122,10 @@ const String& AlarmController::alarmId() const
 
 bool AlarmController::dismiss()
 {
-    if (!_begun)
+    if (!_begun || !_active)
         return false;
 
-    if (!_active)
-        return false;
+    Serial0.println("[ALARM][CONTROLLER] DISMISS");
 
     return _alarmManager.dismiss();
 }
@@ -165,19 +134,17 @@ bool AlarmController::dismiss()
 // SNOOZE
 // ============================================================
 
-bool AlarmController::snooze(
-    uint32_t durationMs
-)
+bool AlarmController::snooze(uint32_t durationMs)
 {
-    if (!_begun)
+    if (!_begun || !_active)
         return false;
 
-    if (!_active)
-        return false;
-
-    return _alarmManager.snooze(
-        durationMs
+    Serial0.printf(
+        "[ALARM][CONTROLLER] SNOOZE %lu ms\n",
+        static_cast<unsigned long>(durationMs)
     );
+
+    return _alarmManager.snooze(durationMs);
 }
 
 // ============================================================
@@ -189,31 +156,21 @@ void AlarmController::stop()
     if (!_begun)
         return;
 
-    // --------------------------------------------------------
-    // Если AlarmManager считает alarm активным,
-    // завершаем его через AlarmManager.
-    //
-    // Finish callback вызовет onFinished(),
-    // который остановит outputs.
-    // --------------------------------------------------------
+    Serial0.println("[ALARM][CONTROLLER] STOP REQUEST");
 
     if (_alarmManager.isRunning())
     {
+        // finish() should invoke the registered finish callback.
         _alarmManager.finish();
-
         return;
     }
 
-    // --------------------------------------------------------
-    // Защита от рассинхронизации.
-    // --------------------------------------------------------
-
+    // Fallback if AlarmManager is already stopped.
     if (_active)
     {
         stopOutputs();
 
         _active = false;
-
         _alarmId = String();
     }
 }
@@ -222,23 +179,15 @@ void AlarmController::stop()
 // ON TRIGGERED
 // ============================================================
 
-void AlarmController::onTriggered(
-    const Alarm& alarm
-)
+void AlarmController::onTriggered(const Alarm& alarm)
 {
     if (!_begun)
         return;
 
-    // --------------------------------------------------------
-    // Защита от повторного trigger.
-    // --------------------------------------------------------
-
     if (_active)
     {
         Serial0.printf(
-            "[ALARM][CONTROLLER] "
-            "TRIGGER IGNORED "
-            "already active id=%s\n",
+            "[ALARM][CONTROLLER] TRIGGER IGNORED id=%s\n",
             _alarmId.c_str()
         );
 
@@ -246,23 +195,13 @@ void AlarmController::onTriggered(
     }
 
     _active = true;
-
-    _alarmId =
-        alarm.id;
+    _alarmId = alarm.id;
 
     Serial0.printf(
-        "[ALARM][CONTROLLER] "
-        "TRIGGER id=%s "
-        "matrix=%s "
-        "cob=%s "
-        "audio=%s\n",
-
+        "[ALARM][CONTROLLER] TRIGGER id=%s matrix=%s cob=%s audio=%s\n",
         alarm.id.c_str(),
-
         alarm.matrixEffect.c_str(),
-
         alarm.cobEffect.c_str(),
-
         alarm.audioEffect.c_str()
     );
 
@@ -273,31 +212,20 @@ void AlarmController::onTriggered(
 // ON FINISHED
 // ============================================================
 
-void AlarmController::onFinished(
-    const String& id
-)
+void AlarmController::onFinished(const String& id)
 {
     if (!_begun)
         return;
 
     Serial0.printf(
-        "[ALARM][CONTROLLER] "
-        "FINISH id=%s\n",
+        "[ALARM][CONTROLLER] FINISH id=%s\n",
         id.c_str()
     );
 
-    // --------------------------------------------------------
-    // Останавливаем все выходы.
-    // --------------------------------------------------------
-
+    // Stop music and lights.
     stopOutputs();
 
-    // --------------------------------------------------------
-    // Controller state
-    // --------------------------------------------------------
-
     _active = false;
-
     _alarmId = String();
 }
 
@@ -305,50 +233,24 @@ void AlarmController::onFinished(
 // EXECUTE ALARM
 // ============================================================
 
-void AlarmController::executeAlarm(
-    const Alarm& alarm
-)
+void AlarmController::executeAlarm(const Alarm& alarm)
 {
-    // ========================================================
     // MATRIX
-    // ========================================================
-
-    if (!alarm.matrixEffect.isEmpty())
+    if (!alarm.matrixEffect.isEmpty() && _matrixCallback)
     {
-        if (_matrixCallback)
-        {
-            _matrixCallback(
-                alarm.matrixEffect
-            );
-        }
+        _matrixCallback(alarm.matrixEffect);
     }
 
-    // ========================================================
     // COB
-    // ========================================================
-
-    if (!alarm.cobEffect.isEmpty())
+    if (!alarm.cobEffect.isEmpty() && _cobCallback)
     {
-        if (_cobCallback)
-        {
-            _cobCallback(
-                alarm.cobEffect
-            );
-        }
+        _cobCallback(alarm.cobEffect);
     }
 
-    // ========================================================
     // AUDIO
-    // ========================================================
-
-    if (!alarm.audioEffect.isEmpty())
+    if (!alarm.audioEffect.isEmpty() && _audioCallback)
     {
-        if (_audioCallback)
-        {
-            _audioCallback(
-                alarm.audioEffect
-            );
-        }
+        _audioCallback(alarm.audioEffect);
     }
 }
 
@@ -358,16 +260,7 @@ void AlarmController::executeAlarm(
 
 void AlarmController::stopOutputs()
 {
-    // --------------------------------------------------------
-    // Stop callback является общим callback'ом остановки.
-    //
-    // Его задача на стороне App:
-    //
-    // - остановить matrix alarm override
-    // - остановить COB alarm override
-    // - остановить alarm audio
-    // - вернуть обычное состояние устройств
-    // --------------------------------------------------------
+    Serial0.println("[ALARM][CONTROLLER] STOP OUTPUTS");
 
     if (_stopCallback)
     {

@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include <Arduino.h>
@@ -5,164 +6,48 @@
 
 #include "./managers/Alarm/AlarmManager.h"
 
-// ============================================================
-// ALARM CONTROLLER
-// ============================================================
-//
-// Отвечает только за управление активным будильником:
-//
-// AlarmManager
-//      │
-//      │ trigger
-//      ▼
-// AlarmController
-//      │
-//      ├── MatrixCallback
-//      ├── CobCallback
-//      └── AudioCallback
-//
-// При завершении:
-//
-// AlarmController
-//      │
-//      └── StopCallback
-//
-// Никаких фаз.
-// Никакого phaseIndex.
-// Никаких AlarmPhase.
-//
-// ============================================================
-
 class AlarmController
 {
 public:
+    using MatrixCallback = std::function<void(const String&)>;
+    using AudioCallback = std::function<void(const String&)>;
+    using CobCallback = std::function<void(const String&)>;
+    using StopCallback = std::function<void()>;
 
-    // ========================================================
-    // CALLBACK TYPES
-    // ========================================================
-
-    using MatrixCallback =
-        std::function<void(const String& effectId)>;
-
-    using AudioCallback =
-        std::function<void(const String& effectId)>;
-
-    using CobCallback =
-        std::function<void(const String& effectId)>;
-
-    using StopCallback =
-        std::function<void()>;
-
-public:
-
-    // ========================================================
-    // CONSTRUCTOR
-    // ========================================================
-
-    explicit AlarmController(
-        AlarmManager& alarmManager
-    );
-
-    // ========================================================
-    // LIFECYCLE
-    // ========================================================
+    explicit AlarmController(AlarmManager& alarmManager);
 
     void begin();
-
     void update();
 
-    // ========================================================
-    // CALLBACKS
-    // ========================================================
-
-    void setMatrixCallback(
-        MatrixCallback callback
-    );
-
-    void setAudioCallback(
-        AudioCallback callback
-    );
-
-    void setCobCallback(
-        CobCallback callback
-    );
-
-    void setStopCallback(
-        StopCallback callback
-    );
-
-    // ========================================================
-    // STATE
-    // ========================================================
+    void setMatrixCallback(MatrixCallback callback);
+    void setAudioCallback(AudioCallback callback);
+    void setCobCallback(CobCallback callback);
+    void setStopCallback(StopCallback callback);
 
     bool isActive() const;
-
     const String& alarmId() const;
 
-    // ========================================================
-    // CONTROL
-    // ========================================================
-
     bool dismiss();
-
-    bool snooze(
-        uint32_t durationMs
-    );
+    bool snooze(uint32_t durationMs);
 
     void stop();
 
 private:
+    void onTriggered(const Alarm& alarm);
+    void onFinished(const String& id);
 
-    // ========================================================
-    // ALARM MANAGER CALLBACKS
-    // ========================================================
-
-    void onTriggered(
-        const Alarm& alarm
-    );
-
-    void onFinished(
-        const String& id
-    );
-
-    // ========================================================
-    // OUTPUT CONTROL
-    // ========================================================
-
-    void executeAlarm(
-        const Alarm& alarm
-    );
-
+    void executeAlarm(const Alarm& alarm);
     void stopOutputs();
-
-private:
-
-    // ========================================================
-    // REFERENCES
-    // ========================================================
 
     AlarmManager& _alarmManager;
 
-    // ========================================================
-    // OUTPUT CALLBACKS
-    // ========================================================
-
     MatrixCallback _matrixCallback;
-
     AudioCallback _audioCallback;
-
     CobCallback _cobCallback;
-
     StopCallback _stopCallback;
 
-    // ========================================================
-    // RUNTIME STATE
-    // ========================================================
-
     bool _active = false;
+    bool _begun = false;
 
     String _alarmId;
-
-    bool _begun = false;
 };
-
