@@ -226,7 +226,7 @@ bool SettingsManager::begin()
             "smartclock",
             false))
     {
-        Serial.println(
+        Serial0.println(
             "[Settings] ERROR: preferences.begin() failed");
         return false;
     }
@@ -323,7 +323,7 @@ bool SettingsManager::set(
 
     _lastChangeTime = millis();
 
-    Serial.printf(
+    Serial0.printf(
         "[Settings] %s: %d -> %d (min=%d, max=%d, def=%d)\n",
         desc.name,
         oldValue,
@@ -403,7 +403,7 @@ bool SettingsManager::save(
 
     _dirty[index] = false;
 
-    Serial.printf(
+    Serial0.printf(
         "[Settings] saved %s = %d\n",
         PARAMS[index].name,
         _values[index]
@@ -432,7 +432,7 @@ bool SettingsManager::saveDirty()
         {
             _dirty[i] = false;
 
-            Serial.printf(
+            Serial0.printf(
                 "[Settings] saved %s = %d\n",
                 PARAMS[i].name,
                 _values[i]
@@ -442,7 +442,7 @@ bool SettingsManager::saveDirty()
         {
             result = false;
 
-            Serial.printf(
+            Serial0.printf(
                 "[Settings] ERROR: failed to save %s\n",
                 PARAMS[i].name
             );
@@ -469,7 +469,7 @@ bool SettingsManager::saveAll()
         {
             result = false;
 
-            Serial.printf(
+            Serial0.printf(
                 "[Settings] ERROR: failed to save %s\n",
                 PARAMS[i].name
             );
@@ -478,7 +478,7 @@ bool SettingsManager::saveAll()
 
         _dirty[i] = false;
 
-        Serial.printf(
+        Serial0.printf(
             "[Settings] saved %s = %d\n",
             PARAMS[i].name,
             _values[i]
@@ -510,7 +510,7 @@ void SettingsManager::flush()
 
 void SettingsManager::resetAll()
 {
-    Serial.println(
+    Serial0.println(
         "[Settings] resetAll -> defaults");
 
     for (size_t i = 0;
@@ -522,7 +522,7 @@ void SettingsManager::resetAll()
 
         _dirty[i] = true;
 
-        Serial.printf(
+        Serial0.printf(
             "[Settings]   %s = %d\n",
             PARAMS[i].name,
             _values[i]
@@ -621,7 +621,7 @@ bool SettingsManager::loadValue(
 
     _dirty[index] = false;
 
-    Serial.printf(
+    Serial0.printf(
         "[Settings] load %s = %d (raw=%d)\n",
         desc.name,
         _values[index],
