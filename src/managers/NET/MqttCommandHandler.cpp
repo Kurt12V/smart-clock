@@ -1,4 +1,3 @@
-
 #include "MqttCommandHandler.h"
 
 #include <Arduino.h>
@@ -305,6 +304,7 @@ MqttCommandHandler::MqttCommandHandler()
       _clock(nullptr),
       _wifi(nullptr),
       _alarms(nullptr),
+      _timers(nullptr),
       _initialized(false)
 {
 }
@@ -319,7 +319,8 @@ bool MqttCommandHandler::begin(
     SettingsManager& settings,
     ClockSystem& clock,
     WiFiManager& wifi,
-    AlarmManager& alarms
+    AlarmManager& alarms,
+    TimerManager& timers
 )
 {
     if (_initialized)
@@ -333,6 +334,7 @@ bool MqttCommandHandler::begin(
     _clock = &clock;
     _wifi = &wifi;
     _alarms = &alarms;
+    _timers = &timers;
 
     _instance = this;
 
@@ -441,6 +443,10 @@ void MqttCommandHandler::handleCommand(
     else if (strncmp(command, "alarm.", 6) == 0)
     {
         alarmCommand(requestId, command, params);
+    }
+    else if (strncmp(command, "timer.", 6) == 0)
+    {
+        timerCommand(requestId, command, params);
     }
     else
     {
@@ -1520,13 +1526,13 @@ void MqttCommandHandler::alarmCommand(
 
     if (strcmp(command, "alarm.list") == 0)
     {
-        Alarm savedAlarms[AlarmConfig::MAX_ALARMS];
+        Alarm savedAlarms[AlarmManager::MAX_ALARMS];
 
         uint8_t count = 0;
 
         if (!_alarms->loadAll(
                 savedAlarms,
-                AlarmConfig::MAX_ALARMS,
+                AlarmManager::MAX_ALARMS,
                 count))
         {
             sendAck(
@@ -1584,13 +1590,13 @@ void MqttCommandHandler::alarmCommand(
 
     if (strcmp(command, "alarm.get_status") == 0)
     {
-        Alarm savedAlarms[AlarmConfig::MAX_ALARMS];
+        Alarm savedAlarms[AlarmManager::MAX_ALARMS];
 
         uint8_t count = 0;
 
         if (!_alarms->loadAll(
                 savedAlarms,
-                AlarmConfig::MAX_ALARMS,
+                AlarmManager::MAX_ALARMS,
                 count))
         {
             sendAck(
@@ -1695,17 +1701,7 @@ void MqttCommandHandler::alarmCommand(
 
         JsonDocument data;
 
-        if (!_alarms->serialize(alarm, data))
-        {
-            sendAck(
-                requestId,
-                command,
-                false,
-                "Alarm created, but serialization failed"
-            );
-
-            return;
-        }
+        writeAlarmJson(data.to<JsonObject>(), alarm);
 
         sendResult(
             requestId,
@@ -1779,17 +1775,7 @@ void MqttCommandHandler::alarmCommand(
 
         JsonDocument data;
 
-        if (!_alarms->serialize(alarm, data))
-        {
-            sendAck(
-                requestId,
-                command,
-                false,
-                "Alarm updated, but serialization failed"
-            );
-
-            return;
-        }
+        writeAlarmJson(data.to<JsonObject>(), alarm);
 
         sendResult(
             requestId,
@@ -1845,6 +1831,495 @@ void MqttCommandHandler::alarmCommand(
             command,
             true,
             "Alarm deleted",
+            data
+        );
+
+        return;
+    }
+
+    unknownCommand(requestId, command);
+}
+
+
+// ============================================================
+// TIMER COMMANDS
+// ============================================================
+
+void MqttCommandHandler::timerCommand(
+    const char* requestId,
+    const char* command,
+    JsonVariantConst params
+)
+{
+    if (_timers == nullptr)
+    {
+        sendAck(
+            requestId,
+            command,
+            false,
+            "TimerManager is not available"
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // timer.list
+    // --------------------------------------------------------
+
+    if (strcmp(command, "timer.list") == 0)
+    {
+        JsonDocument data;
+        JsonArray timers = data["timers"].to<JsonArray>();
+
+        uint8_t total = 0;
+        uint8_t running = 0;
+        uint8_t paused = 0;
+        uint8_t finished = 0;
+
+        for (uint8_t i = 0; i < TimerManager::MAX_TIMERS; ++i)
+        {
+            const Timer* timer = _timers->getAt(i);
+
+            if (timer == nullptr)
+                continue;
+
+            ++total;
+
+            const bool isRunning = _timers->isRunning(timer->id);
+            const bool isPaused = _timers->isPaused(timer->id);
+            const bool isFinished = _timers->isFinished(timer->id);
+
+            if (isRunning)
+                ++running;
+            else if (isPaused)
+                ++paused;
+            else if (isFinished)
+                ++finished;
+
+            JsonObject item = timers.add<JsonObject>();
+
+            item["id"] = timer->id;
+            item["name"] = timer->name;
+            item["duration_ms"] = timer->durationMs;
+            item["elapsed_ms"] = _timers->elapsedMs(timer->id);
+            item["remaining_ms"] = _timers->remainingMs(timer->id);
+            item["progress"] = _timers->progress(timer->id);
+
+            item["state"] =
+                isRunning ? "running" :
+                isPaused ? "paused" :
+                isFinished ? "finished" : "idle";
+
+            item["matrix_effect"] = timer->matrixEffect;
+            item["finish_matrix_effect"] = timer->finishMatrixEffect;
+            item["cob_effect"] = timer->cobEffect;
+            item["audio_effect"] = timer->audioEffect;
+            item["finish_audio_effect"] = timer->finishAudioEffect;
+        }
+
+        data["total"] = total;
+        data["running"] = running;
+        data["paused"] = paused;
+        data["finished"] = finished;
+        data["capacity"] = TimerManager::MAX_TIMERS;
+
+        sendResult(
+            requestId,
+            command,
+            true,
+            "Timer list",
+            data
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // timer.create
+    //
+    // Required:
+    //   name       string
+    //   durationMs uint32
+    //
+    // Optional:
+    //   id
+    //   matrixEffect
+    //   finishMatrixEffect
+    //   cobEffect
+    //   audioEffect
+    //   finishAudioEffect
+    // --------------------------------------------------------
+
+    if (strcmp(command, "timer.create") == 0)
+    {
+        Timer timer;
+
+        if (!readStringField(params, "name", timer.name) ||
+            timer.name.isEmpty())
+        {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "name is required and must be a non-empty string"
+            );
+
+            return;
+        }
+
+        if (params.isNull() ||
+            !params["durationMs"].is<uint32_t>())
+        {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "durationMs is required and must be a positive uint32"
+            );
+
+            return;
+        }
+
+        timer.durationMs = params["durationMs"].as<uint32_t>();
+
+        if (timer.durationMs == 0)
+        {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "durationMs must be greater than zero"
+            );
+
+            return;
+        }
+
+        if (!readOptionalString(params, "id", timer.id) ||
+            !readOptionalString(params, "matrixEffect", timer.matrixEffect) ||
+            !readOptionalString(params, "finishMatrixEffect", timer.finishMatrixEffect) ||
+            !readOptionalString(params, "cobEffect", timer.cobEffect) ||
+            !readOptionalString(params, "audioEffect", timer.audioEffect) ||
+            !readOptionalString(params, "finishAudioEffect", timer.finishAudioEffect))
+        {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "Invalid timer string parameter"
+            );
+
+            return;
+        }
+
+        if (!_timers->add(timer))
+        {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "Could not create timer. Check timer id, active state and 8-timer capacity"
+            );
+
+            return;
+        }
+
+        JsonDocument data;
+        JsonObject item = data.to<JsonObject>();
+
+        item["id"] = timer.id;
+        item["name"] = timer.name;
+        item["duration_ms"] = timer.durationMs;
+        item["elapsed_ms"] = 0;
+        item["remaining_ms"] = timer.durationMs;
+        item["progress"] = 0;
+        item["state"] = "idle";
+
+        item["matrix_effect"] = timer.matrixEffect;
+        item["finish_matrix_effect"] = timer.finishMatrixEffect;
+        item["cob_effect"] = timer.cobEffect;
+        item["audio_effect"] = timer.audioEffect;
+        item["finish_audio_effect"] = timer.finishAudioEffect;
+
+        sendResult(
+            requestId,
+            command,
+            true,
+            "Timer created",
+            data
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // timer.get_status
+    // --------------------------------------------------------
+
+    if (strcmp(command, "timer.get_status") == 0)
+    {
+        String id;
+
+        if (!readStringField(params, "id", id) || id.isEmpty())
+        {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "id is required"
+            );
+
+            return;
+        }
+
+        const Timer* timer = _timers->get(id);
+
+        if (timer == nullptr)
+        {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "Timer not found"
+            );
+
+            return;
+        }
+
+        const bool isRunning = _timers->isRunning(id);
+        const bool isPaused = _timers->isPaused(id);
+        const bool isFinished = _timers->isFinished(id);
+
+        JsonDocument data;
+
+        data["id"] = timer->id;
+        data["name"] = timer->name;
+        data["duration_ms"] = timer->durationMs;
+        data["elapsed_ms"] = _timers->elapsedMs(id);
+        data["remaining_ms"] = _timers->remainingMs(id);
+        data["progress"] = _timers->progress(id);
+
+        data["running"] = isRunning;
+        data["paused"] = isPaused;
+        data["finished"] = isFinished;
+
+        data["state"] =
+            isRunning ? "running" :
+            isPaused ? "paused" :
+            isFinished ? "finished" : "idle";
+
+        data["matrix_effect"] = timer->matrixEffect;
+        data["finish_matrix_effect"] = timer->finishMatrixEffect;
+        data["cob_effect"] = timer->cobEffect;
+        data["audio_effect"] = timer->audioEffect;
+        data["finish_audio_effect"] = timer->finishAudioEffect;
+
+        sendResult(
+            requestId,
+            command,
+            true,
+            "Timer status",
+            data
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // timer.start
+    // --------------------------------------------------------
+
+    if (strcmp(command, "timer.start") == 0)
+    {
+        String id;
+
+        if (!readStringField(params, "id", id) || id.isEmpty())
+        {
+            sendAck(requestId, command, false, "id is required");
+            return;
+        }
+
+        const bool success = _timers->start(id);
+
+        sendAck(
+            requestId,
+            command,
+            success,
+            success ? "Timer started" : "Could not start timer"
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // timer.pause
+    // --------------------------------------------------------
+
+    if (strcmp(command, "timer.pause") == 0)
+    {
+        String id;
+
+        if (!readStringField(params, "id", id) || id.isEmpty())
+        {
+            sendAck(requestId, command, false, "id is required");
+            return;
+        }
+
+        const bool success = _timers->pause(id);
+
+        sendAck(
+            requestId,
+            command,
+            success,
+            success ? "Timer paused" : "Could not pause timer"
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // timer.resume
+    // --------------------------------------------------------
+
+    if (strcmp(command, "timer.resume") == 0)
+    {
+        String id;
+
+        if (!readStringField(params, "id", id) || id.isEmpty())
+        {
+            sendAck(requestId, command, false, "id is required");
+            return;
+        }
+
+        const bool success = _timers->resume(id);
+
+        sendAck(
+            requestId,
+            command,
+            success,
+            success ? "Timer resumed" : "Could not resume timer"
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // timer.cancel
+    // Stops a running or paused timer, but keeps its definition.
+    // --------------------------------------------------------
+
+    if (strcmp(command, "timer.cancel") == 0)
+    {
+        String id;
+
+        if (!readStringField(params, "id", id) || id.isEmpty())
+        {
+            sendAck(requestId, command, false, "id is required");
+            return;
+        }
+
+        if (_timers->get(id) == nullptr)
+        {
+            sendAck(requestId, command, false, "Timer not found");
+            return;
+        }
+
+        if (!_timers->isRunning(id) && !_timers->isPaused(id))
+        {
+            sendAck(
+                requestId,
+                command,
+                false,
+                "Timer is not running or paused"
+            );
+
+            return;
+        }
+
+        _timers->cancel(id);
+
+        sendAck(
+            requestId,
+            command,
+            true,
+            "Timer cancelled"
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // timer.dismiss
+    // Resets a finished timer to idle, keeps its definition.
+    // --------------------------------------------------------
+
+    if (strcmp(command, "timer.dismiss") == 0)
+    {
+        String id;
+
+        if (!readStringField(params, "id", id) || id.isEmpty())
+        {
+            sendAck(requestId, command, false, "id is required");
+            return;
+        }
+
+        const bool success = _timers->dismiss(id);
+
+        sendAck(
+            requestId,
+            command,
+            success,
+            success ? "Finished timer dismissed" : "Timer is not finished"
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // timer.remove
+    // --------------------------------------------------------
+
+    if (strcmp(command, "timer.remove") == 0)
+    {
+        String id;
+
+        if (!readStringField(params, "id", id) || id.isEmpty())
+        {
+            sendAck(requestId, command, false, "id is required");
+            return;
+        }
+
+        const bool success = _timers->remove(id);
+
+        sendAck(
+            requestId,
+            command,
+            success,
+            success ? "Timer removed" : "Timer not found"
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // timer.clear
+    // --------------------------------------------------------
+
+    if (strcmp(command, "timer.clear") == 0)
+    {
+        const uint8_t removedCount = _timers->count();
+
+        _timers->clear();
+
+        JsonDocument data;
+        data["removed"] = removedCount;
+        data["total"] = _timers->count();
+
+        sendResult(
+            requestId,
+            command,
+            true,
+            "All timers cleared",
             data
         );
 

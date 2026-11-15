@@ -1,4 +1,3 @@
-
 #include "App.h"
 
 #include <Arduino.h>
@@ -59,9 +58,6 @@ App::App()
     , _brightnessManager()
     , _alarmManager(
         _clockSystem
-    )
-    , _alarmController(
-        _alarmManager
     )
     , _wifiManager()
     , _webServer(80)
@@ -311,7 +307,7 @@ bool App::begin()
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 10/14: Alarms"
+        "[APP] Step 10/15: Alarms"
     );
 
     if (!initAlarm())
@@ -329,11 +325,33 @@ bool App::begin()
 
 
     // --------------------------------------------------------
-    // STEP 11: WI-FI
+    // STEP 11: TIMERS
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 11/14: Wi-Fi"
+        "[APP] Step 11/15: Timers"
+    );
+
+    if (!initTimer())
+    {
+        Serial0.println(
+            "[APP][ERROR] Timer initialization failed"
+        );
+
+        return false;
+    }
+
+    Serial0.println(
+        "[APP] Timers initialized"
+    );
+
+
+    // --------------------------------------------------------
+    // STEP 12: WI-FI
+    // --------------------------------------------------------
+
+    Serial0.println(
+        "[APP] Step 12/15: Wi-Fi"
     );
 
     if (!initWiFi())
@@ -351,11 +369,11 @@ bool App::begin()
 
 
     // --------------------------------------------------------
-    // STEP 12: MQTT
+    // STEP 13: MQTT
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 12/14: MQTT"
+        "[APP] Step 13/15: MQTT"
     );
 
     if (!initMqtt())
@@ -373,11 +391,11 @@ bool App::begin()
 
 
     // --------------------------------------------------------
-    // STEP 13: WEB INTERFACE
+    // STEP 14: WEB INTERFACE
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 13/14: Web interface"
+        "[APP] Step 14/15: Web interface"
     );
 
     if (!initWebWiFi())
@@ -395,11 +413,11 @@ bool App::begin()
 
 
     // --------------------------------------------------------
-    // STEP 14: AUDIO WEBSOCKET
+    // STEP 15: AUDIO WEBSOCKET
     // --------------------------------------------------------
 
     Serial0.println(
-        "[APP] Step 14/14: Audio WebSocket"
+        "[APP] Step 15/15: Audio WebSocket"
     );
 
     // if (!initAudio())
@@ -503,17 +521,17 @@ void App::update()
 
 
     // --------------------------------------------------------
-    // ALARM MANAGER
+    // ALARMS
     // --------------------------------------------------------
 
     _alarmManager.update();
 
 
     // --------------------------------------------------------
-    // ALARM CONTROLLER
+    // TIMERS
     // --------------------------------------------------------
 
-    _alarmController.update();
+    _timerManager.update();
 
 
     // --------------------------------------------------------
@@ -801,6 +819,33 @@ bool App::initAlarm()
 
 
 // ============================================================
+// TIMERS
+// ============================================================
+
+bool App::initTimer()
+{
+    Serial0.println(
+        "[APP] Initializing timers..."
+    );
+
+    if (!_timerManager.begin())
+    {
+        Serial0.println(
+            "[APP][ERROR] TimerManager initialization failed"
+        );
+
+        return false;
+    }
+
+    Serial0.println(
+        "[APP] TimerManager initialized"
+    );
+
+    return true;
+}
+
+
+// ============================================================
 // WI-FI
 // ============================================================
 
@@ -850,7 +895,8 @@ bool App::initMqtt()
             _settings,
             _clockSystem,
             _wifiManager,
-            _alarmManager
+            _alarmManager,
+            _timerManager
         ))
     {
         Serial0.println(

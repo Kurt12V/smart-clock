@@ -58,7 +58,6 @@ bool SoundManager::begin()
     resetPcmQueue();
     resetPlaybackState();
 
-    _localPercent = 100;
     _initialized = true;
 
     Serial0.println("[SoundManager] Initialized");
@@ -139,7 +138,6 @@ bool SoundManager::play(
     }
 
     _currentStream = options.stream;
-    _localPercent = clampPercent(options.localPercent);
 
     _fadeCurve = options.curve;
 
@@ -377,7 +375,6 @@ bool SoundManager::playSource(
     _positionBytes = 0;
     _durationMs = 0;
 
-    _localPercent = 100;
 
     _fadeInEnabled = false;
     _fadeOutEnabled = false;
@@ -426,7 +423,6 @@ bool SoundManager::beginPCM(
     _positionBytes = 0;
     _durationMs = 0;
 
-    _localPercent = 100;
 
     _fadeInEnabled = false;
     _fadeOutEnabled = false;
@@ -1185,15 +1181,6 @@ void SoundManager::setStreamVolume(
     }
 }
 
-uint8_t SoundManager::getLocalPercent() const
-{
-    return _localPercent;
-}
-
-void SoundManager::setLocalPercent(uint8_t percent)
-{
-    _localPercent = clampPercent(percent);
-}
 
 // ============================================================
 // PAUSE / RESUME / STOP

@@ -16,6 +16,7 @@ MatrixEffects::MatrixEffects(
       _transitionTime(1000),
       _transitionStart(0),
       _speed(50),
+      _progress(0),
       _lastUpdate(0),
       _step(0)
 {
@@ -38,6 +39,7 @@ void MatrixEffects::begin()
     _transitioning = false;
 
     _step = 0;
+    _progress = 0;
     _lastUpdate = millis();
 }
 
@@ -278,6 +280,27 @@ uint8_t MatrixEffects::speed() const
 }
 
 // ============================================================
+// PROGRESS
+// ============================================================
+
+void MatrixEffects::setProgress(
+    uint8_t percent
+)
+{
+    _progress =
+        constrain(
+            percent,
+            0,
+            100
+        );
+}
+
+uint8_t MatrixEffects::progress() const
+{
+    return _progress;
+}
+
+// ============================================================
 // RENDER
 // ============================================================
 
@@ -331,6 +354,30 @@ void MatrixEffects::render(
 
         case Effect::Matrix:
             renderMatrix(buffer);
+            break;
+
+        case Effect::ProgressSpinner:
+            renderProgressSpinner(buffer);
+            break;
+
+        case Effect::ProgressBarVertical:
+            renderProgressBarVertical(buffer);
+            break;
+
+        case Effect::ProgressGradient:
+            renderProgressGradient(buffer);
+            break;
+
+        case Effect::Pulse:
+            renderPulse(buffer);
+            break;
+
+        case Effect::Checkmark:
+            renderCheckmark(buffer);
+            break;
+
+        case Effect::ErrorCross:
+            renderErrorCross(buffer);
             break;
 
         default:
@@ -863,6 +910,355 @@ void MatrixEffects::renderMatrix(
 }
 
 // ============================================================
+// PROGRESS SPINNER
+// ============================================================
+
+void MatrixEffects::renderProgressSpinner(
+    uint32_t* buffer
+)
+{
+    const int16_t W = LedMatrix::WIDTH;
+    const int16_t H = LedMatrix::HEIGHT;
+
+    const int16_t perimeter =
+        2 * (W + H) - 4;
+
+    if (perimeter <= 0)
+        return;
+
+    const int16_t head =
+        static_cast<int16_t>(
+            (_step * 2) % perimeter
+        );
+
+    const int16_t trail = 6;
+
+    for (uint8_t y = 0; y < LedMatrix::HEIGHT; y++)
+    {
+        for (uint8_t x = 0; x < LedMatrix::WIDTH; x++)
+        {
+            int16_t pos = -1;
+
+            if (y == 0)
+            {
+                pos = x;
+            }
+            else if (x == W - 1)
+            {
+                pos = W + y - 1;
+            }
+            else if (y == H - 1)
+            {
+                pos = W + H - 1 + (W - 2 - x);
+            }
+            else if (x == 0)
+            {
+                pos = 2 * W + H - 2 + (H - 2 - y);
+            }
+
+            if (pos < 0)
+                continue;
+
+            const int16_t distance =
+                (head - pos + perimeter) % perimeter;
+
+            if (distance < trail)
+            {
+                const uint8_t brightness =
+                    static_cast<uint8_t>(
+                        255 - distance * 255 / trail
+                    );
+
+                const uint32_t baseHue =
+                    static_cast<uint32_t>(pos) * 255U /
+                    static_cast<uint32_t>(perimeter);
+
+                const uint8_t hue =
+                    static_cast<uint8_t>(
+                        (baseHue + _step * 4) & 0xFF
+                    );
+
+                const uint32_t c =
+                    hsv(hue, 255, brightness);
+
+                setPixel(
+                    buffer,
+                    x,
+                    y,
+                    getR(c),
+                    getG(c),
+                    getB(c)
+                );
+            }
+            else
+            {
+                setPixel(buffer, x, y, 0, 0, 4);
+            }
+        }
+    }
+}
+
+// ============================================================
+// PROGRESS BAR VERTICAL
+// ============================================================
+
+void MatrixEffects::renderProgressBarVertical(
+    uint32_t* buffer
+)
+{
+    const uint8_t filledRows =
+        static_cast<uint8_t>(
+            (static_cast<uint16_t>(LedMatrix::HEIGHT) * _progress) / 100
+        );
+
+    const uint8_t hue =
+        static_cast<uint8_t>(
+            map(_progress, 0, 100, 0, 120)
+        );
+
+    for (uint8_t y = 0; y < LedMatrix::HEIGHT; y++)
+    {
+        const bool filled =
+            (y >= LedMatrix::HEIGHT - filledRows);
+
+        for (uint8_t x = 0; x < LedMatrix::WIDTH; x++)
+        {
+            if (filled)
+            {
+                uint32_t c =
+                    hsv(hue, 255, 255);
+
+                if (filledRows > 0 &&
+                    y == LedMatrix::HEIGHT - filledRows)
+                {
+                    c = hsv(hue, 80, 255);
+                }
+
+                setPixel(
+                    buffer,
+                    x,
+                    y,
+                    getR(c),
+                    getG(c),
+                    getB(c)
+                );
+            }
+            else
+            {
+                setPixel(buffer, x, y, 0, 0, 3);
+            }
+        }
+    }
+}
+
+// ============================================================
+// PROGRESS GRADIENT
+// ============================================================
+
+void MatrixEffects::renderProgressGradient(
+    uint32_t* buffer
+)
+{
+    const uint8_t filledCols =
+        static_cast<uint8_t>(
+            (static_cast<uint16_t>(LedMatrix::WIDTH) * _progress) / 100
+        );
+
+    for (uint8_t y = 0; y < LedMatrix::HEIGHT; y++)
+    {
+        for (uint8_t x = 0; x < LedMatrix::WIDTH; x++)
+        {
+            if (x < filledCols)
+            {
+                const uint8_t hue =
+                    static_cast<uint8_t>(
+                        LedMatrix::WIDTH > 1
+                            ? map(
+                                  x,
+                                  0,
+                                  LedMatrix::WIDTH - 1,
+                                  0,
+                                  160
+                              )
+                            : 0
+                    );
+
+                uint32_t c =
+                    hsv(hue, 255, 255);
+
+                if (x == filledCols - 1)
+                {
+                    c = hsv(hue, 80, 255);
+                }
+
+                setPixel(
+                    buffer,
+                    x,
+                    y,
+                    getR(c),
+                    getG(c),
+                    getB(c)
+                );
+            }
+            else
+            {
+                setPixel(buffer, x, y, 0, 0, 3);
+            }
+        }
+    }
+}
+
+// ============================================================
+// PULSE
+// ============================================================
+
+void MatrixEffects::renderPulse(
+    uint32_t* buffer
+)
+{
+    const uint8_t hue =
+        static_cast<uint8_t>((_step * 2) & 0xFF);
+
+    const uint8_t value =
+        static_cast<uint8_t>(
+            map(
+                sin8(_step * 3),
+                0,
+                255,
+                20,
+                180
+            )
+        );
+
+    const uint32_t c =
+        hsv(hue, 220, value);
+
+    const uint8_t r = getR(c);
+    const uint8_t g = getG(c);
+    const uint8_t b = getB(c);
+
+    for (uint8_t y = 0; y < LedMatrix::HEIGHT; y++)
+    {
+        for (uint8_t x = 0; x < LedMatrix::WIDTH; x++)
+        {
+            setPixel(
+                buffer,
+                x,
+                y,
+                r,
+                g,
+                b
+            );
+        }
+    }
+}
+
+// ============================================================
+// CHECKMARK
+// ============================================================
+
+void MatrixEffects::renderCheckmark(
+    uint32_t* buffer
+)
+{
+    const int16_t W = LedMatrix::WIDTH;
+    const int16_t H = LedMatrix::HEIGHT;
+
+    const int16_t ax = W * 15 / 100;
+    const int16_t ay = H * 55 / 100;
+    const int16_t bx = W * 40 / 100;
+    const int16_t by = H * 80 / 100;
+    const int16_t cx = W * 85 / 100;
+    const int16_t cy = H * 15 / 100;
+
+    const uint32_t phase = _step % 60;
+
+    if (phase <= 9)
+    {
+        const float t = phase / 9.0f;
+
+        const int16_t ex =
+            static_cast<int16_t>(ax + (bx - ax) * t);
+        const int16_t ey =
+            static_cast<int16_t>(ay + (by - ay) * t);
+
+        drawLine(buffer, ax, ay, ex, ey, 0, 255, 0);
+    }
+    else if (phase <= 29)
+    {
+        drawLine(buffer, ax, ay, bx, by, 0, 255, 0);
+
+        const float t = (phase - 10) / 19.0f;
+
+        const int16_t ex =
+            static_cast<int16_t>(bx + (cx - bx) * t);
+        const int16_t ey =
+            static_cast<int16_t>(by + (cy - by) * t);
+
+        drawLine(buffer, bx, by, ex, ey, 0, 255, 0);
+    }
+    else
+    {
+        drawLine(buffer, ax, ay, bx, by, 0, 255, 0);
+        drawLine(buffer, bx, by, cx, cy, 0, 255, 0);
+    }
+}
+
+// ============================================================
+// ERROR CROSS
+// ============================================================
+
+void MatrixEffects::renderErrorCross(
+    uint32_t* buffer
+)
+{
+    const int16_t W = LedMatrix::WIDTH;
+    const int16_t H = LedMatrix::HEIGHT;
+
+    const int16_t ax = W * 15 / 100;
+    const int16_t ay = H * 15 / 100;
+    const int16_t bx = W * 85 / 100;
+    const int16_t by = H * 85 / 100;
+
+    const int16_t cx = W * 85 / 100;
+    const int16_t cy = H * 15 / 100;
+    const int16_t dx = W * 15 / 100;
+    const int16_t dy = H * 85 / 100;
+
+    const uint32_t phase = _step % 60;
+
+    if (phase <= 9)
+    {
+        const float t = phase / 9.0f;
+
+        const int16_t ex =
+            static_cast<int16_t>(ax + (bx - ax) * t);
+        const int16_t ey =
+            static_cast<int16_t>(ay + (by - ay) * t);
+
+        drawLine(buffer, ax, ay, ex, ey, 255, 0, 0);
+    }
+    else if (phase <= 29)
+    {
+        drawLine(buffer, ax, ay, bx, by, 255, 0, 0);
+
+        const float t = (phase - 10) / 19.0f;
+
+        const int16_t ex =
+            static_cast<int16_t>(cx + (dx - cx) * t);
+        const int16_t ey =
+            static_cast<int16_t>(cy + (dy - cy) * t);
+
+        drawLine(buffer, cx, cy, ex, ey, 255, 0, 0);
+    }
+    else
+    {
+        drawLine(buffer, ax, ay, bx, by, 255, 0, 0);
+        drawLine(buffer, cx, cy, dx, dy, 255, 0, 0);
+    }
+}
+
+// ============================================================
 // BUFFER
 // ============================================================
 
@@ -899,6 +1295,69 @@ void MatrixEffects::setPixel(
 
     buffer[index(x, y)] =
         color(r, g, b);
+}
+
+// ============================================================
+// DRAW LINE (Bresenham)
+// ============================================================
+
+void MatrixEffects::drawLine(
+    uint32_t* buffer,
+    int16_t x0,
+    int16_t y0,
+    int16_t x1,
+    int16_t y1,
+    uint8_t r,
+    uint8_t g,
+    uint8_t b
+)
+{
+    const int16_t dx =
+        static_cast<int16_t>(abs(static_cast<int>(x1 - x0)));
+    const int16_t sx = x0 < x1 ? 1 : -1;
+
+    const int16_t dy =
+        static_cast<int16_t>(-abs(static_cast<int>(y1 - y0)));
+    const int16_t sy = y0 < y1 ? 1 : -1;
+
+    int16_t err =
+        static_cast<int16_t>(dx + dy);
+
+    while (true)
+    {
+        if (x0 >= 0 &&
+            x0 < static_cast<int16_t>(LedMatrix::WIDTH) &&
+            y0 >= 0 &&
+            y0 < static_cast<int16_t>(LedMatrix::HEIGHT))
+        {
+            setPixel(
+                buffer,
+                static_cast<uint8_t>(x0),
+                static_cast<uint8_t>(y0),
+                r,
+                g,
+                b
+            );
+        }
+
+        if (x0 == x1 && y0 == y1)
+            break;
+
+        const int16_t e2 =
+            static_cast<int16_t>(2 * err);
+
+        if (e2 >= dy)
+        {
+            err = static_cast<int16_t>(err + dy);
+            x0 = static_cast<int16_t>(x0 + sx);
+        }
+
+        if (e2 <= dx)
+        {
+            err = static_cast<int16_t>(err + dx);
+            y0 = static_cast<int16_t>(y0 + sy);
+        }
+    }
 }
 
 // ============================================================

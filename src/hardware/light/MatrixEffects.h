@@ -19,6 +19,12 @@ public:
         Twinkle,
         Meteor,
         Matrix,
+        ProgressSpinner,
+        ProgressBarVertical,
+        ProgressGradient,
+        Pulse,
+        Checkmark,
+        ErrorCross,
         COUNT
     };
 
@@ -36,6 +42,9 @@ public:
     void setSpeed(uint8_t speed);
     uint8_t speed() const;
 
+    void setProgress(uint8_t percent);
+    uint8_t progress() const;
+
     bool isTransitioning() const;
 
 private:
@@ -50,6 +59,7 @@ private:
     uint32_t _transitionStart;
 
     uint8_t _speed;
+    uint8_t _progress;
 
     uint32_t _lastUpdate;
     uint32_t _step;
@@ -75,6 +85,13 @@ private:
     void renderMeteor(uint32_t* buffer);
     void renderMatrix(uint32_t* buffer);
 
+    void renderProgressSpinner(uint32_t* buffer);
+    void renderProgressBarVertical(uint32_t* buffer);
+    void renderProgressGradient(uint32_t* buffer);
+    void renderPulse(uint32_t* buffer);
+    void renderCheckmark(uint32_t* buffer);
+    void renderErrorCross(uint32_t* buffer);
+
     // Frame helpers.
     void clearBuffer(uint32_t* buffer);
 
@@ -82,6 +99,17 @@ private:
         uint32_t* buffer,
         uint8_t x,
         uint8_t y,
+        uint8_t r,
+        uint8_t g,
+        uint8_t b
+    );
+
+    void drawLine(
+        uint32_t* buffer,
+        int16_t x0,
+        int16_t y0,
+        int16_t x1,
+        int16_t y1,
         uint8_t r,
         uint8_t g,
         uint8_t b

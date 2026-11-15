@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include <Arduino.h>
@@ -17,7 +16,7 @@
 #include "./managers/Display/BrightnessManager.h"
 #include "./managers/Led/LightingManager.h"
 #include "./managers/Alarm/AlarmManager.h"
-#include "./managers/Alarm/AlarmController.h"
+#include "./managers/Timer/TimerManager.h"
 #include "./managers/WiFi/WiFiManager.h"
 
 // ============================================================
@@ -51,7 +50,6 @@
 class App
 {
 public:
-
     // ========================================================
     // CONSTRUCTOR
     // ========================================================
@@ -80,7 +78,6 @@ public:
     }
 
 private:
-
     // ========================================================
     // INITIALIZATION
     // ========================================================
@@ -95,6 +92,7 @@ private:
     bool initBrightness();
     bool initSound();
     bool initAlarm();
+    bool initTimer();
     bool initWiFi();
     bool initMqtt();
     bool initWebWiFi();
@@ -182,7 +180,12 @@ private:
     // ========================================================
 
     AlarmManager _alarmManager;
-    AlarmController _alarmController;
+
+    // ========================================================
+    // TIMERS
+    // ========================================================
+
+    TimerManager _timerManager;
 
     // ========================================================
     // NETWORK

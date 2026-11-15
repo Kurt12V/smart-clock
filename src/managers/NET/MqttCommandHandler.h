@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include <Arduino.h>
@@ -9,7 +8,7 @@
 #include "./core/ClockSystem.h"
 #include "./managers/WiFi/WiFiManager.h"
 #include "./managers/Alarm/AlarmManager.h"
-
+#include "./managers/Timer/TimerManager.h"
 
 class MqttCommandHandler
 {
@@ -24,7 +23,8 @@ public:
         SettingsManager& settings,
         ClockSystem& clock,
         WiFiManager& wifi,
-        AlarmManager& alarms
+        AlarmManager& alarms,
+        TimerManager& timers
     );
 
     static void onMqttEvent(
@@ -41,6 +41,7 @@ private:
     ClockSystem* _clock;
     WiFiManager* _wifi;
     AlarmManager* _alarms;
+    TimerManager* _timers;
 
     bool _initialized;
 
@@ -71,6 +72,12 @@ private:
     );
 
     void alarmCommand(
+        const char* requestId,
+        const char* command,
+        JsonVariantConst params
+    );
+
+    void timerCommand(
         const char* requestId,
         const char* command,
         JsonVariantConst params
