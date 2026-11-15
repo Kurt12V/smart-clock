@@ -1,7 +1,8 @@
+
 #include "WiFiManager.h"
 
 #include <Preferences.h>
-#include <ESPmDNS.h>
+#include <ESP.h>
 
 // ============================================================
 // CONSTRUCTOR
@@ -16,7 +17,6 @@ WiFiManager::WiFiManager()
     , _connectStartedAt(0)
     , _lastReconnectAttempt(0)
     , _connectAttempts(0)
-    , _mdnsStarted(false)
     , _scanCount(0)
 {
 }
@@ -33,11 +33,10 @@ bool WiFiManager::begin()
     Serial0.println("============================================");
 
     WiFi.persistent(false);
-
     WiFi.setAutoReconnect(false);
+    WiFi.setSleep(false);
 
     WiFi.mode(WIFI_STA);
-
     WiFi.setHostname(HOSTNAME);
 
     if (!loadCredentials())
@@ -65,16 +64,15 @@ void WiFiManager::update()
 {
     switch (_mode)
     {
-        // ====================================================
+        // ----------------------------------------------------
         // CONNECTING
-        // ====================================================
+        // ----------------------------------------------------
 
         case Mode::Connecting:
         {
             if (WiFi.status() == WL_CONNECTED)
             {
                 _mode = Mode::Connected;
-
                 _connectAttempts = 0;
 
                 Serial0.println();
@@ -89,57 +87,31 @@ void WiFiManager::update()
                 Serial0.print("[WIFI] RSSI: ");
                 Serial0.println(WiFi.RSSI());
 
-                startMDNS();
-
                 break;
             }
 
-            if (
-                millis() - _connectStartedAt
-                >= CONNECT_TIMEOUT_MS
-            )
+            if (millis() - _connectStartedAt >= CONNECT_TIMEOUT_MS)
             {
                 Serial0.println();
-                Serial0.println(
-                    "[WIFI] Connection timeout"
-                );
+                Serial0.println("[WIFI] Connection timeout");
 
-                WiFi.disconnect(true, false);
+                WiFi.disconnect(false, false);
 
                 _connectAttempts++;
 
-                if (
-                    _connectAttempts
-                    >= MAX_CONNECT_ATTEMPTS
-                )
+                if (_connectAttempts >= MAX_CONNECT_ATTEMPTS)
                 {
-                    Serial0.println(
-                        "[WIFI] Connection failed"
-                    );
-
-                    Serial0.println(
-                        "[WIFI] Starting setup AP"
-                    );
+                    Serial0.println("[WIFI] Connection failed");
+                    Serial0.println("[WIFI] Starting setup AP");
 
                     startSetupMode();
                 }
                 else
                 {
-                    Serial0.print(
-                        "[WIFI] Retry "
-                    );
-
-                    Serial0.print(
-                        _connectAttempts
-                    );
-
-                    Serial0.print(
-                        "/"
-                    );
-
-                    Serial0.println(
-                        MAX_CONNECT_ATTEMPTS
-                    );
+                    Serial0.print("[WIFI] Retry ");
+                    Serial0.print(_connectAttempts);
+                    Serial0.print("/");
+                    Serial0.println(MAX_CONNECT_ATTEMPTS);
 
                     beginStation();
                 }
@@ -148,31 +120,26 @@ void WiFiManager::update()
             break;
         }
 
-        // ====================================================
+        // ----------------------------------------------------
         // CONNECTED
-        // ====================================================
+        // ----------------------------------------------------
 
         case Mode::Connected:
         {
             if (WiFi.status() != WL_CONNECTED)
             {
-                Serial0.println(
-                    "[WIFI] Connection lost"
-                );
-
-                stopMDNS();
+                Serial0.println("[WIFI] Connection lost");
 
                 _mode = Mode::Disconnected;
-
                 _lastReconnectAttempt = millis();
             }
 
             break;
         }
 
-        // ====================================================
+        // ----------------------------------------------------
         // DISCONNECTED
-        // ====================================================
+        // ----------------------------------------------------
 
         case Mode::Disconnected:
         {
@@ -182,16 +149,11 @@ void WiFiManager::update()
                 break;
             }
 
-            if (
-                millis() - _lastReconnectAttempt
-                >= RECONNECT_INTERVAL_MS
-            )
+            if (millis() - _lastReconnectAttempt >= RECONNECT_INTERVAL_MS)
             {
                 _lastReconnectAttempt = millis();
 
-                Serial0.println(
-                    "[WIFI] Trying reconnect..."
-                );
+                Serial0.println("[WIFI] Trying reconnect...");
 
                 _connectAttempts = 0;
 
@@ -201,20 +163,13 @@ void WiFiManager::update()
             break;
         }
 
-        // ====================================================
+        // ----------------------------------------------------
         // SETUP
-        // ====================================================
+        // ----------------------------------------------------
 
         case Mode::Setup:
         {
-            // Nothing to do here.
-            //
-            // The ESP32 stays in AP mode until:
-            //
-            // POST /api/wifi/connect
-            //
-            // saves new credentials and restarts ESP32.
-
+            // AP remains active until the user configures Wi-Fi.
             break;
         }
     }
@@ -228,12 +183,11 @@ bool WiFiManager::connect()
 {
     if (!hasCredentials())
     {
-        Serial0.println(
-            "[WIFI] Cannot connect: no credentials"
-        );
-
+        Serial0.println("[WIFI] Cannot connect: no credentials");
         return startSetupMode();
     }
+
+    _connectAttempts = 0;
 
     return beginStation();
 }
@@ -249,49 +203,21 @@ bool WiFiManager::connect(
 {
     if (ssid.isEmpty())
     {
-        Serial0.println(
-            "[WIFI] SSID is empty"
-        );
-
+        Serial0.println("[WIFI] SSID is empty");
         return false;
     }
 
-    if (!saveCredentials(
-        ssid,
-        password
-    ))
+    if (!saveCredentials(ssid, password))
     {
         return false;
     }
 
-    Serial0.println(
-        "[WIFI] New credentials saved"
-    );
+    Serial0.println("[WIFI] New credentials saved");
+    Serial0.print("[WIFI] SSID: ");
+    Serial0.println(_ssid);
 
-    Serial0.print(
-        "[WIFI] SSID: "
-    );
-
-    Serial0.println(
-        _ssid
-    );
-
-    /*
-     * Important:
-     *
-     * We do NOT immediately switch to STA here.
-     *
-     * The web handler will send the HTTP response
-     * and then restart the ESP32.
-     *
-     * After reboot:
-     *
-     * WiFiManager::begin()
-     *      ->
-     * loadCredentials()
-     *      ->
-     * beginStation()
-     */
+    // The HTTP handler sends the response and restarts ESP32.
+    // Connection will be established after reboot.
 
     return true;
 }
@@ -302,15 +228,12 @@ bool WiFiManager::connect(
 
 void WiFiManager::disconnect()
 {
-    stopMDNS();
-
-    WiFi.disconnect(true, false);
+    WiFi.disconnect(false, false);
 
     _mode = Mode::Disconnected;
+    _lastReconnectAttempt = millis();
 
-    Serial0.println(
-        "[WIFI] Disconnected"
-    );
+    Serial0.println("[WIFI] Disconnected");
 }
 
 // ============================================================
@@ -319,14 +242,14 @@ void WiFiManager::disconnect()
 
 bool WiFiManager::startSetupMode()
 {
-    stopMDNS();
+    Serial0.println("[WIFI] Switching to setup mode");
 
-    WiFi.disconnect(true, false);
+    WiFi.disconnect(false, false);
 
     delay(100);
 
     WiFi.mode(WIFI_AP);
-
+    WiFi.setSleep(false);
     WiFi.setHostname(HOSTNAME);
 
     return beginAccessPoint();
@@ -338,104 +261,49 @@ bool WiFiManager::startSetupMode()
 
 bool WiFiManager::beginAccessPoint()
 {
-    _setupSSID =
-        generateSetupSSID();
-
-    _setupPassword =
-        generateSetupPassword();
+    _setupSSID = generateSetupSSID();
+    _setupPassword = generateSetupPassword();
 
     Serial0.println();
-    Serial0.println(
-        "============================================"
-    );
+    Serial0.println("============================================");
+    Serial0.println("[WIFI] SETUP MODE");
+    Serial0.println("============================================");
 
-    Serial0.println(
-        "[WIFI] SETUP MODE"
-    );
+    Serial0.print("[WIFI] SSID: ");
+    Serial0.println(_setupSSID);
 
-    Serial0.println(
-        "============================================"
-    );
+    Serial0.print("[WIFI] Password: ");
+    Serial0.println(_setupPassword);
 
-    Serial0.print(
-        "[WIFI] SSID: "
-    );
+    IPAddress localIP(192, 168, 4, 1);
+    IPAddress gateway(192, 168, 4, 1);
+    IPAddress subnet(255, 255, 255, 0);
 
-    Serial0.println(
-        _setupSSID
-    );
-
-    Serial0.print(
-        "[WIFI] Password: "
-    );
-
-    Serial0.println(
-        _setupPassword
-    );
-
-    IPAddress localIP(
-        192,
-        168,
-        4,
-        1
-    );
-
-    IPAddress gateway(
-        192,
-        168,
-        4,
-        1
-    );
-
-    IPAddress subnet(
-        255,
-        255,
-        255,
-        0
-    );
-
-    if (
-        !WiFi.softAPConfig(
-            localIP,
-            gateway,
-            subnet
-        )
-    )
+    if (!WiFi.softAPConfig(localIP, gateway, subnet))
     {
-        Serial0.println(
-            "[WIFI] softAPConfig failed"
-        );
-
+        Serial0.println("[WIFI] softAPConfig failed");
         return false;
     }
 
-    if (
-        !WiFi.softAP(
+    // Channel 1, visible SSID, maximum 4 connected clients.
+    if (!WiFi.softAP(
             _setupSSID.c_str(),
-            _setupPassword.c_str()
-        )
-    )
+            _setupPassword.c_str(),
+            1,
+            false,
+            4
+        ))
     {
-        Serial0.println(
-            "[WIFI] softAP failed"
-        );
-
+        Serial0.println("[WIFI] softAP failed");
         return false;
     }
 
     _mode = Mode::Setup;
 
-    Serial0.println(
-        "[WIFI] Setup AP started"
-    );
+    Serial0.println("[WIFI] Setup AP started");
 
-    Serial0.print(
-        "[WIFI] Setup IP: "
-    );
-
-    Serial0.println(
-        WiFi.softAPIP()
-    );
+    Serial0.print("[WIFI] Setup IP: ");
+    Serial0.println(WiFi.softAPIP());
 
     return true;
 }
@@ -457,9 +325,7 @@ void WiFiManager::stopSetupMode()
 
     _mode = Mode::Disconnected;
 
-    Serial0.println(
-        "[WIFI] Setup AP stopped"
-    );
+    Serial0.println("[WIFI] Setup AP stopped");
 }
 
 // ============================================================
@@ -496,52 +362,23 @@ bool WiFiManager::saveCredentials(
 
     Preferences preferences;
 
-    if (
-        !preferences.begin(
-            NVS_NAMESPACE,
-            false
-        )
-    )
+    if (!preferences.begin(NVS_NAMESPACE, false))
     {
-        Serial0.println(
-            "[WIFI] Preferences begin failed"
-        );
-
+        Serial0.println("[WIFI] Preferences begin failed");
         return false;
     }
 
-    bool ok = true;
+    const size_t ssidWritten =
+        preferences.putString(NVS_KEY_SSID, ssid);
 
-    if (
-        preferences.putString(
-            NVS_KEY_SSID,
-            ssid
-        ) == 0
-    )
-    {
-        ok = false;
-    }
-
-    if (
-        preferences.putString(
-            NVS_KEY_PASSWORD,
-            password
-        ) == 0
-        &&
-        !password.isEmpty()
-    )
-    {
-        ok = false;
-    }
+    const size_t passwordWritten =
+        preferences.putString(NVS_KEY_PASSWORD, password);
 
     preferences.end();
 
-    if (!ok)
+    if (ssidWritten == 0 || (!password.isEmpty() && passwordWritten == 0))
     {
-        Serial0.println(
-            "[WIFI] Failed to save credentials"
-        );
-
+        Serial0.println("[WIFI] Failed to save credentials");
         return false;
     }
 
@@ -559,31 +396,14 @@ bool WiFiManager::loadCredentials()
 {
     Preferences preferences;
 
-    if (
-        !preferences.begin(
-            NVS_NAMESPACE,
-            true
-        )
-    )
+    if (!preferences.begin(NVS_NAMESPACE, true))
     {
-        Serial0.println(
-            "[WIFI] Preferences open failed"
-        );
-
+        Serial0.println("[WIFI] Preferences open failed");
         return false;
     }
 
-    _ssid =
-        preferences.getString(
-            NVS_KEY_SSID,
-            ""
-        );
-
-    _password =
-        preferences.getString(
-            NVS_KEY_PASSWORD,
-            ""
-        );
+    _ssid = preferences.getString(NVS_KEY_SSID, "");
+    _password = preferences.getString(NVS_KEY_PASSWORD, "");
 
     preferences.end();
 
@@ -598,24 +418,16 @@ void WiFiManager::clearCredentials()
 {
     Preferences preferences;
 
-    if (
-        preferences.begin(
-            NVS_NAMESPACE,
-            false
-        )
-    )
+    if (preferences.begin(NVS_NAMESPACE, false))
     {
         preferences.clear();
-
         preferences.end();
     }
 
     _ssid = "";
     _password = "";
 
-    Serial0.println(
-        "[WIFI] Credentials cleared"
-    );
+    Serial0.println("[WIFI] Credentials cleared");
 }
 
 // ============================================================
@@ -638,41 +450,29 @@ bool WiFiManager::beginStation()
         return startSetupMode();
     }
 
-    stopMDNS();
-
-    WiFi.softAPdisconnect(true);
+    Serial0.println();
+    Serial0.println("[WIFI] Preparing station mode");
 
     WiFi.mode(WIFI_STA);
-
+    WiFi.setSleep(false);
     WiFi.setHostname(HOSTNAME);
 
-    WiFi.disconnect(true, false);
+    // Disconnect without powering down the Wi-Fi interface.
+    WiFi.disconnect(false, false);
 
     delay(100);
 
-    Serial0.println();
-    Serial0.println(
-        "[WIFI] Connecting..."
-    );
-
-    Serial0.print(
-        "[WIFI] SSID: "
-    );
-
-    Serial0.println(
-        _ssid
-    );
+    Serial0.println("[WIFI] Connecting...");
+    Serial0.print("[WIFI] SSID: ");
+    Serial0.println(_ssid);
 
     WiFi.begin(
         _ssid.c_str(),
         _password.c_str()
     );
 
-    _connectStartedAt =
-        millis();
-
-    _mode =
-        Mode::Connecting;
+    _connectStartedAt = millis();
+    _mode = Mode::Connecting;
 
     return true;
 }
@@ -681,8 +481,7 @@ bool WiFiManager::beginStation()
 // GET MODE
 // ============================================================
 
-WiFiManager::Mode
-WiFiManager::getMode() const
+WiFiManager::Mode WiFiManager::getMode() const
 {
     return _mode;
 }
@@ -744,8 +543,7 @@ int WiFiManager::getRSSI() const
 // HOSTNAME
 // ============================================================
 
-const char*
-WiFiManager::getHostname() const
+const char* WiFiManager::getHostname() const
 {
     return HOSTNAME;
 }
@@ -774,13 +572,10 @@ String WiFiManager::getSetupPassword() const
 
 String WiFiManager::generateSetupSSID() const
 {
-    uint64_t mac =
-        ESP.getEfuseMac();
+    const uint64_t mac = ESP.getEfuseMac();
 
-    uint16_t suffix =
-        static_cast<uint16_t>(
-            mac & 0xFFFF
-        );
+    const uint16_t suffix =
+        static_cast<uint16_t>(mac & 0xFFFF);
 
     char buffer[32];
 
@@ -800,13 +595,10 @@ String WiFiManager::generateSetupSSID() const
 
 String WiFiManager::generateSetupPassword() const
 {
-    uint64_t mac =
-        ESP.getEfuseMac();
+    const uint64_t mac = ESP.getEfuseMac();
 
-    uint32_t suffix =
-        static_cast<uint32_t>(
-            mac & 0xFFFFFF
-        );
+    const uint32_t suffix =
+        static_cast<uint32_t>(mac & 0xFFFFFF);
 
     char buffer[32];
 
@@ -821,72 +613,18 @@ String WiFiManager::generateSetupPassword() const
 }
 
 // ============================================================
-// MDNS
-// ============================================================
-
-void WiFiManager::startMDNS()
-{
-    if (_mdnsStarted)
-    {
-        return;
-    }
-
-    if (
-        MDNS.begin(HOSTNAME)
-    )
-    {
-        MDNS.addService(
-            "http",
-            "tcp",
-            80
-        );
-
-        _mdnsStarted = true;
-
-        Serial0.println(
-            "[WIFI] mDNS started"
-        );
-
-        Serial0.println(
-            "[WIFI] http://smartclock.local"
-        );
-    }
-    else
-    {
-        Serial0.println(
-            "[WIFI] mDNS start failed"
-        );
-    }
-}
-
-// ============================================================
-// STOP MDNS
-// ============================================================
-
-void WiFiManager::stopMDNS()
-{
-    if (!_mdnsStarted)
-    {
-        return;
-    }
-
-    MDNS.end();
-
-    _mdnsStarted = false;
-
-    Serial0.println(
-        "[WIFI] mDNS stopped"
-    );
-}
-
-// ============================================================
 // SCAN
 // ============================================================
 
 int WiFiManager::scanNetworks()
 {
-    if (isSetupMode())
+    const bool setupMode = isSetupMode();
+
+    Serial0.println("[WIFI] Scanning networks...");
+
+    if (setupMode)
     {
+        // Keep the setup AP active while scanning.
         WiFi.mode(WIFI_AP_STA);
     }
     else
@@ -894,34 +632,19 @@ int WiFiManager::scanNetworks()
         WiFi.mode(WIFI_STA);
     }
 
-    Serial0.println(
-        "[WIFI] Scanning networks..."
-    );
-
-    _scanCount =
-        WiFi.scanNetworks(
-            false,
-            true
-        );
+    _scanCount = WiFi.scanNetworks(false, true);
 
     if (_scanCount < 0)
     {
         _scanCount = 0;
-
-        Serial0.println(
-            "[WIFI] Scan failed"
-        );
-
-        return 0;
+        Serial0.println("[WIFI] Scan failed");
     }
 
-    Serial0.print(
-        "[WIFI] Networks found: "
-    );
+    Serial0.print("[WIFI] Networks found: ");
+    Serial0.println(_scanCount);
 
-    Serial0.println(
-        _scanCount
-    );
+    // Do not switch back to AP-only mode.
+    // AP+STA allows the setup AP to remain available.
 
     return _scanCount;
 }
@@ -939,14 +662,9 @@ int WiFiManager::getScanCount() const
 // GET SCAN SSID
 // ============================================================
 
-String WiFiManager::getScanSSID(
-    int index
-) const
+String WiFiManager::getScanSSID(int index) const
 {
-    if (
-        index < 0 ||
-        index >= _scanCount
-    )
+    if (index < 0 || index >= _scanCount)
     {
         return "";
     }
@@ -958,14 +676,9 @@ String WiFiManager::getScanSSID(
 // GET SCAN RSSI
 // ============================================================
 
-int WiFiManager::getScanRSSI(
-    int index
-) const
+int WiFiManager::getScanRSSI(int index) const
 {
-    if (
-        index < 0 ||
-        index >= _scanCount
-    )
+    if (index < 0 || index >= _scanCount)
     {
         return 0;
     }
@@ -977,18 +690,12 @@ int WiFiManager::getScanRSSI(
 // GET SCAN ENCRYPTION
 // ============================================================
 
-bool WiFiManager::getScanEncrypted(
-    int index
-) const
+bool WiFiManager::getScanEncrypted(int index) const
 {
-    if (
-        index < 0 ||
-        index >= _scanCount
-    )
+    if (index < 0 || index >= _scanCount)
     {
         return false;
     }
 
-    return WiFi.encryptionType(index)
-        != WIFI_AUTH_OPEN;
+    return WiFi.encryptionType(index) != WIFI_AUTH_OPEN;
 }

@@ -82,378 +82,170 @@ App::App()
 
 bool App::begin()
 {
-    if (_initialized)
-    {
-        Serial0.println(
-            "[APP] Already initialized"
-        );
 
-        return true;
-    }
+    Serial.println();
+    Serial.println("================================");
+    Serial.println("       SMARTCLOCK START");
+    Serial.println("================================");
 
-    Serial0.println();
-    Serial0.println(
-        "============================================"
-    );
-    Serial0.println(
-        "          SMART CLOCK STARTUP"
-    );
-    Serial0.println(
-        "============================================"
-    );
-    Serial0.println();
-
-
-    // --------------------------------------------------------
-    // STEP 1: SETTINGS
-    // --------------------------------------------------------
-
-    Serial0.println(
-        "[APP] Step 1/14: Settings"
-    );
+    // 1. Settings
+    Serial.println("[APP] Step 1/14: Settings");
 
     if (!initSettings())
     {
-        Serial0.println(
-            "[APP][ERROR] Settings initialization failed"
-        );
-
+        Serial.println("[APP] ERROR: Settings initialization failed");
         return false;
     }
 
-    Serial0.println(
-        "[APP] Settings initialized"
-    );
+    Serial.println("[APP] Settings initialized");
 
-
-    // --------------------------------------------------------
-    // STEP 2: SPI
-    // --------------------------------------------------------
-
-    Serial0.println(
-        "[APP] Step 2/14: SPI"
-    );
+    // 2. SPI
+    Serial.println("[APP] Step 2/14: SPI");
 
     if (!initSPI())
     {
-        Serial0.println(
-            "[APP][ERROR] SPI initialization failed"
-        );
-
+        Serial.println("[APP] ERROR: SPI initialization failed");
         return false;
     }
 
-    Serial0.println(
-        "[APP] SPI initialized"
-    );
+    Serial.println("[APP] SPI initialized");
 
-
-    // --------------------------------------------------------
-    // STEP 3: I2S
-    // --------------------------------------------------------
-
-    Serial0.println(
-        "[APP] Step 3/14: I2S"
-    );
+    // 3. I2S
+    Serial.println("[APP] Step 3/14: I2S");
 
     if (!initI2S())
     {
-        Serial0.println(
-            "[APP][ERROR] I2S initialization failed"
-        );
-
+        Serial.println("[APP] ERROR: I2S initialization failed");
         return false;
     }
 
-    Serial0.println(
-        "[APP] I2S initialized"
-    );
+    Serial.println("[APP] I2S initialized");
 
-
-    // --------------------------------------------------------
-    // STEP 4: CLOCK
-    // --------------------------------------------------------
-
-    Serial0.println(
-        "[APP] Step 4/14: Clock"
-    );
-
-    if (!initClock())
-    {
-        Serial0.println(
-            "[APP][ERROR] Clock initialization failed"
-        );
-
-        return false;
-    }
-
-    Serial0.println(
-        "[APP] Clock initialized"
-    );
-
-
-    // --------------------------------------------------------
-    // STEP 5: SENSORS
-    // --------------------------------------------------------
-
-    Serial0.println(
-        "[APP] Step 5/14: Sensors"
-    );
-
-    if (!initSensors())
-    {
-        Serial0.println(
-            "[APP][ERROR] Sensor initialization failed"
-        );
-
-        return false;
-    }
-
-    Serial0.println(
-        "[APP] Sensors initialized"
-    );
-
-
-    // --------------------------------------------------------
-    // STEP 6: LIGHTING
-    // --------------------------------------------------------
-
-    Serial0.println(
-        "[APP] Step 6/14: Lighting"
-    );
-
-    if (!initLighting())
-    {
-        Serial0.println(
-            "[APP][ERROR] Lighting initialization failed"
-        );
-
-        return false;
-    }
-
-    Serial0.println(
-        "[APP] Lighting initialized"
-    );
-
-
-    // --------------------------------------------------------
-    // STEP 7: DISPLAYS
-    // --------------------------------------------------------
-
-    Serial0.println(
-        "[APP] Step 7/14: Displays"
-    );
-
-    if (!initDisplay())
-    {
-        Serial0.println(
-            "[APP][ERROR] Display initialization failed"
-        );
-
-        return false;
-    }
-
-    Serial0.println(
-        "[APP] Displays initialized"
-    );
-
-
-    // --------------------------------------------------------
-    // STEP 8: BRIGHTNESS
-    // --------------------------------------------------------
-
-    Serial0.println(
-        "[APP] Step 8/14: Brightness"
-    );
-
-    if (!initBrightness())
-    {
-        Serial0.println(
-            "[APP][ERROR] Brightness initialization failed"
-        );
-
-        return false;
-    }
-
-    Serial0.println(
-        "[APP] Brightness initialized"
-    );
-
-
-    // --------------------------------------------------------
-    // STEP 9: SOUND
-    // --------------------------------------------------------
-
-    Serial0.println(
-        "[APP] Step 9/14: Sound"
-    );
-
-    if (!initSound())
-    {
-        Serial0.println(
-            "[APP][ERROR] Sound initialization failed"
-        );
-
-        return false;
-    }
-
-    Serial0.println(
-        "[APP] Sound initialized"
-    );
-
-
-    // --------------------------------------------------------
-    // STEP 10: ALARMS
-    // --------------------------------------------------------
-
-    Serial0.println(
-        "[APP] Step 10/15: Alarms"
-    );
-
-    if (!initAlarm())
-    {
-        Serial0.println(
-            "[APP][ERROR] Alarm initialization failed"
-        );
-
-        return false;
-    }
-
-    Serial0.println(
-        "[APP] Alarms initialized"
-    );
-
-
-    // --------------------------------------------------------
-    // STEP 11: TIMERS
-    // --------------------------------------------------------
-
-    Serial0.println(
-        "[APP] Step 11/15: Timers"
-    );
-
-    if (!initTimer())
-    {
-        Serial0.println(
-            "[APP][ERROR] Timer initialization failed"
-        );
-
-        return false;
-    }
-
-    Serial0.println(
-        "[APP] Timers initialized"
-    );
-
-
-    // --------------------------------------------------------
-    // STEP 12: WI-FI
-    // --------------------------------------------------------
-
-    Serial0.println(
-        "[APP] Step 12/15: Wi-Fi"
-    );
+    // 4. WiFi
+    Serial.println("[APP] Step 4/14: WiFi");
 
     if (!initWiFi())
     {
-        Serial0.println(
-            "[APP][ERROR] Wi-Fi initialization failed"
-        );
-
+        Serial.println("[APP] ERROR: WiFi initialization failed");
         return false;
     }
 
-    Serial0.println(
-        "[APP] Wi-Fi initialized"
-    );
+    Serial.println("[APP] WiFi initialized");
 
-
-    // --------------------------------------------------------
-    // STEP 13: MQTT
-    // --------------------------------------------------------
-
-    Serial0.println(
-        "[APP] Step 13/15: MQTT"
-    );
+    // 5. MQTT
+    Serial.println("[APP] Step 5/14: MQTT");
 
     if (!initMqtt())
     {
-        Serial0.println(
-            "[APP][ERROR] MQTT client initialization failed"
-        );
-
+        Serial.println("[APP] ERROR: MQTT initialization failed");
         return false;
     }
 
-    Serial0.println(
-        "[APP] MQTT client initialized"
-    );
+    Serial.println("[APP] MQTT initialized");
 
-
-    // --------------------------------------------------------
-    // STEP 14: WEB INTERFACE
-    // --------------------------------------------------------
-
-    Serial0.println(
-        "[APP] Step 14/15: Web interface"
-    );
+    // 6. Web Server
+    Serial.println("[APP] Step 6/14: Web Server");
 
     if (!initWebWiFi())
     {
-        Serial0.println(
-            "[APP][ERROR] Web interface initialization failed"
-        );
-
+        Serial.println("[APP] ERROR: Web Server initialization failed");
         return false;
     }
 
-    Serial0.println(
-        "[APP] Web interface initialized"
-    );
+    Serial.println("[APP] Web Server initialized");
 
+    // 7. Clock
+    Serial.println("[APP] Step 7/14: Clock");
 
-    // --------------------------------------------------------
-    // STEP 15: AUDIO WEBSOCKET
-    // --------------------------------------------------------
+    if (!initClock())
+    {
+        Serial.println("[APP] ERROR: Clock initialization failed");
+        return false;
+    }
 
-    Serial0.println(
-        "[APP] Step 15/15: Audio WebSocket"
-    );
+    Serial.println("[APP] Clock initialized");
 
-    // if (!initAudio())
-    // {
-    //     Serial0.println(
-    //         "[APP][ERROR] Audio WebSocket initialization failed"
-    //     );
-    //
-    //     return false;
-    // }
+    // 8. Sensors
+    Serial.println("[APP] Step 8/14: Sensors");
 
-    Serial0.println(
-        "[APP] Audio WebSocket initialized"
-    );
+    if (!initSensors())
+    {
+        Serial.println("[APP] ERROR: Sensors initialization failed");
+        return false;
+    }
 
+    Serial.println("[APP] Sensors initialized");
 
-    // --------------------------------------------------------
-    // INITIALIZATION COMPLETE
-    // --------------------------------------------------------
+    // 9. Lighting
+    Serial.println("[APP] Step 9/14: Lighting");
 
-    _initialized = true;
+    if (!initLighting())
+    {
+        Serial.println("[APP] ERROR: Lighting initialization failed");
+        return false;
+    }
 
-    Serial0.println();
-    Serial0.println(
-        "============================================"
-    );
-    Serial0.println(
-        "[APP] Initialization complete"
-    );
-    Serial0.println(
-        "[APP] SMART CLOCK READY"
-    );
-    Serial0.println(
-        "============================================"
-    );
-    Serial0.println();
+    Serial.println("[APP] Lighting initialized");
+
+    // 10. Display
+    Serial.println("[APP] Step 10/14: Display");
+
+    if (!initDisplay())
+    {
+        Serial.println("[APP] ERROR: Display initialization failed");
+        return false;
+    }
+
+    Serial.println("[APP] Display initialized");
+
+    // 11. Brightness
+    Serial.println("[APP] Step 11/14: Brightness");
+
+    if (!initBrightness())
+    {
+        Serial.println("[APP] ERROR: Brightness initialization failed");
+        return false;
+    }
+
+    Serial.println("[APP] Brightness initialized");
+
+    // 12. Sound
+    Serial.println("[APP] Step 12/14: Sound");
+
+    if (!initSound())
+    {
+        Serial.println("[APP] ERROR: Sound initialization failed");
+        return false;
+    }
+
+    Serial.println("[APP] Sound initialized");
+
+    // 13. Alarm
+    Serial.println("[APP] Step 13/14: Alarm");
+
+    if (!initAlarm())
+    {
+        Serial.println("[APP] ERROR: Alarm initialization failed");
+        return false;
+    }
+
+    Serial.println("[APP] Alarm initialized");
+
+    // 14. Timer
+    Serial.println("[APP] Step 14/14: Timer");
+
+    if (!initTimer())
+    {
+        Serial.println("[APP] ERROR: Timer initialization failed");
+        return false;
+    }
+
+    Serial.println("[APP] Timer initialized");
+
+    Serial.println();
+    Serial.println("================================");
+    Serial.println("   SMARTCLOCK STARTED");
+    Serial.println("================================");
 
     return true;
 }
