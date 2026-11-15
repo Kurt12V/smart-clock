@@ -470,9 +470,18 @@ void SmartClockMqttClient::update() {
         const bool firstAttempt =
             !_hasReconnectAttempted;
 
-        const bool intervalElapsed =
-            now - _lastReconnectAttempt >=
-            RECONNECT_INTERVAL_MS;
+        bool intervalElapsed = false;
+
+        // Handle millis() overflow
+        if (now >= _lastReconnectAttempt)
+        {
+            intervalElapsed = (now - _lastReconnectAttempt >= RECONNECT_INTERVAL_MS);
+        }
+        else
+        {
+            // Overflow: retry immediately for safety
+            intervalElapsed = true;
+        }
 
         if (firstAttempt || intervalElapsed) {
 

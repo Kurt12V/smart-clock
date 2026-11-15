@@ -90,7 +90,21 @@ void WiFiManager::update()
                 break;
             }
 
-            if (millis() - _connectStartedAt >= CONNECT_TIMEOUT_MS)
+            const uint32_t now = millis();
+            bool timeout = false;
+
+            // Handle millis() overflow
+            if (now >= _connectStartedAt)
+            {
+                timeout = (now - _connectStartedAt >= CONNECT_TIMEOUT_MS);
+            }
+            else
+            {
+                // Overflow: assume timeout for safety
+                timeout = true;
+            }
+
+            if (timeout)
             {
                 Serial0.println();
                 Serial0.println("[WIFI] Connection timeout");
@@ -149,7 +163,21 @@ void WiFiManager::update()
                 break;
             }
 
-            if (millis() - _lastReconnectAttempt >= RECONNECT_INTERVAL_MS)
+            const uint32_t now = millis();
+            bool intervalElapsed = false;
+
+            // Handle millis() overflow
+            if (now >= _lastReconnectAttempt)
+            {
+                intervalElapsed = (now - _lastReconnectAttempt >= RECONNECT_INTERVAL_MS);
+            }
+            else
+            {
+                // Overflow: retry immediately
+                intervalElapsed = true;
+            }
+
+            if (intervalElapsed)
             {
                 _lastReconnectAttempt = millis();
 

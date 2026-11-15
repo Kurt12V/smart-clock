@@ -273,7 +273,21 @@ bool TimerManager::pause(const String& id)
     if (!slot.running)
         return false;
 
-    slot.elapsedBeforePause += millis() - slot.startMs;
+    const uint32_t now = millis();
+    uint32_t runningTime;
+
+    // Handle millis() overflow
+    if (now >= slot.startMs)
+    {
+        runningTime = now - slot.startMs;
+    }
+    else
+    {
+        // Overflow occurred
+        runningTime = (0xFFFFFFFF - slot.startMs) + now + 1;
+    }
+
+    slot.elapsedBeforePause += runningTime;
 
     slot.running = false;
     slot.paused  = true;
@@ -565,9 +579,21 @@ uint32_t TimerManager::computeElapsedMs(const Slot& slot) const
 
     if (slot.running)
     {
-        const uint32_t raw =
-            slot.elapsedBeforePause +
-            (millis() - slot.startMs);
+        const uint32_t now = millis();
+        uint32_t runningTime;
+
+        // Handle millis() overflow
+        if (now >= slot.startMs)
+        {
+            runningTime = now - slot.startMs;
+        }
+        else
+        {
+            // Overflow occurred
+            runningTime = (0xFFFFFFFF - slot.startMs) + now + 1;
+        }
+
+        const uint32_t raw = slot.elapsedBeforePause + runningTime;
 
         return
             raw > slot.timer.durationMs

@@ -185,8 +185,22 @@ void AlarmManager::update()
 
     if (_snooze.active)
     {
-        if (static_cast<int32_t>(
-                millis() - _snooze.untilMs) < 0)
+        const uint32_t now = millis();
+        bool snoozeExpired = false;
+
+        // Handle millis() overflow correctly
+        if (now >= _snooze.untilMs)
+        {
+            // Normal case: no overflow
+            snoozeExpired = true;
+        }
+        else if (_snooze.untilMs > 0x80000000 && now < 0x80000000)
+        {
+            // Overflow occurred: untilMs was large, now is small
+            snoozeExpired = true;
+        }
+
+        if (!snoozeExpired)
         {
             return;
         }
@@ -658,9 +672,21 @@ const String& AlarmManager::alarmId() const
 
 uint32_t AlarmManager::elapsedMs() const
 {
-    return _runtime.active
-        ? millis() - _runtime.startMs
-        : 0;
+    if (!_runtime.active)
+        return 0;
+
+    const uint32_t now = millis();
+
+    // Handle millis() overflow
+    if (now >= _runtime.startMs)
+    {
+        return now - _runtime.startMs;
+    }
+    else
+    {
+        // Overflow occurred
+        return (0xFFFFFFFF - _runtime.startMs) + now + 1;
+    }
 }
 
 // ============================================================
@@ -692,16 +718,35 @@ bool AlarmManager::snooze(uint32_t durationMs)
     if (durationMs == 0 || durationMs > MAX_SNOOZE_MS)
         return false;
 
+    // Validate that snooze won't overflow too soon
+    const uint32_t now = millis();
+    const uint32_t maxSafeDuration = 0xFFFFFFFF - now;
+
+    // If duration would overflow within next cycle, cap it
+    uint32_t safeDuration = durationMs;
+    if (durationMs > maxSafeDuration && maxSafeDuration < 300000) // less than 5 min to overflow
+    {
+        // Too close to overflow, use smaller duration
+        safeDuration = maxSafeDuration > 60000 ? maxSafeDuration : 60000; // at least 1 minute
+
+        Serial0.printf(
+            "[ALARM] WARNING: Snooze duration adjusted %lu -> %lu (millis overflow)\n",
+            static_cast<unsigned long>(durationMs),
+            static_cast<unsigned long>(safeDuration)
+        );
+    }
+
     _runtime.snoozed = true;
 
     _snooze.active = true;
     _snooze.alarmId = _runtime.alarmId;
-    _snooze.untilMs = millis() + durationMs;
+    _snooze.untilMs = now + safeDuration;
 
     Serial0.printf(
-        "[ALARM] SNOOZE id=%s duration=%lu\n",
+        "[ALARM] SNOOZE id=%s duration=%lu until=%lu\n",
         _runtime.alarmId.c_str(),
-        static_cast<unsigned long>(durationMs)
+        static_cast<unsigned long>(safeDuration),
+        static_cast<unsigned long>(_snooze.untilMs)
     );
 
     finish();
