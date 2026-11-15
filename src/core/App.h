@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include <Arduino.h>
@@ -50,6 +51,7 @@
 class App
 {
 public:
+
     // ========================================================
     // CONSTRUCTOR
     // ========================================================
@@ -78,6 +80,7 @@ public:
     }
 
 private:
+
     // ========================================================
     // INITIALIZATION
     // ========================================================
@@ -85,6 +88,11 @@ private:
     bool initSettings();
     bool initSPI();
     bool initI2S();
+
+    bool initWiFi();
+    bool initMqtt();
+    bool initWebWiFi();
+
     bool initClock();
     bool initSensors();
     bool initLighting();
@@ -93,9 +101,6 @@ private:
     bool initSound();
     bool initAlarm();
     bool initTimer();
-    bool initWiFi();
-    bool initMqtt();
-    bool initWebWiFi();
     bool initAudio();
 
     // ========================================================
@@ -141,6 +146,7 @@ private:
     void finishPlayback();
     void transmitMicrophoneAudio();
     void updateAudioSession();
+
     void handleIncomingPCM(
         const uint8_t* payload,
         size_t length
@@ -160,6 +166,7 @@ private:
     // ========================================================
 
     SettingsManager _settings;
+
     SPIManager _spiManager;
     I2SManager _i2sManager;
 
@@ -171,20 +178,16 @@ private:
     SensorManager _sensorManager;
 
     ClockSystem _clockSystem;
+
     LightingManager _lighting;
     DisplaySystem _displaySystem;
     BrightnessManager _brightnessManager;
 
     // ========================================================
-    // ALARMS
+    // ALARMS AND TIMERS
     // ========================================================
 
     AlarmManager _alarmManager;
-
-    // ========================================================
-    // TIMERS
-    // ========================================================
-
     TimerManager _timerManager;
 
     // ========================================================
@@ -192,6 +195,7 @@ private:
     // ========================================================
 
     WiFiManager _wifiManager;
+
     WebServer _webServer;
     WebWiFiManager _webWiFiManager;
 
