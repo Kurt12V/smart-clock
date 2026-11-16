@@ -17,6 +17,7 @@
 #include "./managers/Display/BrightnessManager.h"
 #include "./managers/Led/LightingManager.h"
 #include "./managers/Alarm/AlarmManager.h"
+#include "./managers/Alarm/SunriseAlarm.h"
 #include "./managers/Timer/TimerManager.h"
 #include "./managers/WiFi/WiFiManager.h"
 
@@ -180,6 +181,14 @@ private:
     ClockSystem _clockSystem;
 
     LightingManager _lighting;
+
+    // ========================================================
+    // SUNRISE ALARM
+    // ========================================================
+
+    // Сценарий рассвета использует LightingManager и SoundManager.
+    SunriseAlarm _sunriseAlarm;
+
     DisplaySystem _displaySystem;
     BrightnessManager _brightnessManager;
 

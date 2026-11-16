@@ -50,6 +50,11 @@ App::App()
         _settings
     )
 
+    , _sunriseAlarm(
+        _lighting,
+        _soundManager
+    )
+
     , _displaySystem(
         _settings,
         _clockSystem,
@@ -419,6 +424,19 @@ void App::update()
 
 
     // --------------------------------------------------------
+    // SUNRISE ALARM
+    // --------------------------------------------------------
+
+    // Сценарий запускается через TriggerCallback
+    // внутри AlarmManager.
+    //
+    // update() должен вызываться постоянно,
+    // пока сценарий активен.
+
+    _sunriseAlarm.update();
+
+
+    // --------------------------------------------------------
     // TIMER MANAGER
     // --------------------------------------------------------
 
@@ -757,7 +775,69 @@ bool App::initAlarm()
 {
     Serial0.println("[APP] Initializing alarms...");
 
-    return _alarmManager.begin();
+
+    // --------------------------------------------------------
+    // REGISTER SUNRISE START CALLBACK
+    // --------------------------------------------------------
+
+    _alarmManager.setTriggerCallback(
+        [this](const Alarm& alarm)
+        {
+            (void)alarm;
+
+            Serial0.println();
+            Serial0.println("============================================");
+            Serial0.println("[APP][ALARM] Alarm triggered");
+            Serial0.println("[APP][ALARM] Starting SunriseAlarm");
+            Serial0.println("============================================");
+
+            _sunriseAlarm.start();
+        }
+    );
+
+
+    // --------------------------------------------------------
+    // REGISTER SUNRISE FINISH CALLBACK
+    // --------------------------------------------------------
+
+    _alarmManager.setFinishCallback(
+        [this](const String& id)
+        {
+            Serial0.printf(
+                "[APP][ALARM] Alarm finished: %s\n",
+                id.c_str()
+            );
+
+            if (_sunriseAlarm.isActive())
+            {
+                Serial0.println("[APP][ALARM] Stopping SunriseAlarm");
+
+                _sunriseAlarm.stop();
+            }
+        }
+    );
+
+
+    // --------------------------------------------------------
+    // INITIALIZE ALARM MANAGER
+    // --------------------------------------------------------
+
+    if (!_alarmManager.begin())
+    {
+        Serial0.println("[APP][ERROR] AlarmManager initialization failed");
+        return false;
+    }
+
+
+    // --------------------------------------------------------
+    // SUCCESS
+    // --------------------------------------------------------
+
+    Serial0.println("[APP] AlarmManager initialized");
+    Serial0.println("[APP] Sunrise trigger callback registered");
+    Serial0.println("[APP] Sunrise finish callback registered");
+
+    return true;
 }
 
 
