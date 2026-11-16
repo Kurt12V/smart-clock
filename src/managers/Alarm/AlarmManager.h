@@ -2,8 +2,6 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include <LittleFS.h>
-#include <FS.h>
 #include <time.h>
 #include <functional>
 
@@ -130,16 +128,17 @@ private:
     SnoozeState _snooze;
 
     bool _initialized = false;
-    bool _filesystemReady = false;
 
-    // ---- STORAGE ----
+    // ---- STORAGE (RAM-only) ----
 
-    bool createDirectory();
-    String pathFor(const String& id) const;
+    Alarm _storedAlarms[MAX_ALARMS];
+    uint8_t _storedCount = 0;
+
+    int8_t findStored(const String& id);
+    bool saveToMemory(const Alarm& alarm);
+    bool loadFromMemory(const String& id, Alarm& alarm);
+    bool deleteFromMemory(const String& id);
     uint8_t countStoredAlarms() const;
-    bool saveToStorage(const Alarm& alarm);
-    bool loadFromStorage(const String& id, Alarm& alarm);
-    bool deleteFromStorage(const String& id);
     bool reload();
 
     // ---- JSON ----

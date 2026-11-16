@@ -1,90 +1,90 @@
-#pragma once
+// #pragma once
 
-#include <Arduino.h>
-#include "../models/Event.h"
-#include <functional>
+// #include <Arduino.h>
+// #include "../models/Event.h"
+// #include <functional>
 
-// ============================================================
-// EVENT MANAGER
-// ============================================================
+// // ============================================================
+// // EVENT MANAGER
+// // ============================================================
 
-class EventManager
-{
-public:
+// class EventManager
+// {
+// public:
 
-    using ReminderCallback = std::function<void(const Event&)>;
+//     using ReminderCallback = std::function<void(const Event&)>;
 
-    EventManager();
+//     EventManager();
 
-    bool begin();
-    void update();
+//     bool begin();
+//     void update();
 
-    // ========================================================
-    // EVENT MANAGEMENT
-    // ========================================================
+//     // ========================================================
+//     // EVENT MANAGEMENT
+//     // ========================================================
 
-    bool add(const Event& event);
-    bool remove(const String& id);
-    bool update(const Event& event);
+//     bool add(const Event& event);
+//     bool remove(const String& id);
+//     bool update(const Event& event);
 
-    void clear();
+//     void clear();
 
-    // ========================================================
-    // GETTERS
-    // ========================================================
+//     // ========================================================
+//     // GETTERS
+//     // ========================================================
 
-    const Event* get(const String& id) const;
-    const Event* getAt(uint8_t index) const;
+//     const Event* get(const String& id) const;
+//     const Event* getAt(uint8_t index) const;
 
-    uint8_t count() const;
-    uint8_t getTodayCount() const;
-    uint8_t getUpcomingCount(uint32_t minutesAhead = 60) const;
+//     uint8_t count() const;
+//     uint8_t getTodayCount() const;
+//     uint8_t getUpcomingCount(uint32_t minutesAhead = 60) const;
 
-    // ========================================================
-    // QUERIES
-    // ========================================================
+//     // ========================================================
+//     // QUERIES
+//     // ========================================================
 
-    bool getEventsForDay(time_t date, Event* outEvents, uint8_t maxCount, uint8_t& outCount) const;
-    bool getUpcomingEvents(Event* outEvents, uint8_t maxCount, uint8_t& outCount, uint32_t minutesAhead = 60) const;
-    bool getActiveEvents(Event* outEvents, uint8_t maxCount, uint8_t& outCount) const;
+//     bool getEventsForDay(time_t date, Event* outEvents, uint8_t maxCount, uint8_t& outCount) const;
+//     bool getUpcomingEvents(Event* outEvents, uint8_t maxCount, uint8_t& outCount, uint32_t minutesAhead = 60) const;
+//     bool getActiveEvents(Event* outEvents, uint8_t maxCount, uint8_t& outCount) const;
 
-    const Event* getNextEvent() const;
-    const Event* getCurrentEvent() const;
+//     const Event* getNextEvent() const;
+//     const Event* getCurrentEvent() const;
 
-    // ========================================================
-    // CALLBACKS
-    // ========================================================
+//     // ========================================================
+//     // CALLBACKS
+//     // ========================================================
 
-    void setReminderCallback(ReminderCallback callback);
+//     void setReminderCallback(ReminderCallback callback);
 
-private:
+// private:
 
-    // ========================================================
-    // HELPERS
-    // ========================================================
+//     // ========================================================
+//     // HELPERS
+//     // ========================================================
 
-    int8_t findIndex(const String& id) const;
-    int8_t findFreeSlot() const;
+//     int8_t findIndex(const String& id) const;
+//     int8_t findFreeSlot() const;
 
-    void checkReminders();
+//     void checkReminders();
 
-    bool isSameDay(time_t t1, time_t t2) const;
+//     bool isSameDay(time_t t1, time_t t2) const;
 
-    String generateId() const;
+//     String generateId() const;
 
-    // ========================================================
-    // DATA
-    // ========================================================
+//     // ========================================================
+//     // DATA
+//     // ========================================================
 
-    static constexpr uint8_t MAX_EVENTS = 100;
+//     static constexpr uint8_t MAX_EVENTS = 100;
 
-    Event _events[MAX_EVENTS];
-    bool _used[MAX_EVENTS];
-    uint8_t _count;
+//     Event _events[MAX_EVENTS];
+//     bool _used[MAX_EVENTS];
+//     uint8_t _count;
 
-    ReminderCallback _reminderCallback;
+//     ReminderCallback _reminderCallback;
 
-    uint32_t _lastReminderCheck;
+//     uint32_t _lastReminderCheck;
 
-    bool _initialized;
-};
+//     bool _initialized;
+// };
