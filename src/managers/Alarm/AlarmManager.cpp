@@ -20,7 +20,7 @@ namespace
     constexpr int64_t MS_PER_SECOND = 1000LL;
     constexpr int64_t SECONDS_PER_MINUTE = 60LL;
     constexpr int64_t SECONDS_PER_HOUR = 3600LL;
-    constexpr int64_t SECONDS_PER_DAY = 86400LL;
+    constexpr int64_t SECONDS_PER_DAY_ = 86400LL;
 
     constexpr uint16_t CURRENT_SCHEMA_VERSION = 1;
 
@@ -1030,17 +1030,17 @@ time_t AlarmManager::localMidnight(time_t timestamp) const
 {
     const int64_t seconds = static_cast<int64_t>(timestamp);
 
-    int64_t days = seconds / SECONDS_PER_DAY;
+    int64_t days = seconds / SECONDS_PER_DAY_;
 
     if (
         seconds < 0 &&
-        seconds % SECONDS_PER_DAY != 0
+        seconds % SECONDS_PER_DAY_ != 0
     )
     {
         --days;
     }
 
-    return static_cast<time_t>(days * SECONDS_PER_DAY);
+    return static_cast<time_t>(days * SECONDS_PER_DAY_);
 }
 
 time_t AlarmManager::shiftLocalDays(
@@ -1050,7 +1050,7 @@ time_t AlarmManager::shiftLocalDays(
 {
     return static_cast<time_t>(
         static_cast<int64_t>(timestamp) +
-        static_cast<int64_t>(days) * SECONDS_PER_DAY
+        static_cast<int64_t>(days) * SECONDS_PER_DAY_
     );
 }
 
